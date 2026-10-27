@@ -226,6 +226,15 @@ void CheckAsyncRequestLifecycle() {
     result = resultSentinel;
     Require(sceNpWaitAsync(unusedAsyncResult, &result) == 0, "wait on a live async request");
     Require(result == SignedOut, "wait must report the signed-out result on a live async request");
+    const int syncId = sceNpCreateRequest();
+    Require(syncId > 0, "sceNpCreateRequest must return a positive request id");
+    result = resultSentinel;
+    Require(sceNpPollAsync(syncId, &result) == 0, "poll on a live synchronous request");
+    Require(result == SignedOut, "poll must report the signed-out result on a live synchronous request");
+    result = resultSentinel;
+    Require(sceNpWaitAsync(syncId, &result) == 0, "wait on a live synchronous request");
+    Require(result == SignedOut, "wait must report the signed-out result on a live synchronous request");
+    Require(sceNpDeleteRequest(syncId) == 0, "delete of the synchronous request");
     Require(sceNpAbortRequest(unusedAsyncResult) == 0, "abort on a live request");
     Require(sceNpDeleteRequest(unusedAsyncResult) == 0, "delete after abort");
     Require(sceNpDeleteRequest(unusedAsyncResult) == RequestNotFound, "second delete");
