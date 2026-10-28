@@ -866,7 +866,6 @@ int APS5_VABI dup2_nid_postfix(int from, int to) {
         if (GuestSockets::DuplicateTo(from, to) < 0) return -1;
         if (from == to) return to;
         File::ForgetRandomDevice(to);
-        File::ForgetArchivedFile(to);
         File::ForgetDescriptor(to);
         ForgetJitSharedMemory(to);
         File::ForgetDirectoryDescriptor(to);

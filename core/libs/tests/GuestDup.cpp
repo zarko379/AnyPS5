@@ -1,6 +1,7 @@
 #include "prx/libkernel/include/Api.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
+#include "prx/libkernel/KernelErrors.hpp"
 #include <climits>
 #include <cstdint>
 #include <initializer_list>
@@ -132,6 +133,22 @@ static void SocketDuplicates() {
     for (const int descriptor : {target, pair[1], next[0], next[1], pipe[1], other[0], other[1]}) Require(close_nid_postfix(descriptor) == 0);
 }
 
+static void SocketReplacesJitSharedMemory() {
+    constexpr std::size_t JitSize = 0x10000;
+    constexpr int Read = 0x1;
+    constexpr int Write = 0x2;
+    constexpr int Execute = 0x4;
+    int jit = -1;
+    Require(sceKernelJitCreateSharedMemory("dup", JitSize, Read | Write | Execute, &jit) == 0);
+    int pair[2];
+    Require(socketpair_nid_postfix(Unix, Stream, 0, pair) == 0);
+    Require(dup2_nid_postfix(pair[0], jit) == jit);
+    void* address = nullptr;
+    Require(sceKernelJitMapSharedMemory(jit, Read, &address) == SCE_KERNEL_ERROR_EBADF);
+    RequireSocketCarries(jit, pair[1], "jit");
+    for (const int descriptor : {jit, pair[0], pair[1]}) Require(close_nid_postfix(descriptor) == 0);
+}
+
 static void RandomDeviceDuplicates() {
     const int random = open_nid_postfix("/dev/urandom", 0, 0);
     Require(random >= 0);
@@ -211,6 +228,7 @@ int main() {
     Dup2ReplacesTarget();
     BadDescriptors();
     SocketDuplicates();
+    SocketReplacesJitSharedMemory();
     RandomDeviceDuplicates();
     DuplicatesShareStatusFlags();
 }
