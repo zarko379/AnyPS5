@@ -1015,6 +1015,19 @@ static void DuplicatedKqueue() {
     RequireFailure(Apply(watcher, Change(static_cast<std::uintptr_t>(pair[0]), EvfiltWrite, EvDelete)), GuestEnoent);
     RequireNext(pair[0], 1);
     Require(close_nid_postfix(pair[0]) == 0 && close_nid_postfix(pair[1]) == 0);
+    const int replacedQueue = kqueue_nid_postfix();
+    const int keptNumber = dup_nid_postfix(replacedQueue);
+    Require(Apply(replacedQueue, Change(3, EvfiltUser, EvAdd)) == 0);
+    Require(Apply(watcher, Change(static_cast<std::uintptr_t>(replacedQueue), EvfiltRead, EvAdd)) == 0);
+    Require(socketpair_nid_postfix(Unix, Stream, 0, pair) == 0);
+    Require(dup2_nid_postfix(pair[0], replacedQueue) == replacedQueue);
+    RequireFailure(Poll(replacedQueue, events, 4), GuestEbadf);
+    RequireFailure(Apply(watcher, Change(static_cast<std::uintptr_t>(replacedQueue), EvfiltRead, EvDelete)), GuestEnoent);
+    Require(Apply(keptNumber, Change(3, EvfiltUser, 0, NoteTrigger)) == 0);
+    RequireNext(keptNumber, 3);
+    Require(close_nid_postfix(replacedQueue) == 0 && close_nid_postfix(pair[0]) == 0 && close_nid_postfix(pair[1]) == 0);
+    Require(close_nid_postfix(keptNumber) == 0);
+    RequireFailure(Poll(keptNumber, events, 4), GuestEbadf);
 
     const int high = fcntl_nid_postfix(kq, DuplicateCommand, 100);
     Require(high >= 100);

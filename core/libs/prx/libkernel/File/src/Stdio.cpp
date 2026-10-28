@@ -867,6 +867,8 @@ int APS5_VABI dup2_nid_postfix(int from, int to) {
         if (from == to) return to;
         File::ForgetRandomDevice(to);
         File::ForgetArchivedFile(to);
+        File::ForgetDescriptor(to);
+        ForgetJitSharedMemory(to);
         File::ForgetDirectoryDescriptor(to);
 #ifdef _WIN32
         File::ForgetFileLock(to);
