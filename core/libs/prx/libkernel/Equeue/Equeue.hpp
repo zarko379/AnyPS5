@@ -125,6 +125,7 @@ private:
 
 using KernelEqueueRef = std::shared_ptr<KernelEqueuePrivate>;
 void EqueueDescriptorClosed(int descriptor);
+void KqueueDescriptorDuplicated(int from, int to);
 void KqueueDescriptorClosed(int descriptor);
 void EqueueDescriptorReadShut(int descriptor);
 void KqueueDescriptorReadShut(int descriptor);

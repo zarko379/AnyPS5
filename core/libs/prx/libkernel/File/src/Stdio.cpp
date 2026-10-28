@@ -687,6 +687,7 @@ int File::DuplicateFrom(int fd, int start) {
     File::DuplicateDirectoryDescriptor(fd, duplicate);
     if (File::IsRandomDevice(fd)) File::RememberRandomDevice(duplicate);
     File::ShareDescriptor(fd, duplicate);
+    KqueueDescriptorDuplicated(fd, duplicate);
     return duplicate;
 #endif
 }
@@ -842,7 +843,6 @@ extern "C" {
 int APS5_VABI dup_nid_postfix(int d) {
     if (GuestSockets::IsOpen(d)) return GuestSockets::Duplicate(d);
     if (d < 0) return PosixFailure(GUEST_EBADF);
-    if (IsKqueueDescriptor(d)) throw std::runtime_error(std::string(__func__) + ": duplicating a kqueue descriptor is not supported");
 #ifdef _WIN32
     const int duplicate = WithoutParameterHandler([d] { return ::_dup(d); });
     if (duplicate >= 0) File::DuplicateSharedMemoryDescriptor_nid_no_patch(d, duplicate);
@@ -854,6 +854,7 @@ int APS5_VABI dup_nid_postfix(int d) {
     if (File::IsRandomDevice(d)) File::RememberRandomDevice(duplicate);
     File::ShareDescriptor(d, duplicate);
     DuplicateJitSharedMemory(d, duplicate);
+    KqueueDescriptorDuplicated(d, duplicate);
     return duplicate;
 }
 
@@ -873,7 +874,6 @@ int APS5_VABI dup2_nid_postfix(int from, int to) {
         return to;
     }
     const bool sourceIsRandom = File::IsRandomDevice(from);
-    if (from != to && IsKqueueDescriptor(from)) throw std::runtime_error(std::string(__func__) + ": duplicating a kqueue descriptor is not supported");
 #ifdef _WIN32
     if (WithoutParameterHandler([from] { return ::_get_osfhandle(from) == -1 ? -1 : 0; }) != 0) return PosixFailure(GUEST_EBADF);
     if (from == to) return to;
@@ -887,6 +887,7 @@ int APS5_VABI dup2_nid_postfix(int from, int to) {
     if (duplicated != 0) return PosixFailure(SceErrorFromErrno(errno) & 0xffff);
     EqueueDescriptorClosed(to);
     GuestSockets::Forget(to);
+    KqueueDescriptorDuplicated(from, to);
     File::ForgetDirectoryDescriptor(to);
     File::DuplicateDirectoryDescriptor(from, to);
     File::ForgetFileLock(to);
@@ -911,6 +912,7 @@ int APS5_VABI dup2_nid_postfix(int from, int to) {
     File::DuplicateDirectoryDescriptor(from, to);
     EqueueDescriptorClosed(to);
     GuestSockets::Forget(to);
+    KqueueDescriptorDuplicated(from, to);
     File::ForgetRandomDevice(to);
     if (sourceIsRandom) File::RememberRandomDevice(to);
     File::ShareDescriptor(from, to);

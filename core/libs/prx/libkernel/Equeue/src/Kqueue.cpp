@@ -4,6 +4,7 @@
 #include "prx/libkernel/Equeue/include/EdgeWatch.hpp"
 #include "prx/libc/include/General.hpp"
 #include "prx/libkernel/File/include/ArchivedFile.hpp"
+#include "prx/libkernel/File/include/DescriptorControl.hpp"
 #include "prx/libkernel/File/include/DirectoryDescriptor.hpp"
 #include "prx/libkernel/File/include/File.hpp"
 #include "prx/libkernel/File/include/HostStreams.hpp"
@@ -22,6 +23,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -83,6 +85,17 @@ KernelEqueueRef FindKqueue(int descriptor) {
     return found != g_kqueues.end() ? found->second : KernelEqueueRef{};
 }
 
+std::vector<KernelEqueueRef> DistinctKqueues() {
+    std::vector<KernelEqueueRef> queues;
+    queues.reserve(g_kqueues.size());
+    for (const auto& [kqueueDescriptor, queue] : g_kqueues) {
+        queues.push_back(queue);
+    }
+    std::sort(queues.begin(), queues.end());
+    queues.erase(std::unique(queues.begin(), queues.end()), queues.end());
+    return queues;
+}
+
 int ReserveDescriptor() {
 #ifdef _WIN32
     return ::_open("NUL", _O_RDONLY | _O_BINARY);
@@ -125,7 +138,7 @@ std::optional<std::uint64_t> TimerPeriodNanos(std::int64_t data, std::uint32_t f
     return value * unit;
 }
 
-int DescriptorFilterError(int kqueueDescriptor, std::uintptr_t ident) {
+int DescriptorFilterError(const KernelEqueueRef& queue, std::uintptr_t ident) {
     if (ident > static_cast<std::uintptr_t>(INT_MAX)) {
         return GUEST_EBADF;
     }
@@ -136,7 +149,7 @@ int DescriptorFilterError(int kqueueDescriptor, std::uintptr_t ident) {
     if (!DescriptorIsOpen_nid_no_patch(descriptor)) {
         return GUEST_EBADF;
     }
-    return descriptor == kqueueDescriptor ? GUEST_EINVAL : 0;
+    return FindKqueue(descriptor) == queue ? GUEST_EINVAL : 0;
 }
 
 bool MeasuredProcdescDescriptor(int descriptor) {
@@ -435,7 +448,7 @@ int ModifyKnote(const KernelEqueueRef& queue, KernelEvent& change) {
     }));
 }
 
-int Register(const KernelEqueueRef& queue, int kqueueDescriptor, KernelEvent& change) {
+int Register(const KernelEqueueRef& queue, KernelEvent& change) {
     if ((change.flags & (EV_ENABLE | EV_DISABLE)) == (EV_ENABLE | EV_DISABLE)) {
         return GUEST_EINVAL;
     }
@@ -451,7 +464,7 @@ int Register(const KernelEqueueRef& queue, int kqueueDescriptor, KernelEvent& ch
         return GUEST_EPERM;
     }
     if (change.filter == EVFILT_PROCDESC) {
-        if (const int error = DescriptorFilterError(kqueueDescriptor, change.ident)) {
+        if (const int error = DescriptorFilterError(queue, change.ident)) {
             return error;
         }
         if ((change.flags & EV_ADD) == 0) {
@@ -468,7 +481,7 @@ int Register(const KernelEqueueRef& queue, int kqueueDescriptor, KernelEvent& ch
         NotImplemented_nid_no_patch(("kevent: filter " + std::to_string(change.filter)).c_str());
     }
     if (change.filter == EVFILT_READ || change.filter == EVFILT_WRITE || change.filter == EVFILT_VNODE) {
-        if (const int error = DescriptorFilterError(kqueueDescriptor, change.ident)) {
+        if (const int error = DescriptorFilterError(queue, change.ident)) {
             return error;
         }
     }
@@ -524,6 +537,22 @@ std::optional<bool> KqueueReadable(int descriptor) {
     return queue->HasTriggeredEvents();
 }
 
+void KqueueDescriptorDuplicated(int from, int to) {
+    KernelEqueueRef replaced;
+    {
+        std::lock_guard lock(g_kqueueMutex);
+        const auto found = g_kqueues.find(from);
+        if (found == g_kqueues.end()) {
+            return;
+        }
+        auto queue = found->second;
+        replaced = std::exchange(g_kqueues[to], std::move(queue));
+    }
+#ifndef _WIN32
+    ::fcntl(to, F_SETFD, FD_CLOEXEC);
+#endif
+}
+
 void KqueueDescriptorClosed(int descriptor) {
     KernelEqueueRef closed;
     std::vector<KernelEqueueRef> queues;
@@ -534,11 +563,9 @@ void KqueueDescriptorClosed(int descriptor) {
             closed = std::move(found->second);
             g_kqueues.erase(found);
         }
-        for (const auto& [kqueueDescriptor, queue] : g_kqueues) {
-            queues.push_back(queue);
-        }
+        queues = DistinctKqueues();
     }
-    if (closed) {
+    if (closed && std::find(queues.begin(), queues.end(), closed) == queues.end()) {
         closed->Close();
     }
     for (const auto& queue : queues) {
@@ -550,9 +577,7 @@ void KqueueDescriptorReadShut(int descriptor) {
     std::vector<KernelEqueueRef> queues;
     {
         std::lock_guard lock(g_kqueueMutex);
-        for (const auto& [kqueueDescriptor, queue] : g_kqueues) {
-            queues.push_back(queue);
-        }
+        queues = DistinctKqueues();
     }
     for (const auto& queue : queues) {
         queue->WakeReadWaiters(static_cast<std::uintptr_t>(descriptor));
@@ -568,6 +593,7 @@ int APS5_VABI kqueue_nid_postfix() {
         if (errno == ENFILE) return PosixFailure(GUEST_ENFILE);
         throw std::runtime_error(std::string(__func__) + ": reserving a descriptor failed, errno=" + std::to_string(errno));
     }
+    File::RememberDescriptor(descriptor, 0);
     auto queue = std::make_shared<KernelEqueuePrivate>(static_cast<KernelEqueue>(descriptor), true);
     queue->SetName("kqueue");
     std::lock_guard lock(g_kqueueMutex);
@@ -593,7 +619,7 @@ int APS5_VABI kevent_nid_postfix(int descriptor, const KernelEvent* changelist, 
             continue;
         }
         change.flags = static_cast<std::uint16_t>(change.flags & ~EV_SYSFLAGS);
-        const int error = Register(queue, descriptor, change);
+        const int error = Register(queue, change);
         if (error == 0 && (change.flags & EV_RECEIPT) == 0) {
             continue;
         }
