@@ -1,9 +1,11 @@
 #include "prx/libSceIme/include/Api.hpp"
 #include "SceTypes.hpp"
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 
 static_assert(sizeof(Param) == 96);
 static_assert(offsetof(Param, option) == 32);
@@ -118,6 +120,12 @@ static void CheckClosedPanel() {
     Require(sceImeGetPanelPositionAndForm(nullptr) == notOpened, "panel position checks the panel first");
     const auto* formBytes = reinterpret_cast<const unsigned char*>(&form);
     for (size_t i = 0; i < sizeof(form); ++i) Require(formBytes[i] == 0xa5, "panel position written without an open panel");
+    constexpr std::array<std::int32_t, 5> indices{0, 1, -1, std::numeric_limits<std::int32_t>::min(),
+                                                  std::numeric_limits<std::int32_t>::max()};
+    for (const std::int32_t index : indices) {
+        Require(sceImeSetCandidateIndex(index) == notOpened, "candidate index needs an open panel");
+        Require(sceImeConfirmCandidate(index) == notOpened, "candidate confirm needs an open panel");
+    }
 }
 
 static void CheckKeyboardResourceIds() {
@@ -142,6 +150,8 @@ static void CheckKeyboardResourceIds() {
     for (uint32_t id : ids.resource_id) Require(id == 0, "resource id reported without a keyboard");
     Require(sceImeKeyboardGetResourceId(2, &ids) == NotOpened, "keyboard of another user reported as opened");
     Require(ids.user_id == 2, "other user not reported");
+    Require(sceImeSetCandidateIndex(0) == NotOpened, "an open keyboard taken as an open panel for the candidate index");
+    Require(sceImeConfirmCandidate(0) == NotOpened, "an open keyboard taken as an open panel for the candidate confirm");
     Require(sceImeKeyboardClose(1) == 0, "keyboard close failed");
     Require(sceImeKeyboardGetResourceId(1, &ids) == NotOpened, "closed keyboard reported as opened");
 }

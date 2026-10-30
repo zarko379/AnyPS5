@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -161,6 +162,16 @@ void Require(bool value, const char* message) {
     if (value) return;
     std::fprintf(stderr, "%s\n", message);
     std::abort();
+}
+
+template <typename TCall>
+bool ReportsNotImplemented(const char* name, TCall call) {
+    try {
+        call();
+    } catch (const std::runtime_error& error) {
+        return std::string(error.what()) == std::string(name) + " not implemented";
+    }
+    return false;
 }
 
 struct Buffers {
@@ -563,6 +574,29 @@ void CheckHostEvents() {
     Require(sceImeClose_nid_postfix() == 0, "host events close");
 }
 
+void CheckCandidates() {
+    Require(sceImeSetCandidateIndex(0) == NotOpened, "candidate index before open");
+    Require(sceImeConfirmCandidate(0) == NotOpened, "candidate confirm before open");
+    Buffers buffers;
+    std::memcpy(buffers.text, u"ab", sizeof(u"ab"));
+    Param param = MakeParam(buffers, 8);
+    Require(sceImeOpen_nid_postfix(&param, nullptr) == 0, "candidate session open");
+    Drain();
+    for (const std::int32_t index : {0, -1}) {
+        Require(ReportsNotImplemented("sceImeSetCandidateIndex", [&] { sceImeSetCandidateIndex(index); }),
+                "candidate index with an open panel");
+        Require(ReportsNotImplemented("sceImeConfirmCandidate", [&] { sceImeConfirmCandidate(index); }),
+                "candidate confirm with an open panel");
+    }
+    Require(std::u16string(buffers.text) == u"ab", "candidate calls changed the text");
+    Require(sceImeSetText(u"cd", 2) == 0, "session after the candidate calls");
+    Require(std::u16string(buffers.text) == u"cd", "text set after the candidate calls");
+    Require(Drain().empty(), "candidate calls queued an event");
+    Require(sceImeClose_nid_postfix() == 0, "candidate session close");
+    Require(sceImeSetCandidateIndex(0) == NotOpened, "candidate index after close");
+    Require(sceImeConfirmCandidate(0) == NotOpened, "candidate confirm after close");
+}
+
 }
 
 int main() {
@@ -571,4 +605,5 @@ int main() {
     CheckMultiline();
     CheckTextFilter();
     CheckHostEvents();
+    CheckCandidates();
 }

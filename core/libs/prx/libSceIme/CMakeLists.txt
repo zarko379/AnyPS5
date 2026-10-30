@@ -39,6 +39,7 @@ if(BUILD_TESTING)
     target_link_libraries(guest_ime_open_tests PRIVATE libSceIme libc)
     configure_windows_unwind(guest_ime_open_tests)
     add_test(NAME guest_ime_open COMMAND guest_ime_open_tests)
+    set_tests_properties(guest_ime_open PROPERTIES TIMEOUT 30)
     if(WIN32)
         set_tests_properties(guest_ime_open PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIme>")

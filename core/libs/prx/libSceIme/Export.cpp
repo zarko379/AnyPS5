@@ -88,6 +88,11 @@ std::optional<Session> g_session;
 std::atomic<ImeHostTextSink> g_textSink{nullptr};
 std::uint64_t g_nextSessionId = 0;
 
+bool SessionOpen() {
+    std::lock_guard lock(g_imeMutex);
+    return g_session.has_value();
+}
+
 void PanelSize(const Param& param, uint32_t* width, uint32_t* height) {
     const uint32_t scale = (param.option & OptionUseOver2K) != 0 ? 2 : 1;
     *width = (param.type == TypeNumber ? 370u : 793u) * scale;
@@ -653,13 +658,15 @@ int APS5_VABI sceImeVshGetPanelPositionAndForm(ImeVshContext* context, PositionA
 }
 
 int APS5_VABI sceImeSetCandidateIndex(std::int32_t index) {
+    (void)index;
+    if (!SessionOpen()) return ErrorNotOpened;
     NotImplemented_nid_no_patch(__func__);
-    return 0;
 }
 
 int APS5_VABI sceImeConfirmCandidate(std::int32_t index) {
+    (void)index;
+    if (!SessionOpen()) return ErrorNotOpened;
     NotImplemented_nid_no_patch(__func__);
-    return 0;
 }
 
 int APS5_VABI sceImeDisableController(void) {

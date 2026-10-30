@@ -1,6 +1,7 @@
 #include "prx/libSceImeDialog/include/Api.hpp"
 #include "SceTypes.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
+#include "prx/libSceIme/include/Api.hpp"
 #include "prx/libSceIme/include/ImeInput.hpp"
 #include "prx/libSceVideoOut/include/ImeTextInput.hpp"
 #include <cstdint>
@@ -79,6 +80,8 @@ int main() {
     Require(sceImeDialogTerm() == ErrorNotOpened);
 
     Open(param);
+    Require(sceImeSetCandidateIndex(0) == ErrorNotOpened);
+    Require(sceImeConfirmCandidate(0) == ErrorNotOpened);
     for (int poll = 0; poll < 8; ++poll) Require(sceImeDialogGetStatus() == StatusRunning);
     Require(sceImeDialogInit(&param, nullptr) == ErrorBusy);
     Result early{};
