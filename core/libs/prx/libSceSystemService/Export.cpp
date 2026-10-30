@@ -248,6 +248,8 @@ void StartHostExecutable(HostLaunch&) {}
 #endif
 
 constexpr std::size_t TitleIdBufferSize = 10;
+constexpr std::size_t MainAppTitleIdFieldSize = 0x10;
+static_assert(sizeof(AppTitleId::value) <= MainAppTitleIdFieldSize);
 
 std::string RunningTitleId() {
     const AppTitleId titleId = GetAppTitleId_nid_postfix();
@@ -488,6 +490,13 @@ int APS5_VABI sceSystemServiceGetAppId(const char* titleId) {
 
 int APS5_VABI sceSystemServiceGetAppTitleId(int appId, char* titleId) {
  CopyRunningTitleId("sceSystemServiceGetAppTitleId", appId == SYSTEM_SERVICE_RUNNING_APP_ID, titleId);
+ return SYSTEM_SERVICE_OK;
+}
+
+int APS5_VABI sceSystemServiceGetMainAppTitleId(char* titleId) {
+ if (titleId == nullptr) return SYSTEM_SERVICE_ERROR_PARAMETER;
+ const std::string running = RunningTitleId();
+ std::memcpy(titleId, running.c_str(), running.size() + 1);
  return SYSTEM_SERVICE_OK;
 }
 

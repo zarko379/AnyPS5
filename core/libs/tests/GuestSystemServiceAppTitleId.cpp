@@ -13,9 +13,10 @@ namespace {
 
 constexpr char Sentinel = 0x5A;
 
-struct GuardedBuffer {
-    char bytes[10 + 6];
-    GuardedBuffer() { std::memset(bytes, Sentinel, sizeof(bytes)); }
+template<std::size_t TFieldSize>
+struct GuardedField {
+    char bytes[TFieldSize + 6];
+    GuardedField() { std::memset(bytes, Sentinel, sizeof(bytes)); }
     bool Untouched() const {
         for (const char byte : bytes) {
             if (byte != Sentinel) return false;
@@ -23,12 +24,22 @@ struct GuardedBuffer {
         return true;
     }
     bool GuardIntact() const {
-        for (std::size_t index = 10; index < sizeof(bytes); ++index) {
+        for (std::size_t index = TFieldSize; index < sizeof(bytes); ++index) {
+            if (bytes[index] != Sentinel) return false;
+        }
+        return true;
+    }
+    bool HoldsOnly(std::string_view titleId) const {
+        if (titleId.size() >= TFieldSize || std::memcmp(bytes, titleId.data(), titleId.size()) != 0 || bytes[titleId.size()] != '\0') return false;
+        for (std::size_t index = titleId.size() + 1; index < sizeof(bytes); ++index) {
             if (bytes[index] != Sentinel) return false;
         }
         return true;
     }
 };
+
+using GuardedBuffer = GuardedField<10>;
+using MainAppTitleIdBuffer = GuardedField<0x10>;
 
 void Require(bool value) { if (!value) std::abort(); }
 
@@ -82,6 +93,13 @@ void CheckOtherApplications(int runningAppId) {
     Require(LncGetAppTitleIdThrows(std::numeric_limits<std::uint32_t>::max(), buffer));
 }
 
+void CheckMainAppTitleId(std::string_view titleId) {
+    Require(sceSystemServiceGetMainAppTitleId(nullptr) == SYSTEM_SERVICE_ERROR_PARAMETER);
+    MainAppTitleIdBuffer buffer;
+    Require(sceSystemServiceGetMainAppTitleId(buffer.bytes) == 0);
+    Require(buffer.HoldsOnly(titleId));
+}
+
 void CheckNullBuffers(int runningAppId) {
     Require(Throws([&] { static_cast<void>(sceSystemServiceGetAppTitleId(runningAppId, nullptr)); }));
     Require(Throws([&] { static_cast<void>(sceLncUtilGetAppTitleId(runningAppId, nullptr)); }));
@@ -126,6 +144,7 @@ void CheckKnownTitle(int runningAppId) {
 
     CheckOtherApplications(runningAppId);
     CheckNullBuffers(runningAppId);
+    CheckMainAppTitleId(titleId);
 }
 
 void CheckLongTitle(int runningAppId) {
@@ -136,6 +155,7 @@ void CheckLongTitle(int runningAppId) {
     GuardedBuffer buffer;
     Require(GetAppTitleIdThrows(runningAppId, buffer));
     Require(LncGetAppTitleIdThrows(static_cast<std::uint32_t>(runningAppId), buffer));
+    CheckMainAppTitleId("PPSA000000");
 }
 
 void CheckMissingMetadata(int runningAppId) {
@@ -145,6 +165,9 @@ void CheckMissingMetadata(int runningAppId) {
     GuardedBuffer buffer;
     Require(GetAppTitleIdThrows(runningAppId, buffer));
     Require(LncGetAppTitleIdThrows(static_cast<std::uint32_t>(runningAppId), buffer));
+    Require(sceSystemServiceGetMainAppTitleId(nullptr) == SYSTEM_SERVICE_ERROR_PARAMETER);
+    MainAppTitleIdBuffer mainApp;
+    Require(Throws([&] { static_cast<void>(sceSystemServiceGetMainAppTitleId(mainApp.bytes)); }) && mainApp.Untouched());
 }
 
 }

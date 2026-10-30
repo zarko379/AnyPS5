@@ -1828,11 +1828,6 @@ int APS5_VABI sceSystemServiceGetLocalProcessStatusList(SystemServiceLocalProces
     return 0;
 }
 
-int APS5_VABI sceSystemServiceGetMainAppTitleId() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI sceSystemServiceGetPSButtonEvent(const SystemServiceEvent* event, SystemServicePSButtonEvent* buttonEvent) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
