@@ -5,10 +5,13 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <initializer_list>
+#include <string>
 
 static void Require(bool value) { if (!value) std::abort(); }
 
+static constexpr int InvalidVersion = static_cast<int>(0x817B106A);
 static constexpr int InvalidId = static_cast<int>(0x817B1100);
+static constexpr int InvalidValue = static_cast<int>(0x817B11FE);
 
 template <typename TCall>
 static bool Throws(TCall call) {
@@ -19,12 +22,29 @@ static bool Throws(TCall call) {
 int main() {
     Require(sceHttp2CreateCookieBox(0xffff) == static_cast<int>(0x817b121du));
     const int box = sceHttp2CreateCookieBox(0x10000);
+    Require(sceHttp2Init(1, 1, 0x10000, 0) == InvalidValue);
+    Require(sceHttp2Init(1, 1, 0x10000, -1) == InvalidValue);
+    Require(sceHttp2Init(1, 1, 0, 4) == InvalidValue);
+    const int smallPool = sceHttp2Init(1, 1, 1, 1);
+    Require(smallPool > 0 && sceHttp2Term(smallPool) == 0);
     const int context = sceHttp2Init(1, 1, 0x10000, 4);
     const int tmpl = sceHttp2CreateTemplate(context, "agent", 3, 0);
     const int proxyTemplate = sceHttp2CreateTemplate(context, "agent", 3, 1);
     Require(proxyTemplate > 0 && sceHttp2DeleteTemplate(proxyTemplate) == 0);
-    Require(Throws([&] { sceHttp2CreateTemplate(context, "agent", 3, 2); }));
-    Require(Throws([&] { sceHttp2CreateTemplate(context, "agent", 3, -1); }));
+    const int versionOneTemplate = sceHttp2CreateTemplate(context, "agent", 1, 0);
+    Require(versionOneTemplate > 0 && sceHttp2DeleteTemplate(versionOneTemplate) == 0);
+    const std::string longAgent(4096, 'a');
+    const int longAgentTemplate = sceHttp2CreateTemplate(context, longAgent.c_str(), 3, 0);
+    Require(longAgentTemplate > 0 && sceHttp2DeleteTemplate(longAgentTemplate) == 0);
+    Require(sceHttp2CreateTemplate(context, "agent", 3, 2) == InvalidValue);
+    Require(sceHttp2CreateTemplate(context, "agent", 3, -1) == InvalidValue);
+    Require(sceHttp2CreateTemplate(context, nullptr, 3, 0) == InvalidValue);
+    Require(sceHttp2CreateTemplate(context, "", 3, 0) == InvalidValue);
+    Require(sceHttp2CreateTemplate(context, "agent", 0, 0) == InvalidVersion);
+    Require(sceHttp2CreateTemplate(context, "agent", 4, 0) == InvalidVersion);
+    Require(sceHttp2CreateTemplate(context, nullptr, 0, 2) == InvalidValue);
+    Require(sceHttp2CreateTemplate(context, "agent", 4, 2) == InvalidVersion);
+    Require(sceHttp2CreateTemplate(tmpl, nullptr, 0, 2) == InvalidId);
     const int request = sceHttp2CreateRequestWithURL(tmpl, "GET", "https://localhost/", 0);
     Require(box > 0 && context > 0 && tmpl > 0 && request > 0);
     Require(sceHttp2SetCookieBox(tmpl, 0) == 0);
@@ -76,6 +96,7 @@ int main() {
     Require(sceHttp2DeleteRequest(request) == InvalidId);
     Require(sceHttp2SendRequest(request, nullptr, 0) == InvalidId);
     Require(sceHttp2Term(context) == 0);
+    Require(sceHttp2CreateTemplate(context, nullptr, 0, 2) == InvalidId);
     Require(sceHttp2DeleteRequest(child) == InvalidId);
     Require(sceHttp2DeleteTemplate(sibling) == InvalidId);
     Require(sceHttp2SetMinSslVersion(context, 0) == InvalidId);

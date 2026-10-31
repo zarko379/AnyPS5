@@ -14,7 +14,9 @@
 #include <stdexcept>
 #include <unordered_map>
 
+static constexpr int ERROR_INVALID_VERSION = static_cast<int>(0x817B106A);
 static constexpr int ERROR_INVALID_ID = static_cast<int>(0x817B1100);
+static constexpr int ERROR_INVALID_VALUE = static_cast<int>(0x817B11FE);
 static constexpr int ERROR_NULL_POINTER = static_cast<int>(0x817B1225);
 
 enum class Http2Kind : std::uint8_t { Context, Template, Request, CookieBox };
@@ -118,8 +120,9 @@ int APS5_VABI sceHttp2CreateTemplate(int lib_http2_ctx_id, const char* user_agen
     std::lock_guard lock(g_handlesMutex);
     const auto* parent = FindHandle(lib_http2_ctx_id, Http2Kind::Context);
     if (!parent) return ERROR_INVALID_ID;
-    if (!user_agent) NotImplemented_nid_no_patch(__func__);
-    if ((is_auto_proxy_conf != 0 && is_auto_proxy_conf != 1) || http_ver < 1 || http_ver > 3) NotImplemented_nid_no_patch(__func__);
+    if (!user_agent || !*user_agent) return ERROR_INVALID_VALUE;
+    if (http_ver < 1 || http_ver > 3) return ERROR_INVALID_VERSION;
+    if (is_auto_proxy_conf != 0 && is_auto_proxy_conf != 1) return ERROR_INVALID_VALUE;
     Http2Handle handle{Http2Kind::Template, lib_http2_ctx_id, 0};
     handle.sslContext = parent->sslContext;
     handle.capacity = parent->capacity;
@@ -165,7 +168,7 @@ int APS5_VABI sceHttp2GetStatusCode(int req_id, int* status_code) {
 }
 
 int APS5_VABI sceHttp2Init(int libnet_mem_id, int libssl_ctx_id, size_t pool_size, int max_concurrent_request) {
-    if (max_concurrent_request <= 0) NotImplemented_nid_no_patch(__func__);
+    if (pool_size == 0 || max_concurrent_request <= 0) return ERROR_INVALID_VALUE;
     const int id = g_nextHandle.fetch_add(1, std::memory_order_relaxed);
     std::lock_guard lock(g_handlesMutex);
     Http2Handle handle{Http2Kind::Context, 0, pool_size};
