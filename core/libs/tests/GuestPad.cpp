@@ -709,6 +709,7 @@ int main() {
     for (const int type : {5, 6, 16, 0xff, -1}) Require(scePadOpen_nid_postfix(user, type, 0, nullptr) == PAD_ERROR_INVALID_ARG);
     Require(scePadGetHandle(user, 0, 0) == noHandle);
     const unsigned char wheel[16]{0xb7, 0x0e, 0x04, 0x0e, 0x08, 0x6e, 0x01};
+    const unsigned char extParam[16]{};
     Require(scePadOpenExt(user, PAD_PORT_TYPE_SPECIAL, 0, wheel) == static_cast<int>(0x80920007));
     Require(scePadOpenExt(user, PAD_PORT_TYPE_SPECIAL, 1, wheel) == PAD_ERROR_INVALID_ARG);
     Require(scePadOpenExt(user, PAD_PORT_TYPE_SPECIAL, 0, nullptr) == PAD_ERROR_INVALID_ARG);
@@ -732,6 +733,8 @@ int main() {
     const int handle = scePadOpen_nid_postfix(user, 0, 0, nullptr);
     Require(handle > 0);
     Require(scePadUnknown_n3kSX62fgNo() == PAD_OK);
+    Require(scePadGetHandle(user, 0, 0) == handle);
+    Require(scePadOpenExt(user, 0, 0, extParam) == handle);
     Require(scePadGetHandle(user, 0, 0) == handle);
     CheckSpecialPort(user, handle);
     CheckTiltCorrection(handle);
@@ -832,4 +835,27 @@ int main() {
     Require(!scePadIsValidHandle(handle2, PAD_PORT_TYPE_STANDARD));
     Require(scePadSetAngularVelocityDeadbandState(handle2, false) == PAD_OK);
     Require(scePadSetAngularVelocityDeadbandState(handle2 + 1, false) == PAD_ERROR_INVALID_HANDLE);
+
+    const int user4 = 0x10000003;
+    Require(scePadGetHandle(user4, 0, 0) == noHandle);
+    const int ext = scePadOpenExt(user4, 0, 0, extParam);
+    Require(ext == PAD_HANDLE_BASE + 3);
+    Require(scePadGetHandle(user4, 0, 0) == ext);
+    Require(scePadIsValidHandle(ext, PAD_PORT_TYPE_STANDARD));
+    PadData extData{};
+    Require(scePadReadState(ext, &extData) == PAD_OK);
+    Require(scePadOpenExt(user4, 0, 0, extParam) == ext);
+    Require(scePadOpen_nid_postfix(user4, 0, 0, nullptr) == ext);
+    Require(scePadClose_nid_postfix(ext) == PAD_OK);
+    Require(scePadGetHandle(user4, 0, 0) == noHandle);
+    Require(!scePadIsValidHandle(ext, PAD_PORT_TYPE_STANDARD));
+    Require(scePadOpenExt(user4, 0, 0, nullptr) == PAD_ERROR_INVALID_ARG);
+    for (const int type : {3, 4}) Require(scePadOpenExt(user4, type, 0, extParam) == PAD_ERROR_INVALID_ARG);
+    Require(scePadGetHandle(user4, 0, 0) == noHandle);
+    const int remoteExt = scePadOpenExt(PAD_USER_ID_SYSTEM, PAD_PORT_TYPE_REMOTE, 0, extParam);
+    Require(remoteExt == PAD_REMOTE_HANDLE);
+    Require(scePadGetHandle(PAD_USER_ID_SYSTEM, PAD_PORT_TYPE_REMOTE, 0) == remoteExt);
+    Require(scePadIsValidHandle(remoteExt, PAD_PORT_TYPE_REMOTE));
+    Require(scePadClose_nid_postfix(remoteExt) == PAD_OK);
+    Require(scePadGetHandle(PAD_USER_ID_SYSTEM, PAD_PORT_TYPE_REMOTE, 0) == noHandle);
 }
