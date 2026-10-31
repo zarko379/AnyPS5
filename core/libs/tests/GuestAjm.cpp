@@ -756,6 +756,8 @@ void TestGaplessDecode(std::uint32_t context) {
     Require(sceAjmInstanceDestroy(context, instance) == 0);
 }
 
+constexpr std::uint64_t RUN_GET_CODEC_INFO = 1ull << 11;
+
 void TestCodecInfo(std::uint32_t context) {
     std::uint32_t instance = 0;
     Require(sceAjmInstanceCreate(context, 1, 0, &instance) == 0);
@@ -780,11 +782,10 @@ void TestCodecInfo(std::uint32_t context) {
     Require(codec.result == 0 && codec.internalResult == 0 && codec.superframeSize == 1024 && codec.framesInSuperframe == 4 && codec.nextFrameSize == 1024 && codec.frameSamples == 256);
     Require(bounded.result == 0 && bounded.superframeSize == 0xaaaaaaaau && bounded.frameSamples == 0xaaaaaaaau);
 
-    constexpr std::uint64_t runGetCodecInfo = 1ull << 11;
     constexpr std::uint64_t runMultipleFrames = 1ull << 12;
     std::uint8_t sideband[64] = {};
     Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
-    Require(sceAjmBatchJobRun(&info, instance, runGetCodecInfo | runMultipleFrames, nullptr, 0, nullptr, 0, sideband, sizeof(sideband)) == 0);
+    Require(sceAjmBatchJobRun(&info, instance, RUN_GET_CODEC_INFO | runMultipleFrames, nullptr, 0, nullptr, 0, sideband, sizeof(sideband)) == 0);
     Require(Refused(context, info));
     Require(sceAjmInstanceDestroy(context, instance) == 0);
 
@@ -2260,6 +2261,471 @@ void TestOpusGaplessReset(std::uint32_t context, std::size_t outputFrames, float
     Require(sceAjmInstanceDestroy(context, reference) == 0);
 }
 
+constexpr std::uint64_t SIDEBAND_FORMAT = 1ull << 46;
+constexpr std::uint8_t OPUS_FRAME_BYTES = 69;
+
+struct OpusCodecInfoSideband {
+    std::int32_t result;
+    std::int32_t internalResult;
+    std::uint32_t framesPerPacket;
+    std::uint32_t beyond;
+};
+
+struct OpusRunCodecInfo {
+    DecodeSideband stream;
+    std::uint32_t framesPerPacket;
+    std::uint32_t beyond;
+};
+
+struct OpusOrderedCodecInfo {
+    DecodeSideband stream;
+    std::uint32_t format[6];
+    GaplessDecode gapless;
+    std::uint32_t framesPerPacket;
+    std::uint32_t beyond;
+};
+static_assert(sizeof(OpusOrderedCodecInfo) == 64);
+
+std::uint8_t OpusToc(std::uint32_t config, std::uint32_t code) {
+    return static_cast<std::uint8_t>((config << 3u) | 0x04u | code);
+}
+
+std::vector<std::uint8_t> OpusPacket(std::uint8_t toc, const std::vector<std::uint8_t>& header, std::size_t frames) {
+    std::vector<std::uint8_t> packet{0, 0, toc};
+    packet.insert(packet.end(), header.begin(), header.end());
+    for (std::size_t frame = 0; frame < frames; ++frame) packet.insert(packet.end(), OPUS_STEREO + 3, OPUS_STEREO + 3 + OPUS_FRAME_BYTES);
+    packet[0] = static_cast<std::uint8_t>(packet.size() - 2);
+    packet[1] = static_cast<std::uint8_t>((packet.size() - 2) >> 8u);
+    return packet;
+}
+
+std::vector<std::uint8_t> OpusPacketOfCode(std::uint32_t code) {
+    Require(OPUS_STEREO[0] == OPUS_FRAME_BYTES + 1 && OPUS_STEREO[1] == 0 && OPUS_STEREO[2] == OpusToc(15, 0));
+    if (code == 0) return OpusPacket(OpusToc(15, 0), {}, 1);
+    if (code == 1) return OpusPacket(OpusToc(15, 1), {}, 2);
+    if (code == 2) return OpusPacket(OpusToc(15, 2), {OPUS_FRAME_BYTES}, 2);
+    return OpusPacket(OpusToc(15, 3), {3}, 3);
+}
+
+void DecodeOpusPacket(std::uint32_t context, std::uint32_t instance, const std::vector<std::uint8_t>& packet, std::size_t samples, std::size_t channels) {
+    std::vector<std::int16_t> pcm(2880 * channels);
+    DecodeSideband sideband{};
+    RunDecode(context, instance, packet.data(), packet.size(), pcm.data(), pcm.size() * sizeof(std::int16_t), sideband);
+    Require(sideband.result == 0 && static_cast<std::size_t>(sideband.inputConsumed) == packet.size() && static_cast<std::size_t>(sideband.outputWritten) == samples * channels * sizeof(std::int16_t));
+}
+
+std::int32_t RunGaplessDecode(std::uint32_t context, std::uint32_t instance, const GaplessDecode* gapless, int reset) {
+    std::vector<std::uint8_t> batch(4096);
+    AjmBatchInfo info{};
+    std::int32_t result[2] = {-1, -1};
+    Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+    Require(sceAjmBatchJobSetGaplessDecode(&info, instance, gapless, reset, result) == 0);
+    Submit(context, info);
+    return result[0];
+}
+
+void SetGapless(std::uint32_t context, std::uint32_t instance, const GaplessDecode* gapless, int reset) {
+    Require(RunGaplessDecode(context, instance, gapless, reset) == 0);
+}
+
+void ClearInstanceContext(std::uint32_t context, std::uint32_t instance) {
+    std::vector<std::uint8_t> batch(4096);
+    AjmBatchInfo info{};
+    std::int32_t result[2] = {-1, -1};
+    Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+    Require(sceAjmBatchJobClearContext(&info, instance, result) == 0);
+    Submit(context, info);
+    Require(result[0] == 0);
+}
+
+AjmBatchInfo CodecInfoJob(std::vector<std::uint8_t>& batch, std::uint32_t instance, OpusCodecInfoSideband& codec, std::size_t size = sizeof(OpusCodecInfoSideband) - sizeof(std::uint32_t)) {
+    codec = OpusCodecInfoSideband{-1, -1, 0xaaaaaaaau, 0xaaaaaaaau};
+    AjmBatchInfo info{};
+    Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+    Require(sceAjmBatchJobGetCodecInfo(&info, instance, &codec, size) == 0);
+    return info;
+}
+
+std::uint32_t OpusFramesPerPacket(std::uint32_t context, std::uint32_t instance) {
+    std::vector<std::uint8_t> batch(4096);
+    OpusCodecInfoSideband codec{};
+    Submit(context, CodecInfoJob(batch, instance, codec));
+    Require(codec.result == 0 && codec.internalResult == 0 && codec.framesPerPacket != 0xaaaaaaaau && codec.beyond == 0xaaaaaaaau);
+    return codec.framesPerPacket;
+}
+
+bool CodecInfoRefused(std::uint32_t context, std::uint32_t instance) {
+    std::vector<std::uint8_t> batch(4096);
+    OpusCodecInfoSideband codec{};
+    const AjmBatchInfo info = CodecInfoJob(batch, instance, codec);
+    return Refused(context, info) && codec.framesPerPacket == 0xaaaaaaaau;
+}
+
+bool CodecInfoResultOnly(std::uint32_t context, std::uint32_t instance) {
+    std::vector<std::uint8_t> batch(4096);
+    OpusCodecInfoSideband codec{};
+    Submit(context, CodecInfoJob(batch, instance, codec, 2 * sizeof(std::int32_t)));
+    return codec.result == 0 && codec.framesPerPacket == 0xaaaaaaaau;
+}
+
+void TestOpusCodecInfo(std::uint32_t context) {
+    std::vector<std::uint8_t> batch(4096);
+    AjmBatchInfo info{};
+    const auto initialize = [&](std::uint32_t target, const std::uint32_t (&parameters)[3]) {
+        std::int32_t result[2] = {-1, -1};
+        Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+        Require(sceAjmBatchJobInitialize(&info, target, parameters, sizeof(parameters), result) == 0);
+        Submit(context, info);
+        return result[0];
+    };
+
+    std::uint32_t instance = 0;
+    Require(sceAjmInstanceCreate(context, 24, 0, &instance) == 0);
+    OpusCodecInfoSideband early{};
+    Submit(context, CodecInfoJob(batch, instance, early));
+    Require(early.result == 1 && early.framesPerPacket == 0xaaaaaaaau);
+    Require(sceAjmInstanceDestroy(context, instance) == 0);
+
+    instance = CreateOpus(context);
+    Require(CodecInfoResultOnly(context, instance));
+    Require(OpusFramesPerPacket(context, instance) == 0);
+
+    std::vector<std::int16_t> pcm(2880 * 2);
+    OpusRunCodecInfo run{};
+    const auto runJob = [&](const std::uint8_t* input, std::size_t inputSize) {
+        run = OpusRunCodecInfo{{-1, -1, 0, 0, 0}, 0xaaaaaaaau, 0xaaaaaaaau};
+        Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+        Require(sceAjmBatchJobRun(&info, instance, SIDEBAND_STREAM | RUN_GET_CODEC_INFO, input, inputSize, pcm.data(), pcm.size() * sizeof(std::int16_t), &run, sizeof(run) - sizeof(run.beyond)) == 0);
+        return info;
+    };
+    Submit(context, runJob(OPUS_STEREO, sizeof(OPUS_STEREO)));
+    Require(run.stream.result == 0 && run.stream.inputConsumed == 72 && run.stream.outputWritten == 960 * 2 * 2 && run.stream.totalDecodedSamples == 960);
+    Require(run.framesPerPacket == 1 && run.beyond == 0xaaaaaaaau);
+
+    const auto variable = OpusPacket(OpusToc(15, 3), {0x83, OPUS_FRAME_BYTES, OPUS_FRAME_BYTES}, 3);
+    Submit(context, runJob(variable.data(), variable.size()));
+    Require(variable.size() == 213 && run.stream.result == 0 && run.stream.inputConsumed == 213 && run.stream.outputWritten == 2880 * 2 * 2 && run.framesPerPacket == 3);
+
+    const std::vector<std::uint8_t> packets[4] = {OpusPacketOfCode(0), OpusPacketOfCode(1), OpusPacketOfCode(2), OpusPacketOfCode(3)};
+    Require(std::equal(packets[0].begin(), packets[0].end(), OPUS_STEREO));
+    Require(packets[1].size() == 2 + 139 && packets[2].size() == 2 + 140 && packets[3].size() == 2 + 209);
+    const std::uint32_t frames[4] = {1, 2, 2, 3};
+    for (std::size_t code = 0; code < 4; ++code) {
+        DecodeOpusPacket(context, instance, packets[code], frames[code] * 960, 2);
+        Require(OpusFramesPerPacket(context, instance) == frames[code]);
+    }
+    OpusCodecInfoSideband wide{};
+    Submit(context, CodecInfoJob(batch, instance, wide, sizeof(wide)));
+    Require(wide.result == 0 && wide.framesPerPacket == 3);
+
+    const std::vector<std::uint8_t> failing[3] = {OpusPacket(OpusToc(15, 3), {0}, 0), OpusPacket(OpusToc(15, 1), {0}, 0), {0, 0}};
+    for (const auto& packet : failing) {
+        Submit(context, runJob(packet.data(), packet.size()));
+        Require(run.stream.result == 2 && run.stream.inputConsumed == 0 && run.stream.outputWritten == 0 && run.framesPerPacket == 3);
+    }
+
+    const GaplessDecode none{0, 0, 0};
+    SetGapless(context, instance, &none, 0);
+    Require(OpusFramesPerPacket(context, instance) == 3);
+    SetGapless(context, instance, &none, 1);
+    Require(CodecInfoRefused(context, instance) && CodecInfoResultOnly(context, instance));
+    Submit(context, runJob(packets[1].data(), packets[1].size()));
+    Require(run.stream.result == 0 && static_cast<std::size_t>(run.stream.inputConsumed) == packets[1].size() && run.framesPerPacket == 2);
+    RunGaplessDecode(context, instance, nullptr, 1);
+    Require(OpusFramesPerPacket(context, instance) == 2);
+    SetGapless(context, instance, &none, 1);
+    Require(Refused(context, runJob(packets[1].data(), 1)) && run.framesPerPacket == 0xaaaaaaaau);
+
+    ClearInstanceContext(context, instance);
+    Require(OpusFramesPerPacket(context, instance) == 0);
+    SetGapless(context, instance, &none, 1);
+    Require(OpusFramesPerPacket(context, instance) == 0);
+
+    DecodeOpusPacket(context, instance, packets[0], 960, 2);
+    Require(OpusFramesPerPacket(context, instance) == 1);
+    SetGapless(context, instance, &none, 1);
+    std::int32_t resetResult[2] = {-1, -1};
+    RunControl(context, instance, CONTROL_RESET, nullptr, 0, resetResult);
+    Require(resetResult[0] == 0 && OpusFramesPerPacket(context, instance) == 0);
+
+    const std::uint32_t stereo[3] = {2, 48000, 0};
+    const std::uint32_t invalid[3] = {0, 48000, 0};
+    DecodeOpusPacket(context, instance, packets[2], 1920, 2);
+    Require(OpusFramesPerPacket(context, instance) == 2);
+    Require(initialize(instance, stereo) == 0 && OpusFramesPerPacket(context, instance) == 0);
+    DecodeOpusPacket(context, instance, packets[2], 1920, 2);
+    SetGapless(context, instance, &none, 1);
+    Require(CodecInfoRefused(context, instance));
+    Require(initialize(instance, stereo) == 0 && OpusFramesPerPacket(context, instance) == 0);
+
+    Require(initialize(instance, invalid) == 4 && OpusFramesPerPacket(context, instance) == 0);
+    DecodeOpusPacket(context, instance, packets[3], 2880, 2);
+    Require(CodecInfoRefused(context, instance));
+    Require(initialize(instance, invalid) == 4 && CodecInfoRefused(context, instance));
+    DecodeOpusPacket(context, instance, packets[0], 960, 2);
+    Require(CodecInfoRefused(context, instance));
+    ClearInstanceContext(context, instance);
+    Require(OpusFramesPerPacket(context, instance) == 0);
+    DecodeOpusPacket(context, instance, packets[1], 1920, 2);
+    Require(CodecInfoRefused(context, instance));
+    Require(initialize(instance, stereo) == 0 && OpusFramesPerPacket(context, instance) == 0);
+
+    DecodeOpusPacket(context, instance, packets[3], 2880, 2);
+    OpusOrderedCodecInfo ordered{};
+    std::memset(&ordered, 0xaa, sizeof(ordered));
+    Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+    Require(sceAjmBatchJobRunSplit(&info, instance, SIDEBAND_STREAM | SIDEBAND_FORMAT | SIDEBAND_GAPLESS_DECODE | RUN_GET_CODEC_INFO, nullptr, 0, nullptr, 0, &ordered, sizeof(ordered) - sizeof(ordered.beyond)) == 0);
+    Submit(context, info);
+    const std::uint32_t format[6] = {2, 3, 48000, 0, 0, 0};
+    Require(ordered.stream.result == 0 && ordered.stream.inputConsumed == 0 && ordered.stream.outputWritten == 0 && ordered.stream.totalDecodedSamples == 2880);
+    Require(std::equal(format, format + 6, ordered.format) && ordered.gapless.totalSamples == 0 && ordered.framesPerPacket == 3 && ordered.beyond == 0xaaaaaaaau);
+
+    constexpr std::uint64_t version = 1;
+    const AjmBuffer input{const_cast<std::uint8_t*>(packets[3].data()), packets[3].size()};
+    const AjmBuffer output{pcm.data(), pcm.size() * sizeof(std::int16_t)};
+    OpusRunCodecInfo console{{-1, -1, 0, 0, 0}, 0xaaaaaaaau, 0xaaaaaaaau};
+    OpusCodecInfoSideband kept{-1, -1, 0xaaaaaaaau, 0xaaaaaaaau};
+    OpusCodecInfoSideband afterReset{-1, -1, 0xaaaaaaaau, 0xaaaaaaaau};
+    std::int32_t control[2] = {-1, -1};
+    std::vector<std::uint8_t> consoleBatch(4096, 0xCD);
+    void* at = sceAjmBatchJobRunSplitBufferRa(consoleBatch.data(), instance, version | SIDEBAND_STREAM | RUN_GET_CODEC_INFO, &input, 1, &output, 1, &console, sizeof(console) - sizeof(console.beyond), nullptr);
+    at = sceAjmBatchJobRunSplitBufferRa(at, instance, version | RUN_GET_CODEC_INFO, nullptr, 0, nullptr, 0, &kept, sizeof(kept) - sizeof(kept.beyond), nullptr);
+    at = sceAjmBatchJobControlBufferRa(at, instance, version | CONTROL_RESET, nullptr, 0, control, sizeof(control), nullptr);
+    at = sceAjmBatchJobRunSplitBufferRa(at, instance, version | RUN_GET_CODEC_INFO, nullptr, 0, nullptr, 0, &afterReset, sizeof(afterReset) - sizeof(afterReset.beyond), nullptr);
+    Require(StartBuffer(context, consoleBatch.data(), static_cast<std::uint8_t*>(at) - consoleBatch.data()) == 0);
+    Require(console.stream.result == 0 && static_cast<std::size_t>(console.stream.inputConsumed) == packets[3].size() && console.stream.outputWritten == 2880 * 2 * 2);
+    Require(console.framesPerPacket == 3 && console.beyond == 0xaaaaaaaau);
+    Require(kept.result == 0 && kept.framesPerPacket == 3 && kept.beyond == 0xaaaaaaaau);
+    Require(control[0] == 0 && afterReset.result == 0 && afterReset.framesPerPacket == 0 && afterReset.beyond == 0xaaaaaaaau);
+
+    Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+    Require(sceAjmBatchJobRun(&info, instance, RUN_GET_CODEC_INFO | RUN_MULTIPLE_FRAMES, packets[0].data(), packets[0].size(), pcm.data(), pcm.size() * sizeof(std::int16_t), &run, sizeof(run)) == 0);
+    Require(Refused(context, info));
+    Require(sceAjmInstanceDestroy(context, instance) == 0);
+
+    const std::uint32_t singleStream[2][3] = {{1, 48000, 255}, {2, 48000, 1}};
+    for (const auto& parameters : singleStream) {
+        Require(sceAjmInstanceCreate(context, 24, 0, &instance) == 0);
+        Require(initialize(instance, parameters) == 0);
+        DecodeOpusPacket(context, instance, packets[1], 1920, parameters[0]);
+        Require(OpusFramesPerPacket(context, instance) == 2);
+        Require(sceAjmInstanceDestroy(context, instance) == 0);
+    }
+    const std::uint32_t multistream[3][3] = {{3, 48000, 1}, {6, 48000, 1}, {2, 48000, 255}};
+    for (const auto& parameters : multistream) {
+        Require(sceAjmInstanceCreate(context, 24, 0, &instance) == 0);
+        Require(initialize(instance, parameters) == 0);
+        Require(CodecInfoRefused(context, instance));
+        Require(sceAjmInstanceDestroy(context, instance) == 0);
+    }
+    const std::uint32_t pcmParameters[3] = {0, 2, 44100};
+    Require(sceAjmInstanceCreate(context, 23, 0, &instance) == 0);
+    Require(initialize(instance, pcmParameters) == 0);
+    Require(CodecInfoRefused(context, instance));
+    Require(sceAjmInstanceDestroy(context, instance) == 0);
+}
+
+void TestOpusCodecInfoUnsettled(std::uint32_t context) {
+    const auto instance = CreateOpus(context);
+    const auto celt = [](std::uint8_t count) { return OpusPacket(OpusToc(28, 3), {count}, 0); };
+    const auto silk = OpusPacket(OpusToc(10, 0), {}, 1);
+    DecodeOpusPacket(context, instance, celt(6), 6 * 120, 2);
+    Require(OpusFramesPerPacket(context, instance) == 6);
+    DecodeOpusPacket(context, instance, celt(7), 7 * 120, 2);
+    Require(CodecInfoRefused(context, instance));
+    DecodeOpusPacket(context, instance, OpusPacketOfCode(0), 960, 2);
+    Require(OpusFramesPerPacket(context, instance) == 1);
+    DecodeOpusPacket(context, instance, silk, 1920, 2);
+    Require(CodecInfoRefused(context, instance));
+    DecodeOpusPacket(context, instance, OpusPacketOfCode(1), 1920, 2);
+    Require(OpusFramesPerPacket(context, instance) == 2);
+
+    std::vector<std::uint8_t> pair(silk);
+    const auto settled = OpusPacketOfCode(0);
+    pair.insert(pair.end(), settled.begin(), settled.end());
+    std::vector<std::uint8_t> batch(4096);
+    std::vector<std::int16_t> pcm(2880 * 2);
+    DecodeSideband multiple{};
+    AjmBatchInfo info{};
+    Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+    Require(sceAjmBatchJobRun(&info, instance, SIDEBAND_STREAM | RUN_MULTIPLE_FRAMES, pair.data(), pair.size(), pcm.data(), pcm.size() * sizeof(std::int16_t), &multiple, sizeof(multiple)) == 0);
+    Submit(context, info);
+    Require(multiple.result == 0 && static_cast<std::size_t>(multiple.inputConsumed) == pair.size() && multiple.outputWritten == 2880 * 2 * 2);
+    Require(CodecInfoRefused(context, instance));
+    DecodeOpusPacket(context, instance, OpusPacketOfCode(3), 2880, 2);
+    Require(OpusFramesPerPacket(context, instance) == 3);
+
+    ClearInstanceContext(context, instance);
+    const GaplessDecode limited{1000, 0, 0};
+    SetGapless(context, instance, &limited, 1);
+    Require(OpusFramesPerPacket(context, instance) == 0);
+    DecodeOpusPacket(context, instance, OpusPacketOfCode(0), 960, 2);
+    Require(OpusFramesPerPacket(context, instance) == 1);
+    DecodeOpusPacket(context, instance, OpusPacketOfCode(2), 40, 2);
+    Require(OpusFramesPerPacket(context, instance) == 2);
+    DecodeOpusPacket(context, instance, OpusPacketOfCode(0), 0, 2);
+    Require(CodecInfoRefused(context, instance));
+    ClearInstanceContext(context, instance);
+    Require(OpusFramesPerPacket(context, instance) == 0);
+    Require(sceAjmInstanceDestroy(context, instance) == 0);
+}
+
+void TestOpusCodecInfoDrain(std::uint32_t context) {
+    const auto instance = CreateOpus(context);
+    std::vector<std::uint8_t> batch(4096);
+    std::vector<std::int16_t> pcm(960 * 2);
+    OpusRunCodecInfo run{};
+    const auto runJob = [&](const std::vector<std::uint8_t>& packet) {
+        run = OpusRunCodecInfo{{-1, -1, 0, 0, 0}, 0xaaaaaaaau, 0xaaaaaaaau};
+        AjmBatchInfo info{};
+        Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+        Require(sceAjmBatchJobRun(&info, instance, SIDEBAND_STREAM | RUN_GET_CODEC_INFO, packet.data(), packet.size(), pcm.data(), pcm.size() * sizeof(std::int16_t), &run, sizeof(run) - sizeof(run.beyond)) == 0);
+        return info;
+    };
+    const auto packet = OpusPacketOfCode(0);
+    Require(Refused(context, runJob(OpusPacketOfCode(3))) && run.framesPerPacket == 0xaaaaaaaau);
+    Require(Refused(context, runJob(packet)) && run.framesPerPacket == 0xaaaaaaaau);
+    Require(Refused(context, runJob(packet)) && run.framesPerPacket == 0xaaaaaaaau);
+    Submit(context, runJob(packet));
+    Require(run.stream.result == 0 && run.stream.inputConsumed == 72 && run.stream.outputWritten == 960 * 2 * 2 && run.framesPerPacket == 1);
+    Require(sceAjmInstanceDestroy(context, instance) == 0);
+}
+
+void TestOpusCodecInfoRoom(std::uint32_t context) {
+    const auto instance = CreateOpus(context);
+    constexpr std::size_t frameBytes = 2 * sizeof(std::int16_t);
+    std::vector<std::uint8_t> batch(4096);
+    std::vector<std::int16_t> pcm(2880 * 2);
+    DecodeSideband sideband{};
+    const auto run = [&](std::uint64_t flags, const std::vector<std::uint8_t>& input, std::size_t outputBytes) {
+        sideband = DecodeSideband{-1, -1, 0, 0, 0};
+        AjmBatchInfo info{};
+        Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+        Require(sceAjmBatchJobRun(&info, instance, SIDEBAND_STREAM | flags, input.data(), input.size(), pcm.data(), outputBytes, &sideband, sizeof(sideband)) == 0);
+        Submit(context, info);
+    };
+    const auto single = OpusPacketOfCode(0);
+    const auto twice = OpusPacketOfCode(1);
+    std::vector<std::uint8_t> pair(single);
+    pair.insert(pair.end(), twice.begin(), twice.end());
+
+    run(RUN_MULTIPLE_FRAMES, pair, 2880 * frameBytes);
+    Require(static_cast<std::size_t>(sideband.inputConsumed) == pair.size() && sideband.outputWritten == 2880 * frameBytes);
+    Require(OpusFramesPerPacket(context, instance) == 2);
+    run(RUN_MULTIPLE_FRAMES, single, 960 * frameBytes);
+    Require(sideband.inputConsumed == 72 && sideband.outputWritten == 960 * frameBytes);
+    Require(OpusFramesPerPacket(context, instance) == 1);
+    run(RUN_MULTIPLE_FRAMES, pair, 960 * frameBytes);
+    Require(sideband.outputWritten == 960 * frameBytes && CodecInfoRefused(context, instance));
+    std::vector<std::uint8_t> cut(single);
+    cut.push_back(single[0]);
+    run(RUN_MULTIPLE_FRAMES, cut, 960 * frameBytes);
+    Require(sideband.inputConsumed == 72 && sideband.outputWritten == 960 * frameBytes);
+    Require(OpusFramesPerPacket(context, instance) == 1);
+    run(0, twice, 2880 * frameBytes);
+    Require(OpusFramesPerPacket(context, instance) == 2);
+
+    run(0, single, frameBytes / 2);
+    Require(sideband.result == 0x10 && sideband.inputConsumed == 0 && sideband.outputWritten == 0);
+    Require(OpusFramesPerPacket(context, instance) == 2);
+    ClearInstanceContext(context, instance);
+    const GaplessDecode skipPacket{0, 960, 0};
+    SetGapless(context, instance, &skipPacket, 1);
+    run(0, single, frameBytes / 2);
+    Require(CodecInfoRefused(context, instance));
+    run(0, single, 960 * frameBytes);
+    Require(OpusFramesPerPacket(context, instance) == 1);
+
+    ClearInstanceContext(context, instance);
+    const GaplessDecode skipLong{0, 1920, 0};
+    SetGapless(context, instance, &skipLong, 1);
+    run(0, OpusPacket(OpusToc(10, 0), {}, 1), frameBytes / 2);
+    Require(sideband.inputConsumed == 0 && sideband.outputWritten == 0 && OpusFramesPerPacket(context, instance) == 0);
+    const GaplessDecode limited{960, 0, 0};
+    SetGapless(context, instance, &limited, 1);
+    std::vector<std::uint8_t> repeated(single);
+    repeated.insert(repeated.end(), single.begin(), single.end());
+    run(RUN_MULTIPLE_FRAMES, repeated, 960 * frameBytes);
+    Require(sideband.result == 0 && sideband.inputConsumed == 72 && sideband.outputWritten == 960 * frameBytes);
+    Require(OpusFramesPerPacket(context, instance) == 1);
+    Require(sceAjmInstanceDestroy(context, instance) == 0);
+}
+
+void TestOpusCodecInfoResampled(std::uint32_t context) {
+    const auto instance = CreateOpus(context);
+    constexpr std::size_t frameBytes = 2 * sizeof(std::int16_t);
+    const auto setRatio = [&](float ratio) {
+        std::vector<std::uint8_t> batch(4096);
+        AjmBatchInfo info{};
+        std::int64_t result[2] = {-1, -1};
+        Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+        Require(sceAjmBatchJobSetResampleParameters(&info, instance, ratio, 1, result) == 0);
+        Submit(context, info);
+        Require(result[0] == 0);
+    };
+    const auto single = OpusPacketOfCode(0);
+    const auto twice = OpusPacketOfCode(1);
+    std::vector<std::int16_t> pcm(2880 * 2);
+    DecodeSideband sideband{};
+    const auto decode = [&](const std::vector<std::uint8_t>& packet, std::size_t outputFrames) { RunDecode(context, instance, packet.data(), packet.size(), pcm.data(), outputFrames * frameBytes, sideband); };
+
+    setRatio(2.0f);
+    decode(single, 2880);
+    Require(sideband.result == 0 && sideband.inputConsumed == 72 && OpusFramesPerPacket(context, instance) == 1);
+    decode(twice, 960);
+    Require(CodecInfoRefused(context, instance));
+    decode(single, 960);
+    Require(sideband.inputConsumed == 72 && OpusFramesPerPacket(context, instance) == 1);
+
+    ClearInstanceContext(context, instance);
+    setRatio(0.25f);
+    decode(single, 960);
+    Require(sideband.inputConsumed == 72 && sideband.outputWritten == 960 * frameBytes && OpusFramesPerPacket(context, instance) == 1);
+    decode(twice, 960);
+    Require(sideband.inputConsumed == 0 && OpusFramesPerPacket(context, instance) == 1);
+    decode(single, 960);
+    Require(CodecInfoRefused(context, instance));
+    decode(single, 960);
+    Require(sideband.inputConsumed == 72 && sideband.outputWritten == 960 * frameBytes && OpusFramesPerPacket(context, instance) == 1);
+    ClearInstanceContext(context, instance);
+    Require(OpusFramesPerPacket(context, instance) == 0);
+    Require(sceAjmInstanceDestroy(context, instance) == 0);
+}
+
+void TestOpusCodecInfoShortInitialize(std::uint32_t context) {
+    const auto instance = CreateOpus(context);
+    const std::uint32_t parameters[3] = {2, 48000, 0};
+    const auto initialize = [&](std::size_t size) {
+        std::vector<std::uint8_t> batch(4096);
+        AjmBatchInfo info{};
+        std::int32_t result[2] = {-1, -1};
+        Require(sceAjmBatchInitialize(batch.data(), batch.size(), &info) == 0);
+        Require(sceAjmBatchJobInitialize(&info, instance, parameters, size, result) == 0);
+        Submit(context, info);
+        return result[0];
+    };
+    const auto single = OpusPacketOfCode(0);
+    std::vector<std::int16_t> pcm(2880 * 2);
+    DecodeSideband sideband{};
+    DecodeOpusPacket(context, instance, OpusPacketOfCode(1), 1920, 2);
+    Require(OpusFramesPerPacket(context, instance) == 2);
+    initialize(2 * sizeof(std::uint32_t));
+    Require(CodecInfoRefused(context, instance));
+    RunDecode(context, instance, single.data(), single.size(), pcm.data(), pcm.size() * sizeof(std::int16_t), sideband);
+    Require(CodecInfoRefused(context, instance));
+    ClearInstanceContext(context, instance);
+    Require(OpusFramesPerPacket(context, instance) == 0);
+    RunDecode(context, instance, single.data(), single.size(), pcm.data(), pcm.size() * sizeof(std::int16_t), sideband);
+    Require(CodecInfoRefused(context, instance));
+    Require(initialize(sizeof(parameters)) == 0 && OpusFramesPerPacket(context, instance) == 0);
+    DecodeOpusPacket(context, instance, single, 960, 2);
+    Require(OpusFramesPerPacket(context, instance) == 1);
+    ClearInstanceContext(context, instance);
+    initialize(2 * sizeof(std::uint32_t));
+    Require(OpusFramesPerPacket(context, instance) == 0);
+    Require(sceAjmInstanceDestroy(context, instance) == 0);
+}
+
 struct PcmResults {
     std::int64_t initialize[2] = {-1, -1};
     std::int64_t resample[2] = {-1, -1};
@@ -2418,6 +2884,12 @@ int main() {
     TestDecodeSplit(context);
     TestGaplessDecode(context);
     TestCodecInfo(context);
+    TestOpusCodecInfo(context);
+    TestOpusCodecInfoUnsettled(context);
+    TestOpusCodecInfoDrain(context);
+    TestOpusCodecInfoRoom(context);
+    TestOpusCodecInfoResampled(context);
+    TestOpusCodecInfoShortInitialize(context);
     TestGetInfo(context);
     TestBatchBounds(context);
     TestBatchWaitRelease(context);

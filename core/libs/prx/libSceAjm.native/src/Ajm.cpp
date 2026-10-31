@@ -122,6 +122,10 @@ struct SidebandM4aacCodecInfo {
     std::uint32_t reserved;
 };
 
+struct SidebandOpusCodecInfo {
+    std::uint32_t framesPerPacket;
+};
+
 struct SidebandResampleInfo {
     float ratio;
     std::int32_t samples;
@@ -163,6 +167,9 @@ struct Instance {
     bool opusLayoutPending = false;
     std::uint32_t opusSampleRate = 0;
     std::vector<std::uint8_t> opusPending;
+    std::uint32_t opusFramesPerPacket = 0;
+    bool opusFramesDisputed = false;
+    bool opusInitializeDisputed = false;
     AVCodecContext* aac = nullptr;
     std::uint32_t aacConfig = 0;
     std::uint32_t aacFrequencyIndex = 0;
@@ -448,6 +455,7 @@ int DecodeAt9Frame(Instance& instance, const std::uint8_t* data, int size, std::
 
 void OpenOpus(Instance& instance);
 std::int32_t InitializeAac(Instance& instance, const std::uint8_t* parameters, std::uint64_t size);
+std::size_t EmittedSamples(const Instance& instance, std::size_t samples);
 
 void ClearResampler(Instance& instance) {
     instance.resampler.frames.clear();
@@ -470,32 +478,41 @@ std::int32_t InitializePcm(Instance& instance, const std::uint8_t* parameters, s
     return 0;
 }
 
+std::int32_t InitializeOpus(Instance& instance, const std::uint8_t* parameters, std::uint64_t size) {
+    if (size < 8) return AJM_RESULT_INVALID_PARAMETER;
+    std::uint32_t channels = 0;
+    std::uint32_t sampleRate = 0;
+    std::memcpy(&channels, parameters, sizeof(channels));
+    std::memcpy(&sampleRate, parameters + 4, sizeof(sampleRate));
+    if (channels == 0 || channels > 8 || sampleRate == 0) return AJM_RESULT_INVALID_PARAMETER;
+    std::uint32_t mappingFamily = 0;
+    if (size >= 12) std::memcpy(&mappingFamily, parameters + 8, sizeof(mappingFamily));
+    if (sampleRate != 48000) NotImplemented_nid_no_patch("sceAjmBatchJobInitialize (Opus sample rate other than 48000)");
+    if (mappingFamily > 1 && mappingFamily != 255) NotImplemented_nid_no_patch("sceAjmBatchJobInitialize (Opus mapping family other than 0, 1 or 255)");
+    if (mappingFamily == 0 && channels > 2) return AJM_RESULT_INVALID_PARAMETER;
+    instance.opusChannels = channels;
+    instance.opusMappingFamily = mappingFamily;
+    instance.opusSampleRate = sampleRate;
+    instance.opusLayoutPending = mappingFamily == 255 && channels > 1;
+    if (!instance.opusLayoutPending) OpenOpus(instance);
+    instance.opusPending.clear();
+    instance.opusFramesDisputed = size < 12 && instance.opusFramesPerPacket != 0;
+    instance.opusFramesPerPacket = 0;
+    instance.opusInitializeDisputed = size < 12;
+    instance.initialized = true;
+    instance.totalDecodedSamples = 0;
+    instance.segmentSamples = 0;
+    instance.gapless = {};
+    return 0;
+}
+
 std::int32_t InitializeInstance(Instance& instance, const std::uint8_t* parameters, std::uint64_t size) {
     ClearResampler(instance);
     if (instance.codec == CODEC_PCM) return InitializePcm(instance, parameters, size);
     if (instance.codec == CODEC_OPUS) {
-        if (size < 8) return AJM_RESULT_INVALID_PARAMETER;
-        std::uint32_t channels = 0;
-        std::uint32_t sampleRate = 0;
-        std::memcpy(&channels, parameters, sizeof(channels));
-        std::memcpy(&sampleRate, parameters + 4, sizeof(sampleRate));
-        if (channels == 0 || channels > 8 || sampleRate == 0) return AJM_RESULT_INVALID_PARAMETER;
-        std::uint32_t mappingFamily = 0;
-        if (size >= 12) std::memcpy(&mappingFamily, parameters + 8, sizeof(mappingFamily));
-        if (sampleRate != 48000) NotImplemented_nid_no_patch("sceAjmBatchJobInitialize (Opus sample rate other than 48000)");
-        if (mappingFamily > 1 && mappingFamily != 255) NotImplemented_nid_no_patch("sceAjmBatchJobInitialize (Opus mapping family other than 0, 1 or 255)");
-        if (mappingFamily == 0 && channels > 2) return AJM_RESULT_INVALID_PARAMETER;
-        instance.opusChannels = channels;
-        instance.opusMappingFamily = mappingFamily;
-        instance.opusSampleRate = sampleRate;
-        instance.opusLayoutPending = mappingFamily == 255 && channels > 1;
-        if (!instance.opusLayoutPending) OpenOpus(instance);
-        instance.opusPending.clear();
-        instance.initialized = true;
-        instance.totalDecodedSamples = 0;
-        instance.segmentSamples = 0;
-        instance.gapless = {};
-        return 0;
+        const std::int32_t result = InitializeOpus(instance, parameters, size);
+        if (result != 0) instance.opusInitializeDisputed = true;
+        return result;
     }
     if (instance.codec == CODEC_M4AAC) return InitializeAac(instance, parameters, size);
     if (instance.codec != CODEC_AT9) {
@@ -733,8 +750,9 @@ SidebandAt9CodecInfo At9CodecInfo(const Instance& instance) {
 void WriteRunSideband(const JobHeader& job, const Instance& instance, std::int32_t result, std::size_t consumed, std::size_t produced, std::uint32_t frames, const SidebandFormat& format) {
     auto* sideband = static_cast<std::uint8_t*>(job.sideband);
     std::size_t offset = 0;
+    const auto fits = [&](std::size_t size) { return sideband && offset + size <= job.sidebandSize; };
     const auto write = [&](const void* value, std::size_t size) {
-        if (!sideband || offset + size > job.sidebandSize) return;
+        if (!fits(size)) return;
         std::memcpy(sideband + offset, value, size);
         offset += size;
     };
@@ -746,12 +764,27 @@ void WriteRunSideband(const JobHeader& job, const Instance& instance, std::int32
     }
     if (job.flags & SIDEBAND_FORMAT) write(&format, sizeof(format));
     if (job.flags & SIDEBAND_GAPLESS_DECODE) write(&instance.gapless, sizeof(instance.gapless));
-    if ((job.flags & RUN_GET_CODEC_INFO) && instance.codec == CODEC_M4AAC) {
-        const SidebandM4aacCodecInfo codecInfo{instance.aacHeaac ? 1u : 0u, 0};
-        write(&codecInfo, sizeof(codecInfo));
-    } else if (job.flags & RUN_GET_CODEC_INFO) {
-        const SidebandAt9CodecInfo codecInfo = At9CodecInfo(instance);
-        write(&codecInfo, sizeof(codecInfo));
+    if (job.flags & RUN_GET_CODEC_INFO) {
+        switch (instance.codec) {
+        case CODEC_AT9: {
+            const SidebandAt9CodecInfo codecInfo = At9CodecInfo(instance);
+            write(&codecInfo, sizeof(codecInfo));
+            break;
+        }
+        case CODEC_M4AAC: {
+            const SidebandM4aacCodecInfo codecInfo{instance.aacHeaac ? 1u : 0u, 0};
+            write(&codecInfo, sizeof(codecInfo));
+            break;
+        }
+        case CODEC_OPUS: {
+            const SidebandOpusCodecInfo codecInfo{instance.opusFramesPerPacket};
+            if (fits(sizeof(codecInfo)) && instance.opusFramesDisputed) NotImplemented_nid_no_patch("AJM Opus RUN_GET_CODEC_INFO with an unsettled frame count (after a gapless reset, a short initialize, a packet of over 6 frames, of frames over 960 samples, past the gapless total or whose PCM did not fit, or a run that stopped for room before a packet KytyPS5 or SharpEmu decodes)");
+            if (fits(sizeof(codecInfo)) && instance.opusInitializeDisputed && codecInfo.framesPerPacket != 0) NotImplemented_nid_no_patch("AJM Opus RUN_GET_CODEC_INFO with a nonzero frame count after a failed initialize or one of fewer than 12 bytes (unsettled frame count)");
+            write(&codecInfo, sizeof(codecInfo));
+            break;
+        }
+        default: throw std::runtime_error("AJM: the codec info of codec " + std::to_string(instance.codec) + " is not implemented");
+        }
     }
     if (job.flags & RUN_MULTIPLE_FRAMES) {
         const SidebandMultipleFrames multiple{frames, 0};
@@ -1151,24 +1184,34 @@ void OpenOpus(Instance& instance) {
     if (avcodec_open2(instance.opus, codec, nullptr) < 0) throw std::runtime_error("AJM: cannot open the FFmpeg Opus decoder");
 }
 
-std::size_t OpusPacketSamples(const std::uint8_t* packet, std::size_t size) {
+std::size_t OpusPacketFrames(const std::uint8_t* packet, std::size_t size) {
     if (size < 1) return 0;
-    const std::uint32_t config = packet[0] >> 3u;
-    std::size_t frameSamples = 0;
-    if (config < 12) frameSamples = (config & 3u) == 0 ? 480 : (config & 3u) == 1 ? 960 : (config & 3u) == 2 ? 1920 : 2880;
-    else if (config < 16) frameSamples = (config & 1u) == 0 ? 480 : 960;
-    else frameSamples = std::size_t{120} << (config & 3u);
-    std::size_t frames = 0;
     switch (packet[0] & 3u) {
-    case 0: frames = 1; break;
+    case 0: return 1;
     case 1:
-    case 2: frames = 2; break;
-    default:
-        if (size < 2) return 0;
-        frames = packet[1] & 0x3fu;
-        break;
+    case 2: return 2;
+    default: return size < 2 ? 0 : packet[1] & 0x3fu;
     }
-    return frames * frameSamples;
+}
+
+std::size_t OpusFrameSamples(std::uint8_t toc) {
+    const std::uint32_t config = toc >> 3u;
+    if (config < 12) return (config & 3u) == 0 ? 480 : (config & 3u) == 1 ? 960 : (config & 3u) == 2 ? 1920 : 2880;
+    if (config < 16) return (config & 1u) == 0 ? 480 : 960;
+    return std::size_t{120} << (config & 3u);
+}
+
+std::size_t OpusPacketSamples(const std::uint8_t* packet, std::size_t size) {
+    return size < 1 ? 0 : OpusPacketFrames(packet, size) * OpusFrameSamples(packet[0]);
+}
+
+bool GaplessEnded(const Instance& instance) {
+    return instance.gapless.totalSamples != 0 && instance.segmentSamples >= instance.gapless.totalSamples;
+}
+
+bool OpusPacketTaken(const Instance& instance, const std::uint8_t* packet, std::size_t size) {
+    const std::size_t frames = OpusPacketFrames(packet, size);
+    return frames != 0 && frames <= 6 && OpusFrameSamples(packet[0]) <= 960 && !GaplessEnded(instance);
 }
 
 std::size_t OpusLength(const std::uint8_t* data, std::size_t size, std::size_t& at) {
@@ -1297,6 +1340,8 @@ void RunOpus(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, 
     std::int32_t result = 0;
     std::size_t consumed = 0;
     std::uint32_t frames = 0;
+    std::size_t unresampled = 0;
+    bool countUnsettled = false;
     const std::size_t frameBytes = channels * sampleBytes;
     if (Resampling(instance) && !instance.opusPending.empty()) {
         std::vector<double> values(instance.opusPending.size() / sampleBytes);
@@ -1311,7 +1356,10 @@ void RunOpus(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, 
         instance.opusPending.erase(instance.opusPending.begin(), instance.opusPending.begin() + static_cast<std::ptrdiff_t>(bytes));
     }
     while (consumed < input.size() && instance.opusPending.empty()) {
-        if (frames != 0 && pcmOutputs.Room() < frameBytes) break;
+        if (frames != 0 && pcmOutputs.Room() < frameBytes) {
+            if (input.size() - consumed >= 2 && !GaplessEnded(instance)) instance.opusFramesDisputed = true;
+            break;
+        }
         if (input.size() - consumed < 2) {
             result |= AJM_RESULT_PARTIAL_INPUT;
             break;
@@ -1329,9 +1377,12 @@ void RunOpus(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, 
         }
         if (pcmOutputs.Room() < frameBytes) {
             if (frames == 0 && pcmOutputs.produced == 0) result |= AJM_RESULT_NOT_ENOUGH_ROOM;
+            if (OpusPacketTaken(instance, data, bytes) && EmittedSamples(instance, samples) * frameBytes <= pcmOutputs.capacity) instance.opusFramesDisputed = true;
             break;
         }
         if (instance.opusLayoutPending) OpenOpusFromPacket(instance, data, bytes);
+        const std::size_t packetFrames = OpusPacketFrames(data, bytes);
+        countUnsettled = countUnsettled || !OpusPacketTaken(instance, data, bytes);
         packet->data = const_cast<std::uint8_t*>(data);
         packet->size = static_cast<int>(bytes);
         if (avcodec_send_packet(instance.opus, packet.get()) < 0) {
@@ -1366,6 +1417,8 @@ void RunOpus(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, 
             instance.segmentSamples += count;
             instance.totalDecodedSamples += count;
             if (Resampling(instance)) {
+                unresampled += count * frameBytes;
+                countUnsettled = countUnsettled || unresampled > pcmOutputs.capacity;
                 std::vector<double> values(count * channels);
                 for (std::size_t sample = 0; sample < count; ++sample) {
                     for (std::size_t channel = 0; channel < channels; ++channel) values[sample * channels + channel] = value(first + sample, channel);
@@ -1380,6 +1433,7 @@ void RunOpus(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, 
                 const std::size_t fits = std::min(pcm.size(), pcmOutputs.Room() / frameBytes * frameBytes);
                 pcmOutputs.Emit(pcm.data(), fits);
                 instance.opusPending.insert(instance.opusPending.end(), pcm.begin() + static_cast<std::ptrdiff_t>(fits), pcm.end());
+                countUnsettled = countUnsettled || fits < pcm.size();
             }
             av_frame_unref(decoded.get());
         }
@@ -1387,6 +1441,8 @@ void RunOpus(Instance& instance, const JobHeader& job, const AjmBuffer* inputs, 
             result |= AJM_RESULT_INVALID_DATA;
             break;
         }
+        instance.opusFramesPerPacket = static_cast<std::uint32_t>(packetFrames);
+        instance.opusFramesDisputed = countUnsettled;
         if ((job.flags & RUN_MULTIPLE_FRAMES) == 0) break;
     }
     if (consumed == input.size() && frames == 0 && pcmOutputs.produced == 0 && result == 0) result |= AJM_RESULT_PARTIAL_INPUT;
@@ -1608,6 +1664,8 @@ void ClearContext(Instance& instance) {
         instance.aacDelayFrames = AacDelayFrames(instance);
     }
     instance.opusPending.clear();
+    instance.opusFramesPerPacket = 0;
+    instance.opusFramesDisputed = false;
     instance.pcmResampled = false;
     ClearResampler(instance);
 }
@@ -1652,6 +1710,18 @@ std::size_t HeldSamples(const Instance& instance) {
     return channels == 0 ? 0 : instance.opusPending.size() / (channels * sampleBytes);
 }
 
+const char* CodecInfoGap(const Instance& instance) {
+    switch (instance.codec) {
+    case CODEC_AT9:
+    case CODEC_M4AAC: return nullptr;
+    case CODEC_OPUS:
+        if ((instance.opusMappingFamily == 1 && instance.opusChannels > 2) || (instance.opusMappingFamily == 255 && instance.opusChannels > 1)) return "AJM Opus RUN_GET_CODEC_INFO on an instance that decodes several streams per packet";
+        return nullptr;
+    case CODEC_MP3: return "AJM MP3 RUN_GET_CODEC_INFO (the byte order of its header word is unsettled)";
+    default: return "AJM RUN_GET_CODEC_INFO for a codec other than ATRAC9, M4AAC and Opus";
+    }
+}
+
 void Execute(const JobHeader& job, const AjmBuffer* inputs, const AjmBuffer* outputs) {
     if (job.kind == JobKind::GetStatistics) {
         AJM_TRACE("[ajm] statistics job: sideband %llu bytes\n", static_cast<unsigned long long>(job.sidebandSize));
@@ -1686,6 +1756,7 @@ void Execute(const JobHeader& job, const AjmBuffer* inputs, const AjmBuffer* out
         if (job.flags) {
             instance->gapless.skippedSamples = 0;
             instance->segmentSamples = 0;
+            if (job.parameterSize != 0 && instance->opusFramesPerPacket != 0) instance->opusFramesDisputed = true;
         }
         WriteResult(job.sideband, job.sidebandSize, 0);
         break;
@@ -1716,8 +1787,8 @@ void Execute(const JobHeader& job, const AjmBuffer* inputs, const AjmBuffer* out
             throw std::runtime_error("AJM: decoding codec " + std::to_string(instance->codec) + " is not implemented");
         } else if ((job.flags & RUN_GET_CODEC_INFO) && (job.flags & RUN_MULTIPLE_FRAMES)) {
             NotImplemented_nid_no_patch("AJM run job with both RUN_GET_CODEC_INFO and RUN_MULTIPLE_FRAMES (sideband order)");
-        } else if ((job.flags & RUN_GET_CODEC_INFO) && instance->codec != CODEC_AT9 && instance->codec != CODEC_M4AAC) {
-            NotImplemented_nid_no_patch("AJM RUN_GET_CODEC_INFO for a codec other than ATRAC9 and M4AAC");
+        } else if (const char* gap = (job.flags & RUN_GET_CODEC_INFO) ? CodecInfoGap(*instance) : nullptr) {
+            NotImplemented_nid_no_patch(gap);
         } else if (job.inputCount == 0 && job.outputCount == 0) {
             AJM_TRACE("[ajm] instance %u run flags 0x%llx without buffers, sideband %llu bytes\n", job.instance, static_cast<unsigned long long>(job.flags), static_cast<unsigned long long>(job.sidebandSize));
             WriteRunSideband(job, *instance, 0, 0, 0, 0, (job.flags & SIDEBAND_FORMAT) ? CurrentFormat(*instance) : SidebandFormat{});
