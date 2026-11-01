@@ -554,6 +554,29 @@ static int DeviceFilesystem(KernelStatfs* fs) {
 }
 
 #ifdef _WIN32
+static int VolumeFilesystem(const char* function, const std::filesystem::path& path, KernelStatfs* fs) {
+    std::wstring root(path.native().size() + 2, L'\0');
+    if (!::GetVolumePathNameW(path.c_str(), root.data(), static_cast<DWORD>(root.size())))
+        throw std::runtime_error(std::string(function) + ": GetVolumePathNameW failed for " + path.string() + ", error=" + std::to_string(::GetLastError()));
+    DWORD sectorsPerCluster = 0, bytesPerSector = 0, freeClusters = 0, totalClusters = 0;
+    ULARGE_INTEGER available{}, total{}, totalFree{};
+    DWORD nameMax = 0, volumeFlags = 0;
+    if (!::GetDiskFreeSpaceW(root.c_str(), &sectorsPerCluster, &bytesPerSector, &freeClusters, &totalClusters) ||
+        !::GetDiskFreeSpaceExW(root.c_str(), &available, &total, &totalFree) ||
+        !::GetVolumeInformationW(root.c_str(), nullptr, 0, nullptr, &nameMax, &volumeFlags, nullptr, 0))
+        throw std::runtime_error(std::string(function) + ": volume query failed for " + path.string() + ", error=" + std::to_string(::GetLastError()));
+    const std::uint64_t cluster = static_cast<std::uint64_t>(sectorsPerCluster) * bytesPerSector;
+    if (cluster == 0) throw std::runtime_error(std::string(function) + ": volume of " + path.string() + " reports no cluster size");
+    fs->f_flags = (volumeFlags & FILE_READ_ONLY_VOLUME) ? KERNEL_MNT_RDONLY : 0;
+    fs->f_bsize = cluster;
+    fs->f_iosize = cluster;
+    fs->f_blocks = total.QuadPart / cluster;
+    fs->f_bfree = totalFree.QuadPart / cluster;
+    fs->f_bavail = static_cast<std::int64_t>(available.QuadPart / cluster);
+    fs->f_namemax = nameMax;
+    return 0;
+}
+
 static int NativeFstatfs(int descriptor, KernelStatfs* fs) {
     if (!File::IsDirectoryDescriptor(descriptor)) {
         const auto handle = reinterpret_cast<HANDLE>(::_get_osfhandle(descriptor));
@@ -566,26 +589,21 @@ static int NativeFstatfs(int descriptor, KernelStatfs* fs) {
     }
     const auto path = File::WindowsDescriptorPath_nid_no_patch(descriptor);
     if (!path) throw std::runtime_error("_fstatfs: no path for descriptor " + std::to_string(descriptor) + ", errno=" + std::to_string(errno));
-    std::wstring root(path->native().size() + 2, L'\0');
-    if (!::GetVolumePathNameW(path->c_str(), root.data(), static_cast<DWORD>(root.size())))
-        throw std::runtime_error("_fstatfs: GetVolumePathNameW failed for " + path->string() + ", error=" + std::to_string(::GetLastError()));
-    DWORD sectorsPerCluster = 0, bytesPerSector = 0, freeClusters = 0, totalClusters = 0;
-    ULARGE_INTEGER available{}, total{}, totalFree{};
-    DWORD nameMax = 0, volumeFlags = 0;
-    if (!::GetDiskFreeSpaceW(root.c_str(), &sectorsPerCluster, &bytesPerSector, &freeClusters, &totalClusters) ||
-        !::GetDiskFreeSpaceExW(root.c_str(), &available, &total, &totalFree) ||
-        !::GetVolumeInformationW(root.c_str(), nullptr, 0, nullptr, &nameMax, &volumeFlags, nullptr, 0))
-        throw std::runtime_error("_fstatfs: volume query failed for " + path->string() + ", error=" + std::to_string(::GetLastError()));
-    const std::uint64_t cluster = static_cast<std::uint64_t>(sectorsPerCluster) * bytesPerSector;
-    if (cluster == 0) throw std::runtime_error("_fstatfs: volume of " + path->string() + " reports no cluster size");
-    fs->f_flags = (volumeFlags & FILE_READ_ONLY_VOLUME) ? KERNEL_MNT_RDONLY : 0;
-    fs->f_bsize = cluster;
-    fs->f_iosize = cluster;
-    fs->f_blocks = total.QuadPart / cluster;
-    fs->f_bfree = totalFree.QuadPart / cluster;
-    fs->f_bavail = static_cast<std::int64_t>(available.QuadPart / cluster);
-    fs->f_namemax = nameMax;
-    return 0;
+    return VolumeFilesystem("_fstatfs", *path, fs);
+}
+
+static int NativeStatfs(const std::filesystem::path& native, KernelStatfs* fs) {
+    const auto handle = ::CreateFileW(native.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) return SceErrorFromErrno(WindowsOpenError_nid_no_patch(::GetLastError())) & 0xffff;
+    const DWORD type = ::GetFileType(handle);
+    std::optional<std::filesystem::path> path;
+    if (type == FILE_TYPE_DISK) path = HandlePath(handle);
+    ::CloseHandle(handle);
+    if (type == FILE_TYPE_CHAR) return DeviceFilesystem(fs);
+    if (type != FILE_TYPE_DISK) throw std::runtime_error("statfs: " + native.string() + " is not a file on a Windows volume");
+    if (!path) throw std::runtime_error("statfs: no path for " + native.string() + ", errno=" + std::to_string(errno));
+    return VolumeFilesystem("statfs", *path, fs);
 }
 
 static bool NativeIsPipe(int descriptor) {
@@ -603,14 +621,7 @@ static bool NativeIsPipe(int descriptor) {
         && static_cast<long>(kind.f_type) == PipeFilesystem;
 }
 
-static int NativeFstatfs(int descriptor, KernelStatfs* fs) {
-    struct stat file{};
-    if (::fstat(descriptor, &file) != 0) return SceErrorFromErrno(errno) & 0xffff;
-    if (S_ISSOCK(file.st_mode) && (::fcntl(descriptor, F_GETFL) & O_PATH) == 0) return GUEST_EINVAL;
-    if (NativeIsPipe(descriptor)) return GUEST_EINVAL;
-    if (S_ISCHR(file.st_mode)) return DeviceFilesystem(fs);
-    struct statvfs host{};
-    if (::fstatvfs(descriptor, &host) != 0) return SceErrorFromErrno(errno) & 0xffff;
+static void HostFilesystem(const struct statvfs& host, KernelStatfs* fs) {
     if (host.f_flag & ST_RDONLY) fs->f_flags |= KERNEL_MNT_RDONLY;
     if (host.f_flag & ST_NOSUID) fs->f_flags |= KERNEL_MNT_NOSUID;
     if (host.f_flag & ST_NOEXEC) fs->f_flags |= KERNEL_MNT_NOEXEC;
@@ -622,6 +633,27 @@ static int NativeFstatfs(int descriptor, KernelStatfs* fs) {
     fs->f_files = host.f_files;
     fs->f_ffree = static_cast<std::int64_t>(host.f_favail);
     fs->f_namemax = static_cast<std::uint32_t>(host.f_namemax);
+}
+
+static int NativeFstatfs(int descriptor, KernelStatfs* fs) {
+    struct stat file{};
+    if (::fstat(descriptor, &file) != 0) return SceErrorFromErrno(errno) & 0xffff;
+    if (S_ISSOCK(file.st_mode) && (::fcntl(descriptor, F_GETFL) & O_PATH) == 0) return GUEST_EINVAL;
+    if (NativeIsPipe(descriptor)) return GUEST_EINVAL;
+    if (S_ISCHR(file.st_mode)) return DeviceFilesystem(fs);
+    struct statvfs host{};
+    if (::fstatvfs(descriptor, &host) != 0) return SceErrorFromErrno(errno) & 0xffff;
+    HostFilesystem(host, fs);
+    return 0;
+}
+
+static int NativeStatfs(const std::filesystem::path& native, KernelStatfs* fs) {
+    struct stat file{};
+    if (::stat(native.c_str(), &file) != 0) return SceErrorFromErrno(errno) & 0xffff;
+    if (S_ISCHR(file.st_mode)) return DeviceFilesystem(fs);
+    struct statvfs host{};
+    if (::statvfs(native.c_str(), &host) != 0) return SceErrorFromErrno(errno) & 0xffff;
+    HostFilesystem(host, fs);
     return 0;
 }
 #endif
@@ -752,6 +784,11 @@ int APS5_VABI chmod_nid_postfix(const char* path, int mode) {
 
 int ChmodNative_nid_no_patch(const std::filesystem::path& native, int mode) {
     return NativeChmod(native, mode);
+}
+
+int UtimesNative_nid_no_patch(const std::filesystem::path& native, const KernelTimeval* times) {
+    if (NativeUtimes(native, times) == 0) return 0;
+    return SceErrorFromErrno(errno == ENOENT ? NotFoundError_nid_no_patch(native) : errno) & 0xffff;
 }
 
 int APS5_VABI chflags_nid_postfix(const char* path, std::uint64_t flags) {
@@ -966,6 +1003,25 @@ int APS5_VABI _fstatfs_nid_postfix(int d, KernelStatfs* buf) {
     return 0;
 }
 
+int StatfsPath_nid_no_patch(const char* path, KernelStatfs* buf) {
+    std::string copy;
+    if (const int error = PathError(path, copy)) return PosixFailure(error);
+    path = copy.c_str();
+    KernelStatfs result{};
+    result.f_version = KERNEL_STATFS_VERSION;
+    if (File::IsRandomDevicePath(path)) {
+        DeviceFilesystem(&result);
+    } else {
+        FileStat status{};
+        if (stat_nid_postfix(path, &status) != 0) return -1;
+        std::filesystem::path native;
+        if (const int error = ResolvePathError_nid_no_patch(path, native, true, true)) return PosixFailure(error);
+        if (const int error = NativeStatfs(AppArchiveOnly_nid_no_patch(native) ? AppArchivePath_nid_no_patch() : native, &result)) return PosixFailure(error);
+    }
+    if (!GuestCopyOut_nid_no_patch(buf, &result, sizeof(result))) return PosixFailure(GUEST_EFAULT);
+    return 0;
+}
+
 int64_t APS5_VABI fstat_nid_disambig1_nid_postfix(int d, FileStat* sb) {
     if (sb == nullptr) {
         FileStat ignored{};
@@ -1078,7 +1134,7 @@ int64_t APS5_VABI pread_nid_postfix(int d, void* buf, size_t nbytes, int64_t off
     return result < 0 ? PosixFailure(SceErrorFromErrno(errno) & 0xffff) : result;
 }
 
-int64_t APS5_VABI pwrite_nid_disambig1_nid_postfix(int d, const void* buf, size_t nbytes, int64_t offset) {
+std::int64_t PositionedWrite_nid_no_patch(int d, const void* buf, std::size_t nbytes, std::int64_t offset) {
     if (File::IsVirtualDirectoryDescriptor(d)) return PosixFailure(GUEST_EISDIR);
     if (ExceedsTransferLimit(nbytes)) return PosixFailure(GUEST_EINVAL);
     if (const int error = PositionedArgumentError(d, true, buf == nullptr && nbytes != 0, offset)) return PosixFailure(error);
@@ -1088,6 +1144,10 @@ int64_t APS5_VABI pwrite_nid_disambig1_nid_postfix(int d, const void* buf, size_
     char empty = 0;
     const auto result = NativePwrite(d, buf == nullptr ? &empty : buf, nbytes, offset);
     return result < 0 ? PosixFailure(SceErrorFromErrno(errno) & 0xffff) : result;
+}
+
+int64_t APS5_VABI pwrite_nid_disambig1_nid_postfix(int d, const void* buf, size_t nbytes, int64_t offset) {
+    return PositionedWrite_nid_no_patch(d, buf, nbytes, offset);
 }
 
 int64_t APS5_VABI read_nid_postfix(int d, void* buf, uint64_t nbytes) {
@@ -1747,7 +1807,7 @@ int APS5_VABI sceKernelUtimes_nid_postfix(const char* path, const KernelTimeval*
     if (copy.empty()) return SceErrorFromErrno(GUEST_ENOENT);
     std::filesystem::path native;
     if (const int error = ResolvePathError_nid_no_patch(path, native)) return SceKernelError(error);
-    if (NativeUtimes(native, times) != 0) return SceErrorFromErrno(errno == ENOENT ? NotFoundError_nid_no_patch(native) : errno);
+    if (const int error = UtimesNative_nid_no_patch(native, times)) return SceKernelError(error);
     return 0;
 }
 

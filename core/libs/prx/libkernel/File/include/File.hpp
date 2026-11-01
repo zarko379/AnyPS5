@@ -13,6 +13,8 @@
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
 
+struct KernelStatfs;
+
 extern "C" {
 
 int APS5_VABI sceKernelOpen(const char* path, int flags, std::uint16_t mode);
@@ -23,6 +25,8 @@ std::int64_t APS5_VABI sceKernelLseek(int d, std::int64_t offset, int whence);
 int APS5_VABI sceKernelStat(const char* path, FileStat* sb);
 int APS5_VABI sceKernelUnlink(const char* path);
 int APS5_VABI sceKernelFcntl(int d, int command, ...);
+int StatfsPath_nid_no_patch(const char* path, KernelStatfs* buf);
+std::int64_t PositionedWrite_nid_no_patch(int d, const void* buf, std::size_t nbytes, std::int64_t offset);
 #ifdef _WIN32
 std::int64_t NativePositioned_nid_no_patch(int descriptor, void* buf, std::size_t nbytes, std::int64_t offset, bool write);
 #endif

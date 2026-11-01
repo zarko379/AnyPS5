@@ -122,6 +122,7 @@ void OwnershipAndLinkTests(const std::filesystem::path& root) {
     Require(linkat_nid_postfix(directory, "owned.txt", directory, "other.txt", 0) == -1 && Error() == 17);
     Require(linkat_nid_postfix(directory, "missing.txt", directory, "absent.txt", 0) == -1 && Error() == 2);
     Require(linkat_nid_postfix(4321, "owned.txt", directory, "absent.txt", 0) == -1 && Error() == 9);
+    Require(linkat_nid_postfix(4321, std::string(256, 'n').c_str(), directory, "absent.txt", 0) == -1 && Error() == 9);
     Require(linkat_nid_postfix(directory, "owned.txt", 4321, "absent.txt", 0) == -1 && Error() == 9);
     Require(linkat_nid_postfix(directory, "missing.txt", 4321, "absent.txt", 0) == -1 && Error() == 2);
     Require(linkat_nid_postfix(directory, "missing.txt", -100, nullptr, 0) == -1 && Error() == 2);
@@ -240,6 +241,7 @@ void CheckUnreadablePaths(const std::string& renameSource, int directory) {
         Require(call() == -1 && Error() == Fault);
     };
     FileStat status{};
+    KernelStatfs fileSystem{};
     char linkBuffer[16]{};
     posixFault([&] { return open_nid_postfix(paths.Unreadable(), SCE_KERNEL_O_RDONLY, 0); });
     posixFault([&] { return chmod_nid_postfix(paths.Unreadable(), 0); });
@@ -266,6 +268,8 @@ void CheckUnreadablePaths(const std::string& renameSource, int directory) {
     posixFault([&] { return readlinkat_nid_postfix(-100, paths.Unreadable(), linkBuffer, sizeof(linkBuffer)); });
     posixFault([&] { return renameat_nid_postfix(-100, paths.Unreadable(), -100, "unused-rename"); });
     posixFault([&] { return renameat_nid_postfix(-100, renameSource.c_str(), -100, paths.Unreadable()); });
+    posixFault([&] { return futimesat_nid_postfix(-100, paths.Unreadable(), nullptr); });
+    posixFault([&] { return statfs_nid_postfix(paths.Unreadable(), &fileSystem); });
     posixFault([&] { return openat_nid_postfix(directory, paths.Unreadable(), SCE_KERNEL_O_RDONLY); });
     posixFault([&] { return mkdirat_nid_postfix(directory, paths.Unreadable(), 0755); });
     posixFault([&] { return fchmodat_nid_postfix(directory, paths.Unreadable(), 0, 0); });
@@ -274,6 +278,7 @@ void CheckUnreadablePaths(const std::string& renameSource, int directory) {
     posixFault([&] { return readlinkat_nid_postfix(directory, paths.Unreadable(), linkBuffer, sizeof(linkBuffer)); });
     posixFault([&] { return renameat_nid_postfix(directory, paths.Unreadable(), directory, "unused-rename"); });
     posixFault([&] { return renameat_nid_postfix(directory, "file.txt", directory, paths.Unreadable()); });
+    posixFault([&] { return futimesat_nid_postfix(directory, paths.Unreadable(), nullptr); });
     *__error_nid_postfix() = 0;
     Require(renameat_nid_postfix(directory, "missing", directory, paths.Unreadable()) == -1 && Error() == 2);
     *__error_nid_postfix() = 0;
@@ -322,6 +327,143 @@ void CheckSymlinkTargetRestrictions(const std::filesystem::path& root) {
         Require(link == -1 && Error() == 1);
         std::fprintf(stderr, "symbolic links unavailable: the symlink target success cases not tested\n");
     }
+}
+
+void CheckFutimesat(const std::filesystem::path& root, int base) {
+    const auto target = (root / "times.txt").string();
+    const auto guestTarget = "/" + root.filename().string() + "/times.txt";
+    std::ofstream(target).put('t');
+    const auto times = [&] {
+        FileStat status{};
+        Require(stat_nid_postfix(target.c_str(), &status) == 0);
+        return status;
+    };
+    const std::array<KernelTimeval, 2> relative{{{1000000, 5}, {2000000, 7}}};
+    Require(futimesat_nid_postfix(base, "times.txt", relative.data()) == 0);
+    Require(times().st_atim.tv_sec == 1000000 && times().st_mtim.tv_sec == 2000000);
+    const std::array<KernelTimeval, 2> current{{{3000000, 0}, {4000000, 0}}};
+    Require(futimesat_nid_postfix(-100, target.c_str(), current.data()) == 0);
+    Require(times().st_atim.tv_sec == 3000000 && times().st_mtim.tv_sec == 4000000);
+    const std::array<KernelTimeval, 2> absolute{{{5000000, 0}, {6000000, 0}}};
+    Require(futimesat_nid_postfix(-1, guestTarget.c_str(), absolute.data()) == 0);
+    Require(times().st_atim.tv_sec == 5000000 && times().st_mtim.tv_sec == 6000000);
+    for (const auto& invalid : {std::array<KernelTimeval, 2>{{{0, 1000000}, {0, 0}}}, std::array<KernelTimeval, 2>{{{0, -1}, {0, 0}}},
+                                std::array<KernelTimeval, 2>{{{0, 0}, {0, 1000000}}}, std::array<KernelTimeval, 2>{{{0, 0}, {0, -1}}}}) {
+        Require(futimesat_nid_postfix(base, "times.txt", invalid.data()) == -1 && Error() == 22);
+        Require(futimesat_nid_postfix(-100, target.c_str(), invalid.data()) == -1 && Error() == 22);
+        Require(futimesat_nid_postfix(-1, "missing.bin", invalid.data()) == -1 && Error() == 22);
+        Require(futimesat_nid_postfix(base, nullptr, invalid.data()) == -1 && Error() == 22);
+    }
+    const auto longName = std::string(256, 'n');
+    const int plain = sceKernelOpen(target.c_str(), SCE_KERNEL_O_RDONLY, 0);
+    Require(plain >= 0);
+    Require(futimesat_nid_postfix(-1, "times.txt", nullptr) == -1 && Error() == 9);
+    Require(futimesat_nid_postfix(plain, "times.txt", nullptr) == -1 && Error() == 20);
+    Require(futimesat_nid_postfix(-1, longName.c_str(), nullptr) == -1 && Error() == 9);
+    Require(futimesat_nid_postfix(plain, longName.c_str(), nullptr) == -1 && Error() == 20);
+    Require(sceKernelClose(plain) == 0);
+#ifndef _WIN32
+    Require(futimesat_nid_postfix(base, (root.filename().string() + "/" + longName).c_str(), nullptr) == -1 && Error() == 2);
+#endif
+    Require(futimesat_nid_postfix(base, "missing.bin", nullptr) == -1 && Error() == 2);
+    Require(futimesat_nid_postfix(-100, (root / "missing.bin").string().c_str(), nullptr) == -1 && Error() == 2);
+    Require(futimesat_nid_postfix(base, nullptr, nullptr) == -1 && Error() == 14);
+    Require(futimesat_nid_postfix(base, "", nullptr) == -1 && Error() == 2);
+    Require(futimesat_nid_postfix(base, "times.txt/x", nullptr) == -1 && Error() == 20);
+    Require(futimesat_nid_postfix(base, longName.c_str(), nullptr) == -1 && Error() == 63);
+    Require(times().st_atim.tv_sec == 5000000 && times().st_mtim.tv_sec == 6000000);
+    Require(futimesat_nid_postfix(base, "times.txt", nullptr) == 0 && times().st_atim.tv_sec > 6000000 && times().st_mtim.tv_sec > 6000000);
+    const auto link = (root / "times.link").string();
+    const int created = symlink_nid_postfix("times.txt", link.c_str());
+    if (created == 0) {
+        const std::array<KernelTimeval, 2> linked{{{7000000, 0}, {8000000, 0}}};
+        Require(futimesat_nid_postfix(base, "times.link", linked.data()) == 0);
+        Require(times().st_atim.tv_sec == 7000000 && times().st_mtim.tv_sec == 8000000);
+        Require(RemoveSymlink(link));
+    } else {
+        Require(created == -1 && Error() == 1);
+        std::fprintf(stderr, "symbolic links unavailable: the futimesat link case not tested\n");
+    }
+    Require(std::filesystem::remove(target));
+}
+
+void CheckStatfs(const std::filesystem::path& root, const std::string& file) {
+    constexpr std::uint32_t Version = 0x20030518;
+    const int descriptor = open_nid_postfix(file.c_str(), 0, 0);
+    Require(descriptor >= 0);
+    KernelStatfs viaPath{};
+    KernelStatfs viaDescriptor{};
+    Require(statfs_nid_postfix(file.c_str(), &viaPath) == 0 && fstatfs_nid_postfix(descriptor, &viaDescriptor) == 0);
+    Require(close_nid_postfix(descriptor) == 0);
+    Require(viaPath.f_version == Version && viaDescriptor.f_version == Version && viaPath.f_bsize != 0 && viaPath.f_blocks != 0);
+    Require(viaPath.f_flags == viaDescriptor.f_flags && viaPath.f_bsize == viaDescriptor.f_bsize && viaPath.f_iosize == viaDescriptor.f_iosize);
+    Require(viaPath.f_blocks == viaDescriptor.f_blocks && viaPath.f_namemax == viaDescriptor.f_namemax);
+    const auto module = (root / "Plugin.prx").string();
+    std::ofstream(module + ".guest.prx").put('m');
+    for (const auto& path : {root.string(), "/" + root.filename().string() + "/file.txt", module}) {
+        KernelStatfs other{};
+        Require(statfs_nid_postfix(path.c_str(), &other) == 0 && other.f_version == Version);
+        Require(other.f_bsize == viaPath.f_bsize && other.f_blocks == viaPath.f_blocks && other.f_namemax == viaPath.f_namemax);
+    }
+    Require(std::filesystem::remove(module + ".guest.prx"));
+    for (const char* device : {"/dev/random", "/dev/urandom"}) {
+        const int opened = open_nid_postfix(device, 0, 0);
+        Require(opened >= 0);
+        KernelStatfs viaDevicePath;
+        std::memset(&viaDevicePath, 0x5a, sizeof(viaDevicePath));
+        KernelStatfs viaDeviceDescriptor{};
+        Require(statfs_nid_postfix(device, &viaDevicePath) == 0 && fstatfs_nid_postfix(opened, &viaDeviceDescriptor) == 0);
+        Require(close_nid_postfix(opened) == 0);
+        Require(std::memcmp(&viaDevicePath, &viaDeviceDescriptor, sizeof(KernelStatfs)) == 0);
+        Require(viaDevicePath.f_version == Version && viaDevicePath.f_flags == 0 && viaDevicePath.f_bsize == 512 && viaDevicePath.f_iosize == 512);
+        Require(viaDevicePath.f_blocks == 2 && viaDevicePath.f_bfree == 0 && viaDevicePath.f_namemax == 255);
+    }
+#ifndef _WIN32
+    const auto deviceLink = root / "null.link";
+    std::filesystem::create_symlink("/dev/null", deviceLink);
+    const int device = open_nid_postfix(deviceLink.string().c_str(), 0, 0);
+    Require(device >= 0);
+    KernelStatfs viaLink{};
+    KernelStatfs viaLinkDescriptor{};
+    Require(statfs_nid_postfix(deviceLink.string().c_str(), &viaLink) == 0 && fstatfs_nid_postfix(device, &viaLinkDescriptor) == 0);
+    Require(close_nid_postfix(device) == 0 && std::filesystem::remove(deviceLink));
+    Require(std::memcmp(&viaLink, &viaLinkDescriptor, sizeof(KernelStatfs)) == 0 && viaLink.f_blocks == 2 && viaLink.f_bsize == 512);
+#endif
+    KernelStatfs untouched;
+    std::memset(&untouched, 0x5a, sizeof(untouched));
+    const auto pattern = untouched;
+    const auto missing = (root / "missing.bin").string();
+    Require(statfs_nid_postfix(missing.c_str(), &untouched) == -1 && Error() == 2);
+    Require(statfs_nid_postfix(nullptr, &untouched) == -1 && Error() == 14);
+    Require(statfs_nid_postfix("", &untouched) == -1 && Error() == 2);
+    Require(statfs_nid_postfix((file + "/x").c_str(), &untouched) == -1 && Error() == 20);
+    Require(statfs_nid_postfix((root.generic_string() + "/" + std::string(256, 'n')).c_str(), &untouched) == -1 && Error() == 63);
+    Require(std::memcmp(&untouched, &pattern, sizeof(untouched)) == 0);
+    Require(statfs_nid_postfix(file.c_str(), nullptr) == -1 && Error() == 14);
+    Require(statfs_nid_postfix("/dev/random", nullptr) == -1 && Error() == 14);
+    Require(statfs_nid_postfix(missing.c_str(), nullptr) == -1 && Error() == 2);
+}
+
+void CheckPwrite(const std::filesystem::path& root) {
+    const auto path = (root / "pwrite.bin").string();
+    std::ofstream(path, std::ios::binary).put('x');
+    const int descriptor = open_nid_postfix(path.c_str(), SCE_KERNEL_O_RDWR, 0);
+    Require(descriptor >= 0);
+    Require(pwrite_nid_postfix(descriptor, "yz", 2, 1) == 2);
+    Require(lseek_nid_postfix(descriptor, 0, 1) == 0);
+    char bytes[4]{};
+    Require(pread_nid_postfix(descriptor, bytes, sizeof(bytes), 0) == 3 && std::memcmp(bytes, "xyz", 3) == 0);
+    Require(pwrite_nid_postfix(descriptor, "a", 1, -1) == -1 && Error() == 22);
+    Require(pwrite_nid_postfix(descriptor, "a", static_cast<std::size_t>(-1), 0) == -1 && Error() == 22);
+    Require(close_nid_postfix(descriptor) == 0);
+    Require(pwrite_nid_postfix(descriptor, "a", 1, 0) == -1 && Error() == 9);
+    Require(pwrite_nid_postfix(-1, "a", 1, 0) == -1 && Error() == 9);
+    const int readOnly = open_nid_postfix(path.c_str(), SCE_KERNEL_O_RDONLY, 0);
+    Require(readOnly >= 0);
+    Require(pwrite_nid_postfix(readOnly, "a", 1, 0) == -1 && Error() == 9);
+    Require(pread_nid_postfix(readOnly, bytes, sizeof(bytes), 0) == 3 && std::memcmp(bytes, "xyz", 3) == 0);
+    Require(close_nid_postfix(readOnly) == 0);
+    Require(std::filesystem::remove(path));
 }
 
 void CheckCondattrClock() {
@@ -1034,6 +1176,9 @@ int main() {
     const int base = sceKernelOpen(root.string().c_str(), SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0);
     Require(base >= 0);
     CheckUnreadablePaths(file, base);
+    CheckFutimesat(root, base);
+    CheckStatfs(root, file);
+    CheckPwrite(root);
     const int relative = openat_nid_postfix(base, "file.txt", SCE_KERNEL_O_RDONLY);
     char byte = 0;
     Require(relative >= 0 && sceKernelRead(relative, &byte, 1) == 1 && byte == 'x');

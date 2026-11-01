@@ -30,7 +30,9 @@
 #include "prx/libkernel/Pthread/include/Pthread.hpp"
 #include "prx/libkernel/File/include/DirectoryDescriptor.hpp"
 #include "prx/libkernel/File/include/DescriptorControl.hpp"
+#include "prx/libkernel/File/include/File.hpp"
 #include "prx/libc/include/CreationMask.hpp"
+#include "prx/libc/include/AppArchive.hpp"
 #include "prx/libkernel/File/include/FileFlags.hpp"
 
 #ifdef _WIN32
@@ -227,19 +229,32 @@ std::int64_t ReadNativeLink(const std::filesystem::path& native, char* buffer, s
     return CopyLinkTarget(target, buffer, size);
 }
 
-bool HasLongComponent(std::string_view path) {
+std::size_t LongComponentStart(std::string_view path) {
     for (std::size_t start = 0; start < path.size();) {
         const auto end = std::min(path.find('/', start), path.size());
-        if (end - start > GuestNameMax) {
-            if (start == 0) return true;
-            std::filesystem::path prefix;
-            if (ResolvePathError_nid_no_patch(std::string(path.substr(0, start)).c_str(), prefix)) return false;
-            std::error_code error;
-            return std::filesystem::is_directory(prefix, error);
-        }
+        if (end - start > GuestNameMax) return start;
         start = end + 1;
     }
-    return false;
+    return std::string_view::npos;
+}
+
+bool HasLongComponent(std::string_view path) {
+    const auto start = LongComponentStart(path);
+    if (start == std::string_view::npos) return false;
+    if (start == 0) return true;
+    std::filesystem::path prefix;
+    if (ResolvePathError_nid_no_patch(std::string(path.substr(0, start)).c_str(), prefix)) return false;
+    std::error_code error;
+    return std::filesystem::is_directory(prefix, error);
+}
+
+bool HasLongComponentIn(const std::filesystem::path& directory, std::string_view path) {
+    const auto start = LongComponentStart(path);
+    if (start == std::string_view::npos) return false;
+    if (start == 0) return true;
+    const std::u8string prefix(reinterpret_cast<const char8_t*>(path.data()), start);
+    std::error_code error;
+    return std::filesystem::is_directory(directory / std::filesystem::path(prefix), error);
 }
 
 bool IsDotOrDotDot(std::string_view path) {
@@ -373,6 +388,14 @@ int APS5_VABI setlogin_nid_postfix(const char* name) {
 
 int APS5_VABI fstatfs_nid_postfix(int d, KernelStatfs* buf) {
     return _fstatfs_nid_postfix(d, buf);
+}
+
+int APS5_VABI statfs_nid_postfix(const char* path, KernelStatfs* buf) {
+    return StatfsPath_nid_no_patch(path, buf);
+}
+
+std::int64_t APS5_VABI pwrite_nid_postfix(int d, const void* buf, std::size_t nbytes, std::int64_t offset) {
+    return PositionedWrite_nid_no_patch(d, buf, nbytes, offset);
 }
 
 int GetModuleInfoExByHandle_nid_no_patch(KernelModule handle, ModuleInfoEx* info);
@@ -519,11 +542,13 @@ int APS5_VABI link_nid_postfix(const char* existing, const char* created) {
 
 static int ResolveAtPath(int fd, const char* path, std::filesystem::path& native) {
     if (fd == GuestAtFdcwd || *path == '/') return ResolvePathError_nid_no_patch(path, native);
-    if (std::strlen(path) >= GuestPathMax || HasLongComponent(path)) return GuestEnametoolong;
+    if (std::strlen(path) >= GuestPathMax) return GuestEnametoolong;
     int error = 0;
     const char* base = GetDirectoryDescriptorPath_nid_no_patch(fd, &error);
     if (base == nullptr) return error;
-    native = std::filesystem::path(reinterpret_cast<const char8_t*>(base)) / std::filesystem::path(reinterpret_cast<const char8_t*>(path));
+    const std::filesystem::path directory(reinterpret_cast<const char8_t*>(base));
+    if (HasLongComponentIn(directory, path)) return GuestEnametoolong;
+    native = directory / std::filesystem::path(reinterpret_cast<const char8_t*>(path));
     return 0;
 }
 
@@ -777,6 +802,19 @@ int APS5_VABI lchmod_nid_postfix(const char* path, std::uint16_t mode) {
     }
 #endif
     return fchmodat_nid_postfix(GuestAtFdcwd, path, mode, GuestAtSymlinkNofollow);
+}
+
+int APS5_VABI futimesat_nid_postfix(int fd, const char* path, const KernelTimeval* times) {
+    if (times != nullptr && (times[0].tv_usec < 0 || times[0].tv_usec >= 1000000 || times[1].tv_usec < 0 || times[1].tv_usec >= 1000000))
+        return static_cast<int>(Fail(GuestEinval));
+    std::string copy;
+    if (const int error = CopyPath(path, copy)) return static_cast<int>(Fail(error));
+    if (fd == GuestAtFdcwd || *path == '/') return utimes_nid_postfix(path, times);
+    std::filesystem::path native;
+    if (const int error = ResolveAtPath(fd, path, native)) return static_cast<int>(Fail(error));
+    AppArchiveRefuseOnly_nid_no_patch(native, path, "setting the times of");
+    if (const int error = UtimesNative_nid_no_patch(native, times)) return static_cast<int>(Fail(error));
+    return 0;
 }
 
 int APS5_VABI fchown_nid_postfix(int fd, std::uint32_t uid, std::uint32_t gid) {
