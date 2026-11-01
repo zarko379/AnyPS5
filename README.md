@@ -16,11 +16,11 @@ Includes a [relinker](core/relinker) that converts executable to the target syst
 
 ## Status
 
-[![libraries](https://zarko379.github.io/AnyPS5/badge-libraries.svg)](https://zarko379.github.io/AnyPS5/progress.html) [![shaders](https://zarko379.github.io/AnyPS5/badge-shaders.svg)](https://zarko379.github.io/AnyPS5/progress.html)
+[![libraries](docs/progress/badge-libraries.svg)](docs/progress/progress.svg) [![shaders](docs/progress/badge-shaders.svg)](docs/progress/progress.svg)
 
-[![progress map](https://zarko379.github.io/AnyPS5/progress.svg)](https://zarko379.github.io/AnyPS5/progress.html)
+[![progress map](docs/progress/progress.svg)](docs/progress/progress.svg)
 
-[Progress history](https://zarko379.github.io/AnyPS5/history.html)
+[Progress history](docs/progress/history.svg)
 
 <sub>* System libraries: percentage of the functions known to the project so far (declared in [core/libs/prx](core/libs/prx)), not of every PS5 system function. The total grows as more functions are declared.</sub>
 
