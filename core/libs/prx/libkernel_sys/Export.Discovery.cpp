@@ -1,5 +1,6 @@
 #include "prx/libkernel/KernelErrors.hpp"
 #include "prx/libkernel/Pthread/include/Pthread.hpp"
+#include "prx/libkernel/Pthread/include/Mutex.hpp"
 #include "prx/libkernel_sys/include/Api.hpp"
 #include "prx/libkernel/Pthread/include/Atfork.hpp"
 #include "prx/libkernel/include/Api.hpp"
@@ -13,6 +14,8 @@
 #include <cstring>
 #include <initializer_list>
 #include <optional>
+#include <stdexcept>
+#include <string>
 
 namespace {
 
@@ -240,18 +243,51 @@ int APS5_VABI openintr_nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI pthread_attr_getaffinity_np_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI pthread_attr_getaffinity_np_nid_postfix(const PthreadAttr* attr, std::size_t cpusetSize, void* cpuset) {
+    constexpr int GuestEinval = 22;
+    constexpr int GuestErange = 34;
+    if (!attr || !*attr) return GuestEinval;
+    if (cpusetSize < sizeof(KernelCpumask)) return GuestErange;
+    if (cpusetSize < GUEST_CPUSET_BYTES)
+        throw std::runtime_error("pthread_attr_getaffinity_np: a " + std::to_string(cpusetSize) + "-byte set, whose result depends on the console's unknown kern.sched.cpusetsize");
+    const auto* source = *attr;
+    if (!source->_affinityExplicit)
+        throw std::runtime_error("pthread_attr_getaffinity_np: an attribute without a set, filled with 0xFF to the console's unknown kern.sched.cpusetsize");
+    if (!cpuset) throw std::runtime_error("pthread_attr_getaffinity_np: null cpuset");
+    std::memset(cpuset, 0, cpusetSize);
+    std::memcpy(cpuset, &source->_affinity, sizeof(source->_affinity));
     return 0;
 }
 
-int APS5_VABI pthread_attr_getsolosched_np_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI pthread_attr_getsolosched_np_nid_postfix(const PthreadAttr* attr, int* solosched) {
+    constexpr int GuestEinval = 22;
+    if (!attr || !*attr || !solosched) return GuestEinval;
+    *solosched = (*attr)->_solosched;
     return 0;
 }
 
-int APS5_VABI pthread_attr_setaffinity_np_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI pthread_attr_setaffinity_np_nid_postfix(PthreadAttr* attr, std::size_t cpusetSize, const void* cpuset) {
+    constexpr int GuestEinval = 22;
+    constexpr int GuestErange = 34;
+    if (!attr || !*attr) return GuestEinval;
+    auto* target = *attr;
+    if (cpusetSize == 0 || !cpuset) {
+        target->_affinity = DEFAULT_THREAD_AFFINITY;
+        target->_affinityExplicit = false;
+        return 0;
+    }
+    if (cpusetSize < sizeof(KernelCpumask)) return GuestErange;
+    if (cpusetSize < GUEST_CPUSET_BYTES)
+        throw std::runtime_error("pthread_attr_setaffinity_np: a " + std::to_string(cpusetSize) + "-byte set, whose result depends on the console's unknown kern.sched.cpusetsize");
+    const auto* bytes = static_cast<const std::uint8_t*>(cpuset);
+    for (std::size_t index = GUEST_CPUSET_BYTES; index < cpusetSize; ++index) {
+        if (bytes[index] != 0) return GuestEinval;
+    }
+    for (std::size_t index = sizeof(KernelCpumask); index < GUEST_CPUSET_BYTES; ++index) {
+        if (bytes[index] != 0) throw std::runtime_error("pthread_attr_setaffinity_np: a CPU above 63, whose result depends on the console's unknown kern.sched.cpusetsize");
+    }
+    std::memcpy(&target->_affinity, bytes, sizeof(target->_affinity));
+    target->_affinityExplicit = true;
     return 0;
 }
 
@@ -262,8 +298,10 @@ int APS5_VABI pthread_attr_setcreatesuspend_np_nid_postfix(PthreadAttr* attr) {
     return 0;
 }
 
-int APS5_VABI pthread_attr_setstackaddr_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI pthread_attr_setstackaddr_nid_postfix(PthreadAttr* attr, void* stackAddr) {
+    constexpr int GuestEinval = 22;
+    if (!attr || !*attr || !stackAddr) return GuestEinval;
+    (*attr)->stackAddress = stackAddr;
     return 0;
 }
 
@@ -287,9 +325,8 @@ int APS5_VABI pthread_multi_np_nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI pthread_mutex_getprioceiling_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI pthread_mutex_getprioceiling_nid_postfix(const PthreadMutex* mutex, int* prioceiling) {
+    return GetMutexPrioceiling_nid_no_patch(mutex, prioceiling);
 }
 
 int APS5_VABI pthread_mutex_init_for_mono_nid_postfix(void) {
@@ -2092,9 +2129,8 @@ int APS5_VABI scePthreadMulti(void) {
     return error == 0 ? 0 : SceKernelError(error);
 }
 
-int APS5_VABI scePthreadMutexGetprioceiling(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI scePthreadMutexGetprioceiling(PthreadMutex* mutex, int* prioceiling) {
+    return SceResult(pthread_mutex_getprioceiling_nid_postfix(mutex, prioceiling));
 }
 
 int APS5_VABI scePthreadMutexInitForInternalLibc(void) {

@@ -37,7 +37,6 @@ static bool AcceptsSchedParam(int policy, int priority) {
     if (policy != GUEST_SCHED_FIFO && policy != GUEST_SCHED_RR) return false;
     return (priority >= 256 && priority <= 767) || (priority >= 896 && priority <= 959);
 }
-static constexpr std::size_t GUEST_CPUSET_BYTES = 32;
 static constexpr int GUEST_ERANGE = 34;
 
 extern "C" {

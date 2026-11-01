@@ -47,6 +47,8 @@ struct PthreadMutexPrivate {
     int _count;
     int _spinloops = 0;
     int _yieldloops = 0;
+    int _protocol = 0;
+    int _ceiling = 0;
     std::string _name;
     bool _named = false;
 
@@ -93,6 +95,7 @@ struct PthreadSemPrivate {
 };
 
 static constexpr KernelCpumask DEFAULT_THREAD_AFFINITY = 0x1FFF;
+static constexpr std::size_t GUEST_CPUSET_BYTES = 32;
 static constexpr int DEFAULT_THREAD_PRIORITY = 700;
 static constexpr std::uint32_t CPU_CLOCK_BIT = 0x80000000u;
 static constexpr std::uint32_t CPU_CLOCK_PROCESS_BIT = 0x40000000u;

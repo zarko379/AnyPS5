@@ -22,7 +22,9 @@ constexpr int sceDeadlock = static_cast<int>(0x8002000bu);
 constexpr int sceBusy = static_cast<int>(0x80020010u);
 constexpr int sceTimedOut = static_cast<int>(0x8002003cu);
 constexpr std::int32_t posixFailure = -1;
+constexpr int posixInvalid = 22;
 constexpr int posixAgain = 35;
+constexpr int prioProtect = 2;
 std::mutex& InitializationMutex() {
     static std::mutex mutex;
     return mutex;
@@ -126,6 +128,19 @@ int MutexOperations::Timedlock(PthreadMutex* mutex, const KernelTimespec* abstim
     }, sceTimedOut, false);
 }
 
+extern "C" int GetMutexPrioceiling_nid_no_patch(const PthreadMutex* mutex, int* prioceiling) {
+    if (!mutex)
+        throw std::invalid_argument("Mutex pointer is null");
+    std::lock_guard lock(InitializationMutex());
+    const auto current = std::atomic_ref<PthreadMutex>(*const_cast<PthreadMutex*>(mutex)).load(std::memory_order_acquire);
+    if (!isInitializedMutex(current) || current->_protocol != prioProtect)
+        return posixInvalid;
+    if (!prioceiling)
+        throw std::invalid_argument("Priority ceiling pointer is null");
+    *prioceiling = current->_ceiling;
+    return 0;
+}
+
 extern "C" {
 
 int APS5_VABI scePthreadMutexattrInit(PthreadMutexattr* attr) {
@@ -171,8 +186,11 @@ int APS5_VABI scePthreadMutexInit(PthreadMutex* mutex, const PthreadMutexattr* a
     if (!mutex)
         throw std::invalid_argument("Mutex pointer is null");
     auto replacement = std::make_unique<PthreadMutexPrivate>();
-    if (attr && *attr)
+    if (attr && *attr) {
         replacement->SetType((*attr)->type);
+        replacement->_protocol = (*attr)->protocol;
+        replacement->_ceiling = (*attr)->ceiling;
+    }
     std::lock_guard lock(InitializationMutex());
     std::atomic_ref<PthreadMutex>(*mutex).store(replacement.release(), std::memory_order_release);
     return 0;
