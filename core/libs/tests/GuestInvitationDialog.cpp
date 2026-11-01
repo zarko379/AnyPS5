@@ -20,6 +20,7 @@ constexpr int NotInitialized = static_cast<int>(0x80B80003u);
 constexpr int AlreadyInitialized = static_cast<int>(0x80B80004u);
 constexpr int NotFinished = static_cast<int>(0x80B80005u);
 constexpr int Busy = static_cast<int>(0x80B80008u);
+constexpr int NotRunning = static_cast<int>(0x80B8000Bu);
 constexpr int ArgNull = static_cast<int>(0x80B8000Du);
 constexpr std::int32_t ResultUserCanceled = 1;
 constexpr std::int32_t ModeSend = 1;
@@ -87,7 +88,8 @@ void TestOpenChecks() {
     Require(sceInvitationDialogUpdateStatus() == StatusInitialized, "status after initialization");
     Require(sceInvitationDialogGetResult(&result) == NotFinished, "result before the dialog opened");
     Require(sceInvitationDialogGetResult(nullptr) == NotFinished, "null result before the dialog finished");
-    RequireUnsettled([] { sceInvitationDialogClose(); }, "close of a dialog that is not running");
+    Require(sceInvitationDialogClose() == NotRunning, "close of a dialog that is not running");
+    Require(sceInvitationDialogUpdateStatus() == StatusInitialized && sceCommonDialogIsUsed(), "a close of a dialog that is not running leaves it initialized");
 
     Require(sceInvitationDialogOpen(nullptr) == ArgNull, "open without a param");
     InvitationDialogParam param = MakeParam(ModeSend, nullptr);
@@ -106,7 +108,8 @@ void TestCanceled() {
     const InvitationDialogParam send = MakeParam(ModeSend, &first);
     Require(sceInvitationDialogOpen(&send) == 0, "open to send");
     Require(sceInvitationDialogUpdateStatus() == StatusFinished, "the dialog finishes at once");
-    RequireUnsettled([] { sceInvitationDialogClose(); }, "close of a finished dialog");
+    Require(sceInvitationDialogClose() == NotRunning, "close of a finished dialog");
+    Require(sceInvitationDialogUpdateStatus() == StatusFinished && sceCommonDialogIsUsed(), "a close of a finished dialog leaves it finished");
 
     Require(sceInvitationDialogGetResult(nullptr) == ArgNull, "null result after the dialog finished");
     InvitationDialogResult result{};

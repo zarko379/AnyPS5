@@ -18,6 +18,7 @@ constexpr int COMMON_DIALOG_ERROR_NOT_SYSTEM_INITIALIZED = static_cast<int>(0x80
 constexpr int COMMON_DIALOG_ERROR_NOT_INITIALIZED = static_cast<int>(0x80B80003u);
 constexpr int COMMON_DIALOG_ERROR_BUSY = static_cast<int>(0x80B80008u);
 constexpr int COMMON_DIALOG_ERROR_NOT_FINISHED = static_cast<int>(0x80B80005u);
+constexpr int COMMON_DIALOG_ERROR_NOT_RUNNING = static_cast<int>(0x80B8000Bu);
 constexpr int COMMON_DIALOG_ERROR_ARG_NULL = static_cast<int>(0x80B8000Du);
 constexpr int COMMON_DIALOG_RESULT_USER_CANCELED = 1;
 
@@ -92,7 +93,7 @@ int APS5_VABI sceInvitationDialogClose(void) {
     DialogState& dialog = Dialog();
     std::lock_guard lock(dialog.mutex);
     if (dialog.status == COMMON_DIALOG_STATUS_NONE) return COMMON_DIALOG_ERROR_NOT_INITIALIZED;
-    Unsettled(__func__, "status " + std::to_string(dialog.status) + " is not RUNNING, and the error for closing a dialog that is not running is unsettled");
+    return COMMON_DIALOG_ERROR_NOT_RUNNING;
 }
 
 int APS5_VABI sceInvitationDialogGetResult(InvitationDialogResult* result) {
