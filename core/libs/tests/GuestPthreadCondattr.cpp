@@ -32,13 +32,19 @@ static void CheckClockRefused(const PthreadCondattr* attr, KernelClockid* clockI
     Require(threw);
 }
 
+static void CheckClockInvalid(const PthreadCondattr* attr) {
+    KernelClockid clockId = -1;
+    *__error_nid_postfix() = 123;
+    Require(pthread_condattr_getclock_nid_postfix(attr, &clockId) == GuestEinval);
+    Require(clockId == -1 && *__error_nid_postfix() == 123);
+    Require(pthread_condattr_getclock_nid_postfix(attr, nullptr) == GuestEinval);
+    Require(*__error_nid_postfix() == 123);
+}
+
 int main() {
     PthreadCondattr unset = nullptr;
-    KernelClockid clockId = -1;
-    CheckClockRefused(nullptr, &clockId);
-    Require(clockId == -1);
-    CheckClockRefused(&unset, &clockId);
-    Require(clockId == -1);
+    CheckClockInvalid(nullptr);
+    CheckClockInvalid(&unset);
     int sharing = -1;
     Require(scePthreadCondattrSetclock(nullptr, Monotonic) == SceEinval);
     Require(scePthreadCondattrSetclock(&unset, Monotonic) == SceEinval);
@@ -70,8 +76,7 @@ int main() {
     CheckClock(&other, Monotonic);
     CheckClock(&attr, Monotonic);
     Require(pthread_condattr_destroy_nid_postfix(&other) == 0 && other == nullptr);
-    CheckClockRefused(&other, &clockId);
-    Require(clockId == -1);
+    CheckClockInvalid(&other);
     Require(scePthreadCondattrSetpshared(&attr, 1) == SceEinval);
     Require(scePthreadCondattrSetpshared(&attr, 0) == SCE_OK);
     Require(scePthreadCondattrGetpshared(&attr, &sharing) == SCE_OK && sharing == 0);
@@ -99,8 +104,7 @@ int main() {
     }
     Require(threw);
     Require(scePthreadCondattrDestroy(&attr) == SCE_OK && attr == nullptr);
-    CheckClockRefused(&attr, &clockId);
-    Require(clockId == -1);
+    CheckClockInvalid(&attr);
     Require(scePthreadCondattrDestroy(&attr) == SceEinval);
     sharing = -1;
     Require(pthread_condattr_getpshared_nid_postfix(&attr, &sharing) == GuestEinval && sharing == -1);
