@@ -147,6 +147,9 @@ constexpr int NET_EPOLL_CTL_DEL = 3;
 constexpr int NET_SOL_SOCKET = 0xFFFF;
 constexpr int NET_IPPROTO_TCP = 6;
 constexpr int NET_IPPROTO_IPV6 = 41;
+constexpr int NET_IPPROTO_RAW = 255;
+constexpr std::array<int, 10> NET_INET_RAW_PROTOCOLS{255, 1, 2, 46, 4, 55, 97, 47, 41, 103};
+constexpr std::array<int, 9> NET_INET6_RAW_PROTOCOLS{255, 58, 60, 43, 44, 4, 41, 47, 103};
 constexpr int NET_TCP_NODELAY = 1;
 constexpr int NET_TF_NODELAY = 4;
 constexpr int NET_SO_SNDTIMEO = 0x1005;
@@ -489,6 +492,14 @@ int timeout_option(int optname) {
     if (optname == NET_SO_SCE_SNDTIMEO) return NET_SO_SNDTIMEO;
     if (optname == NET_SO_SCE_RCVTIMEO) return NET_SO_RCVTIMEO;
     return optname;
+}
+
+int raw_protocol_switch(int family, int protocol) {
+    if (protocol == 0) return NET_IPPROTO_RAW;
+    const bool listed = family == NET_AF_INET
+        ? std::ranges::find(NET_INET_RAW_PROTOCOLS, protocol) != NET_INET_RAW_PROTOCOLS.end()
+        : std::ranges::find(NET_INET6_RAW_PROTOCOLS, protocol) != NET_INET6_RAW_PROTOCOLS.end();
+    return listed ? protocol : 0;
 }
 
 #ifdef _WIN32
@@ -1579,9 +1590,9 @@ int APS5_VABI sceNetGetsockopt(int s, int level, int optname, void* optval, uint
         return 0;
     }
     if (level == NET_SOL_SOCKET && optname == NET_SO_PROTOCOL) {
-        if (socket.type == NET_SOCK_RAW) NotImplemented_nid_no_patch(__func__);
-        *optlen = std::min(*optlen, static_cast<std::uint32_t>(sizeof(socket.protocol)));
-        std::memcpy(optval, &socket.protocol, *optlen);
+        const int value = socket.type == NET_SOCK_RAW ? raw_protocol_switch(socket.family, socket.protocol) : socket.protocol;
+        *optlen = std::min(*optlen, static_cast<std::uint32_t>(sizeof(value)));
+        std::memcpy(optval, &value, *optlen);
         return 0;
     }
     if (level == NET_IPPROTO_IPV6) {

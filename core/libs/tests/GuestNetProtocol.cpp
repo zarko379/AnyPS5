@@ -27,8 +27,53 @@ static void CheckProtocol(int socket, int expected) {
     }
 }
 
-int main() {
+static void CheckRaw(int family, int protocol, int expected) {
+    const int socket = sceNetSocket("protocol-raw", family, 3, protocol);
+    Require(socket >= 0);
+    CheckProtocol(socket, expected);
+    Require(sceNetSocketClose(socket) == 0);
+}
+
+static void CheckRawWildcard(int family) {
+    const int socket = sceNetSocket("protocol-raw", family, 3, 0);
+    if (socket < 0) {
+        Require(*sceNetErrnoLoc() == 43);
+        std::fprintf(stderr, "the host has no raw socket for protocol 0 in family %d: that check was not run\n", family);
+        return;
+    }
+    CheckProtocol(socket, 255);
+    Require(sceNetSocketClose(socket) == 0);
+}
+
+static int CheckRawSockets() {
+    const int probe = sceNetSocket("protocol-raw", 2, 3, 1);
+    if (probe < 0) {
+        Require(*sceNetErrnoLoc() == 1 || *sceNetErrnoLoc() == 13);
+        std::fprintf(stderr, "the host refuses raw sockets (needs CAP_NET_RAW on Linux or administrator rights on Windows): the raw SO_PROTOCOL checks were not run\n");
+        return 0;
+    }
+    Require(sceNetSocketClose(probe) == 0);
+    for (const int protocol : {1, 2, 4, 41, 46, 47, 55, 97, 103, 255}) CheckRaw(2, protocol, protocol);
+    for (const int protocol : {17, 58, 60, 112, 200}) CheckRaw(2, protocol, 0);
+    CheckRawWildcard(2);
+    const int ipv6 = sceNetSocket("protocol-raw", 28, 3, 58);
+    if (ipv6 < 0) {
+        std::fprintf(stderr, "the host refused an IPv6 raw socket (errno %d): the IPv6 raw checks were not run\n", *sceNetErrnoLoc());
+        return 0;
+    }
+    Require(sceNetSocketClose(ipv6) == 0);
+    for (const int protocol : {4, 41, 47, 58, 103, 255}) CheckRaw(28, protocol, protocol);
+    for (const int protocol : {1, 2, 17, 46, 55, 97, 200}) CheckRaw(28, protocol, 0);
+    CheckRawWildcard(28);
+    return 0;
+}
+
+int main(int argc, char** argv) {
     Require(sceNetInit_nid_postfix() == 0);
+    if (argc > 1) {
+        Require(argc == 2 && std::strcmp(argv[1], "raw") == 0);
+        return CheckRawSockets();
+    }
     for (const int family : {2, 28}) {
         for (const int type : {1, 2}) {
             const int expected = type == 1 ? 6 : 17;

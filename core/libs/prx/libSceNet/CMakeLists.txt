@@ -42,9 +42,10 @@ if(BUILD_TESTING)
     target_link_libraries(guest_net_protocol_tests PRIVATE libSceNet libkernel libc)
     configure_windows_unwind(guest_net_protocol_tests)
     add_test(NAME guest_net_protocol COMMAND guest_net_protocol_tests)
-    set_tests_properties(guest_net_protocol PROPERTIES TIMEOUT 20)
+    add_test(NAME guest_net_protocol_raw COMMAND guest_net_protocol_tests raw)
+    set_tests_properties(guest_net_protocol guest_net_protocol_raw PROPERTIES TIMEOUT 20)
     if(WIN32)
-        set_tests_properties(guest_net_protocol PROPERTIES ENVIRONMENT_MODIFICATION
+        set_tests_properties(guest_net_protocol guest_net_protocol_raw PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceNet>")
     endif()
     add_test_executable(net_dontwait_tests ${LIBS_INCLUDE_DIR}/tests/NetDontWait.cpp)
