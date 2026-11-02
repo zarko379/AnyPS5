@@ -4,11 +4,6 @@
 #include "prx/libc/include/GuestTime.hpp"
 #include "SceTypes.hpp"
 
-struct AmmSubmitResult {
-    std::int32_t result;
-    std::uint32_t errorOffset;
-};
-
 struct AmmUsageStatsData {
     std::uint64_t sizeInBytes;
     std::uint16_t numPageTablePoolEntries;

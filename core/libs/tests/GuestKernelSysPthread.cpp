@@ -26,6 +26,7 @@ static constexpr int PRIO_PROTECT = 2;
 static constexpr int DEFAULT_CEILING = 767;
 static constexpr int SET_CEILING = 300;
 static constexpr int LATER_CEILING = 400;
+static constexpr int MUTEX_RECURSIVE = 2;
 
 using Cpuset = std::array<std::uint8_t, CPUSET_BYTES>;
 using WideCpuset = std::array<std::uint8_t, CPUSET_BYTES + 8>;
@@ -53,6 +54,17 @@ static void APS5_VABI Child() {}
 
 static void* APS5_VABI ReportAffinity(void* affinity) {
     Require(scePthreadGetaffinity(scePthreadSelf(), static_cast<KernelCpumask*>(affinity)) == 0);
+    return nullptr;
+}
+
+struct OwnerProbe {
+    PthreadMutex* mutex;
+    int owned;
+};
+
+static void* APS5_VABI ReportOwned(void* probe) {
+    auto* report = static_cast<OwnerProbe*>(probe);
+    report->owned = scePthreadMutexIsowned(report->mutex);
     return nullptr;
 }
 
@@ -324,6 +336,49 @@ static void TestMutexPrioceiling() {
     Require(pthread_mutexattr_destroy_nid_postfix(&attr) == 0);
 }
 
+static int OwnedInOtherThread(PthreadMutex* mutex) {
+    OwnerProbe probe{mutex, -1};
+    Pthread thread = nullptr;
+    Require(scePthreadCreate(&thread, nullptr, ReportOwned, &probe, "isowned") == 0);
+    Require(scePthreadJoin(thread, nullptr) == 0);
+    return probe.owned;
+}
+
+static void TestMutexIsowned() {
+    PthreadMutex unset = nullptr;
+    Require(scePthreadMutexIsowned(&unset) == 0 && unset == nullptr);
+    const auto adaptiveInitializer = reinterpret_cast<PthreadMutex>(std::uintptr_t{1});
+    PthreadMutex adaptive = adaptiveInitializer;
+    Require(scePthreadMutexIsowned(&adaptive) == 0 && adaptive == adaptiveInitializer);
+
+    PthreadMutex mutex = nullptr;
+    Require(pthread_mutex_init_nid_postfix(&mutex, nullptr) == 0);
+    Require(scePthreadMutexIsowned(&mutex) == 0);
+    Require(pthread_mutex_lock_nid_postfix(&mutex) == 0);
+    Require(scePthreadMutexIsowned(&mutex) == SCE_KERNEL_ERROR_EPERM);
+    Require(OwnedInOtherThread(&mutex) == 0);
+    Require(pthread_mutex_unlock_nid_postfix(&mutex) == 0);
+    Require(scePthreadMutexIsowned(&mutex) == 0);
+
+    PthreadMutexattr attr = nullptr;
+    Require(pthread_mutexattr_init_nid_postfix(&attr) == 0);
+    Require(pthread_mutexattr_settype_nid_postfix(&attr, MUTEX_RECURSIVE) == 0);
+    PthreadMutex recursive = nullptr;
+    Require(pthread_mutex_init_nid_postfix(&recursive, &attr) == 0);
+    Require(pthread_mutex_lock_nid_postfix(&recursive) == 0 && pthread_mutex_lock_nid_postfix(&recursive) == 0);
+    Require(pthread_mutex_unlock_nid_postfix(&recursive) == 0);
+    Require(scePthreadMutexIsowned(&recursive) == SCE_KERNEL_ERROR_EPERM);
+    Require(pthread_mutex_unlock_nid_postfix(&recursive) == 0);
+    Require(scePthreadMutexIsowned(&recursive) == 0);
+    Require(pthread_mutex_destroy_nid_postfix(&recursive) == 0);
+    Require(pthread_mutexattr_destroy_nid_postfix(&attr) == 0);
+
+    Require(pthread_mutex_destroy_nid_postfix(&mutex) == 0);
+    const auto destroyed = mutex;
+    Require(scePthreadMutexIsowned(&mutex) == 0 && mutex == destroyed);
+    Require(ThrowsImplemented<std::invalid_argument>([] { return scePthreadMutexIsowned(nullptr); }));
+}
+
 int main() {
     TestScope();
     TestConcurrency();
@@ -332,5 +387,6 @@ int main() {
     TestAttrStackaddr();
     TestAttrSolosched();
     TestMutexPrioceiling();
+    TestMutexIsowned();
     return 0;
 }

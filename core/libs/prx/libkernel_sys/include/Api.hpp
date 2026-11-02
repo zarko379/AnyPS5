@@ -1,6 +1,7 @@
 #pragma once
 
 #include "prx/libkernel/include/Api.hpp"
+#include "prx/libkernel/Apr/include/AprCommandBuffer.hpp"
 #include "SceTypes.hpp"
 
 struct GuestAiocb {
@@ -191,8 +192,8 @@ int APS5_VABI sceKernelAvailableToolMemorySize(void);
 int APS5_VABI sceKernelBacktraceSelf(void);
 int APS5_VABI sceKernelBeginAppMount(void);
 int APS5_VABI sceKernelBeginAppMount2(void);
-int APS5_VABI sceKernelCallIndirectBuffer(void);
-int APS5_VABI sceKernelCallIndirectBuffer2(void);
+int APS5_VABI sceKernelCallIndirectBuffer(std::uint32_t priority, std::uint64_t base, std::uint64_t offset);
+int APS5_VABI sceKernelCallIndirectBuffer2(std::uint32_t priority, std::uint64_t base, std::uint64_t offset, AmmSubmitResult* result, std::uint32_t* id);
 int APS5_VABI sceKernelClearBootReqNotifyCount(void);
 int APS5_VABI sceKernelClearGameDirectMemory(void);
 int APS5_VABI sceKernelCloseEport(void);
@@ -324,7 +325,7 @@ int APS5_VABI sceKernelGetUtokenUseSoftwagnerForAcmgr(void);
 int APS5_VABI sceKernelGetUtokenUseSoftwagnerForRcmgr(void);
 int APS5_VABI sceKernelGetUtokenWeakenedPortRestrictionForRcmgr(void);
 int APS5_VABI sceKernelGetVrCaptureSize(void);
-int APS5_VABI sceKernelGiveDirectMemoryToMapper(void);
+int APS5_VABI sceKernelGiveDirectMemoryToMapper(std::int64_t searchStart, std::int64_t searchEnd, std::size_t size, std::size_t alignment, int usage, std::int64_t* offset);
 int APS5_VABI sceKernelHasNeoMode(void);
 int APS5_VABI sceKernelHwGetBdDriveInfo(void);
 int APS5_VABI sceKernelHwHasOpticalOut(void);
@@ -523,7 +524,7 @@ int APS5_VABI scePthreadMain(void);
 int APS5_VABI scePthreadMulti(void);
 int APS5_VABI scePthreadMutexGetprioceiling(PthreadMutex* mutex, int* prioceiling);
 int APS5_VABI scePthreadMutexInitForInternalLibc(void);
-int APS5_VABI scePthreadMutexIsowned(void);
+int APS5_VABI scePthreadMutexIsowned(PthreadMutex* mutex);
 int APS5_VABI scePthreadMutexSetprioceiling(void);
 int APS5_VABI scePthreadMutexattrGetgen(void);
 int APS5_VABI scePthreadMutexattrInitForInternalLibc(void);

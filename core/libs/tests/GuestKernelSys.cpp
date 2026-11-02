@@ -696,6 +696,71 @@ void CheckAmmWaitConcurrentSubmits() {
     Require(sceKernelWaitCommandBufferCompletion(newest.load()) == 0);
 }
 
+void CheckAmmKernelSubmit() {
+    constexpr std::uint64_t page = 0x4000;
+    constexpr std::uint64_t run = 4 * page;
+    constexpr std::int32_t cpuReadWrite = 0x03;
+    const auto directMemory = static_cast<std::int64_t>(sceKernelGetDirectMemorySize());
+    std::int64_t refused = -7;
+    Require(sceKernelGiveDirectMemoryToMapper(0, directMemory, run, run, 2, &refused) == SCE_KERNEL_ERROR_EINVAL && refused == -7);
+    Require(sceKernelGiveDirectMemoryToMapper(0, directMemory, run, run, 1, nullptr) == SCE_KERNEL_ERROR_EINVAL);
+    std::int64_t pool = -1;
+    Require(sceKernelGiveDirectMemoryToMapper(0, directMemory, run + page, page, 1, &pool) == 0 && pool >= 0 && pool % static_cast<std::int64_t>(page) == 0);
+    std::int64_t plain = -1;
+    Require(sceKernelGiveDirectMemoryToMapper(0, directMemory, page, page, 0, &plain) == 0 && plain >= 0 && plain % static_cast<std::int64_t>(page) == 0);
+
+    std::uint64_t start = 0;
+    std::uint64_t end = 0;
+    std::uint64_t multimapStart = 0;
+    std::uint64_t multimapEnd = 0;
+    Require(sceAmprAmmGetVirtualAddressRanges(&start, &end, &multimapStart, &multimapEnd) == 0);
+    const std::uint64_t first = start + 0x800000;
+    std::array<std::uint8_t, 64> commands{};
+    const auto base = reinterpret_cast<std::uint64_t>(commands.data());
+    std::uint64_t bytes = 0;
+    Require(sceKernelWriteMapCommand(commands.data(), first, run, 0, cpuReadWrite, &bytes) == 0);
+    Require(sceKernelCallIndirectBuffer(0, base, bytes) == 0);
+    AmmSubmitResult drained{-1, 0xFFFFFFFFu};
+    std::uint32_t id = 0;
+    Require(sceKernelCallIndirectBuffer2(1, 0, 0, &drained, &id) == 0 && drained.result == 0 && drained.errorOffset == 0 && id != 0);
+    Require(sceKernelWaitCommandBufferCompletion(id + 1) == SCE_KERNEL_ERROR_ESRCH);
+    Require(sceKernelWaitCommandBufferCompletion(id) == 0);
+    auto* mapped = reinterpret_cast<volatile std::uint8_t*>(first);
+    mapped[0] = 0x5A;
+    mapped[run - 1] = 0xA5;
+    Require(mapped[0] == 0x5A && mapped[run - 1] == 0xA5);
+
+    const std::uint64_t second = first + run;
+    Require(sceKernelWriteMapCommand(commands.data(), second, page, 0, cpuReadWrite, &bytes) == 0);
+    AmmSubmitResult result{-1, 0xFFFFFFFFu};
+    id = 0;
+    Require(sceKernelCallIndirectBuffer2(2, base, bytes, &result, &id) == 0 && result.result == 0 && result.errorOffset == 0 && id != 0);
+    Require(sceKernelWaitCommandBufferCompletion(id + 1) == SCE_KERNEL_ERROR_ESRCH);
+    Require(sceKernelWaitCommandBufferCompletion(id) == 0);
+    auto* other = reinterpret_cast<volatile std::uint8_t*>(second);
+    *other = 0x3C;
+    Require(*other == 0x3C);
+    Require(sceKernelCallIndirectBuffer2(0, 0, 0, nullptr, nullptr) == 0);
+
+    const GuardedPaths guard;
+    const auto unreadable = reinterpret_cast<std::uint64_t>(guard.Unreadable());
+    AmmSubmitResult kept{-1, 0xFFFFFFFFu};
+    std::uint32_t keptId = 0x1234;
+    Require(sceKernelCallIndirectBuffer(3, base, bytes) == SCE_KERNEL_ERROR_EINVAL);
+    Require(sceKernelCallIndirectBuffer2(3, base, bytes, &kept, &keptId) == SCE_KERNEL_ERROR_EINVAL);
+    Require(sceKernelCallIndirectBuffer2(0, base, bytes + 2, &kept, &keptId) == SCE_KERNEL_ERROR_EINVAL);
+    Require(sceKernelCallIndirectBuffer(0, 0, 6) == SCE_KERNEL_ERROR_EINVAL);
+    Require(sceKernelCallIndirectBuffer(3, 0, 8) == SCE_KERNEL_ERROR_EINVAL);
+    Require(sceKernelCallIndirectBuffer(0, unreadable, 0x4000004) == SCE_KERNEL_ERROR_EINVAL);
+    Require(sceKernelCallIndirectBuffer(0, unreadable, 0x4000000) == SCE_KERNEL_ERROR_EFAULT);
+    Require(sceKernelCallIndirectBuffer2(0, 0, 8, &kept, &keptId) == SCE_KERNEL_ERROR_EFAULT);
+    Require(sceKernelCallIndirectBuffer2(0, unreadable - 4, 8, &kept, &keptId) == SCE_KERNEL_ERROR_EFAULT);
+    Require(sceKernelCallIndirectBuffer2(0, reinterpret_cast<std::uint64_t>(guard.Crossing()), 8, &kept, &keptId) == SCE_KERNEL_ERROR_EFAULT);
+    Require(kept.result == -1 && kept.errorOffset == 0xFFFFFFFFu && keptId == 0x1234);
+    Require(sceKernelCallIndirectBuffer2(0, 0, 0, reinterpret_cast<AmmSubmitResult*>(guard.Unreadable()), &keptId) == SCE_KERNEL_ERROR_EFAULT && keptId == 0x1234);
+    Require(sceKernelCallIndirectBuffer2(0, 0, 0, &kept, reinterpret_cast<std::uint32_t*>(guard.Unreadable())) == SCE_KERNEL_ERROR_EFAULT);
+}
+
 void CheckPathconf(const std::filesystem::path& root, const std::string& file) {
     const auto directory = root.generic_string();
     for (const auto& path : {file, directory}) {
@@ -919,6 +984,7 @@ int main() {
     CheckAmmWriteCommands();
     CheckAmmWaitCompletion();
     CheckAmmWaitConcurrentSubmits();
+    CheckAmmKernelSubmit();
     const auto root = std::filesystem::path("anyps5-kernel-sys-test-" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     Require(std::filesystem::create_directory(root));

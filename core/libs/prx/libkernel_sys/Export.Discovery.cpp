@@ -9,18 +9,34 @@
 #include "prx/libc/include/General.hpp"
 #include "prx/libkernel/KernelErrors.hpp"
 #include "prx/libkernel/Apr/include/AprCommandBuffer.hpp"
+#include "prx/libkernel/Socket/include/SocketRuntime.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 
 namespace {
 
+constexpr std::uint32_t AmmSubmitMaxPriority = 2;
+constexpr std::uint64_t AmmSubmitMaxBytes = 64ull << 20;
+
 int SceResult(int error) {
     return error == 0 ? 0 : SceKernelError(error);
+}
+
+int CallIndirectBuffer(std::uint32_t priority, std::uint64_t base, std::uint64_t offset, AmmSubmitResult* result, std::uint32_t* id) {
+    if (priority > AmmSubmitMaxPriority || offset > AmmSubmitMaxBytes || offset % 4 != 0) return SCE_KERNEL_ERROR_EINVAL;
+    const auto commands = std::make_unique_for_overwrite<std::uint8_t[]>(offset);
+    if (!GuestSocketReadGuest_nid_no_patch(commands.get(), reinterpret_cast<const void*>(base), offset)) return SCE_KERNEL_ERROR_EFAULT;
+    const std::uint32_t submitted = AmmSubmit_nid_no_patch(commands.get(), static_cast<std::uint32_t>(offset));
+    const AmmSubmitResult completed{0, 0};
+    if (result && !GuestCopyOut_nid_no_patch(result, &completed, sizeof(completed))) return SCE_KERNEL_ERROR_EFAULT;
+    if (id && !GuestCopyOut_nid_no_patch(id, &submitted, sizeof(submitted))) return SCE_KERNEL_ERROR_EFAULT;
+    return 0;
 }
 
 template<class TCommand>
@@ -522,14 +538,12 @@ int APS5_VABI sceKernelBeginAppMount2(void) {
     return 0;
 }
 
-int APS5_VABI sceKernelCallIndirectBuffer(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceKernelCallIndirectBuffer(std::uint32_t priority, std::uint64_t base, std::uint64_t offset) {
+    return CallIndirectBuffer(priority, base, offset, nullptr, nullptr);
 }
 
-int APS5_VABI sceKernelCallIndirectBuffer2(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceKernelCallIndirectBuffer2(std::uint32_t priority, std::uint64_t base, std::uint64_t offset, AmmSubmitResult* result, std::uint32_t* id) {
+    return CallIndirectBuffer(priority, base, offset, result, id);
 }
 
 int APS5_VABI sceKernelClearBootReqNotifyCount(void) {
@@ -1177,9 +1191,8 @@ int APS5_VABI sceKernelGetVrCaptureSize(void) {
     return 0;
 }
 
-int APS5_VABI sceKernelGiveDirectMemoryToMapper(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceKernelGiveDirectMemoryToMapper(std::int64_t searchStart, std::int64_t searchEnd, std::size_t size, std::size_t alignment, int usage, std::int64_t* offset) {
+    return AmmGiveDirectMemory_nid_no_patch(searchStart, searchEnd, size, alignment, usage, offset);
 }
 
 int APS5_VABI sceKernelHasNeoMode(void) {
@@ -1407,8 +1420,7 @@ int APS5_VABI sceKernelIsGenuineTestKit(void) {
 }
 
 int APS5_VABI sceKernelIsInSandbox(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+    return 1;
 }
 
 int APS5_VABI sceKernelIsKratos(void) {
@@ -1437,7 +1449,6 @@ int APS5_VABI sceKernelIsModuleLoaded(void) {
 }
 
 int APS5_VABI sceKernelIsNeoMode(void) {
-    NotImplemented_nid_no_patch(__func__);
     return 0;
 }
 
@@ -2128,9 +2139,8 @@ int APS5_VABI scePthreadMutexInitForInternalLibc(void) {
     return 0;
 }
 
-int APS5_VABI scePthreadMutexIsowned(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI scePthreadMutexIsowned(PthreadMutex* mutex) {
+    return SceResult(pthread_mutex_isowned_np_nid_postfix(mutex));
 }
 
 int APS5_VABI scePthreadMutexSetprioceiling(void) {
