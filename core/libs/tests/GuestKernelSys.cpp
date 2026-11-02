@@ -387,6 +387,90 @@ void CheckFutimesat(const std::filesystem::path& root, int base) {
     Require(std::filesystem::remove(target));
 }
 
+void CheckAtLookupOrder(const std::filesystem::path& root, const std::string& file, int base) {
+    const auto longName = std::string(256, 'n');
+    const auto guestRoot = "/" + root.filename().string() + "/";
+    const int plain = sceKernelOpen(file.c_str(), SCE_KERNEL_O_RDONLY, 0);
+    Require(plain >= 0);
+    for (const int closed : {-1, 4321}) {
+        Require(mkdirat_nid_postfix(closed, longName.c_str(), 0700) == -1 && Error() == 9);
+        Require(unlinkat_nid_postfix(closed, longName.c_str(), 0) == -1 && Error() == 9);
+        Require(unlinkat_nid_postfix(closed, longName.c_str(), 0x800) == -1 && Error() == 9);
+        Require(renameat_nid_postfix(closed, longName.c_str(), base, "renamed.txt") == -1 && Error() == 9);
+        Require(renameat_nid_postfix(base, "file.txt", closed, longName.c_str()) == -1 && Error() == 9);
+        Require(renameat_nid_postfix(closed, ".", base, "renamed.txt") == -1 && Error() == 9);
+        Require(renameat_nid_postfix(base, "file.txt", closed, "..") == -1 && Error() == 9);
+    }
+    Require(mkdirat_nid_postfix(plain, longName.c_str(), 0700) == -1 && Error() == 20);
+    Require(unlinkat_nid_postfix(plain, longName.c_str(), 0) == -1 && Error() == 20);
+    Require(unlinkat_nid_postfix(plain, longName.c_str(), 0x800) == -1 && Error() == 20);
+    Require(renameat_nid_postfix(plain, longName.c_str(), base, "renamed.txt") == -1 && Error() == 20);
+    Require(renameat_nid_postfix(base, "file.txt", plain, longName.c_str()) == -1 && Error() == 20);
+    Require(sceKernelClose(plain) == 0);
+    const auto throughFile = "file.txt/" + longName;
+    const auto guestThroughFile = guestRoot + throughFile;
+    Require(mkdirat_nid_postfix(base, throughFile.c_str(), 0700) == -1 && Error() == 63);
+    Require(unlinkat_nid_postfix(base, throughFile.c_str(), 0) == -1 && Error() == 63);
+    Require(unlinkat_nid_postfix(base, throughFile.c_str(), 0x800) == -1 && Error() == 63);
+    Require(renameat_nid_postfix(base, throughFile.c_str(), base, "renamed.txt") == -1 && Error() == 63);
+    Require(renameat_nid_postfix(base, "file.txt", base, throughFile.c_str()) == -1 && Error() == 63);
+    Require(renameat_nid_postfix(-100, guestThroughFile.c_str(), base, "renamed.txt") == -1 && Error() == 63);
+    Require(renameat_nid_postfix(base, "file.txt", -100, guestThroughFile.c_str()) == -1 && Error() == 63);
+    Require(linkat_nid_postfix(base, throughFile.c_str(), base, "renamed.txt", 0) == -1 && Error() == 63);
+    Require(linkat_nid_postfix(base, "file.txt", base, throughFile.c_str(), 0) == -1 && Error() == 63);
+    Require(futimesat_nid_postfix(base, throughFile.c_str(), nullptr) == -1 && Error() == 63);
+    Require(pathconf_nid_postfix(guestThroughFile.c_str(), 4) == -1 && Error() == 63);
+    Require(chroot_nid_postfix(guestThroughFile.c_str()) == -1 && Error() == 63);
+    Require(mkdirat_nid_postfix(base, ("file.txt//" + longName).c_str(), 0700) == -1 && Error() == 63);
+    Require(pathconf_nid_postfix((guestRoot + "file.txt//" + longName).c_str(), 4) == -1 && Error() == 63);
+    for (const std::string dots : {"missing/..", "file.txt/x/.."}) {
+        Require(unlinkat_nid_postfix(base, dots.c_str(), 0) == -1 && Error() == 22);
+        Require(unlinkat_nid_postfix(base, dots.c_str(), 0x800) == -1 && Error() == 22);
+        Require(renameat_nid_postfix(base, dots.c_str(), base, "renamed.txt") == -1 && Error() == 22);
+        Require(renameat_nid_postfix(base, "file.txt", base, dots.c_str()) == -1 && Error() == 22);
+        Require(renameat_nid_postfix(-100, (guestRoot + dots).c_str(), base, "renamed.txt") == -1 && Error() == 22);
+        Require(renameat_nid_postfix(base, "file.txt", -100, (guestRoot + dots).c_str()) == -1 && Error() == 22);
+    }
+#ifndef _WIN32
+    const auto onlyInWorkingDirectory = root.filename().string() + "/" + longName;
+    Require(mkdirat_nid_postfix(base, onlyInWorkingDirectory.c_str(), 0700) == -1 && Error() == 2);
+    Require(unlinkat_nid_postfix(base, onlyInWorkingDirectory.c_str(), 0) == -1 && Error() == 2);
+    Require(unlinkat_nid_postfix(base, onlyInWorkingDirectory.c_str(), 0x800) == -1 && Error() == 2);
+    Require(renameat_nid_postfix(base, onlyInWorkingDirectory.c_str(), base, "renamed.txt") == -1 && Error() == 2);
+    Require(renameat_nid_postfix(base, "file.txt", base, onlyInWorkingDirectory.c_str()) == -1 && Error() == 2);
+    const auto notDirectory = [](std::int64_t result) { return result == -1 && Error() == 20; };
+    const auto renamed = guestRoot + "renamed.txt";
+    FileStat status{};
+    char target[8];
+    Require(notDirectory(openat_nid_postfix(base, throughFile.c_str(), SCE_KERNEL_O_RDONLY)));
+    Require(notDirectory(_openat_nid_postfix(base, throughFile.c_str(), SCE_KERNEL_O_RDONLY)));
+    Require(notDirectory(fstatat_nid_postfix(base, throughFile.c_str(), &status, 0)));
+    Require(notDirectory(fchownat_nid_postfix(base, throughFile.c_str(), 0, 0, 0)));
+    Require(notDirectory(readlinkat_nid_postfix(base, throughFile.c_str(), target, sizeof(target))));
+    Require(notDirectory(fchmodat_nid_postfix(base, throughFile.c_str(), 0600, 0)));
+    Require(notDirectory(openat_nid_postfix(-100, guestThroughFile.c_str(), SCE_KERNEL_O_RDONLY)));
+    Require(notDirectory(fstatat_nid_postfix(-100, guestThroughFile.c_str(), &status, 0)));
+    Require(notDirectory(readlinkat_nid_postfix(-100, guestThroughFile.c_str(), target, sizeof(target))));
+    Require(notDirectory(fchmodat_nid_postfix(-100, guestThroughFile.c_str(), 0600, 0)));
+    Require(notDirectory(mkdirat_nid_postfix(-100, guestThroughFile.c_str(), 0700)));
+    Require(notDirectory(mkdirat_nid_postfix(-100, (file + "/" + longName).c_str(), 0700)));
+    Require(notDirectory(unlinkat_nid_postfix(-100, guestThroughFile.c_str(), 0)));
+    Require(notDirectory(unlinkat_nid_postfix(-100, guestThroughFile.c_str(), 0x800)));
+    Require(notDirectory(renameat_nid_postfix(-100, guestThroughFile.c_str(), -100, renamed.c_str())));
+    Require(notDirectory(linkat_nid_postfix(-100, guestThroughFile.c_str(), -100, renamed.c_str(), 0)));
+    Require(notDirectory(futimesat_nid_postfix(-100, guestThroughFile.c_str(), nullptr)));
+    using LinkCase = std::tuple<const char*, const char*, int>;
+    for (const auto& [link, linkTarget, error] : {LinkCase{"dangling.link", "missing.bin", 2}, LinkCase{"loop.link", "loop.link", 62}}) {
+        const auto host = (root / link).string();
+        Require(symlink_nid_postfix(linkTarget, host.c_str()) == 0);
+        Require(mkdirat_nid_postfix(base, (std::string(link) + "/" + longName).c_str(), 0700) == -1 && Error() == error);
+        Require(pathconf_nid_postfix((guestRoot + link + "/" + longName).c_str(), 4) == -1 && Error() == error);
+        Require(RemoveSymlink(host));
+    }
+#endif
+    Require(std::filesystem::is_regular_file(file) && std::filesystem::hard_link_count(file) == 1 && !std::filesystem::exists(root / "renamed.txt"));
+}
+
 void CheckStatfs(const std::filesystem::path& root, const std::string& file) {
     constexpr std::uint32_t Version = 0x20030518;
     const int descriptor = open_nid_postfix(file.c_str(), 0, 0);
@@ -1177,6 +1261,7 @@ int main() {
     Require(base >= 0);
     CheckUnreadablePaths(file, base);
     CheckFutimesat(root, base);
+    CheckAtLookupOrder(root, file, base);
     CheckStatfs(root, file);
     CheckPwrite(root);
     const int relative = openat_nid_postfix(base, "file.txt", SCE_KERNEL_O_RDONLY);

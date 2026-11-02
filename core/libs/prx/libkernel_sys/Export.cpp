@@ -238,23 +238,29 @@ std::size_t LongComponentStart(std::string_view path) {
     return std::string_view::npos;
 }
 
+std::string_view LongComponentParent(std::string_view path, std::size_t start) {
+    auto parent = path.substr(0, start);
+    while (parent.size() > 1 && parent.back() == '/') parent.remove_suffix(1);
+    return parent;
+}
+
 bool HasLongComponent(std::string_view path) {
     const auto start = LongComponentStart(path);
     if (start == std::string_view::npos) return false;
     if (start == 0) return true;
-    std::filesystem::path prefix;
-    if (ResolvePathError_nid_no_patch(std::string(path.substr(0, start)).c_str(), prefix)) return false;
+    std::filesystem::path parent;
+    if (ResolvePathError_nid_no_patch(std::string(LongComponentParent(path, start)).c_str(), parent)) return false;
     std::error_code error;
-    return std::filesystem::is_directory(prefix, error);
+    return std::filesystem::exists(parent, error);
 }
 
 bool HasLongComponentIn(const std::filesystem::path& directory, std::string_view path) {
     const auto start = LongComponentStart(path);
     if (start == std::string_view::npos) return false;
     if (start == 0) return true;
-    const std::u8string prefix(reinterpret_cast<const char8_t*>(path.data()), start);
+    const auto parent = LongComponentParent(path, start);
     std::error_code error;
-    return std::filesystem::is_directory(directory / std::filesystem::path(prefix), error);
+    return std::filesystem::exists(directory / std::filesystem::path(std::u8string(reinterpret_cast<const char8_t*>(parent.data()), parent.size())), error);
 }
 
 bool IsDotOrDotDot(std::string_view path) {
@@ -552,6 +558,16 @@ static int ResolveAtPath(int fd, const char* path, std::filesystem::path& native
     return 0;
 }
 
+static int ResolveRenamePath(int fd, const char* path, std::filesystem::path& native) {
+    if (fd == GuestAtFdcwd || *path == '/') {
+        if (std::strlen(path) >= GuestPathMax || HasLongComponent(path)) return GuestEnametoolong;
+        if (IsDotOrDotDot(path)) return GuestEinval;
+        return ResolvePathError_nid_no_patch(path, native);
+    }
+    if (const int error = ResolveAtPath(fd, path, native)) return error;
+    return IsDotOrDotDot(path) ? GuestEinval : 0;
+}
+
 int APS5_VABI linkat_nid_postfix(int fd1, const char* path1, int fd2, const char* path2, int flag) {
     if (flag & ~GuestAtSymlinkFollow) return static_cast<int>(Fail(GuestEinval));
     std::string copy1, copy2;
@@ -715,12 +731,8 @@ int APS5_VABI mkdirat_nid_postfix(int fd, const char* path, std::uint16_t mode) 
     std::string copy;
     if (const int error = CopyPath(path, copy)) return static_cast<int>(Fail(error));
     if (fd == GuestAtFdcwd || *path == '/') return mkdir_nid_postfix(path, mode);
-    if (std::strlen(path) >= GuestPathMax || HasLongComponent(path)) return static_cast<int>(Fail(GuestEnametoolong));
-    int error = 0;
-    const char* base = GetDirectoryDescriptorPath_nid_no_patch(fd, &error);
-    if (base == nullptr) return static_cast<int>(Fail(error));
-    auto native = std::filesystem::path(reinterpret_cast<const char8_t*>(base)) /
-                  std::filesystem::path(reinterpret_cast<const char8_t*>(path));
+    std::filesystem::path native;
+    if (const int error = ResolveAtPath(fd, path, native)) return static_cast<int>(Fail(error));
     while (!native.has_filename() && native.has_relative_path()) native = native.parent_path();
 #ifdef _WIN32
     if (!CreateDirectoryW(native.wstring().c_str(), nullptr)) {
@@ -875,12 +887,8 @@ int APS5_VABI unlinkat_nid_postfix(int fd, const char* path, int flag) {
     std::string copy;
     if (const int error = CopyPath(path, copy)) return static_cast<int>(Fail(error));
     if (fd == GuestAtFdcwd || *path == '/') return (flag & GuestAtRemovedir) ? rmdir_nid_postfix(path) : unlink_nid_postfix(path);
-    if (std::strlen(path) >= GuestPathMax || HasLongComponent(path)) return static_cast<int>(Fail(GuestEnametoolong));
-    int error = 0;
-    const char* base = GetDirectoryDescriptorPath_nid_no_patch(fd, &error);
-    if (base == nullptr) return static_cast<int>(Fail(error));
-    auto native = std::filesystem::path(reinterpret_cast<const char8_t*>(base)) /
-                  std::filesystem::path(reinterpret_cast<const char8_t*>(path));
+    std::filesystem::path native;
+    if (const int error = ResolveAtPath(fd, path, native)) return static_cast<int>(Fail(error));
     const bool trailingSlash = !native.has_filename() && native.has_relative_path();
     while (!native.has_filename() && native.has_relative_path()) native = native.parent_path();
     std::error_code statusError;
@@ -971,20 +979,8 @@ int APS5_VABI renameat_nid_postfix(int oldfd, const char* from, int newfd, const
     if (const int error = CopyPath(from, fromCopy)) return static_cast<int>(Fail(error));
     if ((oldfd == GuestAtFdcwd || *from == '/') && newfd == GuestAtFdcwd)
         return RenameGuestPath_nid_no_patch(from, to);
-    if (std::strlen(from) >= GuestPathMax || HasLongComponent(from))
-        return static_cast<int>(Fail(GuestEnametoolong));
-    if (IsDotOrDotDot(from)) return static_cast<int>(Fail(GuestEinval));
-
     std::filesystem::path source;
-    if (oldfd == GuestAtFdcwd || *from == '/') {
-        if (const int error = ResolvePathError_nid_no_patch(from, source)) return static_cast<int>(Fail(error));
-    } else {
-        int error = 0;
-        const char* base = GetDirectoryDescriptorPath_nid_no_patch(oldfd, &error);
-        if (base == nullptr) return static_cast<int>(Fail(error));
-        source = std::filesystem::path(reinterpret_cast<const char8_t*>(base)) /
-                 std::filesystem::path(reinterpret_cast<const char8_t*>(from));
-    }
+    if (const int error = ResolveRenamePath(oldfd, from, source)) return static_cast<int>(Fail(error));
     const std::string_view fromView(from);
     const bool oldTrailingSlash = !fromView.empty() && fromView.back() == '/';
     while (!source.has_filename() && source.has_relative_path()) source = source.parent_path();
@@ -997,19 +993,8 @@ int APS5_VABI renameat_nid_postfix(int oldfd, const char* from, int newfd, const
     if (oldTrailingSlash && !std::filesystem::is_directory(sourceStatus)) return static_cast<int>(Fail(GuestEnotdir));
 
     if (const int error = CopyPath(to, toCopy)) return static_cast<int>(Fail(error));
-    if (std::strlen(to) >= GuestPathMax || HasLongComponent(to)) return static_cast<int>(Fail(GuestEnametoolong));
-    if (IsDotOrDotDot(to)) return static_cast<int>(Fail(GuestEinval));
-
     std::filesystem::path destination;
-    if (newfd == GuestAtFdcwd || *to == '/') {
-        if (const int error = ResolvePathError_nid_no_patch(to, destination)) return static_cast<int>(Fail(error));
-    } else {
-        int error = 0;
-        const char* base = GetDirectoryDescriptorPath_nid_no_patch(newfd, &error);
-        if (base == nullptr) return static_cast<int>(Fail(error));
-        destination = std::filesystem::path(reinterpret_cast<const char8_t*>(base)) /
-                      std::filesystem::path(reinterpret_cast<const char8_t*>(to));
-    }
+    if (const int error = ResolveRenamePath(newfd, to, destination)) return static_cast<int>(Fail(error));
 
     const std::string_view toView(to);
     const bool newTrailingSlash = !toView.empty() && toView.back() == '/';

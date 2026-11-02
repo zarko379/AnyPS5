@@ -196,7 +196,7 @@ static void TestAttrAffinity() {
     Require(pthread_attr_setaffinity_np_nid_postfix(&attr, 0, set.data()) == 0);
     Require(GetThrows(&attr, CPUSET_BYTES));
     Require(scePthreadAttrGetaffinity(&attr, &mask) == 0 && mask == DEFAULT_AFFINITY);
-    for (const std::size_t size : {CPUSET_BYTES, std::size_t{1}}) {
+    for (const std::size_t size : {CPUSET_BYTES, std::size_t{16}, std::size_t{1}}) {
         Require(pthread_attr_setaffinity_np_nid_postfix(&attr, set.size(), set.data()) == 0);
         Require(pthread_attr_setaffinity_np_nid_postfix(&attr, size, nullptr) == 0);
         Require(GetThrows(&attr, CPUSET_BYTES));
