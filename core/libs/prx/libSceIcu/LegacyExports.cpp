@@ -1214,10 +1214,6 @@ int APS5_VABI sceIcuLegacyUnknown_6_minus_tsk3uHsz0_nid_no_patch() {
 }
 APS5_EXPORT("6-tsk3uHsz0", sceIcuLegacyUnknown_6_minus_tsk3uHsz0_nid_no_patch);
 
-int APS5_VABI u_asciiToUpper_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI sceIcuLegacyUnknown_661mp52xIO4_nid_no_patch() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -6317,10 +6313,6 @@ int APS5_VABI sceIcuLegacyUnknown_cF8dbaDCzuc_nid_no_patch() {
 }
 APS5_EXPORT("cF8dbaDCzuc", sceIcuLegacyUnknown_cF8dbaDCzuc_nid_no_patch);
 
-int APS5_VABI u_terminateWChars_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZNK6icu_6818UStringEnumeration17getDynamicClassIDEv_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -9225,10 +9217,6 @@ int APS5_VABI _ZN6icu_6817CharacterIteratorC2Eiiii_nid_postfix() {
 }
 
 int APS5_VABI _ZNK6icu_6810UnicodeSet13cloneAsThawedEv_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI u_terminateUChars_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 

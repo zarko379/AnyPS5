@@ -21,6 +21,7 @@
 #include "prx/libSceIcu/include/Api.hpp"
 #include "Api.hpp"
 #include "Utf32.hpp"
+#include "Terminate.hpp"
 #include "JavaUtf8.hpp"
 #include "Compare.hpp"
 #include "Search.hpp"

@@ -330,6 +330,76 @@ void ToStatus() {
 
 }
 
+using TerminateFunction = decltype(&u_terminateUChars_nid_postfix);
+
+void TerminateForm(TerminateFunction terminate) {
+    std::array<char16_t, 4> buffer{};
+    const auto reset = [&] { buffer.fill(Fill); };
+    std::int32_t status = 0;
+    reset();
+    Require(terminate(buffer.data(), 4, 2, &status) == 2 && status == 0);
+    Require(buffer[0] == Fill && buffer[1] == Fill && buffer[2] == 0 && buffer[3] == Fill);
+    reset();
+    status = NotTerminated;
+    Require(terminate(buffer.data(), 4, 0, &status) == 0 && status == 0 && buffer[0] == 0 && buffer[1] == Fill);
+    reset();
+    status = -128;
+    Require(terminate(buffer.data(), 4, 3, &status) == 3 && status == -128 && buffer[3] == 0);
+    reset();
+    status = 0;
+    Require(terminate(buffer.data(), 3, 3, &status) == 3 && status == NotTerminated && buffer[3] == Fill);
+    status = -128;
+    Require(terminate(buffer.data(), 3, 3, &status) == 3 && status == NotTerminated && buffer[3] == Fill);
+    status = 0;
+    Require(terminate(buffer.data(), 2, 3, &status) == 3 && status == Overflow && buffer[2] == Fill && buffer[3] == Fill);
+    status = NotTerminated;
+    Require(terminate(buffer.data(), 2, 5, &status) == 5 && status == Overflow);
+    status = 0;
+    Require(terminate(buffer.data(), 4, -1, &status) == -1 && status == 0);
+    status = NotTerminated;
+    Require(terminate(buffer.data(), 4, -7, &status) == -7 && status == NotTerminated);
+    for (std::int32_t failure : {Illegal, Overflow}) {
+        status = failure;
+        Require(terminate(buffer.data(), 4, 1, &status) == 1 && status == failure);
+        Require(terminate(buffer.data(), 1, 1, &status) == 1 && status == failure);
+        Require(terminate(buffer.data(), 0, 1, &status) == 1 && status == failure);
+        Require(terminate(nullptr, 4, 1, &status) == 1 && status == failure);
+    }
+    Require(std::all_of(buffer.begin(), buffer.end(), [](char16_t unit) { return unit == Fill; }));
+    Require(terminate(buffer.data(), 4, 1, nullptr) == 1);
+    Require(terminate(nullptr, 4, 1, nullptr) == 1);
+    Require(terminate(buffer.data(), 0, 0, nullptr) == 0);
+    Require(std::all_of(buffer.begin(), buffer.end(), [](char16_t unit) { return unit == Fill; }));
+    status = 0;
+    Require(terminate(nullptr, 0, 0, &status) == 0 && status == NotTerminated);
+    status = 0;
+    Require(terminate(nullptr, 0, 2, &status) == 2 && status == Overflow);
+    status = 0;
+    Require(terminate(nullptr, 4, -1, &status) == -1 && status == 0);
+    status = 0;
+    RequireThrows([&] { terminate(nullptr, 1, 0, &status); });
+}
+
+void Terminate() {
+    TerminateForm(u_terminateUChars_nid_postfix);
+    TerminateForm(u_terminateWChars_nid_postfix);
+    std::array<char16_t, 3> wide{Fill, Fill, Fill};
+    std::int32_t status = 0;
+    Require(u_terminateWChars_nid_postfix(wide.data(), 3, 1, &status) == 1 && status == 0);
+    Require(wide[0] == Fill && wide[1] == 0 && wide[2] == Fill);
+}
+
+void AsciiToUpper() {
+    for (std::uint32_t value = 0; value <= 0xffff; ++value) {
+        const auto unit = static_cast<char16_t>(value);
+        const auto expected = value >= 'a' && value <= 'z' ? static_cast<char16_t>(value - 0x20) : unit;
+        Require(u_asciiToUpper_nid_postfix(unit) == expected);
+    }
+    Require(u_asciiToUpper_nid_postfix(u'a') == u'A' && u_asciiToUpper_nid_postfix(u'z') == u'Z');
+    Require(u_asciiToUpper_nid_postfix(u'`') == u'`' && u_asciiToUpper_nid_postfix(u'{') == u'{');
+    Require(u_asciiToUpper_nid_postfix(0xe1) == 0xe1 && u_asciiToUpper_nid_postfix(0xff41) == 0xff41);
+}
+
 int main() {
     Valid();
     Capacity();
@@ -341,5 +411,7 @@ int main() {
     ToSubstitution();
     ToArguments();
     ToStatus();
+    Terminate();
+    AsciiToUpper();
     std::puts("ICU UTF-32 conversion tests passed");
 }
