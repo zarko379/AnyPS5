@@ -1933,34 +1933,29 @@ char* APS5_VABI curl_escape(const char* string, int length) {
 char* APS5_VABI curl_easy_escape(void* handle, const char* string, int length) {
     (void)handle;
     if (length < 0) return nullptr;
-    if (string == nullptr) NotImplemented_nid_no_patch(__func__);
-    const auto size = length == 0 ? std::strlen(string) : static_cast<std::size_t>(length);
-    if (size > (std::numeric_limits<std::size_t>::max() - 1) / 3) return nullptr;
-    auto* output = static_cast<char*>(malloc_nid_postfix(size * 3 + 1));
-    if (output == nullptr) return nullptr;
+    CurlDynbuf output(CurlMaxInputLength * 3);
+    std::size_t size = length ? static_cast<std::size_t>(length) : std::strlen(string);
+    if (!size) return Curl_cstrdup("");
     constexpr char hex[] = "0123456789ABCDEF";
-    auto* destination = output;
-    for (std::size_t index = 0; index < size; ++index) {
-        const auto byte = static_cast<unsigned char>(string[index]);
+    while (size--) {
+        const auto byte = static_cast<unsigned char>(*string);
         if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
             (byte >= '0' && byte <= '9') || byte == '-' || byte == '.' || byte == '_' || byte == '~') {
-            *destination++ = static_cast<char>(byte);
+            if (!output.Add(&byte, 1)) return nullptr;
         } else {
-            *destination++ = '%';
-            *destination++ = hex[byte >> 4];
-            *destination++ = hex[byte & 15];
+            const char encoded[] = {'%', hex[byte >> 4], hex[byte & 15]};
+            if (!output.Add(encoded, sizeof(encoded))) return nullptr;
         }
+        ++string;
     }
-    *destination = '\0';
-    return output;
+    return output.bufr;
 }
 
 void APS5_VABI curl_free(void* pointer) {
-    free_nid_postfix(pointer);
+    Curl_cfree(pointer);
 }
 
 int APS5_VABI curl_strequal(const char* first, const char* second) {
-    if (!first || !second) NotImplemented_nid_no_patch(__func__);
     while (*first && *second && RawUpper(*first) == RawUpper(*second)) {
         ++first;
         ++second;
@@ -1969,15 +1964,11 @@ int APS5_VABI curl_strequal(const char* first, const char* second) {
 }
 
 CurlSlist* APS5_VABI curl_slist_append(CurlSlist* list, const char* string) {
-    if (string == nullptr) NotImplemented_nid_no_patch(__func__);
-    const auto size = std::strlen(string);
-    if (size == std::numeric_limits<std::size_t>::max()) return nullptr;
-    auto* copy = static_cast<char*>(malloc_nid_postfix(size + 1));
+    char* copy = Curl_cstrdup(string);
     if (copy == nullptr) return nullptr;
-    std::memcpy(copy, string, size + 1);
-    auto* node = static_cast<CurlSlist*>(malloc_nid_postfix(sizeof(CurlSlist)));
+    auto* node = static_cast<CurlSlist*>(Curl_cmalloc(sizeof(CurlSlist)));
     if (node == nullptr) {
-        free_nid_postfix(copy);
+        Curl_cfree(copy);
         return nullptr;
     }
     node->data = copy;
@@ -1990,7 +1981,6 @@ CurlSlist* APS5_VABI curl_slist_append(CurlSlist* list, const char* string) {
 }
 
 int APS5_VABI curl_strnequal(const char* first, const char* second, size_t max) {
-    if (!first || !second) NotImplemented_nid_no_patch(__func__);
     while (*first && *second && max && RawUpper(*first) == RawUpper(*second)) {
         --max;
         ++first;
@@ -2007,8 +1997,8 @@ char* APS5_VABI curl_unescape(const char* string, int length) {
 void APS5_VABI curl_slist_free_all(CurlSlist* list) {
     while (list != nullptr) {
         auto* next = list->next;
-        free_nid_postfix(list->data);
-        free_nid_postfix(list);
+        Curl_cfree(list->data);
+        Curl_cfree(list);
         list = next;
     }
 }
@@ -2016,10 +2006,8 @@ void APS5_VABI curl_slist_free_all(CurlSlist* list) {
 char* APS5_VABI curl_easy_unescape(void* handle, const char* string, int length, int* outputLength) {
     (void)handle;
     if (length < 0) return nullptr;
-    if (string == nullptr) NotImplemented_nid_no_patch(__func__);
     const auto size = length == 0 ? std::strlen(string) : static_cast<std::size_t>(length);
-    if (size == std::numeric_limits<std::size_t>::max()) return nullptr;
-    auto* output = static_cast<char*>(malloc_nid_postfix(size + 1));
+    auto* output = static_cast<char*>(Curl_cmalloc(size + 1));
     if (output == nullptr) return nullptr;
     const auto hex = [](unsigned char byte) {
         if (byte >= '0' && byte <= '9') return byte - '0';
@@ -2043,7 +2031,7 @@ char* APS5_VABI curl_easy_unescape(void* handle, const char* string, int length,
     output[written] = '\0';
     if (outputLength != nullptr) {
         if (written > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-            free_nid_postfix(output);
+            Curl_cfree(output);
             return nullptr;
         }
         *outputLength = static_cast<int>(written);
