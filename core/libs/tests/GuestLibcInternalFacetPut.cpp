@@ -193,6 +193,129 @@ void CheckNumPutForwarding() {
     Require(g_call.pointer == &object, "put(const void*) passes the value");
 }
 
+struct WideCall {
+    int slot;
+    const GuestLocale::Facet* self;
+    GuestLocale::Streambuf* buffer;
+    bool failed;
+    GuestLocale::IosBase* stream;
+    std::uint16_t fill;
+    std::uint64_t integer;
+    long double floating;
+    const void* pointer;
+};
+
+WideCall g_wideCall{};
+
+GuestLocale::OutputIterator RecordWide(int slot, const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill) {
+    g_wideCall = WideCall{slot, self, out.buffer, out.failed, stream, fill, 0, 0, nullptr};
+    return GuestLocale::OutputIterator{!out.failed, out.buffer};
+}
+
+GuestLocale::OutputIterator APS5_VABI RecordWideBool(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, bool value) {
+    const auto result = RecordWide(0, self, out, stream, fill);
+    g_wideCall.integer = value ? 1 : 0;
+    return result;
+}
+
+GuestLocale::OutputIterator APS5_VABI RecordWideLong(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, std::int64_t value) {
+    const auto result = RecordWide(1, self, out, stream, fill);
+    g_wideCall.integer = static_cast<std::uint64_t>(value);
+    return result;
+}
+
+GuestLocale::OutputIterator APS5_VABI RecordWideUnsignedLong(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, std::uint64_t value) {
+    const auto result = RecordWide(2, self, out, stream, fill);
+    g_wideCall.integer = value;
+    return result;
+}
+
+GuestLocale::OutputIterator APS5_VABI RecordWideLongLong(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, std::int64_t value) {
+    const auto result = RecordWide(3, self, out, stream, fill);
+    g_wideCall.integer = static_cast<std::uint64_t>(value);
+    return result;
+}
+
+GuestLocale::OutputIterator APS5_VABI RecordWideUnsignedLongLong(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, std::uint64_t value) {
+    const auto result = RecordWide(4, self, out, stream, fill);
+    g_wideCall.integer = value;
+    return result;
+}
+
+GuestLocale::OutputIterator APS5_VABI RecordWideDouble(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, double value) {
+    const auto result = RecordWide(5, self, out, stream, fill);
+    g_wideCall.floating = value;
+    return result;
+}
+
+GuestLocale::OutputIterator APS5_VABI RecordWideLongDouble(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, long double value) {
+    const auto result = RecordWide(6, self, out, stream, fill);
+    g_wideCall.floating = value;
+    return result;
+}
+
+GuestLocale::OutputIterator APS5_VABI RecordWidePointer(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const void* value) {
+    const auto result = RecordWide(7, self, out, stream, fill);
+    g_wideCall.pointer = value;
+    return result;
+}
+
+struct WideNumPutVtable {
+    GuestLocale::FacetVtable facet;
+    decltype(&RecordWideBool) putBool;
+    decltype(&RecordWideLong) putLong;
+    decltype(&RecordWideUnsignedLong) putUnsignedLong;
+    decltype(&RecordWideLongLong) putLongLong;
+    decltype(&RecordWideUnsignedLongLong) putUnsignedLongLong;
+    decltype(&RecordWideDouble) putDouble;
+    decltype(&RecordWideLongDouble) putLongDouble;
+    decltype(&RecordWidePointer) putPointer;
+};
+
+static_assert(offsetof(WideNumPutVtable, putBool) == 0x20);
+static_assert(offsetof(WideNumPutVtable, putPointer) == 0x58);
+
+const WideNumPutVtable g_recordingWideNumPut{g_testFacet, RecordWideBool, RecordWideLong, RecordWideUnsignedLong, RecordWideLongLong, RecordWideUnsignedLongLong, RecordWideDouble, RecordWideLongDouble, RecordWidePointer};
+
+template<typename TValue>
+using WideNumPutExport = GuestLocale::OutputIterator (APS5_VABI*)(const GuestLocale::Facet*, GuestLocale::OutputIterator, GuestLocale::IosBase*, std::uint16_t, TValue);
+
+template<typename TValue>
+void CheckWideNumPutForward(const char* nid, int slot, TValue value, bool failed) {
+    const auto put = Export<WideNumPutExport<TValue>>(nid);
+    GuestLocale::Facet facet{&g_recordingWideNumPut.facet, 1, 0};
+    GuestLocale::IosBase ios{};
+    auto stream = MakeStream(0);
+    g_wideCall = WideCall{-1, nullptr, nullptr, false, nullptr, 0, 0, 0, nullptr};
+    const GuestLocale::OutputIterator out = put(&facet, GuestLocale::OutputIterator{failed, &stream.buffer}, &ios, 0x263a, value);
+    Require(g_wideCall.slot == slot, "num_put<wchar_t>::put calls the do_put slot of its value type");
+    Require(g_wideCall.self == &facet && g_wideCall.stream == &ios && g_wideCall.fill == 0x263a, "num_put<wchar_t>::put passes the facet, stream and the whole wide fill");
+    Require(g_wideCall.buffer == &stream.buffer && g_wideCall.failed == failed, "num_put<wchar_t>::put passes the output iterator");
+    Require(out.failed == !failed && out.buffer == &stream.buffer, "num_put<wchar_t>::put returns what do_put returns");
+}
+
+void CheckWideNumPutForwarding() {
+    CheckWideNumPutForward<bool>("mY9FWooxqJY", 0, true, false);
+    Require(g_wideCall.integer == 1, "wide put(bool) passes the value");
+    CheckWideNumPutForward<bool>("mY9FWooxqJY", 0, false, true);
+    Require(g_wideCall.integer == 0, "wide put(bool) passes a false value");
+    CheckWideNumPutForward<std::int64_t>("USLhWp7sZoU", 1, std::numeric_limits<std::int64_t>::min(), false);
+    Require(g_wideCall.integer == static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::min()), "wide put(long) passes the value");
+    CheckWideNumPutForward<std::uint64_t>("qtpzdwMMCPc", 2, std::numeric_limits<std::uint64_t>::max(), true);
+    Require(g_wideCall.integer == std::numeric_limits<std::uint64_t>::max(), "wide put(unsigned long) passes the value");
+    CheckWideNumPutForward<std::int64_t>("ryykbHJ04Cw", 3, -7, false);
+    Require(g_wideCall.integer == static_cast<std::uint64_t>(-7), "wide put(long long) passes the value");
+    CheckWideNumPutForward<std::uint64_t>("lmb3oBpMNPU", 4, 0x8000000000000001ull, false);
+    Require(g_wideCall.integer == 0x8000000000000001ull, "wide put(unsigned long long) passes the value");
+    CheckWideNumPutForward<double>("V7aIsVIsIIA", 5, -2.5, false);
+    Require(g_wideCall.floating == -2.5L, "wide put(double) passes the value");
+    CheckWideNumPutForward<long double>("vCIFGeI6adI", 6, 1.0L / 3.0L, false);
+    Require(g_wideCall.floating == 1.0L / 3.0L, "wide put(long double) passes the value");
+    int object = 0;
+    CheckWideNumPutForward<const void*>("xfOSCbCiY44", 7, &object, false);
+    Require(g_wideCall.pointer == &object, "wide put(const void*) passes the value");
+}
+
 std::string PutLibcNumber(GuestLocale::Facet* facet, std::int32_t flags, std::int32_t width, std::int64_t value) {
     GuestLocale::IosBase ios{};
     ios.flags = flags;
@@ -377,6 +500,7 @@ int main(int argc, char** argv) {
     ApplicationHeapRegister_nid_no_patch(api.data());
 
     CheckNumPutForwarding();
+    CheckWideNumPutForwarding();
     CheckLibcNumPut();
     CheckTimePutForwarding();
     CheckPatternWalk();
