@@ -82,6 +82,32 @@ CURLcode GlobalInitWithGuestAllocator(long flags) {
     return result;
 }
 
+guest_curl_malloc_callback guestMalloc = nullptr;
+guest_curl_free_callback guestFree = nullptr;
+guest_curl_realloc_callback guestRealloc = nullptr;
+guest_curl_strdup_callback guestStrdup = nullptr;
+guest_curl_calloc_callback guestCalloc = nullptr;
+
+void* GuestCallbackMalloc(size_t size) {
+    return guestMalloc(size);
+}
+
+void GuestCallbackFree(void* pointer) {
+    guestFree(pointer);
+}
+
+void* GuestCallbackRealloc(void* pointer, size_t size) {
+    return guestRealloc(pointer, size);
+}
+
+char* GuestCallbackStrdup(const char* text) {
+    return guestStrdup(text);
+}
+
+void* GuestCallbackCalloc(size_t count, size_t size) {
+    return guestCalloc(count, size);
+}
+
 }
 
 namespace {
@@ -1887,7 +1913,19 @@ std::int32_t APS5_VABI curl_mime_encoder_nid_postfix(curl_mimepart* part, const 
 }
 
 std::int32_t APS5_VABI curl_global_init_mem_nid_postfix(long long flags, guest_curl_malloc_callback m, guest_curl_free_callback f, guest_curl_realloc_callback r, guest_curl_strdup_callback s, guest_curl_calloc_callback c) {
-    NotImplemented_nid_no_patch(__func__);
+    if (!m || !f || !r || !s || !c) return CURLE_FAILED_INIT;
+    const long hostFlags = HostLong(flags);
+    std::lock_guard lock(globalMutex);
+    if (!globalInitCount) {
+        guestMalloc = m;
+        guestFree = f;
+        guestRealloc = r;
+        guestStrdup = s;
+        guestCalloc = c;
+    }
+    const CURLcode result = ::curl_global_init_mem(hostFlags, GuestCallbackMalloc, GuestCallbackFree, GuestCallbackRealloc, GuestCallbackStrdup, GuestCallbackCalloc);
+    if (result == CURLE_OK) ++globalInitCount;
+    return result;
 }
 
 std::int32_t APS5_VABI curl_mime_headers_nid_postfix(curl_mimepart* part, guest_curl_slist* headers, int take_ownership) {

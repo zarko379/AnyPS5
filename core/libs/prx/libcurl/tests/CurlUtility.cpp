@@ -250,6 +250,73 @@ static void CheckOutputs() {
     Require(ListStandardOutput("curl mvprintf %d\n", 2) == 16);
 }
 
+static int guestAllocatorCalls = 0;
+static int guestFreeCalls = 0;
+
+static void* APS5_VABI CountingMalloc(size_t size) {
+    ++guestAllocatorCalls;
+    return std::malloc(size);
+}
+
+static void APS5_VABI CountingFree(void* pointer) {
+    ++guestFreeCalls;
+    std::free(pointer);
+}
+
+static void* APS5_VABI CountingRealloc(void* pointer, size_t size) {
+    ++guestAllocatorCalls;
+    return std::realloc(pointer, size);
+}
+
+static char* APS5_VABI CountingStrdup(const char* text) {
+    ++guestAllocatorCalls;
+    const size_t size = std::strlen(text) + 1;
+    auto* copy = static_cast<char*>(std::malloc(size));
+    if (copy) std::memcpy(copy, text, size);
+    return copy;
+}
+
+static void* APS5_VABI CountingCalloc(size_t count, size_t size) {
+    ++guestAllocatorCalls;
+    return std::calloc(count, size);
+}
+
+static void* APS5_VABI OtherMalloc(size_t) {
+    std::abort();
+}
+
+static void CheckGlobalInitMem() {
+    Require(curl_global_init_mem_nid_postfix(CURL_GLOBAL_DEFAULT, nullptr, CountingFree, CountingRealloc, CountingStrdup, CountingCalloc) == CURLE_FAILED_INIT);
+    Require(curl_global_init_mem_nid_postfix(CURL_GLOBAL_DEFAULT, CountingMalloc, CountingFree, CountingRealloc, CountingStrdup, nullptr) == CURLE_FAILED_INIT);
+    Require(curl_global_init_mem_nid_postfix(CURL_GLOBAL_DEFAULT, CountingMalloc, CountingFree, CountingRealloc, CountingStrdup, CountingCalloc) == CURLE_OK);
+    Require(curl_global_init_mem_nid_postfix(CURL_GLOBAL_DEFAULT, nullptr, CountingFree, CountingRealloc, CountingStrdup, CountingCalloc) == CURLE_FAILED_INIT);
+    Require(curl_global_init_mem_nid_postfix(CURL_GLOBAL_DEFAULT, OtherMalloc, CountingFree, CountingRealloc, CountingStrdup, CountingCalloc) == CURLE_OK);
+    const int allocations = guestAllocatorCalls;
+    char* formatted = curl_maprintf_nid_postfix("%d", 42);
+    Require(formatted != nullptr && std::strcmp(formatted, "42") == 0 && guestAllocatorCalls == allocations + 1);
+    const int frees = guestFreeCalls;
+    curl_free(formatted);
+    Require(guestFreeCalls == frees + 1);
+    CurlSlist* list = curl_slist_append(nullptr, "item");
+    Require(list != nullptr && guestAllocatorCalls == allocations + 3);
+    curl_slist_free_all(list);
+    Require(guestFreeCalls == frees + 3);
+    auto* easy = curl_easy_init_nid_postfix();
+    Require(easy != nullptr && guestAllocatorCalls > allocations + 3);
+    curl_easy_cleanup_nid_postfix(easy);
+    curl_global_cleanup_nid_postfix();
+    curl_global_cleanup_nid_postfix();
+    formatted = curl_maprintf_nid_postfix("%d", 7);
+    Require(formatted != nullptr && guestAllocatorCalls > allocations + 3);
+    curl_free(formatted);
+    Require(curl_global_init_nid_postfix(CURL_GLOBAL_DEFAULT) == CURLE_OK);
+    const int restored = guestAllocatorCalls;
+    formatted = curl_maprintf_nid_postfix("%d", 7);
+    Require(formatted != nullptr && guestAllocatorCalls == restored);
+    curl_free(formatted);
+    curl_global_cleanup_nid_postfix();
+}
+
 static void CheckPrintf() {
     CheckIntegers();
     CheckParameters();
@@ -306,6 +373,7 @@ int main() {
     Require(non_env == nullptr);
 
     Require(curl_version_info_nid_postfix(CURLVERSION_FIRST) == info);
+    CheckGlobalInitMem();
     CheckPrintf();
     curl_global_cleanup_nid_postfix();
     return 0;
