@@ -455,7 +455,7 @@ int APS5_VABI sceNpPushStopNotificationA(void);
 int APS5_VABI sceNpPushTerm(void);
 int APS5_VABI sceNpPushUnregisterExtendedDataFilter(void);
 int APS5_VABI sceNpPushUnregisterNotificationCallback(void);
-int APS5_VABI sceNpRegisterStateCallbackForToolkit(void);
+int APS5_VABI sceNpRegisterStateCallbackForToolkit(NpStateCallbackA callback, void* userdata);
 int APS5_VABI sceNpServiceClientInit(void);
 int APS5_VABI sceNpServiceClientTerm(void);
 int APS5_VABI sceNpSetAdditionalScope(void);

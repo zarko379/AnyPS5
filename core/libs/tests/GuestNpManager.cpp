@@ -180,6 +180,56 @@ void CheckLegacyStateCallback() {
     Require(sceNpUnregisterStateCallback() == NotRegistered, "unregistering the legacy callback twice");
 }
 
+int callbackSequence = 0;
+int toolkitOrder[2];
+StateCall toolkitCalls[2];
+int orderedAOrder = 0;
+StateCall orderedACall;
+
+template <int Index>
+void APS5_VABI ToolkitStateCallback(int userId, std::uint32_t state, void* userdata) {
+    toolkitOrder[Index] = ++callbackSequence;
+    toolkitCalls[Index] = {toolkitCalls[Index].calls + 1, userId, state, nullptr, userdata};
+}
+
+void APS5_VABI OrderedStateCallbackA(int userId, std::uint32_t state, void* userdata) {
+    orderedAOrder = ++callbackSequence;
+    orderedACall = {orderedACall.calls + 1, userId, state, nullptr, userdata};
+}
+
+void CheckToolkitStateCallback() {
+    int userdata[2] = {};
+    auto first = reinterpret_cast<NpStateCallbackA>(reinterpret_cast<void*>(&ToolkitStateCallback<0>));
+    auto second = reinterpret_cast<NpStateCallbackA>(reinterpret_cast<void*>(&ToolkitStateCallback<1>));
+    auto ordered = reinterpret_cast<NpStateCallbackA>(reinterpret_cast<void*>(&OrderedStateCallbackA));
+    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "unregistering with no toolkit callback");
+    Require(sceNpRegisterStateCallbackForToolkit(nullptr, &userdata[0]) == 0, "a null toolkit callback must return 0");
+    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "a null toolkit callback must not register");
+    Require(sceNpCheckCallback() == 0, "sceNpCheckCallback failed with a null toolkit callback");
+    Require(sceNpRegisterStateCallbackForToolkit(first, &userdata[0]) == 0, "registering the toolkit callback");
+    const int id = sceNpRegisterStateCallbackA(ordered, &userdata[1]);
+    Require(id > 0, "registering the A callback next to the toolkit callback");
+    Require(sceNpCheckCallback() == 0, "sceNpCheckCallback failed with the toolkit callback");
+    Require(SignedOutOnce(toolkitCalls[0], &userdata[0]), "the toolkit callback must get SIGNED_OUT once");
+    Require(SignedOutOnce(orderedACall, &userdata[1]), "the A callback must get SIGNED_OUT once");
+    Require(orderedAOrder < toolkitOrder[0], "the toolkit callback must follow the A callbacks");
+    Require(sceNpCheckCallback() == 0, "second sceNpCheckCallback failed with the toolkit callback");
+    Require(toolkitCalls[0].calls == 1, "the toolkit callback got the state again");
+    Require(sceNpUnregisterStateCallbackA(id) == 0, "unregistering the A callback next to the toolkit callback");
+    Require(sceNpRegisterStateCallbackForToolkit(first, &userdata[0]) == 0, "registering the toolkit callback again");
+    Require(sceNpRegisterStateCallbackForToolkit(second, &userdata[1]) == 0, "replacing the toolkit callback");
+    Require(sceNpCheckCallback() == 0, "sceNpCheckCallback failed with the replaced toolkit callback");
+    Require(toolkitCalls[0].calls == 1, "the replaced toolkit callback was called");
+    Require(SignedOutOnce(toolkitCalls[1], &userdata[1]), "the replacing toolkit callback must get SIGNED_OUT once");
+    Require(sceNpRegisterStateCallbackForToolkit(nullptr, nullptr) == 0, "clearing the toolkit callback with null");
+    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "a null toolkit callback must clear the earlier one");
+    Require(sceNpRegisterStateCallbackForToolkit(first, &userdata[0]) == 0, "registering the toolkit callback before unregistering");
+    Require(sceNpUnregisterStateCallbackForToolkit() == 0, "unregistering the toolkit callback");
+    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "unregistering the toolkit callback twice");
+    Require(sceNpCheckCallback() == 0, "sceNpCheckCallback failed after unregistering the toolkit callback");
+    Require(toolkitCalls[0].calls == 1, "an unregistered toolkit callback was called");
+}
+
 void CheckGamePresenceCallbacksA() {
     constexpr int CallbackMax = static_cast<int>(0x8055001Du);
     int dummy = 0;
@@ -1048,6 +1098,7 @@ int main() {
     CheckUserIdQueries();
     CheckStateCallbacksA();
     CheckLegacyStateCallback();
+    CheckToolkitStateCallback();
     CheckGamePresenceCallbacksA();
     CheckRequestTimeouts();
     CheckAsyncRequestLifecycle();
