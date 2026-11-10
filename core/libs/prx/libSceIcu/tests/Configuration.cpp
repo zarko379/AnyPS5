@@ -8,6 +8,7 @@
 #include <source_location>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -234,9 +235,87 @@ void Cleanup() {
     Require(std::string(u_getDataDirectory_nid_postfix()) == "");
 }
 
+struct TraceCall {
+    const void* context = nullptr;
+    std::int32_t function = -100;
+    std::int32_t calls = 0;
+};
+
+TraceCall traceCall;
+
+void APS5_VABI TraceEntered_nid_no_patch(const void* context, std::int32_t function) {
+    traceCall.context = context;
+    traceCall.function = function;
+    ++traceCall.calls;
+}
+
+void APS5_VABI TraceExited_nid_no_patch() {}
+void APS5_VABI TraceData_nid_no_patch() {}
+
+void TraceFunctions(const void* context, Icu::TraceEntry entry, Icu::TraceExit exit, Icu::TraceData data) {
+    const void* gotContext = &traceCall;
+    Icu::TraceEntry gotEntry = TraceEntered_nid_no_patch;
+    Icu::TraceExit gotExit = TraceExited_nid_no_patch;
+    Icu::TraceData gotData = TraceData_nid_no_patch;
+    utrace_getFunctions_nid_postfix(&gotContext, &gotEntry, &gotExit, &gotData);
+    Require(gotContext == context && gotEntry == entry && gotExit == exit && gotData == data);
+}
+
+void Tracing() {
+    Require(utrace_getLevel_nid_postfix() == 0);
+    TraceFunctions(nullptr, nullptr, nullptr, nullptr);
+    utrace_entry_nid_postfix(1);
+    Require(traceCall.calls == 0);
+    for (const auto& [level, expected] : std::initializer_list<std::pair<std::int32_t, std::int32_t>>{
+             {5, 5}, {-1, -1}, {9, 9}, {0, 0}, {-2, -1}, {10, 9}, {INT32_MIN, -1}, {INT32_MAX, 9}, {3, 3}}) {
+        utrace_setLevel_nid_postfix(level);
+        Require(utrace_getLevel_nid_postfix() == expected);
+    }
+    int marker = 0;
+    utrace_setFunctions_nid_postfix(&marker, TraceEntered_nid_no_patch, TraceExited_nid_no_patch, TraceData_nid_no_patch);
+    TraceFunctions(&marker, TraceEntered_nid_no_patch, TraceExited_nid_no_patch, TraceData_nid_no_patch);
+    utrace_entry_nid_postfix(0x1003);
+    Require(traceCall.calls == 1 && traceCall.context == &marker && traceCall.function == 0x1003);
+    utrace_entry_nid_postfix(-7);
+    Require(traceCall.calls == 2 && traceCall.function == -7);
+    utrace_setFunctions_nid_postfix(nullptr, nullptr, TraceExited_nid_no_patch, nullptr);
+    TraceFunctions(nullptr, nullptr, TraceExited_nid_no_patch, nullptr);
+    utrace_entry_nid_postfix(0);
+    Require(traceCall.calls == 2);
+    const void* context = nullptr;
+    Icu::TraceEntry entry = nullptr;
+    Icu::TraceExit exit = nullptr;
+    Icu::TraceData data = nullptr;
+    RequireThrows([&] { utrace_getFunctions_nid_postfix(nullptr, &entry, &exit, &data); });
+    RequireThrows([&] { utrace_getFunctions_nid_postfix(&context, nullptr, &exit, &data); });
+    RequireThrows([&] { utrace_getFunctions_nid_postfix(&context, &entry, nullptr, &data); });
+    RequireThrows([&] { utrace_getFunctions_nid_postfix(&context, &entry, &exit, nullptr); });
+    utrace_setFunctions_nid_postfix(&marker, TraceEntered_nid_no_patch, TraceExited_nid_no_patch, TraceData_nid_no_patch);
+    utrace_setLevel_nid_postfix(7);
+    u_cleanup_nid_postfix();
+    Require(utrace_getLevel_nid_postfix() == -1);
+    TraceFunctions(nullptr, nullptr, nullptr, nullptr);
+    utrace_entry_nid_postfix(1);
+    Require(traceCall.calls == 2);
+}
+
+void TraceNames() {
+    const std::pair<std::int32_t, const char*> names[] = {
+        {0, "u_init"}, {1, "u_cleanup"}, {0x1000, "ucnv_open"}, {0x1001, "ucnv_openPackage"}, {0x1002, "ucnv_openAlgorithmic"},
+        {0x1003, "ucnv_clone"}, {0x1004, "ucnv_close"}, {0x1005, "ucnv_flushCache"}, {0x1006, "ucnv_load"}, {0x1007, "ucnv_unload"},
+        {0x2000, "ucol_open"}, {0x2001, "ucol_close"}, {0x2002, "ucol_strcoll"}, {0x2003, "ucol_getSortKey"}, {0x2004, "ucol_getLocale"},
+        {0x2005, "ucol_nextSortKeyPart"}, {0x2006, "ucol_strcollIter"}, {0x2007, "ucol_openFromShortString"}, {0x3000, "resc"},
+        {0x3001, "bundle-open"}, {0x3002, "file-open"}, {0x3003, "res-open"}};
+    for (const auto& [number, name] : names) Require(std::string(utrace_functionName_nid_postfix(number)) == name);
+    for (const std::int32_t number : {-1, 2, 0xfff, 0x1008, 0x1fff, 0x2008, 0x3004, 0x4000, 0x4001, INT32_MIN, INT32_MAX})
+        Require(std::string(utrace_functionName_nid_postfix(number)) == "[BOGUS Trace Function Number]");
+}
+
 }
 
 int main() {
+    Tracing();
+    TraceNames();
     Locking();
     Memory();
     DataDirectory();
