@@ -1,4 +1,5 @@
 #include "prx/libkernel_web/include/Api.hpp"
+#include "prx/libSceLibcInternal/include/Api.hpp"
 #include "prx/libkernel/include/Api.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
@@ -7,12 +8,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 
 namespace {
 
 constexpr int GuestEnoent = 2;
 constexpr int GuestEbadf = 9;
+constexpr int GuestEchild = 10;
 constexpr int GuestEfault = 14;
+constexpr int GuestEinval = 22;
 
 void Require(bool condition, const char* message) {
     if (!condition) {
@@ -61,10 +66,43 @@ void TestExec() {
                    "_execvpe of a missing program did not fail with ENOENT");
 }
 
+void TestWait4() {
+    int status = 0x5a5a;
+    RequireFailure(_wait4_nid_disambig1_nid_postfix(-1, &status, 0, nullptr), GuestEchild, "_wait4 without children did not fail with ECHILD");
+    RequireFailure(_wait4_nid_disambig1_nid_postfix(-1, &status, 1, nullptr), GuestEchild, "_wait4 with WNOHANG and no children did not fail with ECHILD");
+    RequireFailure(_wait4_nid_disambig1_nid_postfix(getpid_nid_postfix(), &status, 0, nullptr), GuestEchild, "_wait4 for the caller's pid did not fail with ECHILD");
+    RequireFailure(_wait4_nid_disambig1_nid_postfix(-1, &status, 0x40, nullptr), GuestEinval, "_wait4 with an unknown option did not fail with EINVAL");
+    Require(status == 0x5a5a, "_wait4 wrote the status of a failed wait");
+    std::filesystem::create_directories("app0");
+    {
+        std::ofstream image("app0/eboot.bin");
+        image << "image";
+        Require(image.good(), "the child image could not be written");
+    }
+    char program[] = "/app0/eboot.bin";
+    char role[] = "kernel-web-wait4-child";
+    char* childArguments[] = {program, role, nullptr};
+    int child = 0;
+    Require(posix_spawn_nid_postfix(&child, program, nullptr, nullptr, childArguments, nullptr) == 0 && child > 0, "posix_spawn of the child failed");
+    RequireFailure(_wait4_nid_disambig1_nid_postfix(child + 100000, &status, 1, nullptr), GuestEchild, "_wait4 for a pid that is not a child did not fail with ECHILD");
+    Require(status == 0x5a5a, "_wait4 for another pid wrote a status");
+    Require(_wait4_nid_disambig1_nid_postfix(child, &status, 0, nullptr) == child, "_wait4 did not reap the child");
+    Require((status & 0x7f) == 0 && ((status >> 8) & 0xff) == 44, "_wait4 reported the wrong child status");
+    RequireFailure(_wait4_nid_disambig1_nid_postfix(child, &status, 0, nullptr), GuestEchild, "_wait4 reaped the child twice");
+    Require(std::filesystem::remove("app0/eboot.bin") && std::filesystem::remove("app0"), "the child image could not be removed");
+}
+
 } // namespace
 
-int main() {
+int main(int count, char** arguments) {
+#ifdef _WIN32
+    constexpr int ChildArgument = 2;
+#else
+    constexpr int ChildArgument = 1;
+#endif
+    if (count == ChildArgument + 1 && std::strcmp(arguments[ChildArgument], "kernel-web-wait4-child") == 0) return 44;
     TestDup2();
     TestExec();
+    TestWait4();
     return 0;
 }

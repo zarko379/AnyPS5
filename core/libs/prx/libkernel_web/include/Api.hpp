@@ -2,6 +2,8 @@
 
 #include "SceTypes.hpp"
 
+struct GuestResourceUsage;
+
 extern "C" {
 
 int APS5_VABI __freeze_nid_disambig1_nid_postfix();
@@ -44,7 +46,7 @@ int APS5_VABI __sys_workaround8849_nid_disambig1_nid_postfix();
 int APS5_VABI _dup2_nid_disambig1_nid_postfix(int from, int to);
 int APS5_VABI _execve_nid_disambig1_nid_postfix(const char* path, char* const* argv, char* const* envp);
 int APS5_VABI _execvpe_nid_disambig1_nid_postfix(const char* name, char* const* argv, char* const* envp);
-int APS5_VABI _wait4_nid_disambig1_nid_postfix();
+int APS5_VABI _wait4_nid_disambig1_nid_postfix(int pid, int* status, int options, GuestResourceUsage* usage);
 int APS5_VABI sceKernelGetPrefixVersion();
 int APS5_VABI sceKernelIccGetThermalAlert();
 

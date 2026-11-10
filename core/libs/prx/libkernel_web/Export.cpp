@@ -206,9 +206,8 @@ int APS5_VABI _execvpe_nid_disambig1_nid_postfix(const char* name, char* const* 
     return _execvpe_nid_postfix(name, argv, envp);
 }
 
-int APS5_VABI _wait4_nid_disambig1_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI _wait4_nid_disambig1_nid_postfix(int pid, int* status, int options, GuestResourceUsage* usage) {
+    return _wait4_nid_postfix(pid, status, options, usage);
 }
 
 int APS5_VABI sceKernelGetPrefixVersion() {
