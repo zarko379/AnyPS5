@@ -130,7 +130,12 @@ void CheckBaseMembers() {
         Reject([&] { Export<Convert>(nid)(&facet, state, source, source + 3, &next1, destination, destination + 4, nullptr); }, "a null destination next pointer throws");
     }
 
-    for (const char* nid : {"iCWgjeqMHvg", "c6Lyc6xOp4o"}) {
+    {
+        bool unimplemented = false;
+        try { Export<Unshift>("iCWgjeqMHvg")(&facet, state, destination + 1, destination + 4, &next3); } catch (const std::runtime_error&) { unimplemented = true; }
+        Require(unimplemented, "codecvt<char, char>::do_unshift throws while its result is unsettled");
+    }
+    for (const char* nid : {"c6Lyc6xOp4o"}) {
         next3 = nullptr;
         g_call = {};
         Require(Export<Unshift>(nid)(&facet, state, destination + 1, destination + 4, &next3) == 3, "do_unshift returns noconv");

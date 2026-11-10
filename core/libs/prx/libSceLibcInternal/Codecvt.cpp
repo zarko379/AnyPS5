@@ -48,8 +48,8 @@ int APS5_VABI sceLibcInternalCodecvtDoOut_nid_no_patch(const GuestLocale::Facet*
 }
 APS5_EXPORT("Uc+-Sx0UZ3U", sceLibcInternalCodecvtDoOut_nid_no_patch);
 
-int APS5_VABI sceLibcInternalCodecvtDoUnshift_nid_no_patch(const GuestLocale::Facet*, std::uint64_t*, char* first2, char*, char** next2) {
-    return NoUnshift(first2, next2, "codecvt<char, char>::do_unshift");
+int APS5_VABI sceLibcInternalCodecvtDoUnshift_nid_no_patch(const GuestLocale::Facet*, std::uint64_t*, char*, char*, char**) {
+    NotImplemented_nid_no_patch("codecvt<char, char>::do_unshift");
 }
 APS5_EXPORT("iCWgjeqMHvg", sceLibcInternalCodecvtDoUnshift_nid_no_patch);
 
