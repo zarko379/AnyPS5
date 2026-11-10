@@ -1456,6 +1456,12 @@ void Cancellation(int ssl, Mode mode, int teardown) {
             "teardown releases TLS allocations before returning");
     }
     Require(pending.wait_for(std::chrono::seconds(1)) == std::future_status::ready && pending.get(), "pending call observes cancellation");
+    if (teardown == 0) {
+        Require(sceHttp2AbortRequest(client.request) == 0, "repeat abort of cancelled request");
+        Require(Throws([&] { sceHttp2SendRequest(client.request, nullptr, 0); }), "send after in-flight abort throws");
+        Require(sceHttp2DeleteRequest(client.request) == 0, "delete aborted request");
+        Require(sceHttp2AbortRequest(client.request) == static_cast<int>(0x817b1100), "abort of deleted request");
+    }
     if (teardown) Require(sceHttp2DeleteRequest(client.request) == static_cast<int>(0x817b1100), "deleted request stays invalid");
 }
 
@@ -1513,7 +1519,7 @@ void FirstNetworkRequest(int ssl) {
 }
 #endif
 
-void Refused(int ssl) {
+std::string RefusedUrl() {
     mbedtls_net_context listener;
     mbedtls_net_init(&listener);
     Require(mbedtls_net_bind(&listener, "127.0.0.1", "0", MBEDTLS_NET_PROTO_TCP) == 0, "refused bind");
@@ -1526,10 +1532,26 @@ void Refused(int ssl) {
     Require(getsockname(listener.fd, reinterpret_cast<sockaddr*>(&address), &size) == 0, "refused port");
     const auto url = "https://127.0.0.1:" + std::to_string(ntohs(address.sin_port)) + "/";
     mbedtls_net_free(&listener);
+    return url;
+}
+
+void Refused(int ssl) {
     Client client(ssl);
-    client.Create(url);
+    client.Create(RefusedUrl());
     Require(sceHttp2SendRequest(client.request, nullptr, 0) == static_cast<int>(0x8041013d), "raw connection refused error");
     AfterFailedSend(client, static_cast<int>(0x8041013d));
+}
+
+void AbortBeforeSend(int ssl) {
+    std::fprintf(stderr, "HTTP2 abort before send scenario\n");
+    Client client(ssl);
+    client.Create(RefusedUrl());
+    Require(sceHttp2AbortRequest(client.request) == 0, "abort before send");
+    Require(sceHttp2AbortRequest(client.request) == 0, "repeat abort before send");
+    Require(Throws([&] { sceHttp2SendRequest(client.request, nullptr, 0); }), "send after abort throws without connecting");
+    int status = 123;
+    Require(Throws([&] { sceHttp2GetStatusCode(client.request, &status); }) && status == 123, "status of aborted request untouched");
+    Require(sceHttp2AbortRequest(client.request) == 0, "abort after refused send attempt");
 }
 
 std::atomic<int> lookups{0};
@@ -1750,6 +1772,7 @@ int main(int argc, char** argv) {
             for (int teardown = 0; teardown < 4; ++teardown) Cancellation(ssl, mode, teardown);
         }
         Refused(ssl);
+        AbortBeforeSend(ssl);
         Capacity(ssl);
         Retries(ssl);
         const int untrusted = sceSslInit_nid_postfix(8 * 1024 * 1024);
