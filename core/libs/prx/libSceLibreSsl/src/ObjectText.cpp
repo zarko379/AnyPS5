@@ -9,6 +9,7 @@
 #include <limits>
 #include <new>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -228,6 +229,11 @@ const char* LibreSslObjectLongName_nid_no_patch(int nid) {
 
 int APS5_VABI i2t_ASN1_OBJECT_nid_postfix(char* buffer, int length, const LibreSslAsn1Object* object) {
     return ObjectText(buffer, length, object, __func__);
+}
+
+int APS5_VABI OBJ_obj2nid_nid_postfix(const LibreSslAsn1Object* object) {
+    if (object && object->nid == 0 && object->length > 0 && !object->data) throw std::invalid_argument(std::string(__func__) + ": object without data");
+    return LibreSslObjectNid_nid_no_patch(object);
 }
 
 const char* APS5_VABI OBJ_nid2sn_nid_postfix(int nid) {

@@ -89,10 +89,58 @@ void CheckAdded() {
     Require(OBJ_nid2sn_nid_postfix(added) == nullptr && ERR_get_error_nid_postfix() == 0, "OBJ_cleanup removes the added NIDs");
 }
 
+LibreSslAsn1Object Unnamed(const unsigned char* data, int length) {
+    return {nullptr, nullptr, 0, length, data, 0};
+}
+
+void CheckObjectNid() {
+    Require(OBJ_obj2nid_nid_postfix(nullptr) == 0, "a null object is NID_undef");
+    constexpr unsigned char sha256[] = {0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01};
+    constexpr unsigned char unknown[] = {0x2a, 0x03, 0x04, 0x63};
+    constexpr unsigned char added[] = {0x2a, 0x03, 0x04, 0x05};
+    LibreSslAsn1Object object = Unnamed(sha256, sizeof(sha256));
+    Require(OBJ_obj2nid_nid_postfix(&object) == 672, "an unnamed object is found by its encoding");
+    object.nid = 4;
+    Require(OBJ_obj2nid_nid_postfix(&object) == 4, "a set NID is returned without looking at the encoding");
+    LibreSslAsn1Object nidOnly{nullptr, nullptr, 13, 5, nullptr, 0};
+    Require(OBJ_obj2nid_nid_postfix(&nidOnly) == 13, "a set NID is returned for an object without data");
+    object = Unnamed(sha256, sizeof(sha256) - 1);
+    Require(OBJ_obj2nid_nid_postfix(&object) == 0, "a truncated encoding is NID_undef");
+    object = Unnamed(unknown, sizeof(unknown));
+    Require(OBJ_obj2nid_nid_postfix(&object) == 0, "an unknown encoding is NID_undef");
+    object = Unnamed(nullptr, 0);
+    Require(OBJ_obj2nid_nid_postfix(&object) == 404, "an empty object lands on the zero-length ccitt entry, as the reference binary search does");
+    object = Unnamed(sha256, -1);
+    Require(OBJ_obj2nid_nid_postfix(&object) == 0, "a negative length is NID_undef");
+    object = Unnamed(nullptr, 3);
+    RequireThrows([&] { OBJ_obj2nid_nid_postfix(&object); }, "an unnamed object with a length and no data");
+    for (int nid = 1; nid < LibreSslObjectCount; ++nid) {
+        const LibreSslAsn1Object& entry = LibreSslObjects_nid_no_patch[nid];
+        if (entry.length <= 0) continue;
+        object = Unnamed(entry.data, entry.length);
+        const int found = OBJ_obj2nid_nid_postfix(&object);
+        const LibreSslAsn1Object& match = LibreSslObjects_nid_no_patch[found];
+        Require(found > 0 && match.length == entry.length && std::memcmp(match.data, entry.data, static_cast<std::size_t>(entry.length)) == 0,
+            "every built-in encoding maps to a NID with that encoding");
+    }
+    object = Unnamed(added, sizeof(added));
+    Require(OBJ_obj2nid_nid_postfix(&object) == 0, "an encoding is unknown before OBJ_create");
+    const int created = OBJ_create_nid_postfix("1.2.3.4.5", "objectNidShort", nullptr);
+    Require(created > 0 && OBJ_obj2nid_nid_postfix(&object) == created, "an encoding registered by OBJ_create maps to its NID");
+    const int shadow = OBJ_create_nid_postfix("2.16.840.1.101.3.4.2.1", "shadowSha256", nullptr);
+    object = Unnamed(sha256, sizeof(sha256));
+    Require(shadow > 0 && OBJ_obj2nid_nid_postfix(&object) == shadow, "added objects are searched before the built-in table");
+    OBJ_cleanup_nid_postfix();
+    Require(OBJ_obj2nid_nid_postfix(&object) == 672, "OBJ_cleanup restores the built-in match");
+    object = Unnamed(added, sizeof(added));
+    Require(OBJ_obj2nid_nid_postfix(&object) == 0, "OBJ_cleanup removes added encodings");
+}
+
 } // namespace
 
 int main() {
     CheckBuiltIn();
     CheckAdded();
+    CheckObjectNid();
     return 0;
 }
