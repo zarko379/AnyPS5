@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -29,6 +30,7 @@ void Require(bool condition, const std::source_location location = std::source_l
 std::size_t activeAllocations = 0;
 std::size_t allocationCalls = 0;
 int failureCountdown = 0;
+std::vector<std::size_t> reallocations;
 
 void* APS5_VABI Allocate(std::size_t bytes) {
     ++allocationCalls;
@@ -45,7 +47,14 @@ void APS5_VABI Free(void* pointer) {
     std::free(pointer);
 }
 
-void* APS5_VABI Reallocate(void*, std::size_t) { throw std::logic_error("unexpected reallocation"); }
+void* APS5_VABI Reallocate(void* pointer, std::size_t bytes) {
+    ++allocationCalls;
+    reallocations.push_back(bytes);
+    if (failureCountdown > 0 && --failureCountdown == 0) return nullptr;
+    void* result = std::realloc(pointer, bytes);
+    if (result != nullptr && pointer == nullptr) ++activeAllocations;
+    return result;
+}
 void* APS5_VABI Calloc(std::size_t, std::size_t) { throw std::logic_error("unexpected calloc"); }
 void* APS5_VABI Align(std::size_t, std::size_t) { throw std::logic_error("unexpected aligned allocation"); }
 void* APS5_VABI Realign(void*, std::size_t, std::size_t) { throw std::logic_error("unexpected aligned reallocation"); }
@@ -228,6 +237,31 @@ void CheckFailures() {
     }
 }
 
+void CheckAllocatingFormat() {
+    const std::string text(100, 'x');
+    reallocations.clear();
+    char* formatted = curl_maprintf_nid_postfix("%s", text.c_str());
+    Require(formatted != nullptr && text == formatted);
+    Require(reallocations == std::vector<std::size_t>{32, 64, 128});
+    curl_free(formatted);
+    formatted = curl_maprintf_nid_postfix("%7999999s", "");
+    Require(formatted != nullptr && std::strlen(formatted) == 7999999);
+    curl_free(formatted);
+    Require(curl_maprintf_nid_postfix("%8000000s", "") == nullptr);
+    Require(activeAllocations == 0);
+    failureCountdown = 2;
+    Require(curl_maprintf_nid_postfix("%s", text.c_str()) == nullptr);
+    Require(activeAllocations == 0);
+    failureCountdown = 1;
+    Require(curl_maprintf_nid_postfix("") == nullptr);
+    Require(activeAllocations == 0);
+    reallocations.clear();
+    formatted = curl_maprintf_nid_postfix("");
+    Require(formatted != nullptr && formatted[0] == ' ' && reallocations.empty());
+    curl_free(formatted);
+    Require(activeAllocations == 0);
+}
+
 class GuardedInput {
     char* allocation;
     std::size_t pageSize;
@@ -291,6 +325,7 @@ int main() {
     CheckEscapes();
     CheckLists();
     CheckFailures();
+    CheckAllocatingFormat();
     CheckBoundaries();
     Require(activeAllocations == 0);
 }

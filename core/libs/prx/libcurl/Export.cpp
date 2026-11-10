@@ -5,8 +5,11 @@
 #include "prx/libc/include/GuestArena.hpp"
 
 #include "prx/libc/include/Api.hpp"
+#include "prx/libc/include/WindowsFormatting.hpp"
 
 #include <array>
+#include <bit>
+#include <cmath>
 #include <climits>
 #include <cstring>
 #include <stdexcept>
@@ -669,6 +672,643 @@ std::shared_ptr<ShareContext> FindShare(CURLSH* share) {
 
 } // namespace
 
+namespace {
+
+struct CurlDynbuf {
+    char* bufr = nullptr;
+    size_t leng = 0;
+    size_t allc = 0;
+    size_t toobig;
+
+    explicit CurlDynbuf(size_t limit) : toobig(limit) {}
+
+    void Free() {
+        Curl_cfree(bufr);
+        bufr = nullptr;
+        leng = 0;
+        allc = 0;
+    }
+
+    bool Add(const void* memory, size_t length) {
+        const size_t index = leng;
+        size_t allocation = allc;
+        const size_t fit = length + index + 1;
+        if (fit > toobig) {
+            Free();
+            return false;
+        }
+        if (!allocation) allocation = fit < 32 ? 32 : fit;
+        else while (allocation < fit) allocation *= 2;
+        if (allocation != allc) {
+            void* grown = Curl_crealloc(bufr, allocation);
+            if (!grown) {
+                Free();
+                return false;
+            }
+            bufr = static_cast<char*>(grown);
+            allc = allocation;
+        }
+        if (length) std::memcpy(bufr + index, memory, length);
+        leng = index + length;
+        bufr[leng] = 0;
+        return true;
+    }
+};
+
+constexpr size_t CurlMaxInputLength = 8000000;
+constexpr size_t CurlAprintfLimit = 8000000;
+constexpr int CurlMaxParameters = 128;
+constexpr int CurlWorkSize = 326;
+
+enum CurlFormatType { CurlUnknown, CurlString, CurlPtr, CurlInt, CurlIntPtr, CurlLong, CurlLongLong, CurlDouble, CurlLongDouble, CurlWidth };
+
+enum : int {
+    CurlSpace = 1 << 0,
+    CurlShowSign = 1 << 1,
+    CurlLeft = 1 << 2,
+    CurlAlt = 1 << 3,
+    CurlShort = 1 << 4,
+    CurlLongFlag = 1 << 5,
+    CurlLongLongFlag = 1 << 6,
+    CurlLongDoubleFlag = 1 << 7,
+    CurlPadNil = 1 << 8,
+    CurlUnsigned = 1 << 9,
+    CurlOctal = 1 << 10,
+    CurlHex = 1 << 11,
+    CurlUpper = 1 << 12,
+    CurlWidthFlag = 1 << 13,
+    CurlWidthParam = 1 << 14,
+    CurlPrec = 1 << 15,
+    CurlPrecParam = 1 << 16,
+    CurlChar = 1 << 17,
+    CurlFloatE = 1 << 18,
+    CurlFloatG = 1 << 19
+};
+
+struct CurlFormatSlot {
+    bool set = false;
+    bool filled = false;
+    CurlFormatType type = CurlUnknown;
+    int flags = 0;
+    std::int64_t width = 0;
+    std::int64_t precision = 0;
+    std::uint64_t data = 0;
+};
+
+using CurlFormatSlots = std::array<CurlFormatSlot, CurlMaxParameters>;
+using CurlFormatEnds = std::array<const char*, CurlMaxParameters>;
+
+void CurlSubtract(std::int64_t& value, std::int64_t amount) {
+    std::int64_t result;
+    if (__builtin_sub_overflow(value, amount, &result)) throw std::overflow_error("curl mprintf field width arithmetic overflows long");
+    value = result;
+}
+
+bool CurlPostDecrement(std::int64_t& value) {
+    const bool positive = value > 0;
+    CurlSubtract(value, 1);
+    return positive;
+}
+
+bool CurlPreDecrement(std::int64_t& value) {
+    CurlSubtract(value, 1);
+    return value > 0;
+}
+
+std::int64_t CurlDollarString(const char* input, const char** end) {
+    int number = 0;
+    while (*input >= '0' && *input <= '9') {
+        if (number < CurlMaxParameters) number = number * 10 + (*input - '0');
+        ++input;
+    }
+    if (number <= CurlMaxParameters && *input == '$') {
+        *end = input + 1;
+        return number;
+    }
+    return 0;
+}
+
+bool CurlIsQualifier(char value) {
+    switch (value) {
+    case '-': case '+': case ' ': case '#': case '.':
+    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9':
+    case 'h': case 'l': case 'L': case 'z': case 'q':
+    case '*': case 'O':
+        return true;
+    default:
+        return false;
+    }
+}
+
+std::int64_t CurlParseLong(const char* text, const char** end) {
+    char* stop = nullptr;
+    const std::int64_t value = strtol_nid_postfix(text, &stop, 10);
+    *end = stop;
+    return value;
+}
+
+void CurlFill(CurlFormatSlot& slot, std::uint64_t data) {
+    slot.data = data;
+    slot.filled = true;
+}
+
+const CurlFormatSlot& CurlFilled(const CurlFormatSlot& slot) {
+    if (!slot.filled) throw std::invalid_argument("curl mprintf reads a parameter that was never fetched");
+    return slot;
+}
+
+std::int64_t CurlSigned(const CurlFormatSlot& slot) {
+    return static_cast<std::int64_t>(CurlFilled(slot).data);
+}
+
+bool CurlPass1(const char* format, CurlFormatSlots& vto, CurlFormatEnds& endpos, size_t& ends, LibcDetail::FormatArguments& args) {
+    const char* fmt = format;
+    int paramNum = 0;
+    std::int64_t maxParam = 0;
+    while (*fmt) {
+        if (*fmt++ != '%') continue;
+        if (*fmt == '%') {
+            ++fmt;
+            continue;
+        }
+        int flags = 0;
+        if (paramNum == INT_MAX) throw std::overflow_error("curl mprintf parameter counter overflows int");
+        ++paramNum;
+        std::int64_t thisParam = CurlDollarString(fmt, &fmt);
+        if (thisParam == 0) thisParam = paramNum;
+        if (thisParam > maxParam) maxParam = thisParam;
+        std::int64_t width = 0;
+        std::int64_t precision = 0;
+        while (CurlIsQualifier(*fmt)) {
+            switch (*fmt++) {
+            case ' ': flags |= CurlSpace; break;
+            case '+': flags |= CurlShowSign; break;
+            case '-':
+                flags |= CurlLeft;
+                flags &= ~CurlPadNil;
+                break;
+            case '#': flags |= CurlAlt; break;
+            case '.':
+                if (*fmt == '*') {
+                    flags |= CurlPrecParam;
+                    ++fmt;
+                    if (paramNum == INT_MAX) throw std::overflow_error("curl mprintf parameter counter overflows int");
+                    ++paramNum;
+                    const std::int64_t position = CurlDollarString(fmt, &fmt);
+                    precision = position ? position : paramNum;
+                    if (precision > maxParam) maxParam = precision;
+                } else {
+                    flags |= CurlPrec;
+                    precision = CurlParseLong(fmt, &fmt);
+                }
+                break;
+            case 'h': flags |= CurlShort; break;
+            case 'l': flags |= (flags & CurlLongFlag) ? CurlLongLongFlag : CurlLongFlag; break;
+            case 'L': flags |= CurlLongDoubleFlag; break;
+            case 'q': flags |= CurlLongLongFlag; break;
+            case 'z':
+            case 'O': flags |= CurlLongFlag; break;
+            case '0':
+                if (!(flags & CurlLeft)) flags |= CurlPadNil;
+                [[fallthrough]];
+            case '1': case '2': case '3': case '4':
+            case '5': case '6': case '7': case '8': case '9':
+                flags |= CurlWidthFlag;
+                width = CurlParseLong(fmt - 1, &fmt);
+                break;
+            case '*': {
+                flags |= CurlWidthParam;
+                if (paramNum == INT_MAX) throw std::overflow_error("curl mprintf parameter counter overflows int");
+                ++paramNum;
+                const std::int64_t position = CurlDollarString(fmt, &fmt);
+                width = position ? position : paramNum;
+                if (width > maxParam) maxParam = width;
+                break;
+            }
+            default: break;
+            }
+        }
+        const std::int64_t index = thisParam - 1;
+        if (index < 0 || index >= CurlMaxParameters) return false;
+        CurlFormatType type;
+        switch (*fmt) {
+        case 'S':
+            flags |= CurlAlt;
+            [[fallthrough]];
+        case 's': type = CurlString; break;
+        case 'n': type = CurlIntPtr; break;
+        case 'p': type = CurlPtr; break;
+        case 'd': case 'i': type = CurlInt; break;
+        case 'u': type = CurlInt; flags |= CurlUnsigned; break;
+        case 'o': type = CurlInt; flags |= CurlOctal; break;
+        case 'x': type = CurlInt; flags |= CurlHex | CurlUnsigned; break;
+        case 'X': type = CurlInt; flags |= CurlHex | CurlUpper | CurlUnsigned; break;
+        case 'c': type = CurlInt; flags |= CurlChar; break;
+        case 'f': type = CurlDouble; break;
+        case 'e': type = CurlDouble; flags |= CurlFloatE; break;
+        case 'E': type = CurlDouble; flags |= CurlFloatE | CurlUpper; break;
+        case 'g': type = CurlDouble; flags |= CurlFloatG; break;
+        case 'G': type = CurlDouble; flags |= CurlFloatG | CurlUpper; break;
+        default: type = CurlUnknown; break;
+        }
+        vto[index].set = true;
+        vto[index].type = type;
+        vto[index].flags = flags;
+        vto[index].width = width;
+        vto[index].precision = precision;
+        if (flags & CurlWidthParam) {
+            const std::int64_t target = width - 1;
+            if (target < 0 || target >= CurlMaxParameters) return false;
+            vto[index].width = target;
+            vto[target].set = true;
+            vto[target].type = CurlWidth;
+            vto[target].flags = 0;
+            vto[target].width = 0;
+            vto[target].precision = 0;
+        }
+        if (flags & CurlPrecParam) {
+            const std::int64_t target = precision - 1;
+            if (target < 0 || target >= CurlMaxParameters) return false;
+            vto[index].precision = target;
+            vto[target].set = true;
+            vto[target].type = CurlWidth;
+            vto[target].flags = 0;
+            vto[target].width = 0;
+            vto[target].precision = 0;
+        }
+        if (ends == endpos.size()) throw std::length_error("curl mprintf format has more than 128 conversions");
+        endpos[ends++] = fmt + (*fmt == '\0' ? 0 : 1);
+    }
+    for (std::int64_t index = 0; index < maxParam; ++index) {
+        auto& slot = vto[index];
+        if (!slot.set) throw std::invalid_argument("curl mprintf parameter position has no conversion");
+        if (slot.flags & CurlWidthParam)
+            CurlFill(vto[slot.width], static_cast<std::uint64_t>(static_cast<std::int64_t>(args.Next<int>())));
+        if (slot.flags & CurlPrecParam)
+            CurlFill(vto[slot.precision], static_cast<std::uint64_t>(static_cast<std::int64_t>(args.Next<int>())));
+        switch (slot.type) {
+        case CurlString:
+        case CurlIntPtr:
+        case CurlUnknown:
+        case CurlPtr:
+            CurlFill(slot, reinterpret_cast<std::uintptr_t>(args.Next<void*>()));
+            break;
+        case CurlInt:
+            if ((slot.flags & (CurlLongLongFlag | CurlLongFlag)) && (slot.flags & CurlUnsigned))
+                CurlFill(slot, args.Next<unsigned long long>());
+            else if (slot.flags & (CurlLongLongFlag | CurlLongFlag))
+                CurlFill(slot, static_cast<std::uint64_t>(args.Next<long long>()));
+            else if (slot.flags & CurlUnsigned)
+                CurlFill(slot, args.Next<unsigned int>());
+            else
+                CurlFill(slot, static_cast<std::uint64_t>(static_cast<std::int64_t>(args.Next<int>())));
+            break;
+        case CurlDouble:
+            CurlFill(slot, std::bit_cast<std::uint64_t>(args.Next<double>()));
+            break;
+        case CurlWidth:
+            slot.type = CurlInt;
+            break;
+        default:
+            break;
+        }
+    }
+    return true;
+}
+
+template<class Output>
+int CurlFormat(Output& output, const char* format, const void* source) {
+    static constexpr char lowerDigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+    static constexpr char upperDigits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    if (!format) throw std::invalid_argument("curl mprintf format is NULL");
+    LibcDetail::FormatArguments args(source);
+    CurlFormatSlots vto{};
+    CurlFormatEnds endpos{};
+    size_t ends = 0;
+    if (!CurlPass1(format, vto, endpos, ends, args)) return -1;
+    const char* digits = lowerDigits;
+    int done = 0;
+    char work[CurlWorkSize];
+    constexpr std::int64_t workend = CurlWorkSize - 2;
+    size_t end = 0;
+    std::int64_t paramNum = 0;
+    const auto put = [&](char value) {
+        if (output.Put(static_cast<unsigned char>(value)) == -1) return false;
+        if (done == INT_MAX) throw std::overflow_error("curl mprintf output count overflows int");
+        ++done;
+        return true;
+    };
+    const auto pad = [&](std::int64_t& width, char value) {
+        while (CurlPostDecrement(width))
+            if (!put(value)) return false;
+        return true;
+    };
+    const auto number = [&](const CurlFormatSlot& p, std::uint64_t num, unsigned base, bool isNeg, bool isAlt, std::int64_t width, std::int64_t prec) {
+        if (prec == -1) prec = 1;
+        std::int64_t w = workend;
+        while (num > 0) {
+            work[w--] = digits[num % base];
+            num /= base;
+        }
+        CurlSubtract(width, workend - w);
+        CurlSubtract(prec, workend - w);
+        if (isAlt && base == 8 && prec <= 0) {
+            work[w--] = '0';
+            CurlSubtract(width, 1);
+        }
+        if (prec > 0) {
+            CurlSubtract(width, prec);
+            while (CurlPostDecrement(prec) && w >= 0) work[w--] = '0';
+        }
+        if (isAlt && base == 16) CurlSubtract(width, 2);
+        if (isNeg || (p.flags & CurlShowSign) || (p.flags & CurlSpace)) CurlSubtract(width, 1);
+        if (!(p.flags & CurlLeft) && !(p.flags & CurlPadNil) && !pad(width, ' ')) return false;
+        if (isNeg) {
+            if (!put('-')) return false;
+        } else if (p.flags & CurlShowSign) {
+            if (!put('+')) return false;
+        } else if (p.flags & CurlSpace) {
+            if (!put(' ')) return false;
+        }
+        if (isAlt && base == 16) {
+            if (!put('0')) return false;
+            if (!put((p.flags & CurlUpper) ? 'X' : 'x')) return false;
+        }
+        if (!(p.flags & CurlLeft) && (p.flags & CurlPadNil) && !pad(width, '0')) return false;
+        while (++w <= workend)
+            if (!put(work[w])) return false;
+        if ((p.flags & CurlLeft) && !pad(width, ' ')) return false;
+        return true;
+    };
+    const char* f = format;
+    while (*f != '\0') {
+        if (*f != '%') {
+            do {
+                if (!put(*f)) return done;
+            } while (*++f && *f != '%');
+            continue;
+        }
+        ++f;
+        if (*f == '%') {
+            ++f;
+            if (!put('%')) return done;
+            continue;
+        }
+        std::int64_t param = CurlDollarString(f, &f);
+        if (!param) param = paramNum;
+        else --param;
+        ++paramNum;
+        if (param >= CurlMaxParameters) throw std::out_of_range("curl mprintf parameter index exceeds 128");
+        auto& p = vto[param];
+        if (!p.set) throw std::invalid_argument("curl mprintf conversion uses a parameter that was never parsed");
+        std::int64_t width;
+        if (p.flags & CurlWidthParam) {
+            width = CurlSigned(vto[p.width]);
+            ++paramNum;
+            if (width < 0) {
+                std::int64_t negated = 0;
+                CurlSubtract(negated, width);
+                width = negated;
+                p.flags |= CurlLeft;
+                p.flags &= ~CurlPadNil;
+            }
+        } else {
+            width = p.width;
+        }
+        std::int64_t prec;
+        if (p.flags & CurlPrecParam) {
+            prec = CurlSigned(vto[p.precision]);
+            ++paramNum;
+            if (prec < 0) prec = -1;
+        } else if (p.flags & CurlPrec) {
+            prec = p.precision;
+        } else {
+            prec = -1;
+        }
+        const bool isAlt = (p.flags & CurlAlt) != 0;
+        switch (p.type) {
+        case CurlInt: {
+            std::uint64_t num = CurlFilled(p).data;
+            if (p.flags & CurlChar) {
+                if (!(p.flags & CurlLeft))
+                    while (CurlPreDecrement(width))
+                        if (!put(' ')) return done;
+                if (!put(static_cast<char>(num))) return done;
+                if (p.flags & CurlLeft)
+                    while (CurlPreDecrement(width))
+                        if (!put(' ')) return done;
+                break;
+            }
+            unsigned base = 10;
+            bool isNeg = false;
+            if (p.flags & CurlOctal) {
+                base = 8;
+            } else if (p.flags & CurlHex) {
+                digits = (p.flags & CurlUpper) ? upperDigits : lowerDigits;
+                base = 16;
+            } else if (!(p.flags & CurlUnsigned)) {
+                const auto value = static_cast<std::int64_t>(p.data);
+                isNeg = value < 0;
+                if (isNeg) num = static_cast<std::uint64_t>(-(value + 1)) + 1;
+            }
+            if (!number(p, num, base, isNeg, isAlt, width, prec)) return done;
+            break;
+        }
+        case CurlString: {
+            static constexpr char null[] = "(nil)";
+            const char* str = reinterpret_cast<const char*>(static_cast<std::uintptr_t>(CurlFilled(p).data));
+            size_t len;
+            if (!str) {
+                if (prec == -1 || prec >= static_cast<std::int64_t>(sizeof(null)) - 1) {
+                    str = null;
+                    len = sizeof(null) - 1;
+                    p.flags &= ~CurlAlt;
+                } else {
+                    str = "";
+                    len = 0;
+                }
+            } else if (prec != -1) {
+                len = static_cast<size_t>(prec);
+            } else {
+                len = std::strlen(str);
+            }
+            CurlSubtract(width, len > static_cast<size_t>(INT64_MAX) ? INT64_MAX : static_cast<std::int64_t>(len));
+            if ((p.flags & CurlAlt) && !put('"')) return done;
+            if (!(p.flags & CurlLeft) && !pad(width, ' ')) return done;
+            for (; len && *str; --len)
+                if (!put(*str++)) return done;
+            if ((p.flags & CurlLeft) && !pad(width, ' ')) return done;
+            if ((p.flags & CurlAlt) && !put('"')) return done;
+            break;
+        }
+        case CurlPtr: {
+            const std::uint64_t pointer = CurlFilled(p).data;
+            if (pointer) {
+                digits = (p.flags & CurlUpper) ? upperDigits : lowerDigits;
+                if (!number(p, pointer, 16, false, true, width, prec)) return done;
+            } else {
+                static constexpr char strnil[] = "(nil)";
+                CurlSubtract(width, static_cast<std::int64_t>(sizeof(strnil) - 1));
+                if ((p.flags & CurlLeft) && !pad(width, ' ')) return done;
+                for (const char* point = strnil; *point != '\0'; ++point)
+                    if (!put(*point)) return done;
+                if (!(p.flags & CurlLeft) && !pad(width, ' ')) return done;
+            }
+            break;
+        }
+        case CurlDouble: {
+            const double value = std::bit_cast<double>(CurlFilled(p).data);
+            std::string spec = "%";
+            std::int64_t floatWidth = -1;
+            if (p.flags & CurlWidthFlag) floatWidth = p.width;
+            else if (p.flags & CurlWidthParam) floatWidth = CurlSigned(vto[p.width]);
+            std::int64_t floatPrec = -1;
+            if (p.flags & CurlPrec) floatPrec = p.precision;
+            else if (p.flags & CurlPrecParam) floatPrec = CurlSigned(vto[p.precision]);
+            if (p.flags & CurlLeft) spec += '-';
+            if (p.flags & CurlShowSign) spec += '+';
+            if (p.flags & CurlSpace) spec += ' ';
+            if (p.flags & CurlAlt) spec += '#';
+            if (floatWidth >= 0) {
+                if (floatWidth >= CurlWorkSize) floatWidth = CurlWorkSize - 1;
+                spec += std::to_string(floatWidth);
+            }
+            if (floatPrec >= 0) {
+                size_t maxprec = CurlWorkSize - 2;
+                double scaled = value;
+                if (floatWidth > 0 && floatPrec <= floatWidth) maxprec -= static_cast<size_t>(floatWidth);
+                if (std::isinf(scaled) && scaled > 0) throw std::domain_error("curl mprintf never terminates for infinity with a precision");
+                while (scaled >= 10.0) {
+                    scaled /= 10;
+                    --maxprec;
+                }
+                if (floatPrec > static_cast<std::int64_t>(maxprec)) {
+                    floatPrec = static_cast<std::int64_t>(maxprec);
+                    CurlSubtract(floatPrec, 1);
+                }
+                if (floatPrec < 0) floatPrec = 0;
+                spec += '.';
+                spec += std::to_string(floatPrec);
+            }
+            if (p.flags & CurlLongFlag) spec += 'l';
+            if (p.flags & CurlFloatE) spec += (p.flags & CurlUpper) ? 'E' : 'e';
+            else if (p.flags & CurlFloatG) spec += (p.flags & CurlUpper) ? 'G' : 'g';
+            else spec += 'f';
+            const int length = snprintf_nid_postfix(work, sizeof(work), spec.c_str(), value);
+            if (length < 0 || length >= static_cast<int>(sizeof(work)))
+                throw std::overflow_error("curl mprintf floating conversion overflows its 326 byte buffer");
+            for (const char* text = work; *text; ++text)
+                if (!put(*text)) return done;
+            break;
+        }
+        case CurlIntPtr: {
+            auto* pointer = reinterpret_cast<void*>(static_cast<std::uintptr_t>(CurlFilled(p).data));
+            if (!pointer) throw std::invalid_argument("curl mprintf %n pointer is NULL");
+            if (p.flags & (CurlLongLongFlag | CurlLongFlag)) {
+                const std::int64_t count = done;
+                std::memcpy(pointer, &count, sizeof(count));
+            } else if (!(p.flags & CurlShort)) {
+                const std::int32_t count = done;
+                std::memcpy(pointer, &count, sizeof(count));
+            } else {
+                const auto count = static_cast<std::int16_t>(done);
+                std::memcpy(pointer, &count, sizeof(count));
+            }
+            break;
+        }
+        default:
+            break;
+        }
+        if (end >= ends) throw std::out_of_range("curl mprintf resumes past the conversions it parsed");
+        f = endpos[end++];
+    }
+    return done;
+}
+
+struct CurlBoundedOutput {
+    char* buffer;
+    size_t length = 0;
+    size_t max;
+
+    int Put(unsigned char value) {
+        if (length < max) {
+            buffer[length++] = static_cast<char>(value);
+            return value;
+        }
+        return -1;
+    }
+};
+
+struct CurlUnboundedOutput {
+    char*& buffer;
+
+    int Put(unsigned char value) {
+        *buffer++ = static_cast<char>(value);
+        return value;
+    }
+};
+
+struct CurlStreamOutput {
+    FileStream* stream;
+
+    int Put(unsigned char value) {
+        return fputc_nid_postfix(value, stream);
+    }
+};
+
+struct CurlAllocatingOutput {
+    CurlDynbuf buffer{CurlAprintfLimit};
+    bool fail = false;
+
+    int Put(unsigned char value) {
+        if (!buffer.Add(&value, 1)) {
+            fail = true;
+            return -1;
+        }
+        return value;
+    }
+};
+
+int CurlBoundedFormat(char* buffer, size_t maxlength, const char* format, const void* args) {
+    CurlBoundedOutput output{buffer, 0, maxlength};
+    int retcode = CurlFormat(output, format, args);
+    if (retcode != -1 && output.max) {
+        if (output.max == output.length) {
+            output.buffer[output.length - 1] = 0;
+            --retcode;
+        } else {
+            output.buffer[output.length] = 0;
+        }
+    }
+    return retcode;
+}
+
+int CurlUnboundedFormat(char* buffer, const char* format, const void* args) {
+    CurlUnboundedOutput output{buffer};
+    const int retcode = CurlFormat(output, format, args);
+    *buffer = 0;
+    return retcode;
+}
+
+int CurlStreamFormat(void* stream, const char* format, const void* args) {
+    CurlStreamOutput output{static_cast<FileStream*>(stream)};
+    return CurlFormat(output, format, args);
+}
+
+char* CurlAllocatingFormat(const char* format, const void* args) {
+    CurlAllocatingOutput output;
+    const int retcode = CurlFormat(output, format, args);
+    if (retcode == -1 || output.fail) {
+        output.buffer.Free();
+        return nullptr;
+    }
+    if (output.buffer.leng) return output.buffer.bufr;
+    return Curl_cstrdup("");
+}
+
+} // namespace
+
 extern "C" {
 
 char* APS5_VABI curl_pushheader_bynum_nid_postfix(struct curl_pushheaders* h, size_t num) {
@@ -732,43 +1372,58 @@ void APS5_VABI curl_mime_free_nid_postfix(curl_mime* mime) {
 
 
 int APS5_VABI curl_mvfprintf_nid_postfix(std::FILE* whereto, const char* format, VaList* args) {
-    NotImplemented_nid_no_patch(__func__);
+    return CurlStreamFormat(whereto, format, args);
 }
 
 int APS5_VABI curl_mfprintf_nid_postfix(std::FILE* whereto, const char* format, ...) {
-    NotImplemented_nid_no_patch(__func__);
+    CURL_ARGS_START(format);
+    const int retcode = CurlStreamFormat(whereto, format, args);
+    CURL_ARGS_END();
+    return retcode;
 }
 
 int APS5_VABI curl_mvsprintf_nid_postfix(char* buffer, const char* format, VaList* args) {
-    NotImplemented_nid_no_patch(__func__);
+    return CurlUnboundedFormat(buffer, format, args);
 }
 
 int APS5_VABI curl_msprintf_nid_postfix(char* buffer, const char* format, ...) {
-    NotImplemented_nid_no_patch(__func__);
+    CURL_ARGS_START(format);
+    const int retcode = CurlUnboundedFormat(buffer, format, args);
+    CURL_ARGS_END();
+    return retcode;
 }
 
 int APS5_VABI curl_mvsnprintf_nid_postfix(char* buffer, size_t maxlength, const char* format, VaList* args) {
-    NotImplemented_nid_no_patch(__func__);
+    return CurlBoundedFormat(buffer, maxlength, format, args);
 }
 
 int APS5_VABI curl_msnprintf_nid_postfix(char* buffer, size_t maxlength, const char* format, ...) {
-    NotImplemented_nid_no_patch(__func__);
+    CURL_ARGS_START(format);
+    const int retcode = CurlBoundedFormat(buffer, maxlength, format, args);
+    CURL_ARGS_END();
+    return retcode;
 }
 
 int APS5_VABI curl_mvprintf_nid_postfix(const char* format, VaList* args) {
-    NotImplemented_nid_no_patch(__func__);
+    return CurlStreamFormat(&_Stdout_nid_postfix, format, args);
 }
 
 int APS5_VABI curl_mprintf_nid_postfix(const char* format, ...) {
-    NotImplemented_nid_no_patch(__func__);
+    CURL_ARGS_START(format);
+    const int retcode = CurlStreamFormat(&_Stdout_nid_postfix, format, args);
+    CURL_ARGS_END();
+    return retcode;
 }
 
 char* APS5_VABI curl_mvaprintf_nid_postfix(const char* format, VaList* args) {
-    NotImplemented_nid_no_patch(__func__);
+    return CurlAllocatingFormat(format, args);
 }
 
 char* APS5_VABI curl_maprintf_nid_postfix(const char* format, ...) {
-    NotImplemented_nid_no_patch(__func__);
+    CURL_ARGS_START(format);
+    char* result = CurlAllocatingFormat(format, args);
+    CURL_ARGS_END();
+    return result;
 }
 
 std::int32_t APS5_VABI curl_share_cleanup_nid_postfix(CURLSH* share_handle) {
