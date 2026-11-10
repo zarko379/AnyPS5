@@ -435,14 +435,17 @@ static void Sem2WakeReleasesOneWaiterAndClearsTheBitForTheLast() {
     Usem2 sem;
     std::atomic<int> finished{0};
     std::atomic<int> failures{0};
+    std::atomic<int> entered{0};
     std::vector<std::thread> waiters;
     for (int index = 0; index < 2; ++index) {
         waiters.emplace_back([&] {
             KernelTimespec failsafe = FailsafeTimeout();
+            ++entered;
             if (Umtx(&sem, UMTX_OP_SEM2_WAIT, 0, SizeOf(sizeof(failsafe)), &failsafe) != 0) ++failures;
             ++finished;
         });
     }
+    AwaitCount(entered, 2);
     AwaitSem2Waiters(sem, finished);
     std::atomic_ref<std::uint32_t>(sem.count).store(SEM2_HAS_WAITERS | 1u);
     Require(Umtx(&sem, UMTX_OP_SEM2_WAKE, 0) == 0);
@@ -568,9 +571,10 @@ static void Wake2WithoutWaitersWritesNothing() {
     }
 }
 
-static void StartMutexWaiter(Umutex& mutex, std::atomic<int>& finished, std::atomic<int>& failures, std::vector<std::thread>& waiters) {
+static void StartMutexWaiter(Umutex& mutex, std::atomic<int>& finished, std::atomic<int>& failures, std::vector<std::thread>& waiters, std::atomic<int>& entered) {
     waiters.emplace_back([&] {
         KernelTimespec failsafe = FailsafeTimeout();
+        ++entered;
         if (Umtx(&mutex, UMTX_OP_MUTEX_WAIT, 0, SizeOf(sizeof(failsafe)), &failsafe) != 0) ++failures;
         ++finished;
     });
@@ -593,8 +597,9 @@ static void Wake2WithOneWaiterMarksAnOwnedMutexAndWakesForAFreeOne() {
     mutex.owner = 12345;
     std::atomic<int> finished{0};
     std::atomic<int> failures{0};
+    std::atomic<int> entered{0};
     std::vector<std::thread> waiters;
-    StartMutexWaiter(mutex, finished, failures, waiters);
+    StartMutexWaiter(mutex, finished, failures, waiters, entered);
     AwaitContested(mutex);
     SetOwner(mutex, 12345);
     Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, 0) == 0 && Owner(mutex) == (CONTESTED | 12345));
@@ -614,9 +619,11 @@ static void Wake2WithTwoWaitersMarksTheMutexAndWakesOne() {
     mutex.owner = 12345;
     std::atomic<int> finished{0};
     std::atomic<int> failures{0};
+    std::atomic<int> entered{0};
     std::vector<std::thread> waiters;
-    StartMutexWaiter(mutex, finished, failures, waiters);
-    StartMutexWaiter(mutex, finished, failures, waiters);
+    StartMutexWaiter(mutex, finished, failures, waiters, entered);
+    StartMutexWaiter(mutex, finished, failures, waiters, entered);
+    AwaitCount(entered, 2);
     AwaitContested(mutex);
     SetOwner(mutex, 0);
     Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, PRIO_INHERIT) == 0 && Owner(mutex) == CONTESTED);
@@ -639,7 +646,7 @@ static void Wake2WithTwoWaitersMarksTheMutexAndWakesOne() {
     dead.owner = 12345;
     waiters.clear();
     finished = 0;
-    StartMutexWaiter(dead, finished, failures, waiters);
+    StartMutexWaiter(dead, finished, failures, waiters, entered);
     AwaitContested(dead);
     SetOwner(dead, OWNERDEAD);
     Require(Umtx(&dead, UMTX_OP_MUTEX_WAKE2, 0) == 0);
