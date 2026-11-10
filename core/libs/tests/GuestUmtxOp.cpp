@@ -31,6 +31,7 @@ static constexpr int UMTX_OP_WAKE_PRIVATE = 16;
 static constexpr int UMTX_OP_SEM_WAIT = 19;
 static constexpr int UMTX_OP_SEM_WAKE = 20;
 static constexpr int UMTX_OP_NWAKE_PRIVATE = 21;
+static constexpr int UMTX_OP_MUTEX_WAKE2 = 22;
 static constexpr int UMTX_OP_SEM2_WAIT = 23;
 static constexpr int UMTX_OP_SEM2_WAKE = 24;
 static constexpr int UMTX_OP_SHM = 25;
@@ -48,6 +49,10 @@ static constexpr int GUEST_ETIMEDOUT = 60;
 static constexpr std::uint32_t CONTESTED = 0x80000000u;
 static constexpr std::uint32_t PRIO_INHERIT = 0x4;
 static constexpr std::uint32_t PRIO_PROTECT = 0x8;
+static constexpr std::uint32_t PROCESS_SHARED = 0x1;
+static constexpr std::uint32_t ROBUST = 0x10;
+static constexpr std::uint32_t OWNERDEAD = CONTESTED | 0x10;
+static constexpr std::uint32_t NOTRECOV = CONTESTED | 0x11;
 static constexpr std::uint32_t WRITE_OWNER = 0x80000000u;
 static constexpr std::uint32_t WRITE_WAITERS = 0x40000000u;
 static constexpr std::uint32_t READ_WAITERS = 0x20000000u;
@@ -536,6 +541,113 @@ static void MutexLockWaitsForTheOwnerToUnlock() {
     Require(mutex.owner == 0);
 }
 
+static void Wake2ChecksTheProtocolAndTheObject() {
+    for (const std::uint32_t flags : {PRIO_INHERIT | PRIO_PROTECT, PRIO_INHERIT | PRIO_PROTECT | ROBUST | PROCESS_SHARED}) {
+        Umutex mutex;
+        mutex.owner = CONTESTED;
+        Require(FailsWith(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, flags), GUEST_EINVAL) && mutex.owner == CONTESTED);
+        Require(FailsWith(Umtx(nullptr, UMTX_OP_MUTEX_WAKE2, flags), GUEST_EINVAL));
+    }
+    for (const std::uint32_t flags : {0u, ROBUST, PRIO_INHERIT, PRIO_PROTECT, PRIO_INHERIT | ROBUST})
+        Require(Umtx(nullptr, UMTX_OP_MUTEX_WAKE2, flags) == 0);
+    for (const std::uint32_t flags : {PROCESS_SHARED, PROCESS_SHARED | PRIO_PROTECT, PROCESS_SHARED | ROBUST}) {
+        Require(FailsWith(Umtx(nullptr, UMTX_OP_MUTEX_WAKE2, flags), GUEST_EFAULT));
+        Require(FailsWith(Umtx(reinterpret_cast<void*>(0x10), UMTX_OP_MUTEX_WAKE2, flags), GUEST_EFAULT));
+    }
+    Require(Umtx(nullptr, UMTX_OP_MUTEX_WAKE2, std::uint64_t{PROCESS_SHARED} << 32) == 0);
+}
+
+static void Wake2WithoutWaitersWritesNothing() {
+    for (const std::uint32_t owner : {0u, CONTESTED, 12345u, CONTESTED | 12345u, OWNERDEAD}) {
+        for (const std::uint32_t flags : {0u, PROCESS_SHARED, PRIO_INHERIT, PRIO_PROTECT, ROBUST}) {
+            Umutex mutex;
+            mutex.owner = owner;
+            mutex.flags = PRIO_PROTECT;
+            Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, flags) == 0 && mutex.owner == owner && mutex.flags == PRIO_PROTECT);
+        }
+    }
+}
+
+static void StartMutexWaiter(Umutex& mutex, std::atomic<int>& finished, std::atomic<int>& failures, std::vector<std::thread>& waiters) {
+    waiters.emplace_back([&] {
+        KernelTimespec failsafe = FailsafeTimeout();
+        if (Umtx(&mutex, UMTX_OP_MUTEX_WAIT, 0, SizeOf(sizeof(failsafe)), &failsafe) != 0) ++failures;
+        ++finished;
+    });
+}
+
+static void AwaitContested(Umutex& mutex) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while ((std::atomic_ref<std::uint32_t>(mutex.owner).load() & CONTESTED) == 0) {
+        Require(std::chrono::steady_clock::now() < deadline);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::this_thread::sleep_for(SETTLE);
+}
+
+static void SetOwner(Umutex& mutex, std::uint32_t owner) { std::atomic_ref<std::uint32_t>(mutex.owner).store(owner); }
+static std::uint32_t Owner(Umutex& mutex) { return std::atomic_ref<std::uint32_t>(mutex.owner).load(); }
+
+static void Wake2WithOneWaiterMarksAnOwnedMutexAndWakesForAFreeOne() {
+    Umutex mutex;
+    mutex.owner = 12345;
+    std::atomic<int> finished{0};
+    std::atomic<int> failures{0};
+    std::vector<std::thread> waiters;
+    StartMutexWaiter(mutex, finished, failures, waiters);
+    AwaitContested(mutex);
+    SetOwner(mutex, 12345);
+    Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, 0) == 0 && Owner(mutex) == (CONTESTED | 12345));
+    Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, 0) == 0 && Owner(mutex) == (CONTESTED | 12345));
+    SetOwner(mutex, 0);
+    Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, PRIO_PROTECT) == 0 && Owner(mutex) == 0);
+    std::this_thread::sleep_for(SETTLE);
+    Require(finished.load() == 0);
+    Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, ROBUST) == 0);
+    AwaitCount(finished, 1);
+    for (auto& waiter : waiters) waiter.join();
+    Require(failures.load() == 0 && mutex.owner == 0);
+}
+
+static void Wake2WithTwoWaitersMarksTheMutexAndWakesOne() {
+    Umutex mutex;
+    mutex.owner = 12345;
+    std::atomic<int> finished{0};
+    std::atomic<int> failures{0};
+    std::vector<std::thread> waiters;
+    StartMutexWaiter(mutex, finished, failures, waiters);
+    StartMutexWaiter(mutex, finished, failures, waiters);
+    AwaitContested(mutex);
+    SetOwner(mutex, 0);
+    Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, PRIO_INHERIT) == 0 && Owner(mutex) == CONTESTED);
+    AwaitCount(finished, 1);
+    SetOwner(mutex, 12345);
+    Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, 0) == 0 && Owner(mutex) == (CONTESTED | 12345));
+    std::this_thread::sleep_for(SETTLE);
+    Require(finished.load() == 1);
+    SetOwner(mutex, OWNERDEAD + 2);
+    Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, 0) == 0 && Owner(mutex) == OWNERDEAD + 2);
+    std::this_thread::sleep_for(SETTLE);
+    Require(finished.load() == 1);
+    SetOwner(mutex, NOTRECOV);
+    Require(Umtx(&mutex, UMTX_OP_MUTEX_WAKE2, 0) == 0);
+    AwaitCount(finished, 2);
+    for (auto& waiter : waiters) waiter.join();
+    Require(failures.load() == 0 && mutex.owner == NOTRECOV);
+
+    Umutex dead;
+    dead.owner = 12345;
+    waiters.clear();
+    finished = 0;
+    StartMutexWaiter(dead, finished, failures, waiters);
+    AwaitContested(dead);
+    SetOwner(dead, OWNERDEAD);
+    Require(Umtx(&dead, UMTX_OP_MUTEX_WAKE2, 0) == 0);
+    AwaitCount(finished, 1);
+    for (auto& waiter : waiters) waiter.join();
+    Require(failures.load() == 0 && dead.owner == OWNERDEAD);
+}
+
 static void ConditionWaitReleasesTheMutexAndWakes() {
     Ucond condition;
     Require(Umtx(&condition, UMTX_OP_CV_SIGNAL, 0) == 0 && condition.hasWaiters == 0);
@@ -685,6 +797,10 @@ int main() {
     RejectsBadObjectsAndOperations();
     MutexOwnershipFollowsTheConsole();
     MutexLockWaitsForTheOwnerToUnlock();
+    Wake2ChecksTheProtocolAndTheObject();
+    Wake2WithoutWaitersWritesNothing();
+    Wake2WithOneWaiterMarksAnOwnedMutexAndWakesForAFreeOne();
+    Wake2WithTwoWaitersMarksTheMutexAndWakesOne();
     ConditionWaitReleasesTheMutexAndWakes();
     RwlockStateFollowsTheConsole();
     RwlockUnlockWakesTheBlockedWriter();

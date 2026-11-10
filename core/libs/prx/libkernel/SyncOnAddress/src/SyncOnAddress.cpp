@@ -45,6 +45,7 @@ constexpr int UMTX_OP_MUTEX_WAKE = 18;
 constexpr int UMTX_OP_SEM_WAIT = 19;
 constexpr int UMTX_OP_SEM_WAKE = 20;
 constexpr int UMTX_OP_NWAKE_PRIVATE = 21;
+constexpr int UMTX_OP_MUTEX_WAKE2 = 22;
 constexpr int UMTX_OP_SEM2_WAIT = 23;
 constexpr int UMTX_OP_SEM2_WAKE = 24;
 constexpr int UMTX_OP_MAX = 27;
@@ -53,7 +54,11 @@ constexpr int GUEST_CLOCK_REALTIME = 0;
 
 constexpr std::uint32_t UMUTEX_UNOWNED = 0;
 constexpr std::uint32_t UMUTEX_CONTESTED = 0x80000000u;
+constexpr std::uint32_t USYNC_PROCESS_SHARED = 0x1;
+constexpr std::uint32_t UMUTEX_PRIO_INHERIT = 0x4;
 constexpr std::uint32_t UMUTEX_PRIO_PROTECT = 0x8;
+constexpr std::uint32_t UMUTEX_RB_OWNERDEAD = UMUTEX_CONTESTED | 0x10;
+constexpr std::uint32_t UMUTEX_RB_NOTRECOV = UMUTEX_CONTESTED | 0x11;
 constexpr std::uint32_t UMUTEX_ROBUST = 0x10;
 constexpr std::uint32_t CVWAIT_ABSTIME = 0x2;
 constexpr std::uint32_t CVWAIT_CLOCKID = 0x4;
@@ -633,6 +638,58 @@ int MutexWake(UserMutex* mutex) {
     return 0;
 }
 
+void SetContestedWhile(std::atomic_ref<std::uint32_t>& owner, std::uint32_t& current, bool needsOwner) {
+    while ((current & UMUTEX_CONTESTED) == 0 && (!needsOwner || current != UMUTEX_UNOWNED) &&
+           !owner.compare_exchange_weak(current, current | UMUTEX_CONTESTED)) {
+    }
+}
+
+void Wake2MutexLocked(std::uintptr_t key, UserMutex* mutex) {
+    auto& bucket = BucketOf(key);
+    std::lock_guard<std::mutex> lock(bucket.mutex);
+    const auto entry = bucket.waiters.find(key);
+    if (entry == bucket.waiters.end()) {
+        return;
+    }
+    auto& queue = entry->second;
+    std::atomic_ref<std::uint32_t> owner(mutex->owner);
+    std::uint32_t current = owner.load();
+    SetContestedWhile(owner, current, queue.size() == 1);
+    if ((current & ~UMUTEX_CONTESTED) != 0 && current != UMUTEX_RB_OWNERDEAD && current != UMUTEX_RB_NOTRECOV) {
+        return;
+    }
+    AddressWaiter* waiter = queue.front();
+    queue.pop_front();
+    waiter->woken = true;
+    waiter->condition.NotifyOne();
+    if (queue.empty()) {
+        bucket.waiters.erase(entry);
+    }
+}
+
+int MutexWake2(UserMutex* mutex, std::uint64_t value) {
+    const auto flags = static_cast<std::uint32_t>(value);
+    const std::uint32_t protocol = flags & (UMUTEX_PRIO_INHERIT | UMUTEX_PRIO_PROTECT);
+    if (protocol == (UMUTEX_PRIO_INHERIT | UMUTEX_PRIO_PROTECT)) {
+        return GUEST_EINVAL;
+    }
+    if ((flags & USYNC_PROCESS_SHARED) != 0) {
+        std::uint32_t probe = 0;
+        if (mutex == nullptr || !GuestCopyIn_nid_no_patch(&probe, mutex, sizeof(probe))) {
+            return GUEST_EFAULT;
+        }
+    }
+    if (protocol == UMUTEX_PRIO_PROTECT || mutex == nullptr) {
+        return 0;
+    }
+    if (!IsAlignedAddress<std::uint32_t>(reinterpret_cast<std::uintptr_t>(mutex))) {
+        APS5_INVALID_ARG_EX;
+    }
+    const auto key = reinterpret_cast<std::uintptr_t>(&mutex->owner);
+    DeferringDelivery([&] { Wake2MutexLocked(key, mutex); });
+    return 0;
+}
+
 int ConditionDeadline(UserCondition* condition, std::uint64_t flags, const void* timeArgument, std::optional<std::uint64_t>& deadlineNanos) {
     deadlineNanos.reset();
     if (timeArgument == nullptr) {
@@ -904,6 +961,9 @@ int APS5_VABI _umtx_op_nid_postfix(void* object, int operation, std::uint64_t va
             break;
         case UMTX_OP_SEM_WAKE:
             error = SemWake(static_cast<UserSemaphore*>(object));
+            break;
+        case UMTX_OP_MUTEX_WAKE2:
+            error = MutexWake2(static_cast<UserMutex*>(object), value);
             break;
         case UMTX_OP_SEM2_WAIT:
             error = Sem2Wait(static_cast<UserSemaphore2*>(object), sizeArgument, timeArgument, caller);
