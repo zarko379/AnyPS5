@@ -5,6 +5,7 @@
 #include <bit>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <type_traits>
 
 namespace {
@@ -50,6 +51,26 @@ std::int32_t HashSampled(const void* text, std::int32_t length, TUnit unit) {
         for (std::int64_t index = 0; index < length; index += step) hash = hash * 37 + unit(index);
     }
     return std::bit_cast<std::int32_t>(hash);
+}
+
+template<class TText, class TFold>
+std::int8_t EqualKeys(const void* first, const void* second, TFold fold) {
+    auto* left = static_cast<const TText*>(first);
+    auto* right = static_cast<const TText*>(second);
+    if (left == right) return 1;
+    if (!left || !right) return 0;
+    while (*left != 0 && fold(*left) == fold(*right)) {
+        ++left;
+        ++right;
+    }
+    return *left == *right;
+}
+
+std::int32_t TextLength(const char* text) {
+    std::size_t length = 0;
+    while (text[length] != 0) ++length;
+    if (length > static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max())) throw std::overflow_error("ICU: string length exceeds int32");
+    return static_cast<std::int32_t>(length);
 }
 
 int CompareFolded(const char* first, const char* second, std::uint64_t limit) {
@@ -146,6 +167,41 @@ std::int32_t APS5_VABI uprv_itou_nid_postfix(char16_t* buffer, std::int32_t capa
     if (length < capacity) buffer[length] = 0;
     std::reverse(buffer, buffer + length);
     return length;
+}
+
+std::int32_t APS5_VABI uhash_hashUChars_nid_postfix(UHashTok key) {
+    const auto* text = static_cast<const char16_t*>(key.pointer);
+    return text ? ustr_hashUCharsN_nid_postfix(text, u_strlen_nid_postfix(text)) : 0;
+}
+
+std::int32_t APS5_VABI uhash_hashChars_nid_postfix(UHashTok key) {
+    const auto* text = static_cast<const char*>(key.pointer);
+    return text ? ustr_hashCharsN_nid_postfix(text, TextLength(text)) : 0;
+}
+
+std::int32_t APS5_VABI uhash_hashIChars_nid_postfix(UHashTok key) {
+    const auto* text = static_cast<const char*>(key.pointer);
+    return text ? ustr_hashICharsN_nid_postfix(text, TextLength(text)) : 0;
+}
+
+std::int8_t APS5_VABI uhash_compareUChars_nid_postfix(UHashTok first, UHashTok second) {
+    return EqualKeys<char16_t>(first.pointer, second.pointer, [](char16_t unit) { return unit; });
+}
+
+std::int8_t APS5_VABI uhash_compareChars_nid_postfix(UHashTok first, UHashTok second) {
+    return EqualKeys<char>(first.pointer, second.pointer, [](char unit) { return unit; });
+}
+
+std::int8_t APS5_VABI uhash_compareIChars_nid_postfix(UHashTok first, UHashTok second) {
+    return EqualKeys<char>(first.pointer, second.pointer, AsciiLower);
+}
+
+std::int32_t APS5_VABI uhash_hashLong_nid_postfix(UHashTok key) {
+    return key.integer;
+}
+
+std::int8_t APS5_VABI uhash_compareLong_nid_postfix(UHashTok first, UHashTok second) {
+    return first.integer == second.integer;
 }
 
 }

@@ -51,4 +51,13 @@ const char* APS5_VABI uenum_next_nid_postfix(UEnumeration* enumeration, std::int
     return enumeration->next(enumeration, resultLength ? resultLength : &ignoredLength, status);
 }
 
+void APS5_VABI uenum_reset_nid_postfix(UEnumeration* enumeration, std::int32_t* status) {
+    if (Failed(enumeration, status)) return;
+    if (enumeration->reset) {
+        enumeration->reset(enumeration, status);
+        return;
+    }
+    *status = UnsupportedError;
+}
+
 }

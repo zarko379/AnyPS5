@@ -144,6 +144,38 @@ void MissingCallbacks() {
     Require(words.closes == 1, "close without other callbacks");
 }
 
+std::int32_t resets = 0;
+
+void APS5_VABI Reset(UEnumeration* enumeration, std::int32_t* status) {
+    ++resets;
+    State(enumeration).index = 0;
+    if (*status == Success) *status = -128;
+}
+
+void Resetting() {
+    Words words;
+    UEnumeration enumeration{nullptr, &words, Close, Count, UnicodeNext, Next, Reset};
+    std::int32_t status = Success;
+    words.index = 2;
+    uenum_reset_nid_postfix(&enumeration, &status);
+    Require(resets == 1 && words.index == 0 && status == -128, "reset dispatches and keeps the callback status");
+    status = IllegalArgument;
+    words.index = 2;
+    uenum_reset_nid_postfix(&enumeration, &status);
+    Require(resets == 1 && words.index == 2 && status == IllegalArgument, "reset with an error set does nothing");
+    status = -124;
+    uenum_reset_nid_postfix(&enumeration, &status);
+    Require(resets == 2 && status == -124, "a warning does not stop reset");
+    status = Success;
+    uenum_reset_nid_postfix(nullptr, &status);
+    uenum_reset_nid_postfix(nullptr, nullptr);
+    Require(resets == 2 && status == Success, "null enumeration reset does nothing");
+    Require(Rejects([&] { uenum_reset_nid_postfix(&enumeration, nullptr); }), "null status reset");
+    enumeration.reset = nullptr;
+    uenum_reset_nid_postfix(&enumeration, &status);
+    Require(resets == 2 && status == Unsupported, "reset without a callback");
+}
+
 void GuestMemory() {
     freed.clear();
     Words words;
@@ -174,5 +206,6 @@ int main() {
     Failures();
     MissingCallbacks();
     GuestMemory();
+    Resetting();
     return 0;
 }

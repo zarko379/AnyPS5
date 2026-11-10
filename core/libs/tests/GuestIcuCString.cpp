@@ -247,6 +247,52 @@ void IntegerToUnits() {
     Require(Rejects([] { uprv_itou_nid_postfix(nullptr, 0, 1, 10, 0); }), "null buffer rejected");
 }
 
+UHashTok Pointer(const void* pointer) {
+    UHashTok key{};
+    key.pointer = const_cast<void*>(pointer);
+    return key;
+}
+
+UHashTok Integer(std::int32_t value, std::uint32_t high) {
+    UHashTok key{};
+    key.pointer = reinterpret_cast<void*>((static_cast<std::uintptr_t>(high) << 32) | static_cast<std::uint32_t>(value));
+    return key;
+}
+
+void HashTableKeys() {
+    const char narrow[] = "Hello, World";
+    const char16_t wide[] = u"Hello, World";
+    Require(uhash_hashChars_nid_postfix(Pointer(narrow)) == ustr_hashCharsN_nid_postfix(narrow, 12), "byte key hash covers the whole string");
+    Require(uhash_hashIChars_nid_postfix(Pointer(narrow)) == ustr_hashICharsN_nid_postfix(narrow, 12), "caseless key hash covers the whole string");
+    Require(uhash_hashUChars_nid_postfix(Pointer(wide)) == ustr_hashUCharsN_nid_postfix(wide, 12), "unit key hash covers the whole string");
+    Require(uhash_hashIChars_nid_postfix(Pointer("HELLO, WORLD")) == uhash_hashChars_nid_postfix(Pointer("hello, world")), "caseless key hash folds ASCII");
+    Require(uhash_hashChars_nid_postfix(Pointer("")) == 0 && uhash_hashUChars_nid_postfix(Pointer(u"")) == 0, "empty keys hash to zero");
+    Require(uhash_hashChars_nid_postfix(Pointer(nullptr)) == 0 && uhash_hashIChars_nid_postfix(Pointer(nullptr)) == 0 && uhash_hashUChars_nid_postfix(Pointer(nullptr)) == 0, "null keys hash to zero");
+    std::array<char, 101> longText{};
+    longText.fill('q');
+    longText[100] = 0;
+    Require(uhash_hashChars_nid_postfix(Pointer(longText.data())) == ustr_hashCharsN_nid_postfix(longText.data(), 100), "long keys use the sampled hash");
+    Require(uhash_hashLong_nid_postfix(Integer(-5, 0xdeadbeef)) == -5, "integer hash is the low 32 bits");
+    Require(uhash_compareLong_nid_postfix(Integer(7, 1), Integer(7, 2)) == 1, "integer keys compare the low 32 bits");
+    Require(uhash_compareLong_nid_postfix(Integer(7, 1), Integer(8, 1)) == 0, "different integers differ");
+    Require(uhash_compareChars_nid_postfix(Pointer(narrow), Pointer("Hello, World")) == 1, "equal byte keys");
+    Require(uhash_compareChars_nid_postfix(Pointer(narrow), Pointer("hello, world")) == 0, "byte keys are case sensitive");
+    Require(uhash_compareChars_nid_postfix(Pointer("ab"), Pointer("abc")) == 0 && uhash_compareChars_nid_postfix(Pointer("abc"), Pointer("ab")) == 0, "prefixes differ");
+    Require(uhash_compareIChars_nid_postfix(Pointer(narrow), Pointer("hELLO, wORLD")) == 1, "caseless keys fold ASCII");
+    Require(uhash_compareIChars_nid_postfix(Pointer("ab"), Pointer("AB\x01")) == 0, "caseless prefixes differ");
+    Require(uhash_compareIChars_nid_postfix(Pointer("\xc1"), Pointer("\x81")) == 0, "caseless keys fold only ASCII");
+    Require(uhash_compareIChars_nid_postfix(Pointer("["), Pointer("{")) == 0, "brackets are not letters");
+    Require(uhash_compareUChars_nid_postfix(Pointer(wide), Pointer(u"Hello, World")) == 1, "equal unit keys");
+    Require(uhash_compareUChars_nid_postfix(Pointer(u"a\xffff"), Pointer(u"a\xfffe")) == 0, "unit keys compare every unit");
+    Require(uhash_compareUChars_nid_postfix(Pointer(u"ab"), Pointer(u"a")) == 0, "unit prefixes differ");
+    for (const auto compare : {uhash_compareChars_nid_postfix, uhash_compareIChars_nid_postfix, uhash_compareUChars_nid_postfix}) {
+        Require(compare(Pointer(nullptr), Pointer(nullptr)) == 1, "two null keys are equal");
+        Require(compare(Pointer(nullptr), Pointer(u"")) == 0 && compare(Pointer(u""), Pointer(nullptr)) == 0, "one null key differs");
+        const char unreadable = 'x';
+        Require(compare(Pointer(&unreadable), Pointer(&unreadable)) == 1, "identical pointers are equal without reading");
+    }
+}
+
 int FoldedByte(unsigned char value) {
     return value >= 'A' && value <= 'Z' ? value + 32 : value;
 }
@@ -313,4 +359,5 @@ int main() {
     CaselessComparison();
     Hashes();
     IntegerToUnits();
+    HashTableKeys();
 }
