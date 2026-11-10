@@ -1,5 +1,7 @@
 #include "prx/libSceLibreSsl/include/Api.hpp"
+#include "prx/libc/include/ApplicationHeap.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
+#include <algorithm>
 #include <climits>
 #include <cstddef>
 #include <cstdio>
@@ -67,6 +69,11 @@ static constexpr unsigned char P256RfcR[] = {
 static constexpr unsigned char P256RfcS[] = {
     0xf7, 0xcb, 0x1c, 0x94, 0x2d, 0x65, 0x7c, 0x41, 0xd4, 0x36, 0xc7, 0xa1, 0xb6, 0xe2, 0x9f, 0x65,
     0xf3, 0xe9, 0x00, 0xdb, 0xb9, 0xaf, 0xf4, 0x06, 0x4d, 0xc4, 0xab, 0x2f, 0x84, 0x3a, 0xcd, 0xa8,
+};
+
+static constexpr unsigned char P256RfcPrivateKey[] = {
+    0xc9, 0xaf, 0xa9, 0xd8, 0x45, 0xba, 0x75, 0x16, 0x6b, 0x5c, 0x21, 0x57, 0x67, 0xb1, 0xd6, 0x93,
+    0x4e, 0x50, 0xc3, 0xdb, 0x36, 0xe8, 0x9b, 0x12, 0x7b, 0x8a, 0x62, 0x2b, 0x12, 0x0f, 0x67, 0x21,
 };
 
 static constexpr unsigned char SampleDigest[] = {
@@ -153,6 +160,40 @@ static EcKey* PublicKeyOnly(int nid, const Bytes& encoded) {
     Require(EC_KEY_set_public_key_nid_postfix(key, point) == 1, "EC_KEY_set_public_key");
     EC_POINT_free_nid_postfix(point);
     return key;
+}
+
+static Bytes Add(const Bytes& a, const Bytes& b) {
+    Bytes out(std::max(a.size(), b.size()) + 1, 0);
+    unsigned carry = 0;
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        const unsigned x = i < a.size() ? a[a.size() - 1 - i] : 0;
+        const unsigned y = i < b.size() ? b[b.size() - 1 - i] : 0;
+        const unsigned sum = x + y + carry;
+        out[out.size() - 1 - i] = static_cast<unsigned char>(sum);
+        carry = sum >> 8;
+    }
+    return out;
+}
+
+static Bignum* NewNumber(const Bytes& bytes, bool negative = false) {
+    Bignum* number = BN_bin2bn_nid_postfix(bytes.data(), static_cast<int>(bytes.size()), nullptr);
+    Require(number != nullptr, "BN_bin2bn");
+    number->neg = negative ? 1 : 0;
+    return number;
+}
+
+static Bytes NumberBytes(const Bignum* number) {
+    Bytes out((BN_num_bits_nid_postfix(number) + 7) / 8);
+    Require(BN_bn2bin_nid_postfix(number, out.data()) == static_cast<int>(out.size()), "BN_bn2bin");
+    return out;
+}
+
+static int SetPrivateKey(EcKey* key, const Bytes& bytes, bool negative = false) {
+    Bignum* number = NewNumber(bytes, negative);
+    const int result = EC_KEY_set_private_key_nid_postfix(key, number);
+    Require(result == 0 || EC_KEY_get0_private_key_nid_postfix(key) != number, "EC_KEY_set_private_key stores a copy");
+    BN_free_nid_postfix(number);
+    return result;
 }
 
 static void CheckPointEncoding() {
@@ -456,11 +497,92 @@ static void CheckKeyChanges() {
     EC_GROUP_free_nid_postfix(group);
 }
 
+static void CheckPrivateKeys() {
+    const Bytes digest = ToBytes(SampleDigest);
+    const int digestLength = static_cast<int>(digest.size());
+    unsigned char signature[80];
+    unsigned int length = 0;
+
+    EcKey* generated = EC_KEY_new_by_curve_name_nid_postfix(415);
+    Require(EC_KEY_get0_private_key_nid_postfix(generated) == nullptr, "a new key has no private key");
+    Require(EC_KEY_generate_key_nid_postfix(generated) == 1, "EC_KEY_generate_key");
+    const Bignum* generatedPrivate = EC_KEY_get0_private_key_nid_postfix(generated);
+    Require(generatedPrivate != nullptr && generatedPrivate->neg == 0 && BN_num_bits_nid_postfix(generatedPrivate) > 0, "EC_KEY_get0_private_key after EC_KEY_generate_key");
+    Require(EC_KEY_get0_private_key_nid_postfix(generated) == generatedPrivate, "EC_KEY_get0_private_key is stable");
+    const Bytes generatedBytes = NumberBytes(generatedPrivate);
+    const Bytes generatedPublic = Encode(EC_KEY_get0_group_nid_postfix(generated), EC_KEY_get0_public_key_nid_postfix(generated), Uncompressed);
+
+    EcKey* restored = PublicKeyOnly(415, generatedPublic);
+    Require(EC_KEY_check_key_nid_postfix(restored) == 1, "EC_KEY_check_key without a private key");
+    Require(SetPrivateKey(restored, generatedBytes) == 1, "EC_KEY_set_private_key");
+    Require(NumberBytes(EC_KEY_get0_private_key_nid_postfix(restored)) == generatedBytes, "the private key round trips");
+    Require(EC_KEY_check_key_nid_postfix(restored) == 1, "EC_KEY_check_key with a set private key");
+    Require(ECDSA_sign_nid_postfix(0, digest.data(), digestLength, signature, &length, restored) == 1, "ECDSA_sign with a set private key");
+    Require(Verify(digest.data(), digestLength, Bytes(signature, signature + length), generated) == 1, "a signature of a set private key verifies");
+
+    const Bignum* restoredPrivate = EC_KEY_get0_private_key_nid_postfix(restored);
+    Require(EC_KEY_generate_key_nid_postfix(restored) == 1 && EC_KEY_get0_private_key_nid_postfix(restored) == restoredPrivate, "EC_KEY_generate_key reuses the private key");
+    Require(NumberBytes(restoredPrivate) != generatedBytes && EC_KEY_check_key_nid_postfix(restored) == 1, "EC_KEY_generate_key replaces the private key value");
+    Require(EC_KEY_set_private_key_nid_postfix(restored, restoredPrivate) == 1 && EC_KEY_check_key_nid_postfix(restored) == 1, "EC_KEY_set_private_key with the key's own private key");
+
+    Require(EC_KEY_set_private_key_nid_postfix(restored, nullptr) == 0 && EC_KEY_get0_private_key_nid_postfix(restored) == nullptr, "EC_KEY_set_private_key with a null private key");
+    Require(EC_KEY_check_key_nid_postfix(restored) == 1, "EC_KEY_check_key after dropping the private key");
+    Require(ECDSA_sign_nid_postfix(0, digest.data(), digestLength, signature, &length, restored) == 0 && length == 0, "ECDSA_sign after dropping the private key");
+    Bytes secret(32);
+    Require(ECDH_compute_key_nid_postfix(secret.data(), secret.size(), EC_KEY_get0_public_key_nid_postfix(generated), restored, nullptr) == -1, "ECDH_compute_key after dropping the private key");
+    Require(EC_KEY_set_private_key_nid_postfix(restored, nullptr) == 0, "EC_KEY_set_private_key with a null private key again");
+
+    EcKey* known = PublicKeyOnly(415, ToBytes(P256RfcPublicKey));
+    Require(SetPrivateKey(known, ToBytes(P256RfcPrivateKey)) == 1 && EC_KEY_check_key_nid_postfix(known) == 1, "the RFC 6979 private key matches its public key");
+    Require(ECDSA_sign_nid_postfix(0, digest.data(), digestLength, signature, &length, known) == 1, "ECDSA_sign with the RFC 6979 private key");
+    Require(Verify(digest.data(), digestLength, Bytes(signature, signature + length), known) == 1, "a signature of the RFC 6979 private key verifies");
+    const Bytes aboveOrder = Add(ToBytes(P256RfcPrivateKey), ToBytes(P256Order));
+    Require(SetPrivateKey(known, aboveOrder) == 1, "EC_KEY_set_private_key does not check the range");
+    Require(NumberBytes(EC_KEY_get0_private_key_nid_postfix(known)) == aboveOrder && aboveOrder.size() == 33, "a private key above the order is kept");
+    Require(EC_KEY_check_key_nid_postfix(known) == 0, "EC_KEY_check_key with a private key above the order");
+    Require(ECDSA_sign_nid_postfix(0, digest.data(), digestLength, signature, &length, known) == 1, "ECDSA_sign with a private key above the order");
+    Require(Verify(digest.data(), digestLength, Bytes(signature, signature + length), known) == 1, "a private key above the order signs as its residue");
+
+    EcKey* unit = PublicKeyOnly(415, ToBytes(P256Generator));
+    Require(SetPrivateKey(unit, {1}) == 1 && EC_KEY_check_key_nid_postfix(unit) == 1, "the private key 1 matches the generator");
+    Require(ECDH_compute_key_nid_postfix(secret.data(), secret.size(), EC_KEY_get0_public_key_nid_postfix(generated), unit, nullptr) == 32, "ECDH_compute_key with the private key 1");
+    Require(secret == Bytes(generatedPublic.begin() + 1, generatedPublic.begin() + 33), "the private key 1 gives the x of the peer key");
+    Bytes orderMinusOne = ToBytes(P256Order);
+    orderMinusOne.back() -= 1;
+    Require(SetPrivateKey(unit, orderMinusOne, true) == 1 && EC_KEY_get0_private_key_nid_postfix(unit)->neg == 1, "a negative private key keeps its sign");
+    Require(EC_KEY_check_key_nid_postfix(unit) == 1, "the private key 1 - n matches the generator");
+    Require(SetPrivateKey(unit, orderMinusOne) == 1 && EC_KEY_check_key_nid_postfix(unit) == 0, "the private key n - 1 does not match the generator");
+    EcPoint* negated = Decode(EC_KEY_get0_group_nid_postfix(unit), ToBytes(P256NegatedGenerator));
+    Require(EC_KEY_set_public_key_nid_postfix(unit, negated) == 1 && EC_KEY_check_key_nid_postfix(unit) == 1, "the private key n - 1 matches the negated generator");
+    EC_POINT_free_nid_postfix(negated);
+    Require(SetPrivateKey(unit, {}) == 1 && EC_KEY_check_key_nid_postfix(unit) == 0, "the private key 0");
+    Require(ECDH_compute_key_nid_postfix(secret.data(), secret.size(), EC_KEY_get0_public_key_nid_postfix(generated), unit, nullptr) == -1, "ECDH_compute_key with the private key 0");
+    RequireThrows([&] { ECDSA_sign_nid_postfix(0, digest.data(), digestLength, signature, &length, unit); }, "ECDSA_sign with the private key 0");
+    Require(SetPrivateKey(unit, ToBytes(P256Order)) == 1 && EC_KEY_check_key_nid_postfix(unit) == 0, "the private key n");
+
+    EcKey* empty = EC_KEY_new_nid_postfix();
+    Require(SetPrivateKey(empty, {7}) == 1 && EC_KEY_get0_private_key_nid_postfix(empty) != nullptr, "EC_KEY_set_private_key without a group");
+    Require(ECDSA_sign_nid_postfix(0, digest.data(), digestLength, signature, &length, empty) == 0, "ECDSA_sign with a private key and no group");
+    RequireThrows([&] { EC_KEY_get0_private_key_nid_postfix(nullptr); }, "EC_KEY_get0_private_key without a key");
+    Bignum* number = NewNumber({1});
+    RequireThrows([&] { EC_KEY_set_private_key_nid_postfix(nullptr, number); }, "EC_KEY_set_private_key without a key");
+    BN_free_nid_postfix(number);
+
+    EC_KEY_free_nid_postfix(empty);
+    EC_KEY_free_nid_postfix(unit);
+    EC_KEY_free_nid_postfix(known);
+    EC_KEY_free_nid_postfix(restored);
+    EC_KEY_free_nid_postfix(generated);
+}
+
 int main() {
+    void* const heapApi[10] {};
+    ApplicationHeapRegister_nid_no_patch(heapApi);
     CheckPointEncoding();
     CheckGeneratedKeys();
     CheckKnownSignatures();
     CheckSharedSecrets();
     CheckKeyChanges();
+    CheckPrivateKeys();
     return 0;
 }

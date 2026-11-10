@@ -33,16 +33,7 @@ struct EcPoint {
     mbedtls_ecp_point point;
 };
 
-struct EcPrivateKey {
-    explicit EcPrivateKey(const NamedCurve& named);
-    ~EcPrivateKey();
-
-    EcPrivateKey(const EcPrivateKey&) = delete;
-    EcPrivateKey& operator=(const EcPrivateKey&) = delete;
-
-    const NamedCurve curve;
-    mbedtls_mpi value;
-};
+struct Bignum;
 
 struct EcKey {
     EcKey() = default;
@@ -55,7 +46,7 @@ struct EcKey {
     std::int32_t version = 1;
     EcGroup* group = nullptr;
     EcPoint* publicKey = nullptr;
-    EcPrivateKey* privateKey = nullptr;
+    Bignum* privateKey = nullptr;
     std::uint32_t encodingFlags = 0;
     std::int32_t conversionForm = 4;
     std::int32_t references = 1;
@@ -65,4 +56,5 @@ struct EcKey {
 
 static_assert(std::is_standard_layout_v<EcKey>);
 static_assert(sizeof(EcKey) == 64);
+static_assert(offsetof(EcKey, privateKey) == 32);
 static_assert(offsetof(EcKey, references) == 48);
