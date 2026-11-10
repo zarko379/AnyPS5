@@ -1,16 +1,22 @@
 #include "prx/libSceLibcInternal/include/Api.hpp"
 #include "prx/libSceLibcInternal/include/RecoveredInventory.hpp"
 #include "prx/libkernel/Pthread/include/Mutex.hpp"
+#include "prx/libkernel/include/Api.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#ifdef __linux__
+#include <csignal>
+#include <sys/time.h>
+#endif
 
 struct TypeRecord { const void* vtable; const char* name; const TypeRecord* base; };
 
@@ -157,6 +163,44 @@ void CheckMutex() {
     Require(_ZNSt8__sce_v212_Mtx_destroyEPP13pthread_mutex_nid_postfix(reinterpret_cast<void**>(&empty)) == success, "the unnamed mutex is destroyed");
 }
 
+bool SleepsFor(std::uint64_t milliseconds, std::chrono::milliseconds bound) {
+    const auto start = std::chrono::steady_clock::now();
+    _ZNSt8__sce_v215_Thrd_sleep_forEm_nid_postfix(milliseconds);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    return elapsed >= std::chrono::milliseconds(milliseconds) && elapsed < bound;
+}
+
+void* APS5_VABI SleepOnGuestThread(void* argument) {
+    *static_cast<bool*>(argument) = SleepsFor(20, std::chrono::milliseconds(2000));
+    return nullptr;
+}
+
+void CheckSleepFor() {
+    Require(SleepsFor(0, std::chrono::milliseconds(50)), "a zero sleep returns at once");
+    Require(SleepsFor(20, std::chrono::milliseconds(2000)), "a 20 ms sleep lasts at least 20 ms on the monotonic clock");
+    Require(SleepsFor(1001, std::chrono::milliseconds(3000)), "a sleep over one second keeps the millisecond remainder");
+#ifdef __linux__
+    struct sigaction action{};
+    action.sa_handler = [](int) {};
+    sigemptyset(&action.sa_mask);
+    struct sigaction previous{};
+    Require(sigaction(SIGALRM, &action, &previous) == 0, "the interrupting handler installs");
+    itimerval interval{{0, 5000}, {0, 5000}};
+    Require(setitimer(ITIMER_REAL, &interval, nullptr) == 0, "the interrupting timer starts");
+    const bool interrupted = SleepsFor(40, std::chrono::milliseconds(2000));
+    itimerval stop{};
+    setitimer(ITIMER_REAL, &stop, nullptr);
+    sigaction(SIGALRM, &previous, nullptr);
+    Require(interrupted, "a sleep interrupted by signals still lasts the full time");
+#endif
+    bool slept = false;
+    Pthread thread = nullptr;
+    Require(scePthreadCreate(&thread, nullptr, SleepOnGuestThread, &slept, "sleep_for") == 0, "a libkernel thread starts");
+    void* result = nullptr;
+    Require(scePthreadJoin(thread, &result) == 0, "the libkernel thread joins");
+    Require(slept, "a libkernel thread sleeps for at least 20 ms");
+}
+
 }
 
 extern "C" void APS5_VABI SceV2Inspect(void* object) {
@@ -177,6 +221,7 @@ int main() {
     CheckCategories();
     CheckOverflow();
     CheckMutex();
+    CheckSleepFor();
 
     if (failures != 0) return 1;
     std::puts("libc internal libc forward checks passed");
