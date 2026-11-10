@@ -4,8 +4,10 @@
 #include "prx/libc/include/General.hpp"
 #include <algorithm>
 #include <atomic>
+#include <cstdarg>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 
 
@@ -26,6 +28,12 @@ constexpr int NullParameter = 115;
 constexpr int Uninitialized = 120;
 constexpr int UnsupportedMethod = 121;
 constexpr int ReadOnlyWrite = 126;
+
+struct GuestFree {
+    void operator()(char* pointer) const {
+        free_nid_postfix(pointer);
+    }
+};
 
 int queueError(int library, int reason, int result) {
     LibreSslPutError_nid_no_patch(library, 0xfff, reason, __FILE__, __LINE__);
@@ -266,6 +274,26 @@ int LibreSslBioWrite_nid_no_patch(LibreSsl::Bio* bio, const void* source, int si
     const int result = bio->method->write(bio, static_cast<const char*>(source), size);
     if (result > 0) bio->bytesWritten += static_cast<std::uint64_t>(result);
     return callback ? static_cast<int>(callback(bio, 0x83, static_cast<const char*>(source), size, 0, result)) : result;
+}
+
+int APS5_VABI BIO_printf_nid_postfix(LibreSsl::Bio* bio, const char* format, ...) {
+    if (!format) throw std::invalid_argument("BIO_printf: null format");
+    char* text = nullptr;
+#ifdef _WIN32
+    __builtin_sysv_va_list args;
+    __builtin_sysv_va_start(args, format);
+    const int count = vasprintf_nid_postfix(&text, format, reinterpret_cast<VaList*>(args));
+    __builtin_sysv_va_end(args);
+#else
+    std::va_list args;
+    va_start(args, format);
+    const int count = vasprintf_nid_postfix(&text, format, reinterpret_cast<VaList*>(args));
+    va_end(args);
+#endif
+    const std::unique_ptr<char, GuestFree> owner(text);
+    if (count < 0 || !text) return -1;
+    LibreSslBioWrite_nid_no_patch(bio, text, count);
+    return count;
 }
 
 int APS5_VABI BIO_puts_nid_postfix(LibreSsl::Bio* bio, const char* source) {

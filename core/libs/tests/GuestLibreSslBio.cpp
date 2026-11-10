@@ -120,7 +120,14 @@ std::atomic<int> allocations{0};
 void* wipePointer = nullptr;
 std::size_t wipeSize = 0;
 
-void* APS5_VABI Allocate(std::size_t) { throw std::logic_error("unexpected nonzeroed BIO allocation"); }
+bool allowAllocate = false;
+
+void* APS5_VABI Allocate(std::size_t size) {
+    if (!allowAllocate) throw std::logic_error("unexpected nonzeroed BIO allocation");
+    void* result = std::malloc(size);
+    if (result) ++allocations;
+    return result;
+}
 void* APS5_VABI Reallocate(void*, std::size_t) { throw std::logic_error("unexpected BIO reallocation"); }
 void* APS5_VABI Align(std::size_t, std::size_t) { throw std::logic_error("unexpected BIO aligned allocation"); }
 void* APS5_VABI Realign(void*, std::size_t, std::size_t) { throw std::logic_error("unexpected BIO realignment"); }
@@ -623,6 +630,57 @@ void TestFileAndSocket() {
 }
 #endif
 
+#ifndef ANYPS5_BIO_DYNAMIC
+void TestPrintf() {
+    allowAllocate = true;
+    Bio* bio = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    const std::string expected = "42-abc:1099511627776| 3.14";
+    Require(BIO_printf_nid_postfix(bio, "%d-%s:%ld|%5.2f", 42, "abc", std::int64_t{1} << 40, 3.14159) == static_cast<int>(expected.size()),
+            "BIO_printf returns the formatted length");
+    RequireData(bio, expected);
+    Require(BIO_free_nid_postfix(bio) == 1, "free printf BIO");
+
+    bio = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    WriteTrace trace;
+    bio->callback = TraceWrite;
+    bio->callbackArgument = reinterpret_cast<char*>(&trace);
+    Require(BIO_printf_nid_postfix(bio, "%3000d", 7) == 3000, "long BIO_printf output");
+    Require(trace.events.size() == 2 && trace.events[0].operation == 3 && trace.events[0].size == 3000 && trace.events[1].operation == 0x83 &&
+            trace.events[1].result == 3000, "BIO_printf writes the whole text in one BIO_write");
+    trace.events.clear();
+    trace.veto = -5;
+    Require(BIO_printf_nid_postfix(bio, "%s", "vetoed") == 6, "BIO_printf returns the length when BIO_write is vetoed");
+    Require(trace.events.size() == 1 && trace.events[0].size == 6, "a vetoed BIO_printf write");
+    trace.veto = 0;
+    trace.events.clear();
+    Require(BIO_printf_nid_postfix(bio, "") == 0, "empty BIO_printf output");
+    Require(trace.events.size() == 2 && trace.events[0].operation == 3 && trace.events[0].size == 0, "empty output still reaches BIO_write");
+    bio->callback = nullptr;
+    RequireData(bio, std::string(2999, ' ') + "7");
+    Require(BIO_free_nid_postfix(bio) == 1, "free long printf BIO");
+
+    static const char fixed[] = "xyz";
+    Bio* readOnly = BIO_new_mem_buf_nid_postfix(fixed, 3);
+    Require(BIO_printf_nid_postfix(readOnly, "%s", "hello") == 5, "BIO_printf ignores the BIO_write result");
+    RequireError(0x20fff07e);
+    Require(BIO_printf_nid_postfix(readOnly, "") == 0, "empty output to a read-only BIO");
+    RequireError(0x20fff07e);
+    RequireData(readOnly, "xyz");
+    Require(BIO_free_nid_postfix(readOnly) == 1, "free read-only printf BIO");
+
+    Require(BIO_printf_nid_postfix(nullptr, "%u", 12345u) == 5, "BIO_printf to a null BIO");
+    RequireError(0);
+    bool threw = false;
+    try {
+        BIO_printf_nid_postfix(nullptr, nullptr);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw, "BIO_printf rejects a null format");
+    allowAllocate = false;
+}
+#endif
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -644,6 +702,7 @@ int main(int argc, char** argv) {
     TestUnsupported();
 #ifndef ANYPS5_BIO_DYNAMIC
     TestFileAndSocket();
+    TestPrintf();
 #endif
     Require(allocations == 0, "BIO tests leaked guest heap storage");
     Require(ERR_get_error_nid_postfix() == 0, "BIO tests left an unexpected error");
