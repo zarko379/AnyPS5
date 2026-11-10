@@ -1,7 +1,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <future>
+#include <limits>
 #include <source_location>
+#include <thread>
 
 #include "prx/libc/include/Api.hpp"
 #include "prx/libkernel/include/Api.hpp"
@@ -91,6 +94,40 @@ int main() {
     Require(cpuset_getid_nid_postfix(LevelRoot, WhichProcess, pid, &setid) == 0);
     Require(setid == 0);
 
+    const int self = pthread_getthreadid_np_nid_postfix();
+    for (const std::int64_t thread : {std::int64_t{-1}, std::int64_t{self}}) {
+        setid = -1;
+        Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, thread, &setid) == 0 && setid == set2);
+        setid = -1;
+        Require(cpuset_getid_nid_postfix(LevelRoot, WhichThread, thread, &setid) == 0 && setid == 0);
+        Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, thread, nullptr) == -1 && Error() == Efault);
+        Require(cpuset_getid_nid_postfix(LevelWhich, WhichThread, thread, &setid) == -1 && Error() == Einval);
+    }
+
+    std::promise<void> release;
+    std::promise<int> started;
+    std::thread live([&] {
+        started.set_value(pthread_getthreadid_np_nid_postfix());
+        release.get_future().wait();
+    });
+    const int liveThread = started.get_future().get();
+    Require(liveThread != self);
+    setid = -1;
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, liveThread, &setid) == 0 && setid == set2);
+    setid = -1;
+    Require(cpuset_getid_nid_postfix(LevelRoot, WhichThread, liveThread, &setid) == 0 && setid == 0);
+    release.set_value();
+    live.join();
+
+    int untouched = 0x1234;
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, liveThread, &untouched) == -1 && Error() == Esrch && untouched == 0x1234);
+    Require(cpuset_getid_nid_postfix(LevelRoot, WhichThread, liveThread, &untouched) == -1 && Error() == Esrch && untouched == 0x1234);
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, liveThread, nullptr) == -1 && Error() == Esrch);
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, std::numeric_limits<std::int64_t>::max(), &untouched) == -1 && Error() == Esrch && untouched == 0x1234);
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, 4294967295LL, &untouched) == -1 && Error() == Esrch && untouched == 0x1234);
+    setid = -1;
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, std::int64_t{self} + 4294967296LL, &setid) == 0 && setid == set2);
+
     Require(cpuset_setid_nid_postfix(WhichThread, -1, 1) == -1 && Error() == Einval);
     Require(cpuset_setid_nid_postfix(WhichCpuset, -1, 1) == -1 && Error() == Einval);
     Require(cpuset_setid_nid_postfix(WhichProcess, 999999, 1) == -1 && Error() == Esrch);
@@ -100,6 +137,7 @@ int main() {
     Require(cpuset_setid_nid_postfix(WhichProcess, -1, 1) == 0);
     Require(cpuset_getid_nid_postfix(LevelCpuset, WhichProcess, -1, &setid) == 0);
     Require(setid == 1);
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichThread, -1, &setid) == 0 && setid == 1);
 
     Require(cpuset_setid_nid_postfix(WhichProcess, pid, set1) == -1 && Error() == Esrch);
 

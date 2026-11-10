@@ -5,6 +5,7 @@
 
 #include "prx/libc/include/Api.hpp"
 #include "prx/libkernel/include/Api.hpp"
+#include "prx/libkernel/Pthread/include/Pthread.hpp"
 #include "SceTypes.hpp"
 
 extern "C" [[noreturn]] void (NotImplemented_nid_no_patch)(const char* funcName);
@@ -92,12 +93,15 @@ int APS5_VABI cpuset_getid_nid_postfix(int level, int which, std::int64_t id, in
     if (which < WhichThread || which > WhichDomain || which == WhichIrq || which == WhichDomain) {
         return Fail(GuestEinval);
     }
-    if (which != WhichProcess && which != WhichCpuset) {
-        NotImplemented_nid_no_patch("cpuset_getid other than process or cpuset");
+    if (which == WhichJail) {
+        NotImplemented_nid_no_patch("cpuset_getid of a jail");
     }
     int resultId = 0;
-    if (which == WhichProcess) {
-        if (id != -1 && id != getpid_nid_postfix()) {
+    if (which == WhichProcess || which == WhichThread) {
+        if (which == WhichProcess && id != -1 && id != getpid_nid_postfix()) {
+            return Fail(GuestEsrch);
+        }
+        if (which == WhichThread && id != -1 && static_cast<std::int32_t>(id) != pthread_getthreadid_np_nid_postfix() && !LiveGuestThreadExists(static_cast<std::int32_t>(id))) {
             return Fail(GuestEsrch);
         }
         if (level == LevelRoot) {
