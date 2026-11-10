@@ -1,5 +1,6 @@
 #include "prx/libSceVrTracker/include/Api.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
+#include "prx/libkernel/Time/include/Time.hpp"
 #include <cstdint>
 #include <cstdlib>
 #include <stdexcept>
@@ -13,6 +14,7 @@ constexpr int DeviceAlreadyRegistered = static_cast<int>(0x81260804u);
 constexpr int ArgumentInvalid = static_cast<int>(0x81260806u);
 constexpr int NotExecuteGpuSubmit = static_cast<int>(0x81260815u);
 constexpr std::uint32_t Untouched = 0xa5a5a5a5u;
+constexpr std::uint64_t UntouchedTime = 0xa5a5a5a5a5a5a5a5ull;
 constexpr int Hmd = 0;
 constexpr int Pad = 1;
 constexpr int Move = 2;
@@ -101,6 +103,25 @@ void CheckBeforeInit() {
     Require(Recalibrate(Pad) == NotInit);
     Require(sceVrTrackerSetDurationUntilStatusNotTracking(Pad, 10) == NotInit);
     Require(sceVrTrackerGpuWaitAndCpuProcess() == NotInit);
+    std::uint64_t time = UntouchedTime;
+    Require(sceVrTrackerGetTime(&time) == NotInit);
+    Require(time == UntouchedTime);
+    Require(sceVrTrackerGetTime(nullptr) == NotInit);
+}
+
+void CheckGetTime() {
+    Require(sceVrTrackerGetTime(nullptr) == ArgumentInvalid);
+    std::uint64_t previous = 0;
+    for (int i = 0; i < 64; ++i) {
+        std::uint64_t time = UntouchedTime;
+        const std::uint64_t before = sceKernelGetProcessTime();
+        Require(sceVrTrackerGetTime(&time) == 0);
+        const std::uint64_t after = sceKernelGetProcessTime();
+        Require(time != UntouchedTime);
+        Require(before <= time && time <= after);
+        Require(time >= previous);
+        previous = time;
+    }
 }
 
 void CheckInit() {
@@ -166,6 +187,9 @@ void CheckTerm() {
     Require(sceVrTrackerTerm() == 0);
     Require(sceVrTrackerTerm() == NotInit);
     Require(sceVrTrackerRegisterDevice(Gun, 8) == NotInit);
+    std::uint64_t time = UntouchedTime;
+    Require(sceVrTrackerGetTime(&time) == NotInit);
+    Require(time == UntouchedTime);
     const auto init = ValidInit();
     Require(sceVrTrackerInit(reinterpret_cast<const VrTrackerInitParam*>(&init)) == 0);
     Require(sceVrTrackerRegisterDevice(Move, 11) == DeviceAlreadyRegistered);
@@ -178,6 +202,7 @@ int main() {
     CheckQueryMemory();
     CheckBeforeInit();
     CheckInit();
+    CheckGetTime();
     CheckDevices();
     CheckTerm();
 }
