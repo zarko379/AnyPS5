@@ -45,6 +45,8 @@ constexpr int UMTX_OP_MUTEX_WAKE = 18;
 constexpr int UMTX_OP_SEM_WAIT = 19;
 constexpr int UMTX_OP_SEM_WAKE = 20;
 constexpr int UMTX_OP_NWAKE_PRIVATE = 21;
+constexpr int UMTX_OP_SEM2_WAIT = 23;
+constexpr int UMTX_OP_SEM2_WAKE = 24;
 constexpr int UMTX_OP_MAX = 27;
 constexpr std::uint32_t UMTX_ABSTIME = 1;
 constexpr int GUEST_CLOCK_REALTIME = 0;
@@ -60,6 +62,8 @@ constexpr std::uint32_t URWLOCK_WRITE_OWNER = 0x80000000u;
 constexpr std::uint32_t URWLOCK_WRITE_WAITERS = 0x40000000u;
 constexpr std::uint32_t URWLOCK_READ_WAITERS = 0x20000000u;
 constexpr std::uint32_t URWLOCK_MAX_READERS = 0x1fffffffu;
+constexpr std::uint32_t USEM_HAS_WAITERS = 0x80000000u;
+constexpr std::uint32_t USEM_MAX_COUNT = 0x7fffffffu;
 
 constexpr int GUEST_EPERM = 1;
 constexpr int GUEST_EFAULT = 14;
@@ -80,6 +84,11 @@ struct UmtxTime {
 
 struct UserSemaphore {
     std::uint32_t hasWaiters;
+    std::uint32_t count;
+    std::uint32_t flags;
+};
+
+struct UserSemaphore2 {
     std::uint32_t count;
     std::uint32_t flags;
 };
@@ -106,7 +115,7 @@ struct UserRwlock {
     std::uint32_t spare[4];
 };
 
-static_assert(sizeof(UserMutex) == 32 && sizeof(UserCondition) == 16 && sizeof(UserRwlock) == 32);
+static_assert(sizeof(UserSemaphore2) == 8 && sizeof(UserMutex) == 32 && sizeof(UserCondition) == 16 && sizeof(UserRwlock) == 32);
 
 struct AddressWaiter {
     TimedWait::SingleWaiterCondition condition;
@@ -425,6 +434,64 @@ int SemWake(UserSemaphore* semaphore) {
     }
     const auto key = reinterpret_cast<std::uintptr_t>(semaphore);
     DeferringDelivery([&] { WakeSemaphoreLocked(key, semaphore); });
+    return 0;
+}
+
+int Sem2Wait(UserSemaphore2* semaphore, const void* sizeArgument, const void* timeArgument, const void* caller) {
+    std::optional<std::uint64_t> deadline;
+    if (const int error = UmtxDeadline(sizeArgument, timeArgument, deadline); error != 0) {
+        return error;
+    }
+    if (semaphore == nullptr) {
+        return GUEST_EFAULT;
+    }
+    if (!IsAlignedAddress<std::uint32_t>(reinterpret_cast<std::uintptr_t>(semaphore))) {
+        APS5_INVALID_ARG_EX;
+    }
+    const bool woken = WaitOnKeyUntil(reinterpret_cast<std::uintptr_t>(semaphore), [&] {
+        std::atomic_ref<std::uint32_t> count(semaphore->count);
+        std::uint32_t current = count.load();
+        for (;;) {
+            if ((current & USEM_MAX_COUNT) != 0) {
+                return true;
+            }
+            if (current == USEM_HAS_WAITERS || count.compare_exchange_strong(current, USEM_HAS_WAITERS)) {
+                return false;
+            }
+        }
+    }, deadline, caller);
+    return woken ? 0 : GUEST_ETIMEDOUT;
+}
+
+void WakeSemaphore2Locked(std::uintptr_t key, UserSemaphore2* semaphore) {
+    auto& bucket = BucketOf(key);
+    std::lock_guard<std::mutex> lock(bucket.mutex);
+    const auto entry = bucket.waiters.find(key);
+    if (entry == bucket.waiters.end()) {
+        return;
+    }
+    auto& queue = entry->second;
+    if (queue.size() == 1) {
+        std::atomic_ref<std::uint32_t>(semaphore->count).fetch_and(~USEM_HAS_WAITERS);
+    }
+    AddressWaiter* waiter = queue.front();
+    queue.pop_front();
+    waiter->woken = true;
+    waiter->condition.NotifyOne();
+    if (queue.empty()) {
+        bucket.waiters.erase(entry);
+    }
+}
+
+int Sem2Wake(UserSemaphore2* semaphore) {
+    if (semaphore == nullptr) {
+        return GUEST_EFAULT;
+    }
+    if (!IsAlignedAddress<std::uint32_t>(reinterpret_cast<std::uintptr_t>(semaphore))) {
+        APS5_INVALID_ARG_EX;
+    }
+    const auto key = reinterpret_cast<std::uintptr_t>(semaphore);
+    DeferringDelivery([&] { WakeSemaphore2Locked(key, semaphore); });
     return 0;
 }
 
@@ -837,6 +904,12 @@ int APS5_VABI _umtx_op_nid_postfix(void* object, int operation, std::uint64_t va
             break;
         case UMTX_OP_SEM_WAKE:
             error = SemWake(static_cast<UserSemaphore*>(object));
+            break;
+        case UMTX_OP_SEM2_WAIT:
+            error = Sem2Wait(static_cast<UserSemaphore2*>(object), sizeArgument, timeArgument, caller);
+            break;
+        case UMTX_OP_SEM2_WAKE:
+            error = Sem2Wake(static_cast<UserSemaphore2*>(object));
             break;
         case UMTX_OP_MUTEX_TRYLOCK:
             error = MutexTrylock(static_cast<UserMutex*>(object));

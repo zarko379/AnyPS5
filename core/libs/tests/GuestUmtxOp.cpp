@@ -32,6 +32,8 @@ static constexpr int UMTX_OP_SEM_WAIT = 19;
 static constexpr int UMTX_OP_SEM_WAKE = 20;
 static constexpr int UMTX_OP_NWAKE_PRIVATE = 21;
 static constexpr int UMTX_OP_SEM2_WAIT = 23;
+static constexpr int UMTX_OP_SEM2_WAKE = 24;
+static constexpr int UMTX_OP_SHM = 25;
 static constexpr int UMTX_OP_MAX = 27;
 static constexpr std::uint32_t UMTX_ABSTIME = 1;
 static constexpr int CLOCK_MONOTONIC_ID = 4;
@@ -50,6 +52,7 @@ static constexpr std::uint32_t WRITE_OWNER = 0x80000000u;
 static constexpr std::uint32_t WRITE_WAITERS = 0x40000000u;
 static constexpr std::uint32_t READ_WAITERS = 0x20000000u;
 static constexpr std::uint32_t PREFER_READER = 0x2;
+static constexpr std::uint32_t SEM2_HAS_WAITERS = 0x80000000u;
 
 struct Umutex {
     std::uint32_t owner = 0;
@@ -367,6 +370,86 @@ static void SemWakeWithoutWaitersSucceeds() {
     Require(FailsWith(Umtx(nullptr, UMTX_OP_SEM_WAIT, 0), GUEST_EFAULT));
 }
 
+struct Usem2 {
+    std::uint32_t count = 0;
+    std::uint32_t flags = 0;
+};
+
+static std::uint32_t Sem2Count(Usem2& sem) { return std::atomic_ref<std::uint32_t>(sem.count).load(); }
+
+static void Sem2WaitReturnsWithoutTakingACount() {
+    for (const std::uint32_t count : {1u, 2u, 0x7fffffffu, SEM2_HAS_WAITERS | 1u}) {
+        Usem2 sem{count, 0};
+        KernelTimespec none{0, 0};
+        Require(Umtx(&sem, UMTX_OP_SEM2_WAIT, 0, SizeOf(sizeof(none)), &none) == 0);
+        Require(sem.count == count);
+        Require(Umtx(&sem, UMTX_OP_SEM2_WAIT, 0) == 0 && sem.count == count);
+    }
+}
+
+static void Sem2WaitSetsTheWaitersBitAndTimesOut() {
+    for (const std::uint32_t count : {0u, SEM2_HAS_WAITERS}) {
+        Usem2 sem{count, 0};
+        KernelTimespec relative{0, 20000000};
+        const auto start = std::chrono::steady_clock::now();
+        Require(FailsWith(Umtx(&sem, UMTX_OP_SEM2_WAIT, 0, SizeOf(sizeof(relative)), &relative), GUEST_ETIMEDOUT));
+        Require(std::chrono::steady_clock::now() - start >= std::chrono::milliseconds(15));
+        Require(sem.count == SEM2_HAS_WAITERS && sem.flags == 0);
+    }
+}
+
+static void Sem2ChecksTheTimeoutBeforeTheObject() {
+    Usem2 sem;
+    KernelTimespec negative{-1, 0};
+    KernelTimespec tooManyNanos{0, 1000000000};
+    Require(FailsWith(Umtx(&sem, UMTX_OP_SEM2_WAIT, 0, SizeOf(sizeof(negative)), &negative), GUEST_EINVAL) && sem.count == 0);
+    Require(FailsWith(Umtx(&sem, UMTX_OP_SEM2_WAIT, 0, SizeOf(sizeof(tooManyNanos)), &tooManyNanos), GUEST_EINVAL) && sem.count == 0);
+    Require(FailsWith(Umtx(nullptr, UMTX_OP_SEM2_WAIT, 0, SizeOf(sizeof(negative)), &negative), GUEST_EINVAL));
+    Require(FailsWith(Umtx(nullptr, UMTX_OP_SEM2_WAIT, 0), GUEST_EFAULT));
+    Require(FailsWith(Umtx(nullptr, UMTX_OP_SEM2_WAKE, 0), GUEST_EFAULT));
+}
+
+static void Sem2WakeWithoutWaitersLeavesTheCount() {
+    for (const std::uint32_t count : {0u, 3u, SEM2_HAS_WAITERS, SEM2_HAS_WAITERS | 3u}) {
+        Usem2 sem{count, 0};
+        Require(Umtx(&sem, UMTX_OP_SEM2_WAKE, 0) == 0 && sem.count == count);
+    }
+}
+
+static void AwaitSem2Waiters(Usem2& sem, const std::atomic<int>& finished) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (Sem2Count(sem) != SEM2_HAS_WAITERS) {
+        Require(std::chrono::steady_clock::now() < deadline);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::this_thread::sleep_for(SETTLE);
+    Require(finished.load() == 0);
+}
+
+static void Sem2WakeReleasesOneWaiterAndClearsTheBitForTheLast() {
+    Usem2 sem;
+    std::atomic<int> finished{0};
+    std::atomic<int> failures{0};
+    std::vector<std::thread> waiters;
+    for (int index = 0; index < 2; ++index) {
+        waiters.emplace_back([&] {
+            KernelTimespec failsafe = FailsafeTimeout();
+            if (Umtx(&sem, UMTX_OP_SEM2_WAIT, 0, SizeOf(sizeof(failsafe)), &failsafe) != 0) ++failures;
+            ++finished;
+        });
+    }
+    AwaitSem2Waiters(sem, finished);
+    std::atomic_ref<std::uint32_t>(sem.count).store(SEM2_HAS_WAITERS | 1u);
+    Require(Umtx(&sem, UMTX_OP_SEM2_WAKE, 0) == 0);
+    AwaitCount(finished, 1);
+    std::this_thread::sleep_for(SETTLE);
+    Require(finished.load() == 1 && Sem2Count(sem) == (SEM2_HAS_WAITERS | 1u));
+    Require(Umtx(&sem, UMTX_OP_SEM2_WAKE, 0) == 0);
+    AwaitCount(finished, 2);
+    for (auto& waiter : waiters) waiter.join();
+    Require(failures.load() == 0 && sem.count == 1u);
+}
+
 static void RejectsBadObjectsAndOperations() {
     Require(FailsWith(Umtx(nullptr, UMTX_OP_WAIT, 0), GUEST_EFAULT));
     Require(FailsWith(Umtx(nullptr, UMTX_OP_WAIT_UINT, 0), GUEST_EFAULT));
@@ -387,7 +470,7 @@ static void RejectsBadObjectsAndOperations() {
 
     Require(FailsWith(Umtx(&value, 7, 0), GUEST_EINVAL));
     bool threw = false;
-    try { Umtx(&value, UMTX_OP_SEM2_WAIT, 0); }
+    try { Umtx(&value, UMTX_OP_SHM, 0); }
     catch (const std::runtime_error&) { threw = true; }
     Require(threw);
 }
@@ -594,6 +677,11 @@ int main() {
     SemWaitTimesOutWhileTheCountIsZero();
     SemWakeReleasesTheWaiterAndClearsTheFlag();
     SemWakeWithoutWaitersSucceeds();
+    Sem2WaitReturnsWithoutTakingACount();
+    Sem2WaitSetsTheWaitersBitAndTimesOut();
+    Sem2ChecksTheTimeoutBeforeTheObject();
+    Sem2WakeWithoutWaitersLeavesTheCount();
+    Sem2WakeReleasesOneWaiterAndClearsTheBitForTheLast();
     RejectsBadObjectsAndOperations();
     MutexOwnershipFollowsTheConsole();
     MutexLockWaitsForTheOwnerToUnlock();
