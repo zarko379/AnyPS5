@@ -26,6 +26,7 @@
 #include <xmmintrin.h>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <source_location>
 #include <stdexcept>
 #include <set>
@@ -1405,6 +1406,37 @@ void CheckRawGetcwd() {
     Require(__getcwd_nid_postfix(nullptr, buffer.size()) == -1 && Error() == 14);
 }
 
+static void CheckWaitWithoutChildren() {
+    const int self = getpid_nid_postfix();
+    const auto untouched = [](const GuestResourceUsage& usage) {
+        const auto* bytes = reinterpret_cast<const unsigned char*>(&usage);
+        return std::all_of(bytes, bytes + sizeof(usage), [](unsigned char value) { return value == 0x5a; });
+    };
+    const auto expect = [&](auto call, int error) {
+        int status = 0x5a5a5a5a;
+        GuestResourceUsage usage;
+        std::memset(&usage, 0x5a, sizeof(usage));
+        *__error_nid_postfix() = 0;
+        Require(call(&status, &usage) == -1 && Error() == error);
+        Require(status == 0x5a5a5a5a && untouched(usage));
+    };
+    for (const int options : {0x40, 0x41, 0x80, 0x100, 0x40000000, static_cast<int>(0x80000040u), static_cast<int>(0xffffffffu)}) {
+        expect([&](int* status, GuestResourceUsage* usage) { return wait4_nid_postfix(-1, status, options, usage); }, 22);
+        expect([&](int* status, GuestResourceUsage* usage) { return wait4_nid_postfix(self, status, options, usage); }, 22);
+        expect([&](int* status, GuestResourceUsage* usage) { return wait3_nid_postfix(status, options, usage); }, 22);
+    }
+    for (const int pid : {-1, 0, 1, self, self + 1, -self, -(self + 1), std::numeric_limits<int>::min()}) {
+        for (const int options : {0, 1, 2, 4, 8, 16, 32, 0x3f, static_cast<int>(0x80000000u), static_cast<int>(0x80000001u), static_cast<int>(0x8000003fu)})
+            expect([&](int* status, GuestResourceUsage* usage) { return wait4_nid_postfix(pid, status, options, usage); }, 10);
+    }
+    for (const int options : {0, 1, 0x3f})
+        expect([&](int* status, GuestResourceUsage* usage) { return wait3_nid_postfix(status, options, usage); }, 10);
+    *__error_nid_postfix() = 0;
+    Require(wait4_nid_postfix(-1, nullptr, 0, nullptr) == -1 && Error() == 10);
+    *__error_nid_postfix() = 0;
+    Require(wait3_nid_postfix(nullptr, 1, nullptr) == -1 && Error() == 10);
+}
+
 static void CheckGetfsstat() {
     constexpr std::int64_t Size = sizeof(KernelStatfs);
     constexpr int MntWait = 1;
@@ -1454,6 +1486,7 @@ int main() {
 #endif
     Require(sceKernelGetPhysPageSize() == 16384);
     CheckProcessQueries();
+    CheckWaitWithoutChildren();
     CheckRawGetcwd();
     CheckKqueueFromEqueue();
     Require(setsid_nid_postfix() == -1 && Error() == 1);

@@ -1374,4 +1374,19 @@ int APS5_VABI tcsetsid_nid_postfix(int fd, int pid) {
     return ioctl_nid_postfix(fd, TerminalSetControlling, nullptr);
 }
 
+static int WaitForChild(int pid, int* status, int options, GuestResourceUsage* usage) {
+    bool unmappedSignal = false;
+    const int result = WaitChild_nid_no_patch(pid, status, options, usage, &unmappedSignal);
+    if (unmappedSignal) NotImplemented_nid_no_patch("wait4: a child stopped or died with a signal without a guest equivalent");
+    return result;
+}
+
+int APS5_VABI wait4_nid_postfix(int pid, int* status, int options, GuestResourceUsage* usage) {
+    return WaitForChild(pid, status, options, usage);
+}
+
+int APS5_VABI wait3_nid_postfix(int* status, int options, GuestResourceUsage* usage) {
+    return WaitForChild(-1, status, options, usage);
+}
+
 }
