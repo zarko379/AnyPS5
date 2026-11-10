@@ -704,6 +704,12 @@ int main(int argc, char** argv) {
     const auto flushCaches = [](int id, int expected) {
         Require(sceHttpAuthCacheFlush(id) == expected);
         Require(sceHttpCookieFlush(id) == expected);
+        for (const std::uint32_t value : {0u, 1u, 3000u, 0x7fffffffu, 0xffffffffu}) {
+            Require(sceHttpSetCookieMaxNum(id, value) == expected);
+            Require(sceHttpSetCookieMaxNumPerDomain(id, value) == expected);
+            Require(sceHttpSetCookieMaxSize(id, value) == expected);
+            Require(sceHttpSetCookieTotalMaxSize(id, value) == expected);
+        }
     };
     flushCaches(0, beforeInit);
     flushCaches(-1, beforeInit);
@@ -725,6 +731,10 @@ int main(int argc, char** argv) {
     flushCaches(-1, invalidId);
     flushCaches(INT32_MAX, invalidId);
     flushCaches(request, invalidId);
+    const int cookieTemplate = sceHttpCreateTemplate(context, "agent", 2, 0);
+    Require(cookieTemplate > 0);
+    flushCaches(cookieTemplate, invalidId);
+    Require(sceHttpDeleteTemplate(cookieTemplate) == 0);
     CheckPoolStats(context, 0x10000);
     CheckPoolStats(context, 0x10000);
     CheckPoolStatsRejected(0, invalidId);

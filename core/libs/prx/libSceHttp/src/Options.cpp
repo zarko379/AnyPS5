@@ -82,6 +82,15 @@ bool SetHttpEpollBinding(int id, HttpEpollHandle epoll, void* argument) {
     return true;
 }
 
+bool SetHttpCookieSendCallback(int id, HttpCookieSendCallback callback, void* argument) {
+    std::lock_guard lock(g_optionsMutex);
+    const auto found = g_objectOptions.find(id);
+    if (found == g_objectOptions.end()) return false;
+    found->second.cookieSendCallback = callback;
+    found->second.cookieSendArgument = argument;
+    return true;
+}
+
 extern "C" {
 
 int APS5_VABI sceHttpGetAutoRedirect(int id, int* enable) {
