@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AnyPS5 progress</title>
-<style>body{font-family:sans-serif;max-width:1000px;margin:auto;padding:16px}img{max-width:100%}table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:2px 8px}td+td,th+th{text-align:right}</style>
+<style>body{font-family:sans-serif;max-width:1000px;margin:auto;padding:16px}img{max-width:100%}.bar{background:#6e7681;width:100%;min-width:120px;height:14px}.bar i{display:block;height:14px}td.n{text-align:right}td.names{text-align:left}.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}.cols table{width:100%}@media(max-width:760px){.cols{grid-template-columns:1fr}}table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:2px 8px}td+td,th+th{text-align:right}</style>
 </head><body>
 <h1>Progress</h1>
 <img src="progress.svg" alt="progress">
@@ -9,38 +9,50 @@
 <h2>System libraries</h2>
 <table>
 <tr><th>Library</th><th>Implemented</th><th>Total</th><th>%</th></tr>
-<tr><td>libc</td><td>1403</td><td>1412</td><td>99%</td></tr>
-<tr><td>libkernel</td><td>697</td><td>737</td><td>95%</td></tr>
-<tr><td>libkernel_sys</td><td>114</td><td>514</td><td>22%</td></tr>
-<tr><td>libkernel_web</td><td colspan="3">No exports</td></tr>
-<tr><td>libmdbg_syscore</td><td>2</td><td>143</td><td>1%</td></tr>
-<tr><td>libSceAbstractLocal</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAbstractStorage</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAbstractTcs</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAbstractTwitter</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAbstractYoutube</td><td colspan="3">No exports</td></tr>
+<tr><td>libAacs</td><td>0</td><td>264</td><td>0%</td></tr>
+<tr><td>libc</td><td>1738</td><td>1746</td><td>100%</td></tr>
+<tr><td>libcairo</td><td>86</td><td>161</td><td>53%</td></tr>
+<tr><td>libCprm</td><td>0</td><td>35</td><td>0%</td></tr>
+<tr><td>libCss</td><td>0</td><td>65</td><td>0%</td></tr>
+<tr><td>libcurl</td><td>56</td><td>85</td><td>66%</td></tr>
+<tr><td>libfontconfig</td><td>22</td><td>53</td><td>42%</td></tr>
+<tr><td>libfreetype</td><td>14</td><td>24</td><td>58%</td></tr>
+<tr><td>libharfbuzz</td><td>8</td><td>35</td><td>23%</td></tr>
+<tr><td>libkernel</td><td>711</td><td>767</td><td>93%</td></tr>
+<tr><td>libkernel_sys</td><td>177</td><td>820</td><td>22%</td></tr>
+<tr><td>libkernel_web</td><td>3</td><td>43</td><td>7%</td></tr>
+<tr><td>libmdbg_syscore</td><td>2</td><td>171</td><td>1%</td></tr>
+<tr><td>libMozaSDK</td><td colspan="3">No exports</td></tr>
+<tr><td>libReactNative.Modules.Vsh</td><td>0</td><td>83</td><td>0%</td></tr>
+<tr><td>libReactNative.Modules.Vsh.WebAppLauncher</td><td>0</td><td>57</td><td>0%</td></tr>
+<tr><td>libSceAbstractLocal</td><td>0</td><td>70</td><td>0%</td></tr>
+<tr><td>libSceAbstractStorage</td><td>12</td><td>131</td><td>9%</td></tr>
+<tr><td>libSceAbstractTcs</td><td>0</td><td>40</td><td>0%</td></tr>
+<tr><td>libSceAbstractTwitter</td><td>0</td><td>68</td><td>0%</td></tr>
+<tr><td>libSceAbstractYoutube</td><td>0</td><td>76</td><td>0%</td></tr>
 <tr><td>libSceAc3Enc</td><td>0</td><td>7</td><td>0%</td></tr>
-<tr><td>libSceAcm</td><td>8</td><td>12</td><td>67%</td></tr>
-<tr><td>libSceAgc</td><td>230</td><td>240</td><td>96%</td></tr>
-<tr><td>libSceAgcDriver</td><td>84</td><td>130</td><td>65%</td></tr>
+<tr><td>libSceAcm</td><td>10</td><td>72</td><td>14%</td></tr>
+<tr><td>libSceAddressSanitizer</td><td>0</td><td>301</td><td>0%</td></tr>
+<tr><td>libSceAgc</td><td>238</td><td>242</td><td>98%</td></tr>
+<tr><td>libSceAgcDriver</td><td>96</td><td>166</td><td>58%</td></tr>
 <tr><td>libSceAgcResourceRegistration</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAgcVsh</td><td>0</td><td>150</td><td>0%</td></tr>
+<tr><td>libSceAgcVsh</td><td>0</td><td>1</td><td>0%</td></tr>
 <tr><td>libSceAgcVshDebug</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAjm</td><td colspan="3">Shared sources: <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx/libSceAjm.native">libSceAjm.native</a></td></tr>
-<tr><td>libSceAjm.native</td><td>30</td><td>44</td><td>68%</td></tr>
-<tr><td>libSceAjmi</td><td>0</td><td>2</td><td>0%</td></tr>
-<tr><td>libSceAmpr</td><td>131</td><td>134</td><td>98%</td></tr>
+<tr><td>libSceAjm</td><td>0</td><td>3</td><td>0%</td></tr>
+<tr><td>libSceAjm.native</td><td>35</td><td>55</td><td>64%</td></tr>
+<tr><td>libSceAjmi</td><td>2</td><td>24</td><td>8%</td></tr>
+<tr><td>libSceAmpr</td><td>134</td><td>137</td><td>98%</td></tr>
 <tr><td>libSceAppChecker</td><td>0</td><td>3</td><td>0%</td></tr>
-<tr><td>libSceAppContent</td><td>24</td><td>32</td><td>75%</td></tr>
-<tr><td>libSceAppDbShellCoreClient</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceAppContent</td><td>30</td><td>39</td><td>77%</td></tr>
+<tr><td>libSceAppDbShellCoreClient</td><td>0</td><td>28</td><td>0%</td></tr>
 <tr><td>libSceAppDbShellCoreClientForSystemService</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAppInstUtil</td><td>0</td><td>117</td><td>0%</td></tr>
-<tr><td>libSceAsyncStorageInternal</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceAppInstUtil</td><td>3</td><td>158</td><td>2%</td></tr>
+<tr><td>libSceAsyncStorageInternal</td><td>0</td><td>22</td><td>0%</td></tr>
 <tr><td>libSceAt9Enc</td><td>0</td><td>5</td><td>0%</td></tr>
 <tr><td>libSceAudio</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAudio3d</td><td>26</td><td>32</td><td>81%</td></tr>
+<tr><td>libSceAudio3d</td><td>32</td><td>32</td><td>100%</td></tr>
 <tr><td>libSceAudiodec</td><td>6</td><td>6</td><td>100%</td></tr>
-<tr><td>libSceAudiodec.native</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceAudiodec.native</td><td>2</td><td>16</td><td>12%</td></tr>
 <tr><td>libSceAudiodecCpu</td><td>0</td><td>8</td><td>0%</td></tr>
 <tr><td>libSceAudiodecCpuAlac</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceAudiodecCpuDdp</td><td colspan="3">No exports</td></tr>
@@ -52,50 +64,54 @@
 <tr><td>libSceAudiodecCpuM4aac</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceAudiodecCpuTrhd</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceAudiodReport</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAudioIn</td><td>14</td><td>42</td><td>33%</td></tr>
+<tr><td>libSceAudioIn</td><td>19</td><td>49</td><td>39%</td></tr>
 <tr><td>libSceAudioLatencyEstimation</td><td>0</td><td>4</td><td>0%</td></tr>
-<tr><td>libSceAudioOut</td><td>68</td><td>146</td><td>47%</td></tr>
-<tr><td>libSceAudioPropagation</td><td>23</td><td>33</td><td>70%</td></tr>
-<tr><td>libSceAudioSystem</td><td>0</td><td>2</td><td>0%</td></tr>
+<tr><td>libSceAudioOut</td><td>76</td><td>219</td><td>35%</td></tr>
+<tr><td>libSceAudioPropagation</td><td>30</td><td>41</td><td>73%</td></tr>
+<tr><td>libSceAudioSystem</td><td>0</td><td>38</td><td>0%</td></tr>
 <tr><td>libSceAutoMounterClient</td><td>0</td><td>6</td><td>0%</td></tr>
-<tr><td>libSceAvcap2</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceAvcap2mvr</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceAvcap2</td><td>0</td><td>54</td><td>0%</td></tr>
+<tr><td>libSceAvcap2mvr</td><td>0</td><td>13</td><td>0%</td></tr>
 <tr><td>libSceAvPlayer</td><td>28</td><td>28</td><td>100%</td></tr>
-<tr><td>libSceAvPlayer.native</td><td>0</td><td>2</td><td>0%</td></tr>
-<tr><td>libSceAvPlayerStreaming</td><td>0</td><td>33</td><td>0%</td></tr>
-<tr><td>libSceAvSetting</td><td>0</td><td>128</td><td>0%</td></tr>
-<tr><td>libSceBackupRestoreUtil</td><td>0</td><td>16</td><td>0%</td></tr>
-<tr><td>libSceBeisobmf</td><td>0</td><td>18</td><td>0%</td></tr>
-<tr><td>libSceBemp2sys</td><td>0</td><td>31</td><td>0%</td></tr>
-<tr><td>libSceBgft</td><td>0</td><td>89</td><td>0%</td></tr>
-<tr><td>libSceBgsStorage</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceBluetoothHid</td><td>7</td><td>17</td><td>41%</td></tr>
-<tr><td>libSceCamera</td><td>48</td><td>117</td><td>41%</td></tr>
+<tr><td>libSceAvPlayer.native</td><td>2</td><td>2</td><td>100%</td></tr>
+<tr><td>libSceAvPlayerStreaming</td><td>0</td><td>34</td><td>0%</td></tr>
+<tr><td>libSceAvSetting</td><td>12</td><td>157</td><td>8%</td></tr>
+<tr><td>libSceBackupRestoreUtil</td><td>0</td><td>21</td><td>0%</td></tr>
+<tr><td>libSceBeisobmf</td><td>10</td><td>18</td><td>56%</td></tr>
+<tr><td>libSceBemp2sys</td><td>6</td><td>33</td><td>18%</td></tr>
+<tr><td>libSceBgft</td><td>0</td><td>103</td><td>0%</td></tr>
+<tr><td>libSceBgsStorage</td><td>0</td><td>17</td><td>0%</td></tr>
+<tr><td>libSceBluetoothHid</td><td>8</td><td>17</td><td>47%</td></tr>
+<tr><td>libSceCamera</td><td>87</td><td>125</td><td>70%</td></tr>
+<tr><td>libSceCdlgAdIdClient</td><td>0</td><td>7</td><td>0%</td></tr>
 <tr><td>libSceCdlgG2P</td><td>7</td><td>7</td><td>100%</td></tr>
 <tr><td>libSceCdlgPlayerReview</td><td>7</td><td>7</td><td>100%</td></tr>
-<tr><td>libSceCdlgUtilServer</td><td>0</td><td>11</td><td>0%</td></tr>
-<tr><td>libSceCesCs</td><td>228</td><td>287</td><td>79%</td></tr>
+<tr><td>libSceCdlgUtilServer</td><td>2</td><td>43</td><td>5%</td></tr>
+<tr><td>libSceCesCs</td><td>286</td><td>288</td><td>99%</td></tr>
 <tr><td>libSceCesCs-module</td><td colspan="3">Shared sources: <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx/libSceCesCs">libSceCesCs</a></td></tr>
-<tr><td>libSceCommonDialog</td><td>2</td><td>2</td><td>100%</td></tr>
-<tr><td>libSceCompanionHttpd</td><td>6</td><td>17</td><td>35%</td></tr>
+<tr><td>libSceCffMgr</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceCloudMessaging</td><td>0</td><td>6</td><td>0%</td></tr>
+<tr><td>libSceCommonDialog</td><td>2</td><td>28</td><td>7%</td></tr>
+<tr><td>libSceCompanionHttpd</td><td>17</td><td>17</td><td>100%</td></tr>
 <tr><td>libSceCompanionUtil</td><td>5</td><td>5</td><td>100%</td></tr>
-<tr><td>libSceComposite</td><td>5</td><td>78</td><td>6%</td></tr>
+<tr><td>libSceComposite</td><td>8</td><td>130</td><td>6%</td></tr>
 <tr><td>libSceCompositeExt</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceConnectAccountDialog</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceConnectAccountDialog</td><td>0</td><td>7</td><td>0%</td></tr>
 <tr><td>libSceContentDelete</td><td>2</td><td>8</td><td>25%</td></tr>
-<tr><td>libSceContentExport</td><td>5</td><td>22</td><td>23%</td></tr>
-<tr><td>libSceContentListController</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceContentSearch</td><td>15</td><td>23</td><td>65%</td></tr>
-<tr><td>libSceConvertKeycode</td><td>3</td><td>4</td><td>75%</td></tr>
+<tr><td>libSceContentExport</td><td>7</td><td>22</td><td>32%</td></tr>
+<tr><td>libSceContentListController</td><td>0</td><td>19</td><td>0%</td></tr>
+<tr><td>libSceContentSearch</td><td>17</td><td>29</td><td>59%</td></tr>
+<tr><td>libSceConvertKeycode</td><td>4</td><td>4</td><td>100%</td></tr>
 <tr><td>libSceCtrlp</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceCustomMusicAudioOut</td><td>0</td><td>5</td><td>0%</td></tr>
-<tr><td>libSceCustomMusicCore</td><td>0</td><td>18</td><td>0%</td></tr>
-<tr><td>libSceCustomMusicSysCallWrapper</td><td>0</td><td>1</td><td>0%</td></tr>
-<tr><td>libSceDataTransfer</td><td>0</td><td>60</td><td>0%</td></tr>
-<tr><td>libSceDbg</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceCustomMusicAudioOut</td><td>0</td><td>10</td><td>0%</td></tr>
+<tr><td>libSceCustomMusicCore</td><td>0</td><td>29</td><td>0%</td></tr>
+<tr><td>libSceCustomMusicPlayReady4</td><td>0</td><td>82</td><td>0%</td></tr>
+<tr><td>libSceCustomMusicSysCallWrapper</td><td>0</td><td>107</td><td>0%</td></tr>
+<tr><td>libSceDataTransfer</td><td>0</td><td>90</td><td>0%</td></tr>
+<tr><td>libSceDbg</td><td>0</td><td>29</td><td>0%</td></tr>
 <tr><td>libSceDbgAssist</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceDbgThreadSanitizer</td><td>0</td><td>2</td><td>0%</td></tr>
-<tr><td>libSceDeci5</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceDbgThreadSanitizer</td><td>2</td><td>2</td><td>100%</td></tr>
+<tr><td>libSceDeci5</td><td>0</td><td>7</td><td>0%</td></tr>
 <tr><td>libSceDeci5Appmp</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceDeci5CpComm</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceDeci5Ctrlp</td><td colspan="3">No exports</td></tr>
@@ -108,303 +124,365 @@
 <tr><td>libSceDeci5Tsmp</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceDeci5Ttyp</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceDeci5UlpCommon</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceDepth</td><td>0</td><td>38</td><td>0%</td></tr>
-<tr><td>libSceDepth2</td><td>0</td><td>10</td><td>0%</td></tr>
-<tr><td>libSceDipsw</td><td>0</td><td>9</td><td>0%</td></tr>
+<tr><td>libSceDepth</td><td>0</td><td>39</td><td>0%</td></tr>
+<tr><td>libSceDepth2</td><td>0</td><td>11</td><td>0%</td></tr>
+<tr><td>libSceDipsw</td><td>0</td><td>10</td><td>0%</td></tr>
 <tr><td>libSceDiscId</td><td>0</td><td>2</td><td>0%</td></tr>
-<tr><td>libSceDiscMap</td><td>2</td><td>3</td><td>67%</td></tr>
+<tr><td>libSceDiscMap</td><td>3</td><td>5</td><td>60%</td></tr>
 <tr><td>libSceDolbyVision</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceDseehx</td><td>0</td><td>4</td><td>0%</td></tr>
 <tr><td>libSceDtcpIp</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceDtsEnc</td><td>0</td><td>7</td><td>0%</td></tr>
-<tr><td>libSceEditMp4</td><td>0</td><td>9</td><td>0%</td></tr>
+<tr><td>libSceEditMp4</td><td>2</td><td>9</td><td>22%</td></tr>
 <tr><td>libSceEmbeddedTts</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceEmbeddedTtsCoreG3</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceErrorDialog</td><td>8</td><td>8</td><td>100%</td></tr>
-<tr><td>libSceEsvm</td><td>0</td><td>3</td><td>0%</td></tr>
-<tr><td>libSceEsvmEngine</td><td>0</td><td>19</td><td>0%</td></tr>
+<tr><td>libSceEsvm</td><td>0</td><td>52</td><td>0%</td></tr>
+<tr><td>libSceEsvmEngine</td><td>0</td><td>58</td><td>0%</td></tr>
 <tr><td>libSceFiber</td><td>16</td><td>16</td><td>100%</td></tr>
-<tr><td>libSceFios2</td><td>0</td><td>168</td><td>0%</td></tr>
-<tr><td>libSceFont</td><td>143</td><td>196</td><td>73%</td></tr>
+<tr><td>libSceFios2</td><td>168</td><td>168</td><td>100%</td></tr>
+<tr><td>libSceFlexContent</td><td>0</td><td>12</td><td>0%</td></tr>
+<tr><td>libSceFont</td><td>153</td><td>240</td><td>64%</td></tr>
 <tr><td>libSceFont-module</td><td colspan="3">Shared sources: <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx/libSceFont">libSceFont</a></td></tr>
 <tr><td>libSceFont.native</td><td colspan="3">Shared sources: <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx/libSceFont">libSceFont</a></td></tr>
-<tr><td>libSceFontFt</td><td>38</td><td>45</td><td>84%</td></tr>
+<tr><td>libSceFontFt</td><td>41</td><td>45</td><td>91%</td></tr>
 <tr><td>libSceFontFt-module</td><td colspan="3">Shared sources: <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx/libSceFontFt">libSceFontFt</a></td></tr>
-<tr><td>libSceFontGs</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceFreeType</td><td>64</td><td>68</td><td>94%</td></tr>
-<tr><td>libSceFreeTypeOl</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceFontGs</td><td>4</td><td>6</td><td>67%</td></tr>
+<tr><td>libSceFontGs.native</td><td>4</td><td>6</td><td>67%</td></tr>
+<tr><td>libSceFreeType</td><td>142</td><td>151</td><td>94%</td></tr>
+<tr><td>libSceFreeTypeOl</td><td>46</td><td>92</td><td>50%</td></tr>
 <tr><td>libSceFreeTypeOptOl</td><td>3</td><td>3</td><td>100%</td></tr>
-<tr><td>libSceFreeTypeOt</td><td>0</td><td>148</td><td>0%</td></tr>
-<tr><td>libSceFsInternalForVsh</td><td>2</td><td>176</td><td>1%</td></tr>
+<tr><td>libSceFreeTypeOt</td><td>121</td><td>195</td><td>62%</td></tr>
+<tr><td>libSceFrontPanelDisplay</td><td>0</td><td>3</td><td>0%</td></tr>
+<tr><td>libSceFsInternalForVsh</td><td>9</td><td>339</td><td>3%</td></tr>
 <tr><td>libSceGameCustomDataDialog</td><td>7</td><td>9</td><td>78%</td></tr>
-<tr><td>libSceGameLiveStreaming</td><td>5</td><td>47</td><td>11%</td></tr>
-<tr><td>libSceGameUpdate</td><td>7</td><td>7</td><td>100%</td></tr>
+<tr><td>libSceGameLiveStreaming</td><td>25</td><td>47</td><td>53%</td></tr>
+<tr><td>libSceGameUpdate</td><td>7</td><td>8</td><td>88%</td></tr>
 <tr><td>libSceGic</td><td>0</td><td>1</td><td>0%</td></tr>
-<tr><td>libSceGifParser</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceGLSlimVSH</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceGifParser</td><td>0</td><td>7</td><td>0%</td></tr>
+<tr><td>libSceGLSlimVSH</td><td>140</td><td>210</td><td>67%</td></tr>
+<tr><td>libSceGnmDriver</td><td>28</td><td>45</td><td>62%</td></tr>
 <tr><td>libSceGnmDriverCompat1</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceGnmDriverForNeoMode</td><td>84</td><td>118</td><td>71%</td></tr>
+<tr><td>libSceGnmDriverForNeoMode</td><td>111</td><td>139</td><td>80%</td></tr>
 <tr><td>libSceGpuCapture</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceGpuTrace</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceGvMp4Parser</td><td>0</td><td>5</td><td>0%</td></tr>
+<tr><td>libSceGpuTrace</td><td>0</td><td>8</td><td>0%</td></tr>
+<tr><td>libSceGvMp4Parser</td><td>0</td><td>24</td><td>0%</td></tr>
 <tr><td>libSceHand</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceHandTracker</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceHdrScopes</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceHeadTracker</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceHidControl</td><td>0</td><td>63</td><td>0%</td></tr>
-<tr><td>libSceHmd</td><td>26</td><td>168</td><td>15%</td></tr>
-<tr><td>libSceHmd2</td><td>13</td><td>134</td><td>10%</td></tr>
+<tr><td>libSceHidControl</td><td>0</td><td>82</td><td>0%</td></tr>
+<tr><td>libSceHmd</td><td>26</td><td>187</td><td>14%</td></tr>
+<tr><td>libSceHmd2</td><td>20</td><td>153</td><td>13%</td></tr>
 <tr><td>libSceHmdSetupDialog</td><td>7</td><td>7</td><td>100%</td></tr>
-<tr><td>libSceHttp</td><td>86</td><td>115</td><td>75%</td></tr>
-<tr><td>libSceHttp2</td><td>14</td><td>62</td><td>23%</td></tr>
-<tr><td>libSceHttpCache</td><td>11</td><td>27</td><td>41%</td></tr>
+<tr><td>libSceHttp</td><td>95</td><td>123</td><td>77%</td></tr>
+<tr><td>libSceHttp2</td><td>27</td><td>71</td><td>38%</td></tr>
+<tr><td>libSceHttpCache</td><td>13</td><td>30</td><td>43%</td></tr>
 <tr><td>libSceHubAppUtil</td><td>0</td><td>3</td><td>0%</td></tr>
-<tr><td>libSceIcu</td><td>6</td><td>8</td><td>75%</td></tr>
-<tr><td>libSceIdu</td><td>0</td><td>8</td><td>0%</td></tr>
-<tr><td>libSceImageUtil</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceIme</td><td>16</td><td>62</td><td>26%</td></tr>
-<tr><td>libSceImeBackend</td><td>0</td><td>22</td><td>0%</td></tr>
+<tr><td>libSceIcu</td><td>107</td><td>2742</td><td>4%</td></tr>
+<tr><td>libSceIdu</td><td>0</td><td>21</td><td>0%</td></tr>
+<tr><td>libSceImageUtil</td><td>0</td><td>10</td><td>0%</td></tr>
+<tr><td>libSceIme</td><td>17</td><td>64</td><td>27%</td></tr>
+<tr><td>libSceImeBackend</td><td>2</td><td>27</td><td>7%</td></tr>
 <tr><td>libSceImeDialog</td><td>13</td><td>14</td><td>93%</td></tr>
-<tr><td>libSceInvitationDialog</td><td>6</td><td>6</td><td>100%</td></tr>
-<tr><td>libSceIpmi</td><td>0</td><td>54</td><td>0%</td></tr>
+<tr><td>libSceInvitationDialog</td><td>7</td><td>9</td><td>78%</td></tr>
+<tr><td>libSceIpmi</td><td>19</td><td>97</td><td>20%</td></tr>
 <tr><td>libSceJemspace</td><td>0</td><td>13</td><td>0%</td></tr>
 <tr><td>libSceJitBridge</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceJobManager</td><td>13</td><td>13</td><td>100%</td></tr>
-<tr><td>libSceJpegDec</td><td>5</td><td>6</td><td>83%</td></tr>
+<tr><td>libSceJpegDec</td><td>6</td><td>6</td><td>100%</td></tr>
 <tr><td>libSceJpegEnc</td><td>4</td><td>4</td><td>100%</td></tr>
 <tr><td>libSceJpegParser</td><td>0</td><td>5</td><td>0%</td></tr>
-<tr><td>libSceJsc</td><td>4</td><td>10</td><td>40%</td></tr>
+<tr><td>libSceJsc</td><td>35</td><td>737</td><td>5%</td></tr>
 <tr><td>libSceJscCompiler</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceJson</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceJson2</td><td>151</td><td>217</td><td>70%</td></tr>
-<tr><td>libSceJxr</td><td>2</td><td>4</td><td>50%</td></tr>
-<tr><td>libSceJxrParser</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceJson</td><td>0</td><td>30</td><td>0%</td></tr>
+<tr><td>libSceJson2</td><td>134</td><td>223</td><td>60%</td></tr>
+<tr><td>libSceJxr</td><td>89</td><td>136</td><td>65%</td></tr>
+<tr><td>libSceJxrParser</td><td>0</td><td>7</td><td>0%</td></tr>
 <tr><td>libSceKbEmulate</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceKeyboard</td><td>8</td><td>26</td><td>31%</td></tr>
-<tr><td>libSceLibcInternal</td><td>72</td><td>76</td><td>95%</td></tr>
-<tr><td>libSceLibreSsl</td><td>79</td><td>399</td><td>20%</td></tr>
-<tr><td>libSceLibreSsl3</td><td>5</td><td>87</td><td>6%</td></tr>
+<tr><td>libSceKeyboard</td><td>9</td><td>28</td><td>32%</td></tr>
+<tr><td>libSceLibcInternal</td><td>337</td><td>1137</td><td>30%</td></tr>
+<tr><td>libSceLibreSsl</td><td>283</td><td>446</td><td>63%</td></tr>
+<tr><td>libSceLibreSsl3</td><td>526</td><td>680</td><td>77%</td></tr>
 <tr><td>libSceLoginDialog</td><td>7</td><td>7</td><td>100%</td></tr>
-<tr><td>libSceLoginMgrServer</td><td>0</td><td>30</td><td>0%</td></tr>
+<tr><td>libSceLoginMgrServer</td><td>0</td><td>37</td><td>0%</td></tr>
 <tr><td>libSceLoginService</td><td>2</td><td>3</td><td>67%</td></tr>
-<tr><td>libSceM4aacEnc</td><td>0</td><td>17</td><td>0%</td></tr>
+<tr><td>libSceM4aacEnc</td><td>0</td><td>18</td><td>0%</td></tr>
 <tr><td>libSceMarlin</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceMat</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceMbus</td><td>7</td><td>120</td><td>6%</td></tr>
-<tr><td>libSceMediaAppSharedStorage</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceMediaFrameworkInterface</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceMediaFrameworkUtil</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceMetadataReaderWriter</td><td>0</td><td>39</td><td>0%</td></tr>
-<tr><td>libSceMouse</td><td>5</td><td>15</td><td>33%</td></tr>
+<tr><td>libSceMat</td><td>0</td><td>52</td><td>0%</td></tr>
+<tr><td>libSceMbus</td><td>11</td><td>136</td><td>8%</td></tr>
+<tr><td>libSceMediaAppSharedStorage</td><td>0</td><td>16</td><td>0%</td></tr>
+<tr><td>libSceMediaFrameworkInterface</td><td>0</td><td>177</td><td>0%</td></tr>
+<tr><td>libSceMediaFrameworkUtil</td><td>0</td><td>5</td><td>0%</td></tr>
+<tr><td>libSceMetadataReaderWriter</td><td>0</td><td>47</td><td>0%</td></tr>
+<tr><td>libSceMouse</td><td>12</td><td>29</td><td>41%</td></tr>
 <tr><td>libSceMove</td><td>10</td><td>21</td><td>48%</td></tr>
-<tr><td>libSceMoveTracker</td><td>2</td><td>18</td><td>11%</td></tr>
+<tr><td>libSceMoveTracker</td><td>3</td><td>18</td><td>17%</td></tr>
 <tr><td>libSceMsgDialog</td><td>9</td><td>9</td><td>100%</td></tr>
 <tr><td>libSceMsgDialog.native</td><td>10</td><td>10</td><td>100%</td></tr>
-<tr><td>libSceMusicCoreInterface</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceMusicFrameworkInterface</td><td>0</td><td>17</td><td>0%</td></tr>
-<tr><td>libSceNet</td><td>80</td><td>224</td><td>36%</td></tr>
-<tr><td>libSceNetCtl</td><td>39</td><td>85</td><td>46%</td></tr>
+<tr><td>libSceMusicCoreInterface</td><td>0</td><td>7</td><td>0%</td></tr>
+<tr><td>libSceMusicFrameworkInterface</td><td>0</td><td>37</td><td>0%</td></tr>
+<tr><td>libSceNet</td><td>116</td><td>232</td><td>50%</td></tr>
+<tr><td>libSceNetCtl</td><td>42</td><td>105</td><td>40%</td></tr>
 <tr><td>libSceNetCtlAp</td><td>11</td><td>11</td><td>100%</td></tr>
 <tr><td>libSceNetCtlApDialog</td><td>7</td><td>7</td><td>100%</td></tr>
-<tr><td>libSceNgs2</td><td>0</td><td>6</td><td>0%</td></tr>
-<tr><td>libSceNgs2.native</td><td>44</td><td>59</td><td>75%</td></tr>
-<tr><td>libSceNKWeb</td><td>0</td><td>2</td><td>0%</td></tr>
-<tr><td>libSceNKWebCdlgInjectedBundle</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceNKWebKit</td><td>0</td><td>150</td><td>0%</td></tr>
-<tr><td>libSceNKWebKitRequirements</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceNotification</td><td>0</td><td>4</td><td>0%</td></tr>
+<tr><td>libSceNgs2</td><td>0</td><td>2</td><td>0%</td></tr>
+<tr><td>libSceNgs2.native</td><td>57</td><td>71</td><td>80%</td></tr>
+<tr><td>libSceNKWeb</td><td>0</td><td>5</td><td>0%</td></tr>
+<tr><td>libSceNKWebCdlgInjectedBundle</td><td>0</td><td>1</td><td>0%</td></tr>
+<tr><td>libSceNKWebKit</td><td>2568</td><td>11257</td><td>23%</td></tr>
+<tr><td>libSceNKWebKitRequirements</td><td>119</td><td>165</td><td>72%</td></tr>
+<tr><td>libSceNotification</td><td>4</td><td>4</td><td>100%</td></tr>
 <tr><td>libSceNotificationClient</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceNpAuth</td><td>14</td><td>14</td><td>100%</td></tr>
 <tr><td>libSceNpAuthAuthorizedAppDialog</td><td>7</td><td>7</td><td>100%</td></tr>
 <tr><td>libSceNpCommerce</td><td>12</td><td>12</td><td>100%</td></tr>
-<tr><td>libSceNpCommon</td><td>124</td><td>158</td><td>78%</td></tr>
-<tr><td>libSceNpCppWebApi</td><td>484</td><td>751</td><td>64%</td></tr>
-<tr><td>libSceNpEntitlementAccess</td><td>19</td><td>25</td><td>76%</td></tr>
+<tr><td>libSceNpCommon</td><td>391</td><td>496</td><td>79%</td></tr>
+<tr><td>libSceNpCppWebApi</td><td>1079</td><td>1436</td><td>75%</td></tr>
+<tr><td>libSceNpEntitlementAccess</td><td>25</td><td>25</td><td>100%</td></tr>
 <tr><td>libSceNpEulaDialog</td><td>0</td><td>9</td><td>0%</td></tr>
 <tr><td>libSceNpFriendListDialog</td><td>7</td><td>9</td><td>78%</td></tr>
-<tr><td>libSceNpGameIntent</td><td>10</td><td>18</td><td>56%</td></tr>
-<tr><td>libSceNpManager</td><td>70</td><td>207</td><td>34%</td></tr>
-<tr><td>libSceNpMatching2</td><td>15</td><td>69</td><td>22%</td></tr>
-<tr><td>libSceNpPartner001</td><td>3</td><td>3</td><td>100%</td></tr>
-<tr><td>libSceNpParty</td><td>15</td><td>26</td><td>58%</td></tr>
+<tr><td>libSceNpGameIntent</td><td>11</td><td>26</td><td>42%</td></tr>
+<tr><td>libSceNpManager</td><td>217</td><td>551</td><td>39%</td></tr>
+<tr><td>libSceNpMatching2</td><td>24</td><td>69</td><td>35%</td></tr>
+<tr><td>libSceNpPartner001</td><td>3</td><td>4</td><td>75%</td></tr>
+<tr><td>libSceNpPartnerSubscription</td><td>0</td><td>2</td><td>0%</td></tr>
+<tr><td>libSceNpParty</td><td>20</td><td>26</td><td>77%</td></tr>
 <tr><td>libSceNpProfileDialog</td><td>8</td><td>8</td><td>100%</td></tr>
-<tr><td>libSceNpRemotePlaySessionSignaling</td><td>0</td><td>10</td><td>0%</td></tr>
-<tr><td>libSceNpScoreRanking</td><td>15</td><td>51</td><td>29%</td></tr>
-<tr><td>libSceNpSessionSignaling</td><td>18</td><td>26</td><td>69%</td></tr>
-<tr><td>libSceNpSignaling</td><td>9</td><td>9</td><td>100%</td></tr>
+<tr><td>libSceNpRemotePlaySessionSignaling</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceNpScoreRanking</td><td>50</td><td>51</td><td>98%</td></tr>
+<tr><td>libSceNpSessionSignaling</td><td>24</td><td>31</td><td>77%</td></tr>
+<tr><td>libSceNpSessionSignalingCrossplay</td><td>0</td><td>11</td><td>0%</td></tr>
+<tr><td>libSceNpSignaling</td><td>17</td><td>24</td><td>71%</td></tr>
 <tr><td>libSceNpSns</td><td>0</td><td>21</td><td>0%</td></tr>
 <tr><td>libSceNpSnsFacebookDialog</td><td>7</td><td>7</td><td>100%</td></tr>
 <tr><td>libSceNpSnsYouTubeDialog</td><td>0</td><td>7</td><td>0%</td></tr>
-<tr><td>libSceNpSpeechToText</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceNpTcs</td><td>0</td><td>3</td><td>0%</td></tr>
-<tr><td>libSceNpTextToSpeech</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceNpTrophy</td><td>12</td><td>97</td><td>12%</td></tr>
-<tr><td>libSceNpTrophy2</td><td>18</td><td>41</td><td>44%</td></tr>
-<tr><td>libSceNpTus</td><td>121</td><td>142</td><td>85%</td></tr>
-<tr><td>libSceNpUniversalDataSystem</td><td>41</td><td>84</td><td>49%</td></tr>
-<tr><td>libSceNpUtility</td><td>28</td><td>96</td><td>29%</td></tr>
-<tr><td>libSceNpWebApi</td><td>18</td><td>23</td><td>78%</td></tr>
-<tr><td>libSceNpWebApi2</td><td>34</td><td>39</td><td>87%</td></tr>
-<tr><td>libSceOpusCeltDec</td><td>9</td><td>11</td><td>82%</td></tr>
-<tr><td>libSceOpusCeltEnc</td><td>8</td><td>11</td><td>73%</td></tr>
-<tr><td>libSceOpusDec</td><td>11</td><td>14</td><td>79%</td></tr>
-<tr><td>libSceOpusSilkEnc</td><td>8</td><td>14</td><td>57%</td></tr>
+<tr><td>libSceNpSpeechToText</td><td>0</td><td>7</td><td>0%</td></tr>
+<tr><td>libSceNpTcs</td><td>0</td><td>11</td><td>0%</td></tr>
+<tr><td>libSceNpTextToSpeech</td><td>0</td><td>11</td><td>0%</td></tr>
+<tr><td>libSceNpTrophy</td><td>22</td><td>110</td><td>20%</td></tr>
+<tr><td>libSceNpTrophy2</td><td>18</td><td>61</td><td>30%</td></tr>
+<tr><td>libSceNpTus</td><td>137</td><td>142</td><td>96%</td></tr>
+<tr><td>libSceNpUniversalDataSystem</td><td>72</td><td>93</td><td>77%</td></tr>
+<tr><td>libSceNpUtility</td><td>82</td><td>102</td><td>80%</td></tr>
+<tr><td>libSceNpWebApi</td><td>44</td><td>94</td><td>47%</td></tr>
+<tr><td>libSceNpWebApi2</td><td>34</td><td>45</td><td>76%</td></tr>
+<tr><td>libSceOpusCeltDec</td><td>10</td><td>11</td><td>91%</td></tr>
+<tr><td>libSceOpusCeltEnc</td><td>8</td><td>15</td><td>53%</td></tr>
+<tr><td>libSceOpusDec</td><td>12</td><td>15</td><td>80%</td></tr>
+<tr><td>libSceOpusSilkEnc</td><td>8</td><td>15</td><td>53%</td></tr>
 <tr><td>libSceOrbisCompat</td><td colspan="3">No exports</td></tr>
-<tr><td>libScePad</td><td>35</td><td>192</td><td>18%</td></tr>
-<tr><td>libScePadTracker</td><td>0</td><td>6</td><td>0%</td></tr>
+<tr><td>libScePad</td><td>55</td><td>222</td><td>25%</td></tr>
+<tr><td>libScePadTracker</td><td>1</td><td>6</td><td>17%</td></tr>
 <tr><td>libScePatchCheckerClient</td><td>0</td><td>12</td><td>0%</td></tr>
-<tr><td>libScePerf</td><td colspan="3">No exports</td></tr>
+<tr><td>libScePerf</td><td>0</td><td>84</td><td>0%</td></tr>
+<tr><td>libScePfs</td><td>0</td><td>9</td><td>0%</td></tr>
 <tr><td>libScePlayerInvitationDialog</td><td>7</td><td>7</td><td>100%</td></tr>
-<tr><td>libScePlayerSelectionDialog</td><td>7</td><td>8</td><td>88%</td></tr>
-<tr><td>libScePlayGo</td><td>19</td><td>21</td><td>90%</td></tr>
+<tr><td>libScePlayerSelectionDialog</td><td>8</td><td>8</td><td>100%</td></tr>
+<tr><td>libScePlayGo</td><td>23</td><td>24</td><td>96%</td></tr>
 <tr><td>libScePlayGoDialog</td><td>7</td><td>7</td><td>100%</td></tr>
-<tr><td>libScePlayReady</td><td>1</td><td>50</td><td>2%</td></tr>
-<tr><td>libScePlayReady2</td><td>0</td><td>16</td><td>0%</td></tr>
-<tr><td>libScePlayReady4</td><td>0</td><td>35</td><td>0%</td></tr>
-<tr><td>libScePngDec</td><td>5</td><td>6</td><td>83%</td></tr>
+<tr><td>libScePlayReady</td><td>7</td><td>50</td><td>14%</td></tr>
+<tr><td>libScePlayReady2</td><td>0</td><td>17</td><td>0%</td></tr>
+<tr><td>libScePlayReady4</td><td>0</td><td>87</td><td>0%</td></tr>
+<tr><td>libScePlayReady4L</td><td>0</td><td>8</td><td>0%</td></tr>
+<tr><td>libScePngDec</td><td>6</td><td>6</td><td>100%</td></tr>
 <tr><td>libScePngEnc</td><td>4</td><td>4</td><td>100%</td></tr>
-<tr><td>libScePngParser</td><td colspan="3">No exports</td></tr>
-<tr><td>libScePosixForWebKit</td><td>24</td><td>32</td><td>75%</td></tr>
+<tr><td>libScePngParser</td><td>0</td><td>7</td><td>0%</td></tr>
+<tr><td>libScePosixForWebKit</td><td>30</td><td>38</td><td>79%</td></tr>
+<tr><td>libSceProprietaryVoiceChatHelper.native</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceProprietaryVoiceChatHelperPrx</td><td>3</td><td>5</td><td>60%</td></tr>
-<tr><td>libScePs2EmuMenuDialog</td><td>0</td><td>7</td><td>0%</td></tr>
-<tr><td>libScePsm</td><td>0</td><td>65</td><td>0%</td></tr>
+<tr><td>libScePs2EmuMenuDialog</td><td>7</td><td>7</td><td>100%</td></tr>
+<tr><td>libScePsm</td><td>0</td><td>118</td><td>0%</td></tr>
 <tr><td>libScePsml</td><td colspan="3">Shared sources: <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx/libScePsml_debug">libScePsml_debug</a></td></tr>
-<tr><td>libScePsml_debug</td><td>19</td><td>30</td><td>63%</td></tr>
+<tr><td>libScePsml_debug</td><td>21</td><td>39</td><td>54%</td></tr>
 <tr><td>libScePsmUtil</td><td>0</td><td>4</td><td>0%</td></tr>
+<tr><td>libScePSNowGkp</td><td>0</td><td>9</td><td>0%</td></tr>
 <tr><td>libSceRandom</td><td>1</td><td>1</td><td>100%</td></tr>
-<tr><td>libSceRazorCpu</td><td>21</td><td>35</td><td>60%</td></tr>
-<tr><td>libSceRazorCpu_debug</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceRegMgr</td><td>3</td><td>65</td><td>5%</td></tr>
-<tr><td>libSceRemoteplay</td><td>3</td><td>42</td><td>7%</td></tr>
-<tr><td>libSceRemotePlayClientIpc</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceResourceArbitrator</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceRnpsAppMgr</td><td>0</td><td>27</td><td>0%</td></tr>
-<tr><td>libSceRnpsNKInjectedBundle</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceRazorCpu</td><td>41</td><td>42</td><td>98%</td></tr>
+<tr><td>libSceRazorCpu_debug</td><td>0</td><td>3</td><td>0%</td></tr>
+<tr><td>libSceRegMgr</td><td>13</td><td>74</td><td>18%</td></tr>
+<tr><td>libSceRemoteplay</td><td>3</td><td>50</td><td>6%</td></tr>
+<tr><td>libSceRemotePlayClientIpc</td><td>0</td><td>18</td><td>0%</td></tr>
+<tr><td>libSceResourceArbitrator</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceRnpsAppMgr</td><td>0</td><td>35</td><td>0%</td></tr>
+<tr><td>libSceRnpsBundle</td><td>0</td><td>5</td><td>0%</td></tr>
+<tr><td>libSceRnpsNKInjectedBundle</td><td>0</td><td>1</td><td>0%</td></tr>
 <tr><td>libSceRtc</td><td>51</td><td>52</td><td>98%</td></tr>
-<tr><td>libSceRudp</td><td>27</td><td>34</td><td>79%</td></tr>
-<tr><td>libSceS3da</td><td>0</td><td>4</td><td>0%</td></tr>
+<tr><td>libSceRudp</td><td>32</td><td>35</td><td>91%</td></tr>
+<tr><td>libSceS3da</td><td>2</td><td>4</td><td>50%</td></tr>
 <tr><td>libSceS3DConversion</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceSaveData</td><td>9</td><td>75</td><td>12%</td></tr>
-<tr><td>libSceSaveData.native</td><td>42</td><td>45</td><td>93%</td></tr>
-<tr><td>libSceSaveDataDialog</td><td>8</td><td>8</td><td>100%</td></tr>
+<tr><td>libSceSaveData</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceSaveData.native</td><td>55</td><td>120</td><td>46%</td></tr>
+<tr><td>libSceSaveDataDialog</td><td colspan="3">Shared sources: <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx/libSceSaveDataDialog.native">libSceSaveDataDialog.native</a></td></tr>
 <tr><td>libSceSaveDataDialog.native</td><td>10</td><td>10</td><td>100%</td></tr>
 <tr><td>libSceScm</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceScreenShot</td><td>7</td><td>13</td><td>54%</td></tr>
-<tr><td>libSceSdma</td><td>5</td><td>26</td><td>19%</td></tr>
-<tr><td>libSceShare</td><td>17</td><td>17</td><td>100%</td></tr>
+<tr><td>libSceScreenShot</td><td>13</td><td>13</td><td>100%</td></tr>
+<tr><td>libSceSdma</td><td>13</td><td>27</td><td>48%</td></tr>
+<tr><td>libSceShare</td><td>17</td><td>23</td><td>74%</td></tr>
 <tr><td>libSceShare.native</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceShareFactoryUtil</td><td>0</td><td>6</td><td>0%</td></tr>
-<tr><td>libSceShareInternal.native</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceSharePlay</td><td>5</td><td>20</td><td>25%</td></tr>
-<tr><td>libSceShareUtility</td><td>0</td><td>22</td><td>0%</td></tr>
-<tr><td>libSceShellUIUtil</td><td>0</td><td>6</td><td>0%</td></tr>
+<tr><td>libSceShareInternal.native</td><td>0</td><td>20</td><td>0%</td></tr>
+<tr><td>libSceSharePlay</td><td>5</td><td>25</td><td>20%</td></tr>
+<tr><td>libSceShareUtility</td><td>6</td><td>22</td><td>27%</td></tr>
+<tr><td>libSceShellUIUtil</td><td>0</td><td>7</td><td>0%</td></tr>
 <tr><td>libSceSigninDialog</td><td>7</td><td>7</td><td>100%</td></tr>
+<tr><td>libSceSisrSys</td><td>0</td><td>2</td><td>0%</td></tr>
 <tr><td>libSceSmart</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceSocialScreen</td><td>0</td><td>11</td><td>0%</td></tr>
+<tr><td>libSceSocialScreen</td><td>1</td><td>11</td><td>9%</td></tr>
 <tr><td>libSceSocialScreenDialog</td><td>7</td><td>7</td><td>100%</td></tr>
 <tr><td>libSceSpSysCallWrapper</td><td>48</td><td>48</td><td>100%</td></tr>
-<tr><td>libSceSrcUtl</td><td>0</td><td>9</td><td>0%</td></tr>
-<tr><td>libSceSsl</td><td>35</td><td>55</td><td>64%</td></tr>
+<tr><td>libSceSrcUtl</td><td>3</td><td>13</td><td>23%</td></tr>
+<tr><td>libSceSsl</td><td>38</td><td>55</td><td>69%</td></tr>
 <tr><td>libSceSulphaDrv</td><td>1</td><td>8</td><td>12%</td></tr>
 <tr><td>libSceSysBridge</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceSysCore</td><td>0</td><td>72</td><td>0%</td></tr>
-<tr><td>libSceSysmodule</td><td>10</td><td>16</td><td>62%</td></tr>
-<tr><td>libSceSystemGesture</td><td>23</td><td>23</td><td>100%</td></tr>
-<tr><td>libSceSystemLogger</td><td>0</td><td>3</td><td>0%</td></tr>
-<tr><td>libSceSystemLogger2</td><td>0</td><td>5</td><td>0%</td></tr>
-<tr><td>libSceSystemLogger2Delivery</td><td>0</td><td>4</td><td>0%</td></tr>
-<tr><td>libSceSystemLogger2Game</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceSystemLogger2NativeQueueClient</td><td>0</td><td>5</td><td>0%</td></tr>
-<tr><td>libSceSystemService</td><td>54</td><td>584</td><td>9%</td></tr>
-<tr><td>libSceSystemTts</td><td>0</td><td>5</td><td>0%</td></tr>
-<tr><td>libSceSysUtil</td><td>0</td><td>24</td><td>0%</td></tr>
-<tr><td>libSceTEEClient</td><td>0</td><td>10</td><td>0%</td></tr>
-<tr><td>libSceTextToSpeech</td><td>0</td><td>10</td><td>0%</td></tr>
-<tr><td>libSceTextToSpeech2</td><td>8</td><td>8</td><td>100%</td></tr>
-<tr><td>libSceTtsCoreG3Bc</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceUlt</td><td>70</td><td>88</td><td>80%</td></tr>
-<tr><td>libSceUpdateService</td><td>0</td><td>40</td><td>0%</td></tr>
+<tr><td>libSceSysCore</td><td>0</td><td>84</td><td>0%</td></tr>
+<tr><td>libSceSysmodule</td><td>10</td><td>21</td><td>48%</td></tr>
+<tr><td>libSceSystemGesture</td><td>23</td><td>24</td><td>96%</td></tr>
+<tr><td>libSceSystemLogger</td><td>3</td><td>3</td><td>100%</td></tr>
+<tr><td>libSceSystemLogger2</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceSystemLogger2Delivery</td><td>0</td><td>7</td><td>0%</td></tr>
+<tr><td>libSceSystemLogger2Game</td><td>0</td><td>2</td><td>0%</td></tr>
+<tr><td>libSceSystemLogger2NativeQueueClient</td><td>0</td><td>12</td><td>0%</td></tr>
+<tr><td>libSceSystemService</td><td>153</td><td>617</td><td>25%</td></tr>
+<tr><td>libSceSystemTts</td><td>0</td><td>10</td><td>0%</td></tr>
+<tr><td>libSceSysUtil</td><td>1</td><td>24</td><td>4%</td></tr>
+<tr><td>libSceTEEClient</td><td>0</td><td>15</td><td>0%</td></tr>
+<tr><td>libSceTextToSpeech</td><td>0</td><td>12</td><td>0%</td></tr>
+<tr><td>libSceTextToSpeech2</td><td>9</td><td>14</td><td>64%</td></tr>
+<tr><td>libSceTtsCoreG3Bc</td><td>4</td><td>18</td><td>22%</td></tr>
+<tr><td>libSceTtsEngine</td><td>0</td><td>11</td><td>0%</td></tr>
+<tr><td>libSceUgcBgUploaderClient</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceUgcServiceS3</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceUlt</td><td>78</td><td>96</td><td>81%</td></tr>
+<tr><td>libSceUpdateService</td><td>0</td><td>56</td><td>0%</td></tr>
 <tr><td>libSceUrlConfigResolver</td><td>0</td><td>8</td><td>0%</td></tr>
-<tr><td>libSceUsbd</td><td>52</td><td>61</td><td>85%</td></tr>
-<tr><td>libSceUsbStorage</td><td>11</td><td>22</td><td>50%</td></tr>
+<tr><td>libSceUsbd</td><td>61</td><td>61</td><td>100%</td></tr>
+<tr><td>libSceUsbStorage</td><td>11</td><td>47</td><td>23%</td></tr>
 <tr><td>libSceUsbStorageDialog</td><td>7</td><td>7</td><td>100%</td></tr>
-<tr><td>libSceUserService</td><td>24</td><td>26</td><td>92%</td></tr>
-<tr><td>libSceVcodec</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVdecCore</td><td>0</td><td>20</td><td>0%</td></tr>
+<tr><td>libSceUserService</td><td>45</td><td>695</td><td>6%</td></tr>
+<tr><td>libSceVcodec</td><td>0</td><td>5</td><td>0%</td></tr>
+<tr><td>libSceVdecCore</td><td>14</td><td>21</td><td>67%</td></tr>
 <tr><td>libSceVdecCore.native</td><td>0</td><td>4</td><td>0%</td></tr>
-<tr><td>libSceVdecSavc</td><td>0</td><td>4</td><td>0%</td></tr>
-<tr><td>libSceVdecSavc2</td><td>0</td><td>4</td><td>0%</td></tr>
+<tr><td>libSceVdecSavc</td><td>1</td><td>4</td><td>25%</td></tr>
+<tr><td>libSceVdecSavc2</td><td>1</td><td>4</td><td>25%</td></tr>
 <tr><td>libSceVdecSavc2.native</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVdecShevc</td><td>0</td><td>7</td><td>0%</td></tr>
+<tr><td>libSceVdecShevc</td><td>1</td><td>13</td><td>8%</td></tr>
 <tr><td>libSceVdecShevc.native</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceVdecSvp9</td><td>0</td><td>11</td><td>0%</td></tr>
 <tr><td>libSceVdecSvp9.native</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVdecsw</td><td>17</td><td>18</td><td>94%</td></tr>
+<tr><td>libSceVdecsw</td><td>18</td><td>18</td><td>100%</td></tr>
 <tr><td>libSceVdecwrap</td><td>0</td><td>11</td><td>0%</td></tr>
-<tr><td>libSceVenc</td><td>0</td><td>14</td><td>0%</td></tr>
+<tr><td>libSceVenc</td><td>0</td><td>23</td><td>0%</td></tr>
 <tr><td>libSceVideoArbitration</td><td>0</td><td>3</td><td>0%</td></tr>
 <tr><td>libSceVideoCoreInterface</td><td>0</td><td>4</td><td>0%</td></tr>
-<tr><td>libSceVideoCoreServerInterface</td><td>0</td><td>47</td><td>0%</td></tr>
+<tr><td>libSceVideoCoreServerInterface</td><td>4</td><td>47</td><td>9%</td></tr>
 <tr><td>libSceVideodec</td><td>6</td><td>7</td><td>86%</td></tr>
-<tr><td>libSceVideodec2</td><td>9</td><td>26</td><td>35%</td></tr>
+<tr><td>libSceVideodec2</td><td>11</td><td>29</td><td>38%</td></tr>
 <tr><td>libSceVideoDecoderArbitration</td><td>0</td><td>4</td><td>0%</td></tr>
-<tr><td>libSceVideoNativeExtEssential</td><td>0</td><td>5</td><td>0%</td></tr>
-<tr><td>libSceVideoOut</td><td>55</td><td>62</td><td>89%</td></tr>
-<tr><td>libSceVideoOutSecondary</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceVideoNativeExtEssential</td><td>0</td><td>6</td><td>0%</td></tr>
+<tr><td>libSceVideoOut</td><td>70</td><td>290</td><td>24%</td></tr>
+<tr><td>libSceVideoOutSecondary</td><td>0</td><td>2</td><td>0%</td></tr>
 <tr><td>libSceVideoRecording</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVideoRecording.native</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVideoRecordingP</td><td>6</td><td>24</td><td>25%</td></tr>
-<tr><td>libSceVideoStreamingEngine</td><td>0</td><td>12</td><td>0%</td></tr>
+<tr><td>libSceVideoRecording.native</td><td>0</td><td>27</td><td>0%</td></tr>
+<tr><td>libSceVideoRecordingP</td><td>9</td><td>26</td><td>35%</td></tr>
+<tr><td>libSceVideoStreamingEngine</td><td>0</td><td>70</td><td>0%</td></tr>
 <tr><td>libSceVideoStreamingEngine_sys</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVisionManager</td><td>11</td><td>56</td><td>20%</td></tr>
-<tr><td>libSceVnaInternal</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVnaWebsocket</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVoice</td><td>30</td><td>36</td><td>83%</td></tr>
-<tr><td>libSceVoiceChat</td><td>62</td><td>62</td><td>100%</td></tr>
-<tr><td>libSceVoiceCommand</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceVoiceQoS</td><td>14</td><td>25</td><td>56%</td></tr>
+<tr><td>libSceVideoStreamingEngineAudioOnly</td><td>0</td><td>4</td><td>0%</td></tr>
+<tr><td>libSceVisionManager</td><td>20</td><td>63</td><td>32%</td></tr>
+<tr><td>libSceVnaInternal</td><td>0</td><td>84</td><td>0%</td></tr>
+<tr><td>libSceVnaWebsocket</td><td>4</td><td>22</td><td>18%</td></tr>
+<tr><td>libSceVoice</td><td>36</td><td>36</td><td>100%</td></tr>
+<tr><td>libSceVoiceChat</td><td>63</td><td>64</td><td>98%</td></tr>
+<tr><td>libSceVoiceCommand</td><td>0</td><td>23</td><td>0%</td></tr>
+<tr><td>libSceVoiceQoS</td><td>19</td><td>25</td><td>76%</td></tr>
 <tr><td>libSceVorbisDec</td><td>31</td><td>34</td><td>91%</td></tr>
+<tr><td>libSceVrHand</td><td>1</td><td>8</td><td>12%</td></tr>
 <tr><td>libSceVrServiceDialog</td><td>7</td><td>7</td><td>100%</td></tr>
 <tr><td>libSceVrSetupDialog</td><td>7</td><td>7</td><td>100%</td></tr>
-<tr><td>libSceVrTracker</td><td>9</td><td>30</td><td>30%</td></tr>
-<tr><td>libSceVrTracker2</td><td>81</td><td>89</td><td>91%</td></tr>
+<tr><td>libSceVrTracker</td><td>9</td><td>39</td><td>23%</td></tr>
+<tr><td>libSceVrTracker2</td><td>82</td><td>89</td><td>92%</td></tr>
+<tr><td>libSceVsePlugin</td><td>0</td><td>34</td><td>0%</td></tr>
 <tr><td>libSceWeb</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceWebBrowserDialog</td><td>10</td><td>13</td><td>77%</td></tr>
+<tr><td>libSceWebBrowserDialog</td><td>10</td><td>14</td><td>71%</td></tr>
 <tr><td>libSceWebKit2</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceWebKit2Secure</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceWebmParserMdrw</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceWebmParserMdrw</td><td>0</td><td>7</td><td>0%</td></tr>
+<tr><td>libSceWebRtc</td><td>0</td><td>5</td><td>0%</td></tr>
+<tr><td>libSceWebTransport</td><td>0</td><td>53</td><td>0%</td></tr>
 <tr><td>libSceWkFontConfig</td><td>0</td><td>5</td><td>0%</td></tr>
-<tr><td>libSceWorkspace</td><td colspan="3">No exports</td></tr>
-<tr><td>libSceXml</td><td colspan="3">No exports</td></tr>
+<tr><td>libSceWorkspace</td><td>0</td><td>18</td><td>0%</td></tr>
+<tr><td>libSceXml</td><td>113</td><td>183</td><td>62%</td></tr>
 <tr><td>libSceZlib</td><td>5</td><td>5</td><td>100%</td></tr>
-<tr><td>ulobjmgr</td><td>4</td><td>4</td><td>100%</td></tr>
-<tr><th>Total</th><th>6587</th><th>13449</th><th>48.98%</th></tr>
+<tr><td>libwebrtc</td><td>145</td><td>412</td><td>35%</td></tr>
+<tr><td>libwvoec</td><td>0</td><td>77</td><td>0%</td></tr>
+<tr><td>ulobjmgr</td><td>4</td><td>6</td><td>67%</td></tr>
+<tr><th>Total</th><th>13881</th><th>38649</th><th>35.92%</th></tr>
 </table>
 <p>A function is implemented when it no longer calls <code>NotImplemented_nid_no_patch</code>; comparison reports separately mark implemented functions whose body only returns a constant or throws. The total only includes functions already declared in <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx">core/libs/prx</a>, not every function exported by the PS5 firmware. Shared-source libraries are counted only at their source library. Libraries with no exports only provide an empty module for titles that load them. <a href="https://github.com/zarko379/AnyPS5/blob/main/docs/dev/PROGRESS.md">Counting rules</a>.</p>
-<h2>GPU shader instructions</h2>
+<h2>Shader recompiler: counted from the code</h2>
 <table>
-<tr><th>Encoding</th><th>Implemented</th><th>Total</th><th>%</th></tr>
-<tr><td>DS</td><td>123</td><td>123</td><td>100%</td></tr>
-<tr><td>EXP</td><td>1</td><td>1</td><td>100%</td></tr>
-<tr><td>FLAT</td><td>54</td><td>54</td><td>100%</td></tr>
-<tr><td>GLOBAL</td><td>57</td><td>57</td><td>100%</td></tr>
-<tr><td>MIMG</td><td>130</td><td>130</td><td>100%</td></tr>
-<tr><td>MTBUF</td><td>16</td><td>16</td><td>100%</td></tr>
-<tr><td>MUBUF</td><td>75</td><td>75</td><td>100%</td></tr>
-<tr><td>SCRATCH</td><td>22</td><td>22</td><td>100%</td></tr>
-<tr><td>SMEM</td><td>20</td><td>20</td><td>100%</td></tr>
-<tr><td>SOP1</td><td>65</td><td>65</td><td>100%</td></tr>
-<tr><td>SOP2</td><td>51</td><td>51</td><td>100%</td></tr>
-<tr><td>SOPC</td><td>18</td><td>18</td><td>100%</td></tr>
-<tr><td>SOPK</td><td>27</td><td>27</td><td>100%</td></tr>
-<tr><td>SOPP</td><td>37</td><td>37</td><td>100%</td></tr>
-<tr><td>VINTRP</td><td>3</td><td>3</td><td>100%</td></tr>
-<tr><td>VOP1</td><td>81</td><td>81</td><td>100%</td></tr>
-<tr><td>VOP2</td><td>51</td><td>51</td><td>100%</td></tr>
-<tr><td>VOP3</td><td>116</td><td>116</td><td>100%</td></tr>
-<tr><td>VOP3P</td><td>29</td><td>29</td><td>100%</td></tr>
-<tr><td>VOPC</td><td>190</td><td>190</td><td>100%</td></tr>
-<tr><th>Total</th><th>1166</th><th>1166</th><th>100.0%</th></tr>
+<tr><th>Measure</th><th>Count</th><th>Of</th></tr>
+<tr><td>Instruction forms decoded</td><td>1460</td><td>1460</td></tr>
+<tr><td>Instruction forms with a translator case</td><td>1460</td><td>1460</td></tr>
+<tr><td>DPP forms decoded</td><td>202</td><td>202</td></tr>
+<tr><td>Unsupported-throw sites in the recompiler</td><td>148</td><td></td></tr>
 </table>
-<p>The total is the AMD RDNA 1 + RDNA 2 instruction list (<a href="https://github.com/zarko379/AnyPS5/blob/main/tools/rdna_isa.txt">tools/rdna_isa.txt</a>). An instruction is implemented when the <a href="https://github.com/zarko379/AnyPS5/blob/main/core/shader/recompiler/RdnaDecoder">decoder</a> recognizes it. Decoded opcodes not present in AMD's public list are not counted: <code>VAddI32</code>, <code>VSubI32</code>, <code>VMulLoI32</code>, <code>VSubrevI32</code>, <code>DsAddSrc2U32</code>, <code>DsSubSrc2U32</code>, <code>DsRsubSrc2U32</code>, <code>DsIncSrc2U32</code>, <code>DsDecSrc2U32</code>, <code>DsMinSrc2I32</code>, <code>DsMaxSrc2I32</code>, <code>DsMinSrc2U32</code>, <code>DsMaxSrc2U32</code>, <code>DsAndSrc2B32</code>, <code>DsOrSrc2B32</code>, <code>DsXorSrc2B32</code>, <code>DsWriteSrc2B32</code>, <code>DsMinSrc2F32</code>, <code>DsMaxSrc2F32</code>, <code>DsAddSrc2F32</code>, <code>SCbranchCdbg</code>, <code>SDcacheWb</code>, <code>SDcacheDiscard</code>, <code>SDcacheDiscardX2</code>.</p>
+<table>
+<tr><th>Encoding</th><th>Form</th><th>Decoded</th><th>Translated</th><th>Total</th></tr>
+<tr><td>DS</td><td>base</td><td>123</td><td>123</td><td>123</td></tr>
+<tr><td>EXP</td><td>base</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>FLAT</td><td>base</td><td>54</td><td>54</td><td>54</td></tr>
+<tr><td>GLOBAL</td><td>base</td><td>57</td><td>57</td><td>57</td></tr>
+<tr><td>MIMG</td><td>base</td><td>130</td><td>130</td><td>130</td></tr>
+<tr><td>MTBUF</td><td>base</td><td>16</td><td>16</td><td>16</td></tr>
+<tr><td>MUBUF</td><td>base</td><td>75</td><td>75</td><td>75</td></tr>
+<tr><td>SCRATCH</td><td>base</td><td>22</td><td>22</td><td>22</td></tr>
+<tr><td>SMEM</td><td>base</td><td>14</td><td>14</td><td>14</td></tr>
+<tr><td>SOP1</td><td>base</td><td>65</td><td>65</td><td>65</td></tr>
+<tr><td>SOP2</td><td>base</td><td>51</td><td>51</td><td>51</td></tr>
+<tr><td>SOPC</td><td>base</td><td>18</td><td>18</td><td>18</td></tr>
+<tr><td>SOPK</td><td>base</td><td>26</td><td>26</td><td>26</td></tr>
+<tr><td>SOPP</td><td>base</td><td>36</td><td>36</td><td>36</td></tr>
+<tr><td>VINTRP</td><td>base</td><td>3</td><td>3</td><td>3</td></tr>
+<tr><td>VOP1</td><td>base</td><td>81</td><td>81</td><td>81</td></tr>
+<tr><td>VOP1</td><td>vop3</td><td>79</td><td>79</td><td>79</td></tr>
+<tr><td>VOP1</td><td>dpp16</td><td>59</td><td>59</td><td>59</td></tr>
+<tr><td>VOP1</td><td>dpp8</td><td>59</td><td>59</td><td>59</td></tr>
+<tr><td>VOP2</td><td>base</td><td>43</td><td>43</td><td>43</td></tr>
+<tr><td>VOP2</td><td>vop3</td><td>40</td><td>40</td><td>40</td></tr>
+<tr><td>VOP2</td><td>dpp16</td><td>42</td><td>42</td><td>42</td></tr>
+<tr><td>VOP2</td><td>dpp8</td><td>42</td><td>42</td><td>42</td></tr>
+<tr><td>VOP3</td><td>base</td><td>117</td><td>117</td><td>117</td></tr>
+<tr><td>VOP3P</td><td>base</td><td>29</td><td>29</td><td>29</td></tr>
+<tr><td>VOPC</td><td>base</td><td>190</td><td>190</td><td>190</td></tr>
+<tr><td>VOPC</td><td>vop3</td><td>190</td><td>190</td><td>190</td></tr>
+</table>
+<p>These numbers are counted from the recompiler's code, not from playing games, so they say nothing about whether a game runs. A form counts as decoded when the decoder's opcode tables map it to an opcode (VOP3 and DPP rules included); it counts as translated when the translator has a case for that opcode, which does not show the translation is correct. Forms are the base, VOP3 and DPP encodings of the AMD RDNA 2 instruction set (<a href="https://github.com/zarko379/AnyPS5/blob/main/tools/rdna2_isa_forms.txt">tools/rdna2_isa_forms.txt</a>); SDWA forms are not counted. Unsupported throws are <code>throw</code> statements in <a href="https://github.com/zarko379/AnyPS5/blob/main/core/shader/recompiler">core/shader/recompiler</a> whose message or exception type says unsupported or not implemented. <a href="https://github.com/zarko379/AnyPS5/blob/main/tools/shader_scan.py">How it is measured</a>.</p>
+<h2>Still needed</h2>
+<div class="cols">
+<div>
+<h3>Unsupported-throw sites by area (148)</h3>
+<table>
+<tr><td>RdnaDecoder</td><td><div class="bar"><i style="width:37.16%;background:#d29922"></i></div></td><td class="n">55</td></tr>
+<tr><td>Translation</td><td><div class="bar"><i style="width:29.05%;background:#d29922"></i></div></td><td class="n">43</td></tr>
+<tr><td>Optimization</td><td><div class="bar"><i style="width:14.19%;background:#d29922"></i></div></td><td class="n">21</td></tr>
+<tr><td>SpirvBackend</td><td><div class="bar"><i style="width:10.81%;background:#d29922"></i></div></td><td class="n">16</td></tr>
+<tr><td>ControlFlow</td><td><div class="bar"><i style="width:4.73%;background:#d29922"></i></div></td><td class="n">7</td></tr>
+<tr><td>Recompiler</td><td><div class="bar"><i style="width:2.70%;background:#d29922"></i></div></td><td class="n">4</td></tr>
+<tr><td>IntermediateRepresentation</td><td><div class="bar"><i style="width:1.35%;background:#d29922"></i></div></td><td class="n">2</td></tr>
+</table>
+<h3>Image formats (of 159)</h3>
+<table>
+<tr><td>Sampled</td><td><div class="bar"><i style="width:51.57%;background:#2ea043"></i></div></td><td class="n">82/159</td></tr>
+<tr><td>Typed buffer</td><td><div class="bar"><i style="width:50.94%;background:#2ea043"></i></div></td><td class="n">81/159</td></tr>
+<tr><td>Vulkan host format</td><td><div class="bar"><i style="width:43.40%;background:#2ea043"></i></div></td><td class="n">69/159</td></tr>
+</table>
+<p>Formats are counted from <a href="https://github.com/zarko379/AnyPS5/blob/main/core/libs/prx/libSceAgcDriver/Graphics/src/TextureFormat.cpp">TextureFormat.cpp</a> and the recompiler's format tables: sampled and typed-buffer formats the recompiler handles, and formats the driver maps to a Vulkan format.</p>
+</div>
+<div>
+<h3>Instruction forms still needed</h3>
+<h4>Every instruction form is decoded and translated</h4>
+</div>
+</div>
 <p><a href="history.html">Progress history</a> (one point per day).</p>
 </body></html>

@@ -1,244 +1,328 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AnyPS5 progress history</title>
-<style>body{font-family:sans-serif;max-width:1000px;margin:auto;padding:16px}svg{max-width:100%;height:auto}table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:2px 8px}td+td,th+th{text-align:right}</style>
-</head><body>
+<meta name="color-scheme" content="light dark"><title>AnyPS5 progress history</title>
+<style>:root{color-scheme:light dark}.history-theme,svg[role="img"]{color-scheme:light dark;--history-background:#fff;--history-grid:#d0d7de;--history-text:#1f2328;--history-muted:#59636e;--history-link:#0969da;--history-visited:#8250df;--history-hit:#000}@media(prefers-color-scheme:dark){.history-theme,svg[role="img"]{--history-background:#0d1117;--history-grid:#30363d;--history-text:#c9d1d9;--history-muted:#8b949e;--history-link:#58a6ff;--history-visited:#bc8cff;--history-hit:#fff}}body{font-family:sans-serif;max-width:1000px;margin:auto;padding:16px;background:var(--history-background);color:var(--history-text)}svg{max-width:100%;height:auto}a{color:var(--history-link)}a:visited{color:var(--history-visited)}table{border-collapse:collapse}th,td{border:1px solid var(--history-grid);padding:2px 8px}td+td,th+th{text-align:right}</style>
+</head><body class="history-theme">
 <h1>Progress history</h1>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 416" role="img" aria-label="Implemented and declared system library functions and GPU shader instructions over time" font-family="sans-serif" font-size="12" fill="#c9d1d9">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 416" role="img" aria-label="Implemented and declared system library functions and shader metrics over time" font-family="sans-serif" font-size="12" fill="#c9d1d9">
 <style>.hit{fill:#fff;fill-opacity:0}.hit:hover{fill-opacity:0.06}</style>
 <rect width="900" height="416" rx="6" fill="#0d1117"/>
 <text x="56" y="22" font-size="13" font-weight="bold">System library functions</text>
 <line x1="56" x2="710" y1="184.0" y2="184.0" stroke="#30363d"/><text x="50" y="188.0" text-anchor="end" fill="#8b949e">0</text>
-<line x1="56" x2="710" y1="134.0" y2="134.0" stroke="#30363d"/><text x="50" y="138.0" text-anchor="end" fill="#8b949e">5,000</text>
-<line x1="56" x2="710" y1="84.0" y2="84.0" stroke="#30363d"/><text x="50" y="88.0" text-anchor="end" fill="#8b949e">10,000</text>
-<line x1="56" x2="710" y1="34.0" y2="34.0" stroke="#30363d"/><text x="50" y="38.0" text-anchor="end" fill="#8b949e">15,000</text>
-<line x1="139.5" x2="139.5" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
-<line x1="236.9" x2="236.9" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
-<line x1="334.3" x2="334.3" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
-<line x1="431.7" x2="431.7" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
-<line x1="529.1" x2="529.1" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
-<line x1="626.5" x2="626.5" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
-<polygon points="56.0,184 56.0,178.3 69.9,178.3 83.8,178.3 97.7,178.3 111.7,178.3 125.6,178.3 139.5,178.3 153.4,178.3 167.3,178.3 181.2,177.8 195.1,177.8 209.1,176.3 223.0,169.5 236.9,163.7 250.8,162.8 264.7,161.2 278.6,160.6 292.6,159.4 306.5,159.3 320.4,158.6 334.3,157.4 348.2,159.1 362.1,158.9 376.0,158.4 390.0,157.4 403.9,156.4 417.8,154.1 431.7,152.7 445.6,151.8 459.5,151.3 473.4,151.1 487.4,150.8 501.3,150.3 515.2,147.2 529.1,142.2 543.0,140.8 556.9,137.3 570.9,134.5 584.8,126.8 598.7,124.1 612.6,122.2 626.5,119.3 640.4,118.3 654.3,118.3 682.2,118.3 696.1,118.2 710.0,118.1 710.0,184" fill="#2f81f7" opacity="0.15"/>
-<polyline points="56.0,167.1 69.9,167.1 83.8,167.1 97.7,167.1 111.7,167.1 125.6,167.1 139.5,167.1 153.4,167.1 167.3,167.1 181.2,166.1 195.1,166.1 209.1,164.9 223.0,159.9 236.9,154.9 250.8,154.7 264.7,153.9 278.6,153.6 292.6,152.1 306.5,152.1 320.4,151.9 334.3,151.0 348.2,155.5 362.1,154.8 376.0,153.7 390.0,152.9 403.9,151.6 417.8,149.2 431.7,148.1 445.6,147.4 459.5,147.1 473.4,146.9 487.4,146.9 501.3,146.4 515.2,143.7 529.1,131.8 543.0,115.3 556.9,73.7 570.9,70.6 584.8,63.5 598.7,57.5 612.6,57.2 626.5,54.0 640.4,49.5 654.3,49.5 682.2,49.5 696.1,49.5 710.0,49.5" fill="none" stroke="#8b949e" stroke-width="2" stroke-dasharray="6 4"/>
-<polyline points="56.0,178.3 69.9,178.3 83.8,178.3 97.7,178.3 111.7,178.3 125.6,178.3 139.5,178.3 153.4,178.3 167.3,178.3 181.2,177.8 195.1,177.8 209.1,176.3 223.0,169.5 236.9,163.7 250.8,162.8 264.7,161.2 278.6,160.6 292.6,159.4 306.5,159.3 320.4,158.6 334.3,157.4 348.2,159.1 362.1,158.9 376.0,158.4 390.0,157.4 403.9,156.4 417.8,154.1 431.7,152.7 445.6,151.8 459.5,151.3 473.4,151.1 487.4,150.8 501.3,150.3 515.2,147.2 529.1,142.2 543.0,140.8 556.9,137.3 570.9,134.5 584.8,126.8 598.7,124.1 612.6,122.2 626.5,119.3 640.4,118.3 654.3,118.3 682.2,118.3 696.1,118.2 710.0,118.1" fill="none" stroke="#2f81f7" stroke-width="2"/>
-<text x="718" y="53.5" fill="#8b949e">Declared 13,449</text><text x="718" y="122.1" fill="#c9d1d9" font-weight="bold"><tspan fill="#2f81f7">●</tspan> Implemented 6,587 (49%)</text>
-<rect class="hit" x="56.0" y="34" width="7.0" height="150"><title>2026-09-15 · System library functions
+<line x1="56" x2="710" y1="146.5" y2="146.5" stroke="#30363d"/><text x="50" y="150.5" text-anchor="end" fill="#8b949e">10,000</text>
+<line x1="56" x2="710" y1="109.0" y2="109.0" stroke="#30363d"/><text x="50" y="113.0" text-anchor="end" fill="#8b949e">20,000</text>
+<line x1="56" x2="710" y1="71.5" y2="71.5" stroke="#30363d"/><text x="50" y="75.5" text-anchor="end" fill="#8b949e">30,000</text>
+<line x1="56" x2="710" y1="34.0" y2="34.0" stroke="#30363d"/><text x="50" y="38.0" text-anchor="end" fill="#8b949e">40,000</text>
+<line x1="126.1" x2="126.1" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
+<line x1="207.8" x2="207.8" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
+<line x1="289.6" x2="289.6" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
+<line x1="371.3" x2="371.3" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
+<line x1="453.1" x2="453.1" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
+<line x1="534.8" x2="534.8" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
+<line x1="616.6" x2="616.6" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
+<line x1="698.3" x2="698.3" y1="34" y2="184" stroke="#30363d" stroke-width="0.5"/>
+<polygon points="56.0,184 56.0,181.9 67.7,181.9 79.4,181.9 91.0,181.9 102.7,181.9 114.4,181.9 126.1,181.9 137.8,181.9 149.4,181.9 161.1,181.7 172.8,181.7 184.5,181.1 196.1,178.6 207.8,176.4 219.5,176.1 231.2,175.4 242.9,175.2 254.5,174.8 266.2,174.7 277.9,174.5 289.6,174.0 301.2,174.7 312.9,174.6 324.6,174.4 336.3,174.0 348.0,173.6 359.6,172.8 371.3,172.2 383.0,171.9 394.7,171.7 406.4,171.7 418.0,171.6 429.7,171.4 441.4,170.2 453.1,168.3 464.8,167.8 476.4,166.5 488.1,165.4 499.8,162.5 511.5,161.5 523.1,160.8 534.8,159.7 546.5,159.3 558.2,159.3 581.5,159.3 593.2,159.3 604.9,159.3 616.6,159.3 710.0,131.9 710.0,184" fill="#2f81f7" opacity="0.15"/>
+<polyline points="56.0,177.6 67.7,177.6 79.4,177.6 91.0,177.6 102.7,177.6 114.4,177.6 126.1,177.6 137.8,177.6 149.4,177.6 161.1,177.3 172.8,177.3 184.5,176.9 196.1,175.0 207.8,173.1 219.5,173.0 231.2,172.7 242.9,172.6 254.5,172.0 266.2,172.0 277.9,172.0 289.6,171.6 301.2,173.3 312.9,173.1 324.6,172.7 336.3,172.3 348.0,171.9 359.6,171.0 371.3,170.5 383.0,170.3 394.7,170.2 406.4,170.1 418.0,170.1 429.7,169.9 441.4,168.9 453.1,164.4 464.8,158.2 476.4,142.6 488.1,141.5 499.8,138.8 511.5,136.6 523.1,136.4 534.8,135.2 546.5,133.5 558.2,133.5 581.5,133.5 593.2,133.5 604.9,133.5 616.6,133.5 710.0,39.1" fill="none" stroke="#8b949e" stroke-width="2" stroke-dasharray="6 4"/>
+<polyline points="56.0,181.9 67.7,181.9 79.4,181.9 91.0,181.9 102.7,181.9 114.4,181.9 126.1,181.9 137.8,181.9 149.4,181.9 161.1,181.7 172.8,181.7 184.5,181.1 196.1,178.6 207.8,176.4 219.5,176.1 231.2,175.4 242.9,175.2 254.5,174.8 266.2,174.7 277.9,174.5 289.6,174.0 301.2,174.7 312.9,174.6 324.6,174.4 336.3,174.0 348.0,173.6 359.6,172.8 371.3,172.2 383.0,171.9 394.7,171.7 406.4,171.7 418.0,171.6 429.7,171.4 441.4,170.2 453.1,168.3 464.8,167.8 476.4,166.5 488.1,165.4 499.8,162.5 511.5,161.5 523.1,160.8 534.8,159.7 546.5,159.3 558.2,159.3 581.5,159.3 593.2,159.3 604.9,159.3 616.6,159.3 710.0,131.9" fill="none" stroke="#2f81f7" stroke-width="2"/>
+<text x="718" y="43.1" fill="#8b949e">Declared 38,649</text><text x="718" y="135.9" fill="#c9d1d9" font-weight="bold"><tspan fill="#2f81f7">●</tspan> Implemented 13,881 (36%)</text>
+<rect class="hit" x="56.0" y="34" width="5.8" height="150"><title>2026-09-15 · System library functions
 Implemented 569 of 1,694 declared (33.59%)</title></rect>
-<rect class="hit" x="63.0" y="34" width="13.9" height="150"><title>2026-09-16 · System library functions
+<rect class="hit" x="61.8" y="34" width="11.7" height="150"><title>2026-09-16 · System library functions
 Implemented 569 of 1,694 declared (33.59%)</title></rect>
-<rect class="hit" x="76.9" y="34" width="13.9" height="150"><title>2026-09-17 · System library functions
+<rect class="hit" x="73.5" y="34" width="11.7" height="150"><title>2026-09-17 · System library functions
 Implemented 569 of 1,694 declared (33.59%)</title></rect>
-<rect class="hit" x="90.8" y="34" width="13.9" height="150"><title>2026-09-18 · System library functions
+<rect class="hit" x="85.2" y="34" width="11.7" height="150"><title>2026-09-18 · System library functions
 Implemented 569 of 1,694 declared (33.59%)</title></rect>
-<rect class="hit" x="104.7" y="34" width="13.9" height="150"><title>2026-09-19 · System library functions
+<rect class="hit" x="96.9" y="34" width="11.7" height="150"><title>2026-09-19 · System library functions
 Implemented 569 of 1,694 declared (33.59%)</title></rect>
-<rect class="hit" x="118.6" y="34" width="13.9" height="150"><title>2026-09-20 · System library functions
+<rect class="hit" x="108.6" y="34" width="11.7" height="150"><title>2026-09-20 · System library functions
 Implemented 569 of 1,694 declared (33.59%)</title></rect>
-<rect class="hit" x="132.5" y="34" width="13.9" height="150"><title>2026-09-21 · System library functions
+<rect class="hit" x="120.2" y="34" width="11.7" height="150"><title>2026-09-21 · System library functions
 Implemented 569 of 1,694 declared (33.59%)</title></rect>
-<rect class="hit" x="146.4" y="34" width="13.9" height="150"><title>2026-09-22 · System library functions
+<rect class="hit" x="131.9" y="34" width="11.7" height="150"><title>2026-09-22 · System library functions
 Implemented 571 of 1,694 declared (33.71%)</title></rect>
-<rect class="hit" x="160.4" y="34" width="13.9" height="150"><title>2026-09-23 · System library functions
+<rect class="hit" x="143.6" y="34" width="11.7" height="150"><title>2026-09-23 · System library functions
 Implemented 572 of 1,694 declared (33.77%)</title></rect>
-<rect class="hit" x="174.3" y="34" width="13.9" height="150"><title>2026-09-24 · System library functions
+<rect class="hit" x="155.3" y="34" width="11.7" height="150"><title>2026-09-24 · System library functions
 Implemented 617 of 1,790 declared (34.47%)</title></rect>
-<rect class="hit" x="188.2" y="34" width="13.9" height="150"><title>2026-09-25 · System library functions
+<rect class="hit" x="166.9" y="34" width="11.7" height="150"><title>2026-09-25 · System library functions
 Implemented 617 of 1,790 declared (34.47%)</title></rect>
-<rect class="hit" x="202.1" y="34" width="13.9" height="150"><title>2026-09-26 · System library functions
+<rect class="hit" x="178.6" y="34" width="11.7" height="150"><title>2026-09-26 · System library functions
 Implemented 767 of 1,906 declared (40.24%)</title></rect>
-<rect class="hit" x="216.0" y="34" width="13.9" height="150"><title>2026-09-27 · System library functions
+<rect class="hit" x="190.3" y="34" width="11.7" height="150"><title>2026-09-27 · System library functions
 Implemented 1,453 of 2,411 declared (60.27%)</title></rect>
-<rect class="hit" x="229.9" y="34" width="13.9" height="150"><title>2026-09-28 · System library functions
+<rect class="hit" x="202.0" y="34" width="11.7" height="150"><title>2026-09-28 · System library functions
 Implemented 2,027 of 2,905 declared (69.78%)</title></rect>
-<rect class="hit" x="243.9" y="34" width="13.9" height="150"><title>2026-09-29 · System library functions
+<rect class="hit" x="213.7" y="34" width="11.7" height="150"><title>2026-09-29 · System library functions
 Implemented 2,120 of 2,928 declared (72.4%)</title></rect>
-<rect class="hit" x="257.8" y="34" width="13.9" height="150"><title>2026-09-30 · System library functions
+<rect class="hit" x="225.3" y="34" width="11.7" height="150"><title>2026-09-30 · System library functions
 Implemented 2,281 of 3,009 declared (75.81%)</title></rect>
-<rect class="hit" x="271.7" y="34" width="13.9" height="150"><title>2026-10-01 · System library functions
+<rect class="hit" x="237.0" y="34" width="11.7" height="150"><title>2026-10-01 · System library functions
 Implemented 2,345 of 3,039 declared (77.16%)</title></rect>
-<rect class="hit" x="285.6" y="34" width="13.9" height="150"><title>2026-10-02 · System library functions
+<rect class="hit" x="248.7" y="34" width="11.7" height="150"><title>2026-10-02 · System library functions
 Implemented 2,459 of 3,188 declared (77.13%)</title></rect>
-<rect class="hit" x="299.5" y="34" width="13.9" height="150"><title>2026-10-03 · System library functions
+<rect class="hit" x="260.4" y="34" width="11.7" height="150"><title>2026-10-03 · System library functions
 Implemented 2,469 of 3,192 declared (77.35%)</title></rect>
-<rect class="hit" x="313.4" y="34" width="13.9" height="150"><title>2026-10-04 · System library functions
+<rect class="hit" x="272.1" y="34" width="11.7" height="150"><title>2026-10-04 · System library functions
 Implemented 2,542 of 3,211 declared (79.17%)</title></rect>
-<rect class="hit" x="327.3" y="34" width="13.9" height="150"><title>2026-10-05 · System library functions
+<rect class="hit" x="283.7" y="34" width="11.7" height="150"><title>2026-10-05 · System library functions
 Implemented 2,656 of 3,296 declared (80.58%)</title></rect>
-<rect class="hit" x="341.3" y="34" width="13.9" height="150"><title>2026-10-06 · System library functions
+<rect class="hit" x="295.4" y="34" width="11.7" height="150"><title>2026-10-06 · System library functions
 Implemented 2,489 of 2,850 declared (87.33%)</title></rect>
-<rect class="hit" x="355.2" y="34" width="13.9" height="150"><title>2026-10-07 · System library functions
+<rect class="hit" x="307.1" y="34" width="11.7" height="150"><title>2026-10-07 · System library functions
 Implemented 2,509 of 2,919 declared (85.95%)</title></rect>
-<rect class="hit" x="369.1" y="34" width="13.9" height="150"><title>2026-10-08 · System library functions
+<rect class="hit" x="318.8" y="34" width="11.7" height="150"><title>2026-10-08 · System library functions
 Implemented 2,558 of 3,026 declared (84.53%)</title></rect>
-<rect class="hit" x="383.0" y="34" width="13.9" height="150"><title>2026-10-09 · System library functions
+<rect class="hit" x="330.4" y="34" width="11.7" height="150"><title>2026-10-09 · System library functions
 Implemented 2,660 of 3,109 declared (85.56%)</title></rect>
-<rect class="hit" x="396.9" y="34" width="13.9" height="150"><title>2026-10-10 · System library functions
+<rect class="hit" x="342.1" y="34" width="11.7" height="150"><title>2026-10-10 · System library functions
 Implemented 2,761 of 3,236 declared (85.32%)</title></rect>
-<rect class="hit" x="410.8" y="34" width="13.9" height="150"><title>2026-10-11 · System library functions
+<rect class="hit" x="353.8" y="34" width="11.7" height="150"><title>2026-10-11 · System library functions
 Implemented 2,990 of 3,475 declared (86.04%)</title></rect>
-<rect class="hit" x="424.7" y="34" width="13.9" height="150"><title>2026-10-12 · System library functions
+<rect class="hit" x="365.5" y="34" width="11.7" height="150"><title>2026-10-12 · System library functions
 Implemented 3,135 of 3,593 declared (87.25%)</title></rect>
-<rect class="hit" x="438.7" y="34" width="13.9" height="150"><title>2026-10-13 · System library functions
+<rect class="hit" x="377.2" y="34" width="11.7" height="150"><title>2026-10-13 · System library functions
 Implemented 3,221 of 3,656 declared (88.1%)</title></rect>
-<rect class="hit" x="452.6" y="34" width="13.9" height="150"><title>2026-10-14 · System library functions
+<rect class="hit" x="388.8" y="34" width="11.7" height="150"><title>2026-10-14 · System library functions
 Implemented 3,270 of 3,686 declared (88.71%)</title></rect>
-<rect class="hit" x="466.5" y="34" width="13.9" height="150"><title>2026-10-15 · System library functions
+<rect class="hit" x="400.5" y="34" width="11.7" height="150"><title>2026-10-15 · System library functions
 Implemented 3,292 of 3,706 declared (88.83%)</title></rect>
-<rect class="hit" x="480.4" y="34" width="13.9" height="150"><title>2026-10-16 · System library functions
+<rect class="hit" x="412.2" y="34" width="11.7" height="150"><title>2026-10-16 · System library functions
 Implemented 3,316 of 3,710 declared (89.38%)</title></rect>
-<rect class="hit" x="494.3" y="34" width="13.9" height="150"><title>2026-10-17 · System library functions
+<rect class="hit" x="423.9" y="34" width="11.7" height="150"><title>2026-10-17 · System library functions
 Implemented 3,368 of 3,757 declared (89.65%)</title></rect>
-<rect class="hit" x="508.2" y="34" width="13.9" height="150"><title>2026-10-18 · System library functions
+<rect class="hit" x="435.6" y="34" width="11.7" height="150"><title>2026-10-18 · System library functions
 Implemented 3,683 of 4,029 declared (91.41%)</title></rect>
-<rect class="hit" x="522.1" y="34" width="13.9" height="150"><title>2026-10-19 · System library functions
+<rect class="hit" x="447.2" y="34" width="11.7" height="150"><title>2026-10-19 · System library functions
 Implemented 4,181 of 5,218 declared (80.13%)</title></rect>
-<rect class="hit" x="536.1" y="34" width="13.9" height="150"><title>2026-10-20 · System library functions
+<rect class="hit" x="458.9" y="34" width="11.7" height="150"><title>2026-10-20 · System library functions
 Implemented 4,325 of 6,874 declared (62.92%)</title></rect>
-<rect class="hit" x="550.0" y="34" width="13.9" height="150"><title>2026-10-21 · System library functions
+<rect class="hit" x="470.6" y="34" width="11.7" height="150"><title>2026-10-21 · System library functions
 Implemented 4,670 of 11,032 declared (42.33%)</title></rect>
-<rect class="hit" x="563.9" y="34" width="13.9" height="150"><title>2026-10-22 · System library functions
+<rect class="hit" x="482.3" y="34" width="11.7" height="150"><title>2026-10-22 · System library functions
 Implemented 4,950 of 11,336 declared (43.67%)</title></rect>
-<rect class="hit" x="577.8" y="34" width="13.9" height="150"><title>2026-10-23 · System library functions
+<rect class="hit" x="493.9" y="34" width="11.7" height="150"><title>2026-10-23 · System library functions
 Implemented 5,723 of 12,047 declared (47.51%)</title></rect>
-<rect class="hit" x="591.7" y="34" width="13.9" height="150"><title>2026-10-24 · System library functions
+<rect class="hit" x="505.6" y="34" width="11.7" height="150"><title>2026-10-24 · System library functions
 Implemented 5,994 of 12,650 declared (47.38%)</title></rect>
-<rect class="hit" x="605.6" y="34" width="13.9" height="150"><title>2026-10-25 · System library functions
+<rect class="hit" x="517.3" y="34" width="11.7" height="150"><title>2026-10-25 · System library functions
 Implemented 6,182 of 12,683 declared (48.74%)</title></rect>
-<rect class="hit" x="619.6" y="34" width="13.9" height="150"><title>2026-10-26 · System library functions
+<rect class="hit" x="529.0" y="34" width="11.7" height="150"><title>2026-10-26 · System library functions
 Implemented 6,473 of 13,004 declared (49.78%)</title></rect>
-<rect class="hit" x="633.5" y="34" width="13.9" height="150"><title>2026-10-27 · System library functions
-Implemented 6,568 of 13,449 declared (48.84%)</title></rect>
-<rect class="hit" x="647.4" y="34" width="20.9" height="150"><title>2026-10-28 · System library functions
-Implemented 6,568 of 13,449 declared (48.84%)</title></rect>
-<rect class="hit" x="668.3" y="34" width="20.9" height="150"><title>2026-10-30 · System library functions
-Implemented 6,573 of 13,449 declared (48.87%)</title></rect>
-<rect class="hit" x="689.1" y="34" width="13.9" height="150"><title>2026-10-31 · System library functions
-Implemented 6,576 of 13,449 declared (48.9%)</title></rect>
-<rect class="hit" x="703.0" y="34" width="7.0" height="150"><title>2026-11-01 · System library functions
-Implemented 6,587 of 13,449 declared (48.98%)</title></rect>
-<text x="56" y="222" font-size="13" font-weight="bold">GPU shader instructions</text>
+<rect class="hit" x="540.7" y="34" width="11.7" height="150"><title>2026-10-27 · System library functions
+Implemented 6,574 of 13,455 declared (48.86%)</title></rect>
+<rect class="hit" x="552.3" y="34" width="17.5" height="150"><title>2026-10-28 · System library functions
+Implemented 6,574 of 13,455 declared (48.86%)</title></rect>
+<rect class="hit" x="569.9" y="34" width="17.5" height="150"><title>2026-10-30 · System library functions
+Implemented 6,579 of 13,455 declared (48.9%)</title></rect>
+<rect class="hit" x="587.4" y="34" width="11.7" height="150"><title>2026-10-31 · System library functions
+Implemented 6,582 of 13,455 declared (48.92%)</title></rect>
+<rect class="hit" x="599.1" y="34" width="11.7" height="150"><title>2026-11-01 · System library functions
+Implemented 6,593 of 13,455 declared (49.0%)</title></rect>
+<rect class="hit" x="610.7" y="34" width="52.6" height="150"><title>2026-11-02 · System library functions
+Implemented 6,599 of 13,455 declared (49.04%)</title></rect>
+<rect class="hit" x="663.3" y="34" width="46.7" height="150"><title>2026-11-10 · System library functions
+Implemented 13,881 of 38,649 declared (35.92%)</title></rect>
+<text x="56" y="222" font-size="13" font-weight="bold">Decoded shader forms</text>
 <line x1="56" x2="710" y1="384.0" y2="384.0" stroke="#30363d"/><text x="50" y="388.0" text-anchor="end" fill="#8b949e">0</text>
 <line x1="56" x2="710" y1="334.0" y2="334.0" stroke="#30363d"/><text x="50" y="338.0" text-anchor="end" fill="#8b949e">500</text>
 <line x1="56" x2="710" y1="284.0" y2="284.0" stroke="#30363d"/><text x="50" y="288.0" text-anchor="end" fill="#8b949e">1,000</text>
 <line x1="56" x2="710" y1="234.0" y2="234.0" stroke="#30363d"/><text x="50" y="238.0" text-anchor="end" fill="#8b949e">1,500</text>
-<line x1="139.5" x2="139.5" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
-<line x1="236.9" x2="236.9" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
-<line x1="334.3" x2="334.3" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
-<line x1="431.7" x2="431.7" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
-<line x1="529.1" x2="529.1" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
-<line x1="626.5" x2="626.5" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
-<polygon points="56.0,384 56.0,323.5 69.9,323.5 83.8,323.5 97.7,323.5 111.7,323.5 125.6,323.5 139.5,323.5 153.4,323.5 167.3,323.5 181.2,323.5 195.1,323.5 209.1,323.5 223.0,323.5 236.9,322.4 250.8,322.2 264.7,321.6 278.6,319.9 292.6,306.2 306.5,298.3 320.4,285.7 334.3,271.5 348.2,271.2 362.1,270.9 376.0,267.4 390.0,267.4 403.9,267.4 417.8,267.4 431.7,267.4 445.6,267.4 459.5,267.4 473.4,267.4 487.4,267.4 501.3,267.4 515.2,267.4 529.1,267.4 543.0,267.4 556.9,267.4 570.9,267.4 584.8,267.4 598.7,267.4 612.6,267.4 626.5,267.4 640.4,267.4 654.3,267.4 682.2,267.4 696.1,267.4 710.0,267.4 710.0,384" fill="#2ea043" opacity="0.15"/>
-<polyline points="56.0,267.4 69.9,267.4 83.8,267.4 97.7,267.4 111.7,267.4 125.6,267.4 139.5,267.4 153.4,267.4 167.3,267.4 181.2,267.4 195.1,267.4 209.1,267.4 223.0,267.4 236.9,267.4 250.8,267.4 264.7,267.4 278.6,267.4 292.6,267.4 306.5,267.4 320.4,267.4 334.3,267.4 348.2,267.4 362.1,267.4 376.0,267.4 390.0,267.4 403.9,267.4 417.8,267.4 431.7,267.4 445.6,267.4 459.5,267.4 473.4,267.4 487.4,267.4 501.3,267.4 515.2,267.4 529.1,267.4 543.0,267.4 556.9,267.4 570.9,267.4 584.8,267.4 598.7,267.4 612.6,267.4 626.5,267.4 640.4,267.4 654.3,267.4 682.2,267.4 696.1,267.4 710.0,267.4" fill="none" stroke="#8b949e" stroke-width="2" stroke-dasharray="6 4"/>
-<polyline points="56.0,323.5 69.9,323.5 83.8,323.5 97.7,323.5 111.7,323.5 125.6,323.5 139.5,323.5 153.4,323.5 167.3,323.5 181.2,323.5 195.1,323.5 209.1,323.5 223.0,323.5 236.9,322.4 250.8,322.2 264.7,321.6 278.6,319.9 292.6,306.2 306.5,298.3 320.4,285.7 334.3,271.5 348.2,271.2 362.1,270.9 376.0,267.4 390.0,267.4 403.9,267.4 417.8,267.4 431.7,267.4 445.6,267.4 459.5,267.4 473.4,267.4 487.4,267.4 501.3,267.4 515.2,267.4 529.1,267.4 543.0,267.4 556.9,267.4 570.9,267.4 584.8,267.4 598.7,267.4 612.6,267.4 626.5,267.4 640.4,267.4 654.3,267.4 682.2,267.4 696.1,267.4 710.0,267.4" fill="none" stroke="#2ea043" stroke-width="2"/>
-<text x="718" y="271.4" fill="#8b949e">Declared 1,166</text><text x="718" y="286.4" fill="#c9d1d9" font-weight="bold"><tspan fill="#2ea043">●</tspan> Implemented 1,166 (100%)</text>
-<rect class="hit" x="56.0" y="234" width="7.0" height="150"><title>2026-09-15 · GPU shader instructions
+<line x1="126.1" x2="126.1" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
+<line x1="207.8" x2="207.8" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
+<line x1="289.6" x2="289.6" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
+<line x1="371.3" x2="371.3" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
+<line x1="453.1" x2="453.1" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
+<line x1="534.8" x2="534.8" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
+<line x1="616.6" x2="616.6" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
+<line x1="698.3" x2="698.3" y1="234" y2="384" stroke="#30363d" stroke-width="0.5"/>
+<polygon points="56.0,384 56.0,323.5 67.7,323.5 79.4,323.5 91.0,323.5 102.7,323.5 114.4,323.5 126.1,323.5 137.8,323.5 149.4,323.5 161.1,323.5 172.8,323.5 184.5,323.5 196.1,323.5 207.8,322.4 219.5,322.2 231.2,321.6 242.9,319.9 254.5,306.2 266.2,298.3 277.9,285.7 289.6,271.5 301.2,271.2 312.9,270.9 324.6,267.4 336.3,267.4 348.0,267.4 359.6,267.4 371.3,267.4 383.0,267.4 394.7,267.4 406.4,267.4 418.0,267.4 429.7,267.4 441.4,267.4 453.1,267.4 464.8,267.4 476.4,267.4 488.1,267.4 499.8,267.4 511.5,267.4 523.1,267.4 534.8,267.4 546.5,238.0 558.2,238.0 581.5,238.0 593.2,238.0 604.9,238.0 616.6,238.0 710.0,238.0 710.0,384" fill="#2ea043" opacity="0.15"/>
+<polyline points="56.0,267.4 67.7,267.4 79.4,267.4 91.0,267.4 102.7,267.4 114.4,267.4 126.1,267.4 137.8,267.4 149.4,267.4 161.1,267.4 172.8,267.4 184.5,267.4 196.1,267.4 207.8,267.4 219.5,267.4 231.2,267.4 242.9,267.4 254.5,267.4 266.2,267.4 277.9,267.4 289.6,267.4 301.2,267.4 312.9,267.4 324.6,267.4 336.3,267.4 348.0,267.4 359.6,267.4 371.3,267.4 383.0,267.4 394.7,267.4 406.4,267.4 418.0,267.4 429.7,267.4 441.4,267.4 453.1,267.4 464.8,267.4 476.4,267.4 488.1,267.4 499.8,267.4 511.5,267.4 523.1,267.4 534.8,267.4 546.5,238.0 558.2,238.0 581.5,238.0 593.2,238.0 604.9,238.0 616.6,238.0 710.0,238.0" fill="none" stroke="#8b949e" stroke-width="2" stroke-dasharray="6 4"/>
+<polyline points="56.0,323.5 67.7,323.5 79.4,323.5 91.0,323.5 102.7,323.5 114.4,323.5 126.1,323.5 137.8,323.5 149.4,323.5 161.1,323.5 172.8,323.5 184.5,323.5 196.1,323.5 207.8,322.4 219.5,322.2 231.2,321.6 242.9,319.9 254.5,306.2 266.2,298.3 277.9,285.7 289.6,271.5 301.2,271.2 312.9,270.9 324.6,267.4 336.3,267.4 348.0,267.4 359.6,267.4 371.3,267.4 383.0,267.4 394.7,267.4 406.4,267.4 418.0,267.4 429.7,267.4 441.4,267.4 453.1,267.4 464.8,267.4 476.4,267.4 488.1,267.4 499.8,267.4 511.5,267.4 523.1,267.4 534.8,267.4 546.5,238.0 558.2,238.0 581.5,238.0 593.2,238.0 604.9,238.0 616.6,238.0 710.0,238.0" fill="none" stroke="#2ea043" stroke-width="2"/>
+<text x="718" y="242.0" fill="#8b949e">Declared 1,460</text><text x="718" y="257.0" fill="#c9d1d9" font-weight="bold"><tspan fill="#2ea043">●</tspan> Implemented 1,460 (100%)</text>
+<rect class="hit" x="56.0" y="234" width="5.8" height="150"><title>2026-09-15 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="63.0" y="234" width="13.9" height="150"><title>2026-09-16 · GPU shader instructions
+<rect class="hit" x="61.8" y="234" width="11.7" height="150"><title>2026-09-16 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="76.9" y="234" width="13.9" height="150"><title>2026-09-17 · GPU shader instructions
+<rect class="hit" x="73.5" y="234" width="11.7" height="150"><title>2026-09-17 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="90.8" y="234" width="13.9" height="150"><title>2026-09-18 · GPU shader instructions
+<rect class="hit" x="85.2" y="234" width="11.7" height="150"><title>2026-09-18 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="104.7" y="234" width="13.9" height="150"><title>2026-09-19 · GPU shader instructions
+<rect class="hit" x="96.9" y="234" width="11.7" height="150"><title>2026-09-19 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="118.6" y="234" width="13.9" height="150"><title>2026-09-20 · GPU shader instructions
+<rect class="hit" x="108.6" y="234" width="11.7" height="150"><title>2026-09-20 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="132.5" y="234" width="13.9" height="150"><title>2026-09-21 · GPU shader instructions
+<rect class="hit" x="120.2" y="234" width="11.7" height="150"><title>2026-09-21 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="146.4" y="234" width="13.9" height="150"><title>2026-09-22 · GPU shader instructions
+<rect class="hit" x="131.9" y="234" width="11.7" height="150"><title>2026-09-22 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="160.4" y="234" width="13.9" height="150"><title>2026-09-23 · GPU shader instructions
+<rect class="hit" x="143.6" y="234" width="11.7" height="150"><title>2026-09-23 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="174.3" y="234" width="13.9" height="150"><title>2026-09-24 · GPU shader instructions
+<rect class="hit" x="155.3" y="234" width="11.7" height="150"><title>2026-09-24 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="188.2" y="234" width="13.9" height="150"><title>2026-09-25 · GPU shader instructions
+<rect class="hit" x="166.9" y="234" width="11.7" height="150"><title>2026-09-25 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="202.1" y="234" width="13.9" height="150"><title>2026-09-26 · GPU shader instructions
+<rect class="hit" x="178.6" y="234" width="11.7" height="150"><title>2026-09-26 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="216.0" y="234" width="13.9" height="150"><title>2026-09-27 · GPU shader instructions
+<rect class="hit" x="190.3" y="234" width="11.7" height="150"><title>2026-09-27 · Decoded shader forms
 Implemented 605 of 1,166 declared (51.89%)</title></rect>
-<rect class="hit" x="229.9" y="234" width="13.9" height="150"><title>2026-09-28 · GPU shader instructions
+<rect class="hit" x="202.0" y="234" width="11.7" height="150"><title>2026-09-28 · Decoded shader forms
 Implemented 616 of 1,166 declared (52.83%)</title></rect>
-<rect class="hit" x="243.9" y="234" width="13.9" height="150"><title>2026-09-29 · GPU shader instructions
+<rect class="hit" x="213.7" y="234" width="11.7" height="150"><title>2026-09-29 · Decoded shader forms
 Implemented 618 of 1,166 declared (53.0%)</title></rect>
-<rect class="hit" x="257.8" y="234" width="13.9" height="150"><title>2026-09-30 · GPU shader instructions
+<rect class="hit" x="225.3" y="234" width="11.7" height="150"><title>2026-09-30 · Decoded shader forms
 Implemented 624 of 1,166 declared (53.52%)</title></rect>
-<rect class="hit" x="271.7" y="234" width="13.9" height="150"><title>2026-10-01 · GPU shader instructions
+<rect class="hit" x="237.0" y="234" width="11.7" height="150"><title>2026-10-01 · Decoded shader forms
 Implemented 641 of 1,166 declared (54.97%)</title></rect>
-<rect class="hit" x="285.6" y="234" width="13.9" height="150"><title>2026-10-02 · GPU shader instructions
+<rect class="hit" x="248.7" y="234" width="11.7" height="150"><title>2026-10-02 · Decoded shader forms
 Implemented 778 of 1,166 declared (66.72%)</title></rect>
-<rect class="hit" x="299.5" y="234" width="13.9" height="150"><title>2026-10-03 · GPU shader instructions
+<rect class="hit" x="260.4" y="234" width="11.7" height="150"><title>2026-10-03 · Decoded shader forms
 Implemented 857 of 1,166 declared (73.5%)</title></rect>
-<rect class="hit" x="313.4" y="234" width="13.9" height="150"><title>2026-10-04 · GPU shader instructions
+<rect class="hit" x="272.1" y="234" width="11.7" height="150"><title>2026-10-04 · Decoded shader forms
 Implemented 983 of 1,166 declared (84.31%)</title></rect>
-<rect class="hit" x="327.3" y="234" width="13.9" height="150"><title>2026-10-05 · GPU shader instructions
+<rect class="hit" x="283.7" y="234" width="11.7" height="150"><title>2026-10-05 · Decoded shader forms
 Implemented 1,125 of 1,166 declared (96.48%)</title></rect>
-<rect class="hit" x="341.3" y="234" width="13.9" height="150"><title>2026-10-06 · GPU shader instructions
+<rect class="hit" x="295.4" y="234" width="11.7" height="150"><title>2026-10-06 · Decoded shader forms
 Implemented 1,128 of 1,166 declared (96.74%)</title></rect>
-<rect class="hit" x="355.2" y="234" width="13.9" height="150"><title>2026-10-07 · GPU shader instructions
+<rect class="hit" x="307.1" y="234" width="11.7" height="150"><title>2026-10-07 · Decoded shader forms
 Implemented 1,131 of 1,166 declared (97.0%)</title></rect>
-<rect class="hit" x="369.1" y="234" width="13.9" height="150"><title>2026-10-08 · GPU shader instructions
+<rect class="hit" x="318.8" y="234" width="11.7" height="150"><title>2026-10-08 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="383.0" y="234" width="13.9" height="150"><title>2026-10-09 · GPU shader instructions
+<rect class="hit" x="330.4" y="234" width="11.7" height="150"><title>2026-10-09 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="396.9" y="234" width="13.9" height="150"><title>2026-10-10 · GPU shader instructions
+<rect class="hit" x="342.1" y="234" width="11.7" height="150"><title>2026-10-10 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="410.8" y="234" width="13.9" height="150"><title>2026-10-11 · GPU shader instructions
+<rect class="hit" x="353.8" y="234" width="11.7" height="150"><title>2026-10-11 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="424.7" y="234" width="13.9" height="150"><title>2026-10-12 · GPU shader instructions
+<rect class="hit" x="365.5" y="234" width="11.7" height="150"><title>2026-10-12 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="438.7" y="234" width="13.9" height="150"><title>2026-10-13 · GPU shader instructions
+<rect class="hit" x="377.2" y="234" width="11.7" height="150"><title>2026-10-13 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="452.6" y="234" width="13.9" height="150"><title>2026-10-14 · GPU shader instructions
+<rect class="hit" x="388.8" y="234" width="11.7" height="150"><title>2026-10-14 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="466.5" y="234" width="13.9" height="150"><title>2026-10-15 · GPU shader instructions
+<rect class="hit" x="400.5" y="234" width="11.7" height="150"><title>2026-10-15 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="480.4" y="234" width="13.9" height="150"><title>2026-10-16 · GPU shader instructions
+<rect class="hit" x="412.2" y="234" width="11.7" height="150"><title>2026-10-16 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="494.3" y="234" width="13.9" height="150"><title>2026-10-17 · GPU shader instructions
+<rect class="hit" x="423.9" y="234" width="11.7" height="150"><title>2026-10-17 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="508.2" y="234" width="13.9" height="150"><title>2026-10-18 · GPU shader instructions
+<rect class="hit" x="435.6" y="234" width="11.7" height="150"><title>2026-10-18 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="522.1" y="234" width="13.9" height="150"><title>2026-10-19 · GPU shader instructions
+<rect class="hit" x="447.2" y="234" width="11.7" height="150"><title>2026-10-19 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="536.1" y="234" width="13.9" height="150"><title>2026-10-20 · GPU shader instructions
+<rect class="hit" x="458.9" y="234" width="11.7" height="150"><title>2026-10-20 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="550.0" y="234" width="13.9" height="150"><title>2026-10-21 · GPU shader instructions
+<rect class="hit" x="470.6" y="234" width="11.7" height="150"><title>2026-10-21 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="563.9" y="234" width="13.9" height="150"><title>2026-10-22 · GPU shader instructions
+<rect class="hit" x="482.3" y="234" width="11.7" height="150"><title>2026-10-22 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="577.8" y="234" width="13.9" height="150"><title>2026-10-23 · GPU shader instructions
+<rect class="hit" x="493.9" y="234" width="11.7" height="150"><title>2026-10-23 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="591.7" y="234" width="13.9" height="150"><title>2026-10-24 · GPU shader instructions
+<rect class="hit" x="505.6" y="234" width="11.7" height="150"><title>2026-10-24 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="605.6" y="234" width="13.9" height="150"><title>2026-10-25 · GPU shader instructions
+<rect class="hit" x="517.3" y="234" width="11.7" height="150"><title>2026-10-25 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="619.6" y="234" width="13.9" height="150"><title>2026-10-26 · GPU shader instructions
+<rect class="hit" x="529.0" y="234" width="11.7" height="150"><title>2026-10-26 · Decoded shader forms
 Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="633.5" y="234" width="13.9" height="150"><title>2026-10-27 · GPU shader instructions
-Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="647.4" y="234" width="20.9" height="150"><title>2026-10-28 · GPU shader instructions
-Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="668.3" y="234" width="20.9" height="150"><title>2026-10-30 · GPU shader instructions
-Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="689.1" y="234" width="13.9" height="150"><title>2026-10-31 · GPU shader instructions
-Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<rect class="hit" x="703.0" y="234" width="7.0" height="150"><title>2026-11-01 · GPU shader instructions
-Implemented 1,166 of 1,166 declared (100.0%)</title></rect>
-<text class="x" x="139.5" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Sep 21</text>
-<text class="x" x="236.9" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Sep 28</text>
-<text class="x" x="334.3" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Oct 5</text>
-<text class="x" x="431.7" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Oct 12</text>
-<text class="x" x="529.1" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Oct 19</text>
-<text class="x" x="626.5" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Oct 26</text>
+<rect class="hit" x="540.7" y="234" width="11.7" height="150"><title>2026-10-27 · Decoded shader forms
+Implemented 1,460 of 1,460 declared (100.0%)</title></rect>
+<rect class="hit" x="552.3" y="234" width="17.5" height="150"><title>2026-10-28 · Decoded shader forms
+Implemented 1,460 of 1,460 declared (100.0%)</title></rect>
+<rect class="hit" x="569.9" y="234" width="17.5" height="150"><title>2026-10-30 · Decoded shader forms
+Implemented 1,460 of 1,460 declared (100.0%)</title></rect>
+<rect class="hit" x="587.4" y="234" width="11.7" height="150"><title>2026-10-31 · Decoded shader forms
+Implemented 1,460 of 1,460 declared (100.0%)</title></rect>
+<rect class="hit" x="599.1" y="234" width="11.7" height="150"><title>2026-11-01 · Decoded shader forms
+Implemented 1,460 of 1,460 declared (100.0%)</title></rect>
+<rect class="hit" x="610.7" y="234" width="52.6" height="150"><title>2026-11-02 · Decoded shader forms
+Implemented 1,460 of 1,460 declared (100.0%)</title></rect>
+<rect class="hit" x="663.3" y="234" width="46.7" height="150"><title>2026-11-10 · Decoded shader forms
+Implemented 1,460 of 1,460 declared (100.0%)</title></rect>
+<text class="x" x="126.1" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Sep 21</text>
+<text class="x" x="207.8" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Sep 28</text>
+<text class="x" x="289.6" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Oct 5</text>
+<text class="x" x="371.3" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Oct 12</text>
+<text class="x" x="453.1" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Oct 19</text>
+<text class="x" x="534.8" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Oct 26</text>
+<text class="x" x="616.6" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Nov 2</text>
+<text class="x" x="698.3" y="402" text-anchor="middle" font-size="11" fill="#8b949e">Nov 9</text>
+<style>.history-theme,svg[role="img"]{color-scheme:light dark;--history-background:#fff;--history-grid:#d0d7de;--history-text:#1f2328;--history-muted:#59636e;--history-link:#0969da;--history-visited:#8250df;--history-hit:#000}@media(prefers-color-scheme:dark){.history-theme,svg[role="img"]{--history-background:#0d1117;--history-grid:#30363d;--history-text:#c9d1d9;--history-muted:#8b949e;--history-link:#58a6ff;--history-visited:#bc8cff;--history-hit:#fff}}svg[role="img"]{fill:var(--history-text)}svg[role="img"] [fill="#0d1117"]{fill:var(--history-background)}svg[role="img"] [fill="#c9d1d9"]{fill:var(--history-text)}svg[role="img"] [fill="#8b949e"]{fill:var(--history-muted)}svg[role="img"] [stroke="#30363d"]{stroke:var(--history-grid)}svg[role="img"] [stroke="#8b949e"]{stroke:var(--history-muted)}svg[role="img"] .hit{fill:var(--history-hit)}</style>
 </svg>
-<p>Each panel has its own scale: the solid line is what is implemented, the dashed line what is declared. Library functions are declared in the <code>prx</code> sources; the shader total is the AMD RDNA 1 + RDNA 2 instruction list (<a href="https://github.com/zarko379/AnyPS5/blob/main/tools/rdna_isa.txt">tools/rdna_isa.txt</a>). One point per UTC day with commits on <code>main</code>, taken at the last commit of the day. Every point is measured with the current <a href="https://github.com/zarko379/AnyPS5/blob/main/tools/progress.py">tools/progress.py</a> rules and instruction list, so the series is comparable across days. Hover a day for the exact numbers. Raw numbers: <a href="history.json">history.json</a>. <a href="progress.html">Back to the current progress</a>.</p>
-<table><tr><th>Date</th><th>System library functions</th><th>%</th><th>GPU shader instructions</th><th>%</th></tr>
-<tr><td>2026-11-01</td><td>6587/13449</td><td>48.98%</td><td>1166/1166</td><td>100.0%</td></tr>
-<tr><td>2026-10-31</td><td>6576/13449</td><td>48.9%</td><td>1166/1166</td><td>100.0%</td></tr>
-<tr><td>2026-10-30</td><td>6573/13449</td><td>48.87%</td><td>1166/1166</td><td>100.0%</td></tr>
-<tr><td>2026-10-28</td><td>6568/13449</td><td>48.84%</td><td>1166/1166</td><td>100.0%</td></tr>
-<tr><td>2026-10-27</td><td>6568/13449</td><td>48.84%</td><td>1166/1166</td><td>100.0%</td></tr>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 214" role="img" aria-label="System library functions implemented per day" font-family="sans-serif" font-size="12" fill="#c9d1d9">
+<rect width="900" height="214" rx="6" fill="#0d1117"/>
+<text x="56" y="22" font-size="13" font-weight="bold">System library functions implemented per day</text>
+<line x1="56" x2="710" y1="180.9" y2="180.9" stroke="#30363d"/><text x="50" y="184.9" text-anchor="end" fill="#8b949e">0</text>
+<line x1="56" x2="710" y1="144.2" y2="144.2" stroke="#30363d"/><text x="50" y="148.2" text-anchor="end" fill="#8b949e">2,000</text>
+<line x1="56" x2="710" y1="107.5" y2="107.5" stroke="#30363d"/><text x="50" y="111.5" text-anchor="end" fill="#8b949e">4,000</text>
+<line x1="56" x2="710" y1="70.7" y2="70.7" stroke="#30363d"/><text x="50" y="74.7" text-anchor="end" fill="#8b949e">6,000</text>
+<line x1="56" x2="710" y1="34.0" y2="34.0" stroke="#30363d"/><text x="50" y="38.0" text-anchor="end" fill="#8b949e">8,000</text>
+<rect x="58.0" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-16: +0 implemented</title></rect>
+<rect x="71.7" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-17: +0 implemented</title></rect>
+<rect x="85.3" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-18: +0 implemented</title></rect>
+<rect x="98.9" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-19: +0 implemented</title></rect>
+<rect x="112.5" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-20: +0 implemented</title></rect>
+<rect x="126.2" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-21: +0 implemented</title></rect>
+<text x="130.9" y="202" text-anchor="middle" font-size="11" fill="#8b949e">Sep 21</text>
+<rect x="139.8" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-22: +2 implemented</title></rect>
+<rect x="153.4" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-23: +1 implemented</title></rect>
+<rect x="167.0" y="180.1" width="9.5" height="0.8" fill="#2f81f7"><title>2026-09-24: +45 implemented</title></rect>
+<rect x="180.7" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-09-25: +0 implemented</title></rect>
+<rect x="194.3" y="178.2" width="9.5" height="2.8" fill="#2f81f7"><title>2026-09-26: +150 implemented</title></rect>
+<rect x="207.9" y="168.3" width="9.5" height="12.6" fill="#2f81f7"><title>2026-09-27: +686 implemented</title></rect>
+<rect x="221.5" y="170.4" width="9.5" height="10.5" fill="#2f81f7"><title>2026-09-28: +574 implemented</title></rect>
+<text x="226.3" y="202" text-anchor="middle" font-size="11" fill="#8b949e">Sep 28</text>
+<rect x="235.2" y="179.2" width="9.5" height="1.7" fill="#2f81f7"><title>2026-09-29: +93 implemented</title></rect>
+<rect x="248.8" y="178.0" width="9.5" height="3.0" fill="#2f81f7"><title>2026-09-30: +161 implemented</title></rect>
+<rect x="262.4" y="179.8" width="9.5" height="1.2" fill="#2f81f7"><title>2026-10-01: +64 implemented</title></rect>
+<rect x="276.0" y="178.8" width="9.5" height="2.1" fill="#2f81f7"><title>2026-10-02: +114 implemented</title></rect>
+<rect x="289.7" y="180.7" width="9.5" height="0.2" fill="#2f81f7"><title>2026-10-03: +10 implemented</title></rect>
+<rect x="303.3" y="179.6" width="9.5" height="1.3" fill="#2f81f7"><title>2026-10-04: +73 implemented</title></rect>
+<rect x="316.9" y="178.8" width="9.5" height="2.1" fill="#2f81f7"><title>2026-10-05: +114 implemented</title></rect>
+<text x="321.7" y="202" text-anchor="middle" font-size="11" fill="#8b949e">Oct 5</text>
+<rect x="330.5" y="180.9" width="9.5" height="3.1" fill="#2f81f7"><title>2026-10-06: -167 implemented</title></rect>
+<rect x="344.2" y="180.6" width="9.5" height="0.4" fill="#2f81f7"><title>2026-10-07: +20 implemented</title></rect>
+<rect x="357.8" y="180.0" width="9.5" height="0.9" fill="#2f81f7"><title>2026-10-08: +49 implemented</title></rect>
+<rect x="371.4" y="179.1" width="9.5" height="1.9" fill="#2f81f7"><title>2026-10-09: +102 implemented</title></rect>
+<rect x="385.0" y="179.1" width="9.5" height="1.9" fill="#2f81f7"><title>2026-10-10: +101 implemented</title></rect>
+<rect x="398.7" y="176.7" width="9.5" height="4.2" fill="#2f81f7"><title>2026-10-11: +229 implemented</title></rect>
+<rect x="412.3" y="178.3" width="9.5" height="2.7" fill="#2f81f7"><title>2026-10-12: +145 implemented</title></rect>
+<text x="417.1" y="202" text-anchor="middle" font-size="11" fill="#8b949e">Oct 12</text>
+<rect x="425.9" y="179.4" width="9.5" height="1.6" fill="#2f81f7"><title>2026-10-13: +86 implemented</title></rect>
+<rect x="439.5" y="180.0" width="9.5" height="0.9" fill="#2f81f7"><title>2026-10-14: +49 implemented</title></rect>
+<rect x="453.2" y="180.5" width="9.5" height="0.4" fill="#2f81f7"><title>2026-10-15: +22 implemented</title></rect>
+<rect x="466.8" y="180.5" width="9.5" height="0.4" fill="#2f81f7"><title>2026-10-16: +24 implemented</title></rect>
+<rect x="480.4" y="180.0" width="9.5" height="1.0" fill="#2f81f7"><title>2026-10-17: +52 implemented</title></rect>
+<rect x="494.0" y="175.1" width="9.5" height="5.8" fill="#2f81f7"><title>2026-10-18: +315 implemented</title></rect>
+<rect x="507.7" y="171.8" width="9.5" height="9.1" fill="#2f81f7"><title>2026-10-19: +498 implemented</title></rect>
+<text x="512.4" y="202" text-anchor="middle" font-size="11" fill="#8b949e">Oct 19</text>
+<rect x="521.3" y="178.3" width="9.5" height="2.6" fill="#2f81f7"><title>2026-10-20: +144 implemented</title></rect>
+<rect x="534.9" y="174.6" width="9.5" height="6.3" fill="#2f81f7"><title>2026-10-21: +345 implemented</title></rect>
+<rect x="548.5" y="175.8" width="9.5" height="5.1" fill="#2f81f7"><title>2026-10-22: +280 implemented</title></rect>
+<rect x="562.2" y="166.7" width="9.5" height="14.2" fill="#2f81f7"><title>2026-10-23: +773 implemented</title></rect>
+<rect x="575.8" y="176.0" width="9.5" height="5.0" fill="#2f81f7"><title>2026-10-24: +271 implemented</title></rect>
+<rect x="589.4" y="177.5" width="9.5" height="3.5" fill="#2f81f7"><title>2026-10-25: +188 implemented</title></rect>
+<rect x="603.0" y="175.6" width="9.5" height="5.3" fill="#2f81f7"><title>2026-10-26: +291 implemented</title></rect>
+<text x="607.8" y="202" text-anchor="middle" font-size="11" fill="#8b949e">Oct 26</text>
+<rect x="616.7" y="179.1" width="9.5" height="1.9" fill="#2f81f7"><title>2026-10-27: +101 implemented</title></rect>
+<rect x="630.3" y="180.9" width="9.5" height="0.0" fill="#2f81f7"><title>2026-10-28: +0 implemented</title></rect>
+<rect x="643.9" y="180.8" width="9.5" height="0.1" fill="#2f81f7"><title>2026-10-30: +5 implemented</title></rect>
+<rect x="657.5" y="180.9" width="9.5" height="0.1" fill="#2f81f7"><title>2026-10-31: +3 implemented</title></rect>
+<rect x="671.2" y="180.7" width="9.5" height="0.2" fill="#2f81f7"><title>2026-11-01: +11 implemented</title></rect>
+<rect x="684.8" y="180.8" width="9.5" height="0.1" fill="#2f81f7"><title>2026-11-02: +6 implemented</title></rect>
+<text x="689.6" y="202" text-anchor="middle" font-size="11" fill="#8b949e">Nov 2</text>
+<rect x="698.4" y="47.2" width="9.5" height="133.7" fill="#2f81f7"><title>2026-11-10: +7,282 implemented</title></rect>
+<text x="718" y="50" fill="#c9d1d9" font-weight="bold">Last 7 days +7,282</text><text x="718" y="68" fill="#8b949e">Last day +7,282</text>
+<style>.history-theme,svg[role="img"]{color-scheme:light dark;--history-background:#fff;--history-grid:#d0d7de;--history-text:#1f2328;--history-muted:#59636e;--history-link:#0969da;--history-visited:#8250df;--history-hit:#000}@media(prefers-color-scheme:dark){.history-theme,svg[role="img"]{--history-background:#0d1117;--history-grid:#30363d;--history-text:#c9d1d9;--history-muted:#8b949e;--history-link:#58a6ff;--history-visited:#bc8cff;--history-hit:#fff}}svg[role="img"]{fill:var(--history-text)}svg[role="img"] [fill="#0d1117"]{fill:var(--history-background)}svg[role="img"] [fill="#c9d1d9"]{fill:var(--history-text)}svg[role="img"] [fill="#8b949e"]{fill:var(--history-muted)}svg[role="img"] [stroke="#30363d"]{stroke:var(--history-grid)}svg[role="img"] [stroke="#8b949e"]{stroke:var(--history-muted)}svg[role="img"] .hit{fill:var(--history-hit)}</style>
+</svg>
+<p>Each panel has its own scale: the solid line is what is implemented, the dashed line what is declared. Library functions are declared in the <code>prx</code> sources. Shader history keeps the metrics separate: "Decoded shader forms" counts the AMD RDNA 2 instruction forms decoded by the current scanner (<a href="https://github.com/zarko379/AnyPS5/blob/main/tools/rdna2_isa_forms.txt">tools/rdna2_isa_forms.txt</a>); "Legacy shader opcode names" counts the archived decoder opcode table against the current AMD RDNA 1 + RDNA 2 instruction list (<a href="https://github.com/zarko379/AnyPS5/blob/main/tools/rdna_isa.txt">tools/rdna_isa.txt</a>) and is used only when the current scanner cannot read the archived source. Their totals differ, so compare points only within the same shader panel. One point per UTC day with commits on <code>main</code>, taken at the last commit of the day. Every point is measured with the current <a href="https://github.com/zarko379/AnyPS5/blob/main/tools/progress.py">tools/progress.py</a> and <a href="https://github.com/zarko379/AnyPS5/blob/main/tools/shader_scan.py">tools/shader_scan.py</a> rules, so points within each series are comparable across days. The bars are the change in implemented library functions from one point to the next. Hover a day for the exact numbers. <a href="history.json">history.json</a> records the shader metric for each point. <a href="progress.html">Back to the current progress</a>.</p>
+<table><tr><th>Date</th><th>System library functions</th><th>%</th><th>Decoded shader forms</th><th>%</th></tr>
+<tr><td>2026-11-10</td><td>13881/38649</td><td>35.92%</td><td>1460/1460</td><td>100.0%</td></tr>
+<tr><td>2026-11-02</td><td>6599/13455</td><td>49.04%</td><td>1460/1460</td><td>100.0%</td></tr>
+<tr><td>2026-11-01</td><td>6593/13455</td><td>49.0%</td><td>1460/1460</td><td>100.0%</td></tr>
+<tr><td>2026-10-31</td><td>6582/13455</td><td>48.92%</td><td>1460/1460</td><td>100.0%</td></tr>
+<tr><td>2026-10-30</td><td>6579/13455</td><td>48.9%</td><td>1460/1460</td><td>100.0%</td></tr>
+<tr><td>2026-10-28</td><td>6574/13455</td><td>48.86%</td><td>1460/1460</td><td>100.0%</td></tr>
+<tr><td>2026-10-27</td><td>6574/13455</td><td>48.86%</td><td>1460/1460</td><td>100.0%</td></tr>
 <tr><td>2026-10-26</td><td>6473/13004</td><td>49.78%</td><td>1166/1166</td><td>100.0%</td></tr>
 <tr><td>2026-10-25</td><td>6182/12683</td><td>48.74%</td><td>1166/1166</td><td>100.0%</td></tr>
 <tr><td>2026-10-24</td><td>5994/12650</td><td>47.38%</td><td>1166/1166</td><td>100.0%</td></tr>
