@@ -167,6 +167,61 @@ void CaseConversion() {
     Require(mixed == "ABCD-ZZ [\\]^_` @09\tI-I", "uppercase traverses complete strings");
 }
 
+int FoldedByte(unsigned char value) {
+    return value >= 'A' && value <= 'Z' ? value + 32 : value;
+}
+
+void CharacterHelpers() {
+    for (int value = 0; value <= 255; ++value) {
+        const char input = static_cast<char>(value);
+        const bool letter = (value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z');
+        Require(uprv_isASCIILetter_nid_postfix(input) == (letter ? 1 : 0), "only ASCII letters are letters");
+        Require(uprv_toupper_nid_postfix(input) == (value >= 'a' && value <= 'z' ? static_cast<char>(value - 32) : input), "only ASCII lowercase letters become uppercase");
+        Require(uprv_asciitolower_nid_postfix(input) == (value >= 'A' && value <= 'Z' ? static_cast<char>(value + 32) : input), "only ASCII uppercase letters become lowercase");
+        const bool ebcdicUpper = (value >= 0xc1 && value <= 0xc9) || (value >= 0xd1 && value <= 0xd9) || (value >= 0xe2 && value <= 0xe9);
+        Require(uprv_ebcdictolower_nid_postfix(input) == (ebcdicUpper ? static_cast<char>(value - 0x40) : input), "only EBCDIC uppercase letters become lowercase");
+    }
+    Require(uprv_ebcdictolower_nid_postfix(static_cast<char>(0xc1)) == static_cast<char>(0x81), "EBCDIC A becomes a");
+    Require(uprv_ebcdictolower_nid_postfix(static_cast<char>(0xe9)) == static_cast<char>(0xa9), "EBCDIC Z becomes z");
+    Require(uprv_ebcdictolower_nid_postfix(static_cast<char>(0xe1)) == static_cast<char>(0xe1), "EBCDIC gap before S is kept");
+    Require(uprv_ebcdictolower_nid_postfix(static_cast<char>(0xd0)) == static_cast<char>(0xd0), "EBCDIC gap before J is kept");
+    Require(uprv_ebcdictolower_nid_postfix(static_cast<char>(0x81)) == static_cast<char>(0x81), "EBCDIC lowercase is kept");
+    Require(uprv_isASCIILetter_nid_postfix(static_cast<char>(0xc1)) == 0, "EBCDIC letters are not ASCII letters");
+}
+
+void CaselessComparison() {
+    Require(uprv_stricmp_nid_postfix(nullptr, nullptr) == 0, "two null strings are equal");
+    Require(uprv_stricmp_nid_postfix(nullptr, "a") == -1, "a null first string is smaller");
+    Require(uprv_stricmp_nid_postfix("a", nullptr) == 1, "a null second string is larger");
+    Require(uprv_strnicmp_nid_postfix(nullptr, nullptr, 5) == 0, "two null prefixes are equal");
+    Require(uprv_strnicmp_nid_postfix(nullptr, "a", 0) == -1, "nulls are checked before the count");
+    Require(uprv_strnicmp_nid_postfix("a", nullptr, 0) == 1, "nulls are checked before the count");
+    for (int first = 1; first <= 255; ++first) {
+        for (int second = 1; second <= 255; ++second) {
+            const char left[] = {static_cast<char>(first), 'x', 0};
+            const char right[] = {static_cast<char>(second), 'y', 0};
+            const int expected = FoldedByte(static_cast<unsigned char>(first)) - FoldedByte(static_cast<unsigned char>(second));
+            Require(uprv_stricmp_nid_postfix(left, right) == (expected != 0 ? expected : 'x' - 'y'), "bytes compare unsigned after ASCII lowercasing");
+            Require(uprv_strnicmp_nid_postfix(left, right, 1) == expected, "a one-byte prefix compares the first byte");
+        }
+    }
+    Require(uprv_stricmp_nid_postfix("HeLLo", "hEllO") == 0, "ASCII case is ignored");
+    Require(uprv_stricmp_nid_postfix("", "") == 0, "empty strings are equal");
+    Require(uprv_stricmp_nid_postfix("ab", "ABC") == -1, "a shorter first string returns -1");
+    Require(uprv_stricmp_nid_postfix("ABC", "ab") == 1, "a shorter second string returns 1");
+    Require(uprv_stricmp_nid_postfix("", "\xff") == -1, "an empty first string returns -1 whatever follows");
+    Require(uprv_stricmp_nid_postfix("A", "[") == 'a' - '[', "uppercase letters compare as lowercase");
+    Require(uprv_stricmp_nid_postfix("\xc1", "\x81") == 0xc1 - 0x81, "EBCDIC letters are not folded");
+    Require(uprv_stricmp_nid_postfix("\xe9", "a") == 0xe9 - 'a', "high bytes compare as unsigned");
+    Require(uprv_strnicmp_nid_postfix("abX", "ABy", 0) == 0, "a zero count compares nothing");
+    Require(uprv_strnicmp_nid_postfix("abX", "ABy", 2) == 0, "differences after the count are ignored");
+    Require(uprv_strnicmp_nid_postfix("abX", "ABy", 3) == 'x' - 'y', "the last counted byte is compared");
+    Require(uprv_strnicmp_nid_postfix("ab", "ABC", 3) == -1, "a terminator inside the count returns -1");
+    Require(uprv_strnicmp_nid_postfix("abc", "AB", 3) == 1, "a terminator inside the count returns 1");
+    Require(uprv_strnicmp_nid_postfix("ab", "AB", std::numeric_limits<std::uint32_t>::max()) == 0, "equal strings stop at the terminator");
+    Require(uprv_strnicmp_nid_postfix("ab", "AC", std::numeric_limits<std::uint32_t>::max()) == 'b' - 'c', "the largest count acts as unlimited");
+}
+
 }
 
 int main() {
@@ -174,4 +229,6 @@ int main() {
     InvalidFormatting();
     Parsing();
     CaseConversion();
+    CharacterHelpers();
+    CaselessComparison();
 }
