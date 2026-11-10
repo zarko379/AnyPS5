@@ -62,12 +62,12 @@ int APS5_VABI cpuset_getaffinity_nid_postfix(int level, int which, std::int64_t 
     KernelCpumask affinity = 0;
     switch (which) {
     case WhichThread: {
-        const auto tid = id == -1 ? self->tid : id;
+        const std::int64_t tid = id == -1 ? self->tid : static_cast<std::int32_t>(id);
         if (!GetLiveGuestThreadAffinity_nid_no_patch(tid, affinity)) return fail(GuestEsrch);
         break;
     }
     case WhichProcess:
-        if (id != -1 && id != getpid_nid_postfix()) return fail(GuestEsrch);
+        if (id != -1 && static_cast<std::int32_t>(id) != getpid_nid_postfix()) return fail(GuestEsrch);
         break;
     case WhichCpuset:
         if (id != -1) NotImplemented_nid_no_patch("cpuset_getaffinity of a numbered cpuset");
@@ -121,16 +121,21 @@ int APS5_VABI cpuset_setaffinity_nid_postfix(int level, int which, std::int64_t 
         if (buffer[index] != 0) return fail(GuestEinval);
     }
     auto* self = scePthreadSelf();
-    const auto threadExists = [&] { return id == -1 || id == self->tid || LiveGuestThreadExists(id); };
+    const std::int32_t lwpid = static_cast<std::int32_t>(id);
+    const auto threadExists = [&](bool byLwpid) {
+        if (byLwpid ? lwpid == -1 : id == -1) return true;
+        return lwpid == self->tid || LiveGuestThreadExists(lwpid);
+    };
+    const auto processExists = [&](bool byPid) { return (byPid ? lwpid == -1 : id == -1) || lwpid == getpid_nid_postfix(); };
     switch (level) {
     case LevelRoot:
     case LevelCpuset:
         switch (which) {
         case WhichThread:
-            if (!threadExists()) return fail(GuestEsrch);
+            if (!threadExists(false)) return fail(GuestEsrch);
             break;
         case WhichProcess:
-            if (id != -1 && id != getpid_nid_postfix()) return fail(GuestEsrch);
+            if (!processExists(false)) return fail(GuestEsrch);
             break;
         case WhichCpuset:
             if (id != -1) NotImplemented_nid_no_patch("cpuset_setaffinity of a numbered cpuset");
@@ -152,10 +157,10 @@ int APS5_VABI cpuset_setaffinity_nid_postfix(int level, int which, std::int64_t 
     }
     switch (which) {
     case WhichThread:
-        if (!threadExists()) return fail(GuestEsrch);
+        if (!threadExists(true)) return fail(GuestEsrch);
         break;
     case WhichProcess:
-        if (id != -1 && id != getpid_nid_postfix()) return fail(GuestEsrch);
+        if (!processExists(true)) return fail(GuestEsrch);
         break;
     case WhichCpuset:
         NotImplemented_nid_no_patch(id == -1 ? "cpuset_setaffinity of the calling thread's base cpuset" : "cpuset_setaffinity of a numbered cpuset");
@@ -176,7 +181,7 @@ int APS5_VABI cpuset_setaffinity_nid_postfix(int level, int which, std::int64_t 
     const KernelCpumask affinity = requested & sceKernelGetAvailableCpumask();
     if (affinity == 0) return fail(GuestEdeadlk);
     if (which == WhichThread) {
-        const auto tid = id == -1 ? self->tid : id;
+        const std::int64_t tid = lwpid == -1 ? self->tid : lwpid;
         if (!SetLiveGuestThreadAffinity_nid_no_patch(tid, affinity)) return fail(GuestEsrch);
     } else SetLiveGuestThreadsAffinity(affinity);
     return 0;

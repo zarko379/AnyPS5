@@ -98,7 +98,7 @@ int APS5_VABI cpuset_getid_nid_postfix(int level, int which, std::int64_t id, in
     }
     int resultId = 0;
     if (which == WhichProcess || which == WhichThread) {
-        if (which == WhichProcess && id != -1 && id != getpid_nid_postfix()) {
+        if (which == WhichProcess && id != -1 && static_cast<std::int32_t>(id) != getpid_nid_postfix()) {
             return Fail(GuestEsrch);
         }
         if (which == WhichThread && id != -1 && static_cast<std::int32_t>(id) != pthread_getthreadid_np_nid_postfix() && !LiveGuestThreadExists(static_cast<std::int32_t>(id))) {

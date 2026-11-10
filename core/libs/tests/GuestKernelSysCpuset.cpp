@@ -88,6 +88,11 @@ int main() {
     Require(cpuset_getid_nid_postfix(LevelCpuset, WhichProcess, 4294967296LL, &outOfRangeSet) == -1 && Error() == Esrch && outOfRangeSet == 0x1234);
     Require(cpuset_getid_nid_postfix(LevelRoot, WhichProcess, 4294967296LL, &outOfRangeSet) == -1 && Error() == Esrch && outOfRangeSet == 0x1234);
     Require(cpuset_getid_nid_postfix(LevelCpuset, WhichProcess, -4294967296LL, &outOfRangeSet) == -1 && Error() == Esrch && outOfRangeSet == 0x1234);
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichProcess, 0xffffffffLL, &outOfRangeSet) == -1 && Error() == Esrch && outOfRangeSet == 0x1234);
+    int highPidSet = -1;
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichProcess, std::int64_t{getpid_nid_postfix()} + 4294967296LL, &highPidSet) == 0);
+    int lowPidSet = -2;
+    Require(cpuset_getid_nid_postfix(LevelCpuset, WhichProcess, -1, &lowPidSet) == 0 && highPidSet == lowPidSet);
 
     Require(cpuset_getid_nid_postfix(LevelRoot, WhichProcess, -1, &setid) == 0);
     Require(setid == 0);
