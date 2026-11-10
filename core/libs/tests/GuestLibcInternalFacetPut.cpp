@@ -344,6 +344,51 @@ void CheckLibcNumPut() {
     facet->vtable->deleteObject(facet);
 }
 
+template<typename TValue>
+std::string DoPut(const char* nid, const GuestLocale::Facet* facet, std::int32_t flags, std::int32_t width, TValue value) {
+    GuestLocale::IosBase ios{};
+    ios.flags = flags;
+    ios.precision = 6;
+    ios.width = width;
+    ios.locale = &_ZSt21_sceLibcClassicLocale_nid_postfix;
+    auto stream = MakeStream(64);
+    g_call = Call{-1, nullptr, nullptr, false, nullptr, '\0', 0, 0, nullptr};
+    const GuestLocale::OutputIterator out = Export<NumPutExport<TValue>>(nid)(facet, GuestLocale::OutputIterator{false, &stream.buffer}, &ios, '*', value);
+    Require(!out.failed && out.buffer == &stream.buffer && ios.width == 0, "num_put<char>::do_put writes the field and resets the width");
+    return stream.accepted;
+}
+
+void CheckBaseDoPut() {
+    GuestLocale::Facet facet{&g_recordingNumPut.facet, 1, 0};
+    Require(DoPut<std::int64_t>("I3+xmBWGPGo", &facet, 0, 6, -42) == "***-42" && g_call.slot == -1, "do_put(long) formats without calling the facet's own slots");
+    Require(DoPut<std::int64_t>("I3+xmBWGPGo", &facet, 0x2c8, 8, 255) == "0X****FF", "do_put(long) honours the stream flags");
+    Require(DoPut<std::uint64_t>("nlAk46weq1w", &facet, 0, 0, std::numeric_limits<std::uint64_t>::max()) == "18446744073709551615" && g_call.slot == -1, "do_put(unsigned long) formats the value");
+    Require(DoPut<std::int64_t>("H2KGT3vA7yQ", &facet, 0x400, 0, 7) == "+7" && g_call.slot == -1, "do_put(long long) formats the value");
+    Require(DoPut<std::uint64_t>("Vbeoft607aI", &facet, 0x20, 0, 8) == "10" && g_call.slot == -1, "do_put(unsigned long long) formats the value");
+    Require(DoPut<double>("F+cp2B3cWNU", &facet, 0, 0, 0.125) == "0.125" && g_call.slot == -1, "do_put(double) formats the value");
+    Require(DoPut<long double>("rLiFc4+HyHw", &facet, 0x1000, 0, 0.5L) == "0.500000" && g_call.slot == -1, "do_put(long double) formats the value");
+    Require(DoPut<bool>("ke36E2bqNmI", &facet, 0x8000, 6, false) == "*false" && g_call.slot == -1, "do_put(bool) with boolalpha writes the false name");
+
+    int object = 0;
+    GuestLocale::Facet* libcFacet = nullptr;
+    const GuestLocale::Implementation* locale = _ZSt21_sceLibcClassicLocale_nid_postfix;
+    _ZNSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE7_GetcatEPPKNSt6locale5facetEPKS5__nid_postfix(&libcFacet, &locale);
+    const std::string pointer = DoPut<const void*>("8NVUcufbklM", libcFacet, 0, 0, &object);
+    Require(!pointer.empty() && DoPut<const void*>("0xgFRKf0Lc4", &facet, 0, 0, &object) == pointer && g_call.slot == -1, "do_put(const void*) formats as the libc facet does");
+    libcFacet->vtable->deleteObject(libcFacet);
+
+    GuestLocale::IosBase ios{};
+    ios.locale = &_ZSt21_sceLibcClassicLocale_nid_postfix;
+    auto stream = MakeStream(0);
+    g_call = Call{-1, nullptr, nullptr, false, nullptr, '\0', 0, 0, nullptr};
+    GuestLocale::OutputIterator out = Export<NumPutExport<bool>>("ke36E2bqNmI")(&facet, GuestLocale::OutputIterator{false, &stream.buffer}, &ios, '#', true);
+    Require(g_call.slot == 1 && g_call.integer == 1, "do_put(bool) without boolalpha calls the facet's own do_put(long) with 1");
+    Require(g_call.self == &facet && g_call.stream == &ios && g_call.fill == '#' && g_call.buffer == &stream.buffer && !g_call.failed, "do_put(bool) passes its arguments to do_put(long)");
+    Require(out.failed && out.buffer == &stream.buffer, "do_put(bool) returns what do_put(long) returns");
+    out = Export<NumPutExport<bool>>("ke36E2bqNmI")(&facet, GuestLocale::OutputIterator{true, &stream.buffer}, &ios, '#', false);
+    Require(g_call.slot == 1 && g_call.integer == 0 && g_call.failed && !out.failed, "do_put(bool) passes false as 0");
+}
+
 struct TimeCall {
     const GuestLocale::Facet* self;
     GuestLocale::IosBase* stream;
@@ -502,6 +547,7 @@ int main(int argc, char** argv) {
     CheckNumPutForwarding();
     CheckWideNumPutForwarding();
     CheckLibcNumPut();
+    CheckBaseDoPut();
     CheckTimePutForwarding();
     CheckPatternWalk();
     CheckStreamCtype();

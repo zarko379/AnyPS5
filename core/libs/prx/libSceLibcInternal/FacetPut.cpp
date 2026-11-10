@@ -1,8 +1,10 @@
+#include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/GuestLocale.hpp"
 #include "prx/libc/include/General.hpp"
 #include "SceTypes.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 
 namespace {
 
@@ -30,6 +32,16 @@ static_assert(offsetof(WideNumPutVtable, putUnsignedLongLong) == 0x40);
 static_assert(offsetof(WideNumPutVtable, putDouble) == 0x48);
 static_assert(offsetof(WideNumPutVtable, putLongDouble) == 0x50);
 static_assert(offsetof(WideNumPutVtable, putPointer) == 0x58);
+
+const GuestLocale::NumPutVtable& BaseNumPut() {
+    static const GuestLocale::NumPutVtable* const base = [] {
+        GuestLocale::Facet* facet = nullptr;
+        _ZNSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE7_GetcatEPPKNSt6locale5facetEPKS5__nid_postfix(&facet, nullptr);
+        if (facet == nullptr || facet->vtable == nullptr) throw std::runtime_error("num_put<char>::do_put: libc did not create its num_put<char> facet");
+        return reinterpret_cast<const GuestLocale::NumPutVtable*>(facet->vtable);
+    }();
+    return *base;
+}
 
 const WideNumPutVtable& WideNumPut(const GuestLocale::Facet* self) {
     return *reinterpret_cast<const WideNumPutVtable*>(self->vtable);
@@ -78,6 +90,46 @@ GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutUnsignedLongLong_nid_
     return NumPut(self).putUnsignedLongLong(self, out, stream, fill, value);
 }
 APS5_EXPORT("dep6W2Ix35s", sceLibcInternalNumPutUnsignedLongLong_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutDoPointer_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, const void* value) {
+    return BaseNumPut().putPointer(self, out, stream, fill, value);
+}
+APS5_EXPORT("0xgFRKf0Lc4", sceLibcInternalNumPutDoPointer_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutDoBool_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, bool value) {
+    return BaseNumPut().putBool(self, out, stream, fill, value);
+}
+APS5_EXPORT("ke36E2bqNmI", sceLibcInternalNumPutDoBool_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutDoDouble_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, double value) {
+    return BaseNumPut().putDouble(self, out, stream, fill, value);
+}
+APS5_EXPORT("F+cp2B3cWNU", sceLibcInternalNumPutDoDouble_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutDoLongDouble_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, long double value) {
+    return BaseNumPut().putLongDouble(self, out, stream, fill, value);
+}
+APS5_EXPORT("rLiFc4+HyHw", sceLibcInternalNumPutDoLongDouble_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutDoLong_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, std::int64_t value) {
+    return BaseNumPut().putLong(self, out, stream, fill, value);
+}
+APS5_EXPORT("I3+xmBWGPGo", sceLibcInternalNumPutDoLong_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutDoUnsignedLong_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, std::uint64_t value) {
+    return BaseNumPut().putUnsignedLong(self, out, stream, fill, value);
+}
+APS5_EXPORT("nlAk46weq1w", sceLibcInternalNumPutDoUnsignedLong_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutDoLongLong_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, std::int64_t value) {
+    return BaseNumPut().putLongLong(self, out, stream, fill, value);
+}
+APS5_EXPORT("H2KGT3vA7yQ", sceLibcInternalNumPutDoLongLong_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutDoUnsignedLongLong_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, std::uint64_t value) {
+    return BaseNumPut().putUnsignedLongLong(self, out, stream, fill, value);
+}
+APS5_EXPORT("Vbeoft607aI", sceLibcInternalNumPutDoUnsignedLongLong_nid_no_patch);
 
 GuestLocale::OutputIterator APS5_VABI sceLibcInternalWideNumPutPointer_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const void* value) {
     return WideNumPut(self).putPointer(self, out, stream, fill, value);
