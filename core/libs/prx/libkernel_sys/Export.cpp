@@ -944,23 +944,12 @@ int APS5_VABI swapon_nid_postfix(const char* name) {
 
 static int CreateSymlinkAt(const char* target, int dirfd, const char* created) {
     std::string targetCopy, createdCopy;
-    if (const int error = CopyPath(target, targetCopy)) return static_cast<int>(Fail(error));
+    if (const int error = CopyGuestPath_nid_no_patch(target, targetCopy)) return static_cast<int>(Fail(error));
+    target = targetCopy.c_str();
     if (const int error = CopyPath(created, createdCopy)) return static_cast<int>(Fail(error));
-    const std::filesystem::path contents(target);
-    if (contents.has_root_name() || contents.has_root_directory()) {
-        NotImplemented_nid_no_patch("symlink: absolute targets");
-        return -1;
-    }
+    if ((dirfd == GuestAtFdcwd || *created == '/') && HasLongComponent(created)) return static_cast<int>(Fail(GuestEnametoolong));
     std::filesystem::path native;
-    if (std::strlen(created) >= GuestPathMax || HasLongComponent(created)) return static_cast<int>(Fail(GuestEnametoolong));
-    if (dirfd == GuestAtFdcwd || *created == '/') {
-        if (const int error = ResolvePathError_nid_no_patch(created, native)) return static_cast<int>(Fail(error));
-    } else {
-        int error = 0;
-        const char* base = GetDirectoryDescriptorPath_nid_no_patch(dirfd, &error);
-        if (!base) return static_cast<int>(Fail(error));
-        native = std::filesystem::path(base) / std::filesystem::path(reinterpret_cast<const char8_t*>(created));
-    }
+    if (const int error = ResolveAtPath(dirfd, created, native)) return static_cast<int>(Fail(error));
     std::error_code error;
 #ifdef _WIN32
     if (GetFileAttributesW(native.wstring().c_str()) != INVALID_FILE_ATTRIBUTES) return static_cast<int>(Fail(GuestEexist));
@@ -968,6 +957,15 @@ static int CreateSymlinkAt(const char* target, int dirfd, const char* created) {
     if (std::filesystem::exists(std::filesystem::symlink_status(native, error))) return static_cast<int>(Fail(GuestEexist));
 #endif
     if (!std::filesystem::is_directory(native.parent_path(), error)) return static_cast<int>(Fail(HasNonDirectoryPrefix(native) ? GuestEnotdir : GuestEnoent));
+    if (targetCopy.empty()) {
+        NotImplemented_nid_no_patch("symlink: an empty target");
+        return -1;
+    }
+    const std::filesystem::path contents(target);
+    if (contents.has_root_name() || contents.has_root_directory()) {
+        NotImplemented_nid_no_patch("symlink: absolute targets");
+        return -1;
+    }
     if (std::any_of(contents.begin(), contents.end(), [](const std::filesystem::path& part) { return part == ".."; }) &&
         !HostFollowsGuestTarget(created, target, native)) {
         NotImplemented_nid_no_patch("symlink: a parent-directory target the host would not follow to the guest path it names");

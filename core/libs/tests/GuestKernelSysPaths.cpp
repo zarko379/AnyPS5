@@ -223,7 +223,14 @@ int main(int argc, char** argv) {
         Require(link(reinterpret_cast<const char*>(1), base, "missing") == -1 && *error() == 14);
         Require(link("data", base, reinterpret_cast<const char*>(1)) == -1 && *error() == 14);
         Require(link("data", base, nullptr) == -1 && *error() == 14);
-        Require(link("", base, "missing") == -1 && *error() == 2);
+        Require(link("", base, "missing/link") == -1 && *error() == 2);
+        Require(link("/abs", -1, "missing") == -1 && *error() == 9);
+        Require(link("data", -1, std::string(256, 'x').c_str()) == -1 && *error() == 9);
+        Require(link("data", file, std::string(256, 'x').c_str()) == -1 && *error() == 20);
+        Require(link("data", base, "") == -1 && *error() == 2);
+        Require(link("data", base, "missing/link") == -1 && *error() == 2);
+        Require(link("data", base, "data/link") == -1 && *error() == 20);
+        Require(link("/abs", base, "data") == -1 && *error() == 17);
         Require(link(std::string(1024, 'x').c_str(), -1, "missing") == -1 && *error() == 63);
         Require(link("data", base, std::string(256, 'x').c_str()) == -1 && *error() == 63);
     } else {

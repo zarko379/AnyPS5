@@ -362,6 +362,10 @@ void CheckUnreadablePaths(const std::string& renameSource, int directory) {
     posixFault([&] { return readlinkat_nid_postfix(directory, paths.Unreadable(), linkBuffer, sizeof(linkBuffer)); });
     posixFault([&] { return renameat_nid_postfix(directory, paths.Unreadable(), directory, "unused-rename"); });
     posixFault([&] { return renameat_nid_postfix(directory, "file.txt", directory, paths.Unreadable()); });
+    posixFault([&] { return symlinkat_nid_postfix(paths.Unreadable(), -1, "unused-symlink"); });
+    posixFault([&] { return symlinkat_nid_postfix(paths.Unreadable(), directory, "unused-symlink"); });
+    posixFault([&] { return symlinkat_nid_postfix("target", -1, paths.Unreadable()); });
+    posixFault([&] { return symlinkat_nid_postfix("target", directory, paths.Unreadable()); });
     *__error_nid_postfix() = 0;
     Require(renameat_nid_postfix(directory, "missing", directory, paths.Unreadable()) == -1 && Error() == 2);
     *__error_nid_postfix() = 0;
@@ -470,6 +474,74 @@ void CheckAtLookupOrder(const std::filesystem::path& root, const std::string& fi
     }
 #endif
     Require(std::filesystem::is_regular_file(file) && std::filesystem::hard_link_count(file) == 1 && !std::filesystem::exists(root / "renamed.txt"));
+}
+
+void CheckSymlinkat(const std::filesystem::path& root, int base) {
+    const auto longName = std::string(256, 'n');
+    const auto guestRoot = "/" + root.filename().string() + "/";
+    const auto tooLong = std::string(1024, 'p');
+    const int plain = sceKernelOpen((root / "file.txt").string().c_str(), SCE_KERNEL_O_RDONLY, 0);
+    Require(plain >= 0);
+    for (const int closed : {-1, 4321}) {
+        Require(symlinkat_nid_postfix("file.txt", closed, "link") == -1 && Error() == 9);
+        Require(symlinkat_nid_postfix("file.txt", closed, longName.c_str()) == -1 && Error() == 9);
+        Require(symlinkat_nid_postfix("/abs", closed, "link") == -1 && Error() == 9);
+        Require(symlinkat_nid_postfix("", closed, "link") == -1 && Error() == 9);
+        Require(symlinkat_nid_postfix("file.txt", closed, "") == -1 && Error() == 2);
+        Require(symlinkat_nid_postfix("file.txt", closed, nullptr) == -1 && Error() == 14);
+        Require(symlinkat_nid_postfix(nullptr, closed, "link") == -1 && Error() == 14);
+        Require(symlinkat_nid_postfix(tooLong.c_str(), closed, "link") == -1 && Error() == 63);
+        Require(symlinkat_nid_postfix(tooLong.c_str(), closed, nullptr) == -1 && Error() == 63);
+    }
+    Require(symlinkat_nid_postfix("file.txt", plain, "link") == -1 && Error() == 20);
+    Require(symlinkat_nid_postfix("../x", plain, longName.c_str()) == -1 && Error() == 20);
+    Require(sceKernelClose(plain) == 0);
+    Require(symlinkat_nid_postfix("file.txt", base, nullptr) == -1 && Error() == 14);
+    Require(symlinkat_nid_postfix("file.txt", base, "") == -1 && Error() == 2);
+    Require(symlinkat_nid_postfix("file.txt", base, longName.c_str()) == -1 && Error() == 63);
+    Require(symlinkat_nid_postfix("file.txt", base, tooLong.c_str()) == -1 && Error() == 63);
+    Require(symlinkat_nid_postfix("file.txt", -100, (root / longName).string().c_str()) == -1 && Error() == 63);
+    Require(symlinkat_nid_postfix("file.txt", base, "missing/link") == -1 && Error() == 2);
+    Require(symlinkat_nid_postfix("file.txt", base, "file.txt/link") == -1 && Error() == 20);
+    Require(symlinkat_nid_postfix("file.txt", base, "file.txt") == -1 && Error() == 17);
+    Require(symlinkat_nid_postfix("/abs", base, "file.txt") == -1 && Error() == 17);
+    Require(symlinkat_nid_postfix("", base, "missing/link") == -1 && Error() == 2);
+    Require(symlinkat_nid_postfix("/abs", base, "file.txt/link") == -1 && Error() == 20);
+    Require(symlinkat_nid_postfix("file.txt", -1, (guestRoot + "missing/link").c_str()) == -1 && Error() == 2);
+    Require(symlink_nid_postfix("/abs", (root / "missing" / "link").string().c_str()) == -1 && Error() == 2);
+    Require(symlink_nid_postfix("", (root / "missing" / "link").string().c_str()) == -1 && Error() == 2);
+    Require(symlink_nid_postfix("", (root / "file.txt").string().c_str()) == -1 && Error() == 17);
+    Require(ThrowsNaming([&] { symlinkat_nid_postfix("", base, "rejected"); }, "an empty target"));
+    Require(ThrowsNaming([&] { symlink_nid_postfix("", (root / "rejected").string().c_str()); }, "an empty target"));
+    Require(ThrowsNaming([&] { symlinkat_nid_postfix("/abs", base, "rejected"); }, "absolute targets"));
+    Require(ThrowsNaming([&] { symlinkat_nid_postfix("/abs", -1, (guestRoot + "rejected").c_str()); }, "absolute targets"));
+    Require(!std::filesystem::exists(std::filesystem::symlink_status(root / "rejected")));
+    const auto folder = root / "at-folder";
+    Require(std::filesystem::create_directory(folder));
+    { std::ofstream stream(folder / "inner.txt"); stream << "inner"; Require(stream.good()); }
+    const int inner = sceKernelOpen(folder.string().c_str(), SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0);
+    Require(inner >= 0);
+    const int made = symlinkat_nid_postfix("inner.txt", inner, "made-link");
+    if (made == 0) {
+        char buffer[16]{};
+        Require(readlinkat_nid_postfix(inner, "made-link", buffer, sizeof(buffer)) == 9 && std::memcmp(buffer, "inner.txt", 9) == 0);
+        Require(!std::filesystem::exists(std::filesystem::symlink_status(root / "made-link")));
+        std::ifstream stream(folder / "made-link");
+        std::string contents;
+        stream >> contents;
+        Require(contents == "inner");
+        Require(symlinkat_nid_postfix("inner.txt", inner, "made-link") == -1 && Error() == 17);
+        Require(symlinkat_nid_postfix("inner.txt", -1, (guestRoot + "at-folder/absolute-link").c_str()) == 0);
+        Require(symlinkat_nid_postfix("inner.txt", -100, (folder / "cwd-link").string().c_str()) == 0);
+        for (const char* name : {"made-link", "absolute-link", "cwd-link"}) {
+            Require(readlinkat_nid_postfix(inner, name, buffer, sizeof(buffer)) == 9);
+            Require(RemoveSymlink((folder / name).string()));
+        }
+    } else {
+        Require(made == -1 && Error() == 1);
+    }
+    Require(sceKernelClose(inner) == 0);
+    std::filesystem::remove_all(folder);
 }
 
 void CheckSymlinkTargetRestrictions(const std::filesystem::path& root) {
@@ -1876,6 +1948,7 @@ int main() {
     Require(base >= 0);
     CheckUnreadablePaths(file, base);
     CheckAtLookupOrder(root, file, base);
+    CheckSymlinkat(root, base);
     const int relative = openat_nid_postfix(base, "file.txt", SCE_KERNEL_O_RDONLY);
     char byte = 0;
     Require(relative >= 0 && sceKernelRead(relative, &byte, 1) == 1 && byte == 'x');
