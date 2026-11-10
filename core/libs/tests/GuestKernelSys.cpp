@@ -1,4 +1,5 @@
 #include "prx/libkernel_sys/include/Api.hpp"
+#include "prx/libkernel_sys/include/AdditionalExports.hpp"
 #include "prx/libkernel/include/Api.hpp"
 #include "prx/libSceNet/include/Net.hpp"
 #include "prx/libkernel/Apr/include/AprCommandBuffer.hpp"
@@ -1502,16 +1503,22 @@ static void CheckWaitWithoutChildren() {
     for (const int options : {0x40, 0x41, 0x80, 0x100, 0x40000000, static_cast<int>(0x80000040u), static_cast<int>(0xffffffffu)}) {
         expect([&](int* status, GuestResourceUsage* usage) { return wait4_nid_postfix(-1, status, options, usage); }, 22);
         expect([&](int* status, GuestResourceUsage* usage) { return wait4_nid_postfix(self, status, options, usage); }, 22);
+        expect([&](int* status, GuestResourceUsage* usage) { return _wait4_nid_postfix(-1, status, options, usage); }, 22);
+        expect([&](int* status, GuestResourceUsage* usage) { return _wait4_nid_postfix(self, status, options, usage); }, 22);
         expect([&](int* status, GuestResourceUsage* usage) { return wait3_nid_postfix(status, options, usage); }, 22);
     }
     for (const int pid : {-1, 0, 1, self, self + 1, -self, -(self + 1), std::numeric_limits<int>::min()}) {
-        for (const int options : {0, 1, 2, 4, 8, 16, 32, 0x3f, static_cast<int>(0x80000000u), static_cast<int>(0x80000001u), static_cast<int>(0x8000003fu)})
+        for (const int options : {0, 1, 2, 4, 8, 16, 32, 0x3f, static_cast<int>(0x80000000u), static_cast<int>(0x80000001u), static_cast<int>(0x8000003fu)}) {
             expect([&](int* status, GuestResourceUsage* usage) { return wait4_nid_postfix(pid, status, options, usage); }, 10);
+            expect([&](int* status, GuestResourceUsage* usage) { return _wait4_nid_postfix(pid, status, options, usage); }, 10);
+        }
     }
     for (const int options : {0, 1, 0x3f})
         expect([&](int* status, GuestResourceUsage* usage) { return wait3_nid_postfix(status, options, usage); }, 10);
     *__error_nid_postfix() = 0;
     Require(wait4_nid_postfix(-1, nullptr, 0, nullptr) == -1 && Error() == 10);
+    *__error_nid_postfix() = 0;
+    Require(_wait4_nid_postfix(-1, nullptr, 1, nullptr) == -1 && Error() == 10);
     *__error_nid_postfix() = 0;
     Require(wait3_nid_postfix(nullptr, 1, nullptr) == -1 && Error() == 10);
 }
