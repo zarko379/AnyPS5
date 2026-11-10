@@ -3,6 +3,8 @@
 #include "SceTypes.hpp"
 
 struct hb_buffer_t;
+struct hb_feature_t;
+struct hb_font_t;
 struct hb_glyph_info_t;
 struct hb_glyph_position_t;
 
@@ -22,6 +24,6 @@ void APS5_VABI hb_buffer_set_script_nid_postfix(hb_buffer_t* buffer, std::uint32
 int APS5_VABI hb_ft_face_create_cached_nid_postfix();
 int APS5_VABI hb_icu_script_to_script_nid_postfix();
 std::uint32_t APS5_VABI hb_ot_tag_to_script_nid_postfix(std::uint32_t tag);
-int APS5_VABI hb_shape_nid_postfix();
+void APS5_VABI hb_shape_nid_postfix(hb_font_t* font, hb_buffer_t* buffer, const hb_feature_t* features, unsigned count);
 
 }

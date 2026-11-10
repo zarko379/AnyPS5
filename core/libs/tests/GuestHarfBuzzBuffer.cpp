@@ -7,6 +7,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
+#include <fstream>
+#include <iterator>
 #include <random>
 #include <string_view>
 #include <vector>
@@ -244,12 +247,115 @@ static void Lifetime() {
     Require(resetPositions[0].x_advance == 0 && resetPositions[0].y_offset == 0);
 }
 
+static std::uint32_t BigEndian(const char* bytes, unsigned size) {
+    std::uint32_t value = 0;
+    for (unsigned index = 0; index < size; ++index) value = (value << 8) | static_cast<std::uint8_t>(bytes[index]);
+    return value;
+}
+
+static hb_blob_t* APS5_VABI GuestTable(hb_face_t*, std::uint32_t tag, void* opaque) {
+    const auto& bytes = *static_cast<const std::vector<char>*>(opaque);
+    const unsigned count = BigEndian(bytes.data() + 4, 2);
+    for (unsigned index = 0; index < count; ++index) {
+        const char* record = bytes.data() + 12 + 16 * index;
+        if (BigEndian(record, 4) != tag) continue;
+        return hb_blob_create_nid_postfix(bytes.data() + BigEndian(record + 8, 4), BigEndian(record + 12, 4), HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+    }
+    return hb_blob_create_nid_postfix(nullptr, 0, HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+}
+
+template <typename TFunction>
+static bool Throws(TFunction function) {
+    try {
+        function();
+    } catch (const std::exception&) {
+        return true;
+    }
+    return false;
+}
+
+struct ShapeFonts {
+    hb_font_t* guest;
+    hb_font_t* native;
+};
+
+static void ShapeCase(const ShapeFonts& fonts, const std::uint16_t* text, const hb_feature_t* features, unsigned count, unsigned expected) {
+    BufferPair pair;
+    pair.Add(text, -1, 0, -1);
+    pair.Guess();
+    hb_shape_nid_postfix(fonts.guest, pair.guest, features, count);
+    hb_shape(fonts.native, pair.native, features, count);
+    Require(hb_buffer_get_content_type(pair.guest) == HB_BUFFER_CONTENT_TYPE_GLYPHS);
+    Require(hb_buffer_get_length_nid_postfix(pair.guest) == expected);
+    pair.Compare(true);
+}
+
+static void Shape() {
+    std::ifstream file(HARFBUZZ_TEST_FONTS "/Roboto-Regular.gsub.fi.ttf", std::ios::binary);
+    Require(file.good());
+    const std::vector<char> bytes{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    Require(bytes.size() > 12);
+    auto* guestFace = hb_face_create_for_tables_nid_postfix(GuestTable, const_cast<std::vector<char>*>(&bytes), nullptr);
+    auto* nativeBlob = hb_blob_create(bytes.data(), static_cast<unsigned>(bytes.size()), HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+    auto* nativeFace = hb_face_create(nativeBlob, 0);
+    hb_blob_destroy(nativeBlob);
+    const ShapeFonts fonts{hb_font_create_nid_postfix(guestFace), hb_font_create(nativeFace)};
+    hb_face_destroy_nid_postfix(guestFace);
+    hb_face_destroy(nativeFace);
+    Require(fonts.guest && fonts.native);
+
+    const std::array<std::uint16_t, 5> text{'f', 'i', 'f', 'i', 0};
+    const auto liga = HB_TAG('l', 'i', 'g', 'a');
+    const std::array<hb_feature_t, 1> off{{{liga, 0, 0, 0xFFFFFFFFu}}};
+    const std::array<hb_feature_t, 1> range{{{liga, 0, 2, 4}}};
+    const std::array<hb_feature_t, 2> restored{{{liga, 0, 0, 0xFFFFFFFFu}, {liga, 1, 0, 2}}};
+    ShapeCase(fonts, text.data(), nullptr, 0, 2);
+    ShapeCase(fonts, text.data(), off.data(), 0, 2);
+    ShapeCase(fonts, text.data(), off.data(), 1, 4);
+    ShapeCase(fonts, text.data(), range.data(), 1, 3);
+    ShapeCase(fonts, text.data(), restored.data(), 2, 3);
+    const std::array<std::uint16_t, 4> mixed{'f', 0x05D0, 'i', 0};
+    ShapeCase(fonts, mixed.data(), nullptr, 0, 3);
+
+    BufferPair empty;
+    hb_shape_nid_postfix(nullptr, empty.guest, nullptr, 7);
+    hb_shape(nullptr, empty.native, nullptr, 7);
+    Require(hb_buffer_get_content_type(empty.guest) == HB_BUFFER_CONTENT_TYPE_INVALID);
+    empty.Compare(true);
+
+    BufferPair unset;
+    unset.Add(text.data(), -1, 0, -1);
+    hb_shape_nid_postfix(fonts.guest, unset.guest, nullptr, 0);
+    hb_shape(fonts.native, unset.native, nullptr, 0);
+    Require(hb_buffer_get_content_type(unset.guest) == HB_BUFFER_CONTENT_TYPE_UNICODE);
+    unset.Compare(true);
+
+    Require(Throws([&] { hb_shape_nid_postfix(fonts.guest, nullptr, nullptr, 0); }));
+    BufferPair rejected;
+    rejected.Add(text.data(), -1, 0, -1);
+    rejected.Guess();
+    Require(Throws([&] { hb_shape_nid_postfix(nullptr, rejected.guest, nullptr, 0); }));
+    Require(Throws([&] { hb_shape_nid_postfix(fonts.guest, rejected.guest, nullptr, 1); }));
+    Require(hb_buffer_get_content_type(rejected.guest) == HB_BUFFER_CONTENT_TYPE_UNICODE);
+    rejected.Compare();
+    hb_shape_nid_postfix(fonts.guest, rejected.guest, nullptr, 0);
+    hb_shape(fonts.native, rejected.native, nullptr, 0);
+    rejected.Compare(true);
+    Require(Throws([&] { hb_shape_nid_postfix(fonts.guest, rejected.guest, nullptr, 0); }));
+    Require(hb_buffer_get_content_type(rejected.guest) == HB_BUFFER_CONTENT_TYPE_GLYPHS);
+    rejected.Compare(true);
+
+    hb_font_destroy_nid_postfix(fonts.guest);
+    hb_font_destroy(fonts.native);
+}
+
 int main(int argc, char** argv) {
     Require(argc == 2);
     const std::string_view mode = argv[1];
     if (mode == "utf16") Utf16();
     else if (mode == "properties") Properties();
     else if (mode == "lifetime") Lifetime();
+    else if (mode == "shape") Shape();
     else Require(false);
     std::printf("HarfBuzz buffer %s checks passed\n", argv[1]);
 }

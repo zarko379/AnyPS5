@@ -1,6 +1,15 @@
+#include <cstddef>
 #include <cstdint>
 #include "prx/libharfbuzz/include/InventoryExports.hpp"
 #include "prx/libc/include/General.hpp"
+
+#include <hb.h>
+
+static_assert(sizeof(hb_feature_t) == 16 && alignof(hb_feature_t) == 4);
+static_assert(offsetof(hb_feature_t, tag) == 0);
+static_assert(offsetof(hb_feature_t, value) == 4);
+static_assert(offsetof(hb_feature_t, start) == 8);
+static_assert(offsetof(hb_feature_t, end) == 12);
 
 extern "C" {
 
@@ -58,8 +67,13 @@ std::uint32_t APS5_VABI hb_ot_tag_to_script_nid_postfix(std::uint32_t tag) {
     return tag & ~0x20000000u;
 }
 
-int APS5_VABI hb_shape_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
+void APS5_VABI hb_shape_nid_postfix(hb_font_t* font, hb_buffer_t* buffer, const hb_feature_t* features, unsigned count) {
+    if (!buffer) NotImplemented_nid_no_patch(__func__);
+    if (hb_buffer_get_length(buffer)) {
+        if (!font || (count && !features)) NotImplemented_nid_no_patch(__func__);
+        if (hb_buffer_get_content_type(buffer) != HB_BUFFER_CONTENT_TYPE_UNICODE) NotImplemented_nid_no_patch(__func__);
+    }
+    hb_shape(font, buffer, features, count);
 }
 
 }
