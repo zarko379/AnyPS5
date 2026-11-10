@@ -21,10 +21,6 @@ int APS5_VABI cairo_stroke_extents() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI cairo_arc_negative() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 
 
 
@@ -71,10 +67,6 @@ int APS5_VABI cairo_mask() {
 }
 
 
-
-int APS5_VABI cairo_rectangle() {
-    NotImplemented_nid_no_patch(__func__);
-}
 
 
 
@@ -124,15 +116,7 @@ int APS5_VABI cairo_clip() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI cairo_arc() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI cairo_stroke_preserve() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI cairo_path_extents() {
     NotImplemented_nid_no_patch(__func__);
 }
 

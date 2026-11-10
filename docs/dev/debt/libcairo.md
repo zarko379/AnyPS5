@@ -20,9 +20,9 @@
 
 ### Functional context and coordinate transforms
 
-- [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements seventeen Cairo context lifecycle, nested matrix save/restore, and user/device coordinate transform exports, with an owned surface reference, a sticky invalid-matrix/invalid-restore state and System V guest ABI. Graphics state beyond the CTM, drawing, clipping, path construction and rasterization remain pending; this does not provide a functioning Cairo renderer. The context code depends on the image/surface lifecycles above and shares the affine matrix primitives.
+- [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements seventeen Cairo context lifecycle, nested matrix save/restore, and user/device coordinate transform exports, with an owned surface reference, a sticky invalid-matrix/invalid-restore state and System V guest ABI. Drawing, clipping, groups and rasterization remain pending; this does not provide a functioning Cairo renderer. The context code depends on the image/surface lifecycles above and shares the affine matrix primitives.
 
-- [Path data in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements eleven path lifecycle and current-point exports with Cairo 24.8 device-coordinate quantization, target device scale, forward-collinear line canonicalization, move/line/cubic/close elements, deep-copied public cairo_path_t arrays, and guest ABI ownership. Append converts user paths through the current CTM and target device scale, while save/restore preserves the independent path. Rendering and path extents are not yet implemented; arc/rectangle constructors remain pending.
+- [Path data in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) builds paths, rectangles, arcs and path extents in Cairo 24.8 fixed point as Cairo 1.18.0 `cairo-path-fixed.c`, `cairo-arc.c` and `cairo-gstate.c` do, with the incremental inverse CTM and the line-width clamp; not measured on a console. Cairo recomputes its identity-transform shortcut when the target device scale changes; here a later device-scale change back to 1 does not restore the shortcut for a CTM that was modified to identity, which only changes results for non-finite coordinates. Tolerance is fixed at 0.1 because `cairo_set_tolerance` is not exported.
 
 ### Functional patterns
 
@@ -32,7 +32,7 @@
 
 ### Callable exports
 
-- [Callable exports](../../../core/libs/prx/libcairo/Export.cpp) - 50 remaining callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libcairo.c) and [selected export metadata](https://gist.github.com/kyon-eth/a0bb48f2b3070a5eac8a638810f195f2/a3838ac54ebcc0bbfeb3cc46002a9a2dcce4dbdc) from two version-labelled images (SHA-256 `ec2158e0c5875316d200037d7f4bc48861626451752523f6930d687307c75ef8`). The labels are not authenticated. Prototypes and behavior of these remaining declarations are unverified; they still throw through `NotImplemented_nid_no_patch`.
+- [Callable exports](../../../core/libs/prx/libcairo/Export.cpp) - 46 remaining callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libcairo.c) and [selected export metadata](https://gist.github.com/kyon-eth/a0bb48f2b3070a5eac8a638810f195f2/a3838ac54ebcc0bbfeb3cc46002a9a2dcce4dbdc) from two version-labelled images (SHA-256 `ec2158e0c5875316d200037d7f4bc48861626451752523f6930d687307c75ef8`). The labels are not authenticated. Prototypes and behavior of these remaining declarations are unverified; they still throw through `NotImplemented_nid_no_patch`.
 
 | Name | NID |
 | --- | --- |
@@ -40,7 +40,6 @@
 | `cairo_paint` | `+PEo5Z7DOlY` |
 | `cairo_font_face_set_user_data` | `1GGpdjyZslI` |
 | `cairo_stroke_extents` | `1K5ly63m6fo` |
-| `cairo_arc_negative` | `2w5H3b3yPqw` |
 | `cairo_image_surface_create_from_png_stream` | `4dvdsqyLM8c` |
 | `cairo_ft_scaled_font_lock_face` | `4gDTaBZH8lo` |
 | `cairo_glyph_path` | `54HrgUIQHOk` |
@@ -51,7 +50,6 @@
 | `cairo_surface_write_to_png_stream` | `A3FLVZ4FHbY` |
 | `cairo_ft_font_face_create_for_pattern` | `By6b1vjSVok` |
 | `cairo_mask` | `D1KYCZ80Sac` |
-| `cairo_rectangle` | `E5LkpnAY7po` |
 | `cairo_scaled_font_extents` | `FbWFbLUQOys` |
 | `cairo_show_glyphs` | `FnhwGKKZOjU` |
 | `cairo_scaled_font_get_font_matrix` | `HKjYBSCx3mY` |
@@ -62,9 +60,7 @@
 | `cairo_fill` | `Ndvm8s28Gyc` |
 | `cairo_pop_group_to_source` | `Oyzf6kDk6Ns` |
 | `cairo_clip` | `PkGZZi1G2Gw` |
-| `cairo_arc` | `R0TePTSHd2k` |
 | `cairo_stroke_preserve` | `RzM4ZhlKzPg` |
-| `cairo_path_extents` | `S6ieIssLpCA` |
 | `cairo_ft_scaled_font_unlock_face` | `SJMLSxaYvWU` |
 | `cairo_paint_with_alpha` | `TAIhaLjmAlg` |
 | `cairo_scaled_font_status` | `a5WkqZXnG2w` |
