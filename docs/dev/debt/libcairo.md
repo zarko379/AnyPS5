@@ -24,9 +24,13 @@
 
 - [Path data in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements eleven path lifecycle and current-point exports with Cairo 24.8 device-coordinate quantization, target device scale, forward-collinear line canonicalization, move/line/cubic/close elements, deep-copied public cairo_path_t arrays, and guest ABI ownership. Append converts user paths through the current CTM and target device scale, while save/restore preserves the independent path. Rendering and path extents are not yet implemented; arc/rectangle constructors remain pending.
 
+### Functional patterns
+
+- [Pattern.cpp](../../../core/libs/prx/libcairo/Pattern.cpp) implements sixteen gradient, surface and mesh pattern constructors, reference counting, color stops, matrix, filter, extend and mesh patch exports following [Cairo 1.18.0](https://cairographics.org/releases/cairo-1.18.0.tar.xz) `src/cairo-pattern.c`. No pattern getter or rasterizer is exported, so the stored state is only checked by host tests; not measured on a console. A null pattern passed to a mutator is ignored, whereas Cairo dereferences it. Mesh patches are zero-initialised, so a corner copied from an unset corner 0 is transparent where Cairo copies uninitialised memory.
+
 ### Callable exports
 
-- [Callable exports](../../../core/libs/prx/libcairo/Export.cpp) - 89 remaining callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libcairo.c) and [selected export metadata](https://gist.github.com/kyon-eth/a0bb48f2b3070a5eac8a638810f195f2/a3838ac54ebcc0bbfeb3cc46002a9a2dcce4dbdc) from two version-labelled images (SHA-256 `ec2158e0c5875316d200037d7f4bc48861626451752523f6930d687307c75ef8`). The labels are not authenticated. Prototypes and behavior of these remaining declarations are unverified; they still throw through `NotImplemented_nid_no_patch`.
+- [Callable exports](../../../core/libs/prx/libcairo/Export.cpp) - 58 remaining callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libcairo.c) and [selected export metadata](https://gist.github.com/kyon-eth/a0bb48f2b3070a5eac8a638810f195f2/a3838ac54ebcc0bbfeb3cc46002a9a2dcce4dbdc) from two version-labelled images (SHA-256 `ec2158e0c5875316d200037d7f4bc48861626451752523f6930d687307c75ef8`). The labels are not authenticated. Prototypes and behavior of these remaining declarations are unverified; they still throw through `NotImplemented_nid_no_patch`.
 
 | Name | NID |
 | --- | --- |
@@ -41,53 +45,39 @@
 | `cairo_glyph_path` | `54HrgUIQHOk` |
 | `cairo_set_source_rgb` | `6DvK+OdIPW4` |
 | `cairo_scaled_font_destroy` | `6Y3HHedGzlw` |
-| `cairo_pattern_reference` | `6qRL52tLOII` |
 | `cairo_scaled_font_get_font_options` | `8SOxQrQ7AfQ` |
 | `cairo_in_stroke` | `8zMm0QOWZAA` |
 | `cairo_scaled_font_get_ctm` | `A++pFuyxZPg` |
 | `cairo_set_font_size` | `A-0StSi2AwA` |
 | `cairo_surface_write_to_png_stream` | `A3FLVZ4FHbY` |
-| `cairo_pattern_set_extend` | `Ax867+0HUgA` |
 | `cairo_set_source_rgba` | `BZFvjfb9xDk` |
 | `cairo_ft_font_face_create_for_pattern` | `By6b1vjSVok` |
 | `cairo_mask` | `D1KYCZ80Sac` |
 | `cairo_rectangle` | `E5LkpnAY7po` |
 | `cairo_scaled_font_extents` | `FbWFbLUQOys` |
 | `cairo_show_glyphs` | `FnhwGKKZOjU` |
-| `cairo_mesh_pattern_curve_to` | `H9bwCsWw7LA` |
 | `cairo_scaled_font_get_font_matrix` | `HKjYBSCx3mY` |
-| `cairo_mesh_pattern_line_to` | `HTB1uUwgSVQ` |
 | `cairo_font_face_destroy` | `IgBFcd4cF28` |
 | `cairo_scaled_font_text_extents` | `Jk9paxbMQsk` |
-| `cairo_pattern_create_linear` | `K62jNcRGQdY` |
 | `cairo_clip_extents` | `LJNqwiDWTm0` |
 | `cairo_set_scaled_font` | `LUh-6rZhniA` |
 | `cairo_fill` | `Ndvm8s28Gyc` |
 | `cairo_pop_group_to_source` | `Oyzf6kDk6Ns` |
-| `cairo_mesh_pattern_set_corner_color_rgba` | `P+Hm5enx01Y` |
 | `cairo_clip` | `PkGZZi1G2Gw` |
-| `cairo_pattern_create_for_surface` | `Q6xyruheFCE` |
 | `cairo_arc` | `R0TePTSHd2k` |
 | `cairo_stroke_preserve` | `RzM4ZhlKzPg` |
 | `cairo_path_extents` | `S6ieIssLpCA` |
 | `cairo_ft_scaled_font_unlock_face` | `SJMLSxaYvWU` |
-| `cairo_mesh_pattern_move_to` | `T0JOV6EajrA` |
 | `cairo_paint_with_alpha` | `TAIhaLjmAlg` |
-| `cairo_mesh_pattern_begin_patch` | `Ux6XxakVN+8` |
-| `cairo_mesh_pattern_end_patch` | `VBA3H7mYG70` |
 | `cairo_scaled_font_status` | `a5WkqZXnG2w` |
 | `cairo_in_fill` | `akimK5gpdho` |
 | `cairo_set_source` | `bU0QXekwNes` |
 | `cairo_font_face_get_user_data` | `bXupa3+NYIs` |
-| `cairo_pattern_create_mesh` | `bz5MfOeWZw4` |
 | `cairo_stroke` | `cdr2T4SoIyU` |
 | `cairo_set_operator` | `dc4bb-f5YEE` |
 | `cairo_fill_preserve` | `dewyjTlk+u8` |
 | `cairo_fill_extents` | `dkoQNd4kBlQ` |
 | `cairo_ft_font_face_create_for_ft_face` | `dqEhIWRTjuo` |
-| `cairo_pattern_destroy` | `eZpt6dzI9oo` |
-| `cairo_pattern_set_matrix` | `fDNhBmmwSNs` |
-| `cairo_pattern_set_filter` | `gsqESe70WD0` |
 | `cairo_push_group` | `hlh15JjNtWg` |
 | `cairo_ft_font_options_substitute` | `ii895dyBjMo` |
 | `cairo_glyph_free` | `lAEbTbSUTTo` |
@@ -100,7 +90,5 @@
 | `cairo_set_font_face` | `qzEwpfbLVxI` |
 | `cairo_get_operator` | `tYTJIi4s6t0` |
 | `cairo_scaled_font_create` | `uKNPDudJTmo` |
-| `cairo_pattern_create_radial` | `uYFjM3ReDRQ` |
 | `cairo_set_source_surface` | `vcN1gg+gWRg` |
 | `cairo_device_destroy` | `wO1D4B90k0k` |
-| `cairo_pattern_add_color_stop_rgba` | `xXWrbaaPNNg` |
