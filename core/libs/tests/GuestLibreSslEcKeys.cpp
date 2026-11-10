@@ -575,6 +575,78 @@ static void CheckPrivateKeys() {
     EC_KEY_free_nid_postfix(generated);
 }
 
+static Bytes Multiply(const EcGroup* group, const Bignum* generatorScalar, const EcPoint* point, const Bignum* pointScalar) {
+    EcPoint* result = EC_POINT_new_nid_postfix(group);
+    Require(EC_POINT_mul_nid_postfix(group, result, generatorScalar, point, pointScalar, nullptr) == 1, "EC_POINT_mul");
+    const Bytes encoded = Encode(group, result, Uncompressed);
+    EC_POINT_free_nid_postfix(result);
+    return encoded;
+}
+
+static void CheckPointMultiplication() {
+    const Bytes infinity{0};
+    EcGroup* group = EC_GROUP_new_by_curve_name_nid_postfix(415);
+    Bignum* one = NewNumber({1});
+    Bignum* two = NewNumber({2});
+    Bignum* minusOne = NewNumber({1}, true);
+    Bignum* zero = NewNumber({});
+    Bignum* key = NewNumber(ToBytes(P256RfcPrivateKey));
+    Bignum* minusKey = NewNumber(ToBytes(P256RfcPrivateKey), true);
+    Bignum* order = NewNumber(ToBytes(P256Order));
+    Bignum* orderPlusOne = NewNumber(Add(ToBytes(P256Order), {1}));
+    Bignum* keyPlusOrder = NewNumber(Add(ToBytes(P256RfcPrivateKey), ToBytes(P256Order)));
+    Bignum* keyPlusOne = NewNumber(Add(ToBytes(P256RfcPrivateKey), {1}));
+    EcPoint* generator = Decode(group, ToBytes(P256Generator));
+    EcPoint* publicKey = Decode(group, ToBytes(P256RfcPublicKey));
+    EcPoint* atInfinity = EC_POINT_new_nid_postfix(group);
+
+    Require(Multiply(group, key, nullptr, nullptr) == ToBytes(P256RfcPublicKey), "the RFC 6979 private key times the generator");
+    Require(Multiply(group, keyPlusOrder, nullptr, nullptr) == ToBytes(P256RfcPublicKey), "a scalar above the order");
+    Require(Multiply(group, nullptr, generator, key) == ToBytes(P256RfcPublicKey), "a scalar times a given point");
+    Require(Multiply(group, one, nullptr, nullptr) == ToBytes(P256Generator), "one times the generator");
+    Require(Multiply(group, minusOne, nullptr, nullptr) == ToBytes(P256NegatedGenerator), "a negative scalar");
+    Require(Multiply(group, orderPlusOne, nullptr, nullptr) == ToBytes(P256Generator), "the order plus one");
+    Require(Multiply(group, order, nullptr, nullptr) == infinity, "the order gives the point at infinity");
+    Require(Multiply(group, zero, nullptr, nullptr) == infinity, "zero gives the point at infinity");
+    Require(Multiply(group, nullptr, publicKey, zero) == infinity, "zero times a point");
+    Require(Multiply(group, key, generator, one) == Multiply(group, keyPlusOne, nullptr, nullptr), "both terms are added");
+    Require(Multiply(group, one, generator, one) == Multiply(group, two, nullptr, nullptr), "adding a point to itself doubles it");
+    Require(Multiply(group, key, generator, minusKey) == infinity, "opposite terms cancel");
+    Require(Multiply(group, one, atInfinity, two) == ToBytes(P256Generator), "a point at infinity adds nothing");
+    Require(Multiply(group, nullptr, atInfinity, two) == infinity, "a multiple of the point at infinity");
+    Require(Multiply(group, zero, generator, zero) == infinity, "two zero terms");
+
+    EcPoint* result = Decode(group, ToBytes(P256Generator));
+    Require(EC_POINT_mul_nid_postfix(group, result, nullptr, nullptr, nullptr, nullptr) == 1 && Encode(group, result, Uncompressed) == infinity,
+            "no scalar sets the result to infinity");
+    EcGroup* other = EC_GROUP_new_by_curve_name_nid_postfix(715);
+    EcPoint* foreign = EC_POINT_new_nid_postfix(other);
+    Require(Multiply(group, nullptr, foreign, nullptr) == infinity, "a point without a scalar is ignored");
+    Require(Multiply(group, one, foreign, nullptr) == ToBytes(P256Generator), "a point without a scalar is not used");
+    Require(EC_POINT_mul_nid_postfix(group, generator, nullptr, generator, two, nullptr) == 1 &&
+            Encode(group, generator, Uncompressed) == Multiply(group, two, nullptr, nullptr), "the result may be the input point");
+    RequireThrows([&] { EC_POINT_mul_nid_postfix(nullptr, result, one, nullptr, nullptr, nullptr); }, "a null group");
+    RequireThrows([&] { EC_POINT_mul_nid_postfix(group, nullptr, one, nullptr, nullptr, nullptr); }, "a null result");
+
+    for (const Curve& curve : Curves) {
+        EcGroup* curveGroup = EC_GROUP_new_by_curve_name_nid_postfix(curve.nid);
+        const Bytes base = Multiply(curveGroup, one, nullptr, nullptr);
+        Require(base.size() == 1 + 2 * curve.fieldSize, "the generator of every curve");
+        EcPoint* negated = Decode(curveGroup, Multiply(curveGroup, minusOne, nullptr, nullptr));
+        Require(Multiply(curveGroup, one, negated, one) == infinity, "the generator plus its negation on every curve");
+        Require(Multiply(curveGroup, two, negated, one) == base, "two generators minus one on every curve");
+        Require(Multiply(curveGroup, key, nullptr, nullptr) == Multiply(curveGroup, nullptr, negated, minusKey), "both forms agree on every curve");
+        EC_POINT_free_nid_postfix(negated);
+        EC_GROUP_free_nid_postfix(curveGroup);
+    }
+
+    for (Bignum* number : {one, two, minusOne, zero, key, minusKey, order, orderPlusOne, keyPlusOrder, keyPlusOne}) BN_free_nid_postfix(number);
+    for (EcPoint* point : {generator, publicKey, atInfinity, result}) EC_POINT_free_nid_postfix(point);
+    EC_POINT_free_nid_postfix(foreign);
+    EC_GROUP_free_nid_postfix(other);
+    EC_GROUP_free_nid_postfix(group);
+}
+
 int main() {
     void* const heapApi[10] {};
     ApplicationHeapRegister_nid_no_patch(heapApi);
@@ -584,5 +656,6 @@ int main() {
     CheckSharedSecrets();
     CheckKeyChanges();
     CheckPrivateKeys();
+    CheckPointMultiplication();
     return 0;
 }

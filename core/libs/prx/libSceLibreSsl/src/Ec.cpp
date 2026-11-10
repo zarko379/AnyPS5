@@ -562,6 +562,15 @@ bool ReducedPrivateKey(const EcGroup& group, const Bignum& number, mbedtls_mpi& 
     return mbedtls_mpi_cmp_int(&out, 0) != 0;
 }
 
+bool ScaledTerm(mbedtls_ecp_group& group, const Bignum& scalar, const mbedtls_ecp_point& base, mbedtls_ecp_point& out, const char* function) {
+    Mpi reduced;
+    LoadBignum(scalar, reduced.value, function);
+    Check(mbedtls_mpi_mod_mpi(&reduced.value, &reduced.value, &group.N), function);
+    if (mbedtls_mpi_cmp_int(&reduced.value, 0) == 0) return false;
+    Check(mbedtls_ecp_mul(&group, &out, &reduced.value, &base, HostRandom, nullptr), function);
+    return true;
+}
+
 bool StorePrivateKey(const mbedtls_mpi& value, Bignum*& target) {
     std::vector<unsigned char> bytes(mbedtls_mpi_size(&value));
     Check(mbedtls_mpi_write_binary(&value, bytes.data(), bytes.size()), "EC_KEY_generate_key");
@@ -655,6 +664,39 @@ int APS5_VABI EC_POINT_oct2point_nid_postfix(const EcGroup* group, EcPoint* poin
     uncompressed[0] = PointConversionUncompressed;
     Check(mbedtls_ecp_point_read_binary(&curve, &point->point, uncompressed.data(), uncompressed.size()), __func__);
     return mbedtls_ecp_check_pubkey(&curve, &point->point) == 0 ? 1 : 0;
+}
+
+int APS5_VABI EC_POINT_mul_nid_postfix(const EcGroup* group, EcPoint* result, const Bignum* generatorScalar, const EcPoint* point, const Bignum* pointScalar, void*) {
+    if (group == nullptr || result == nullptr) APS5_INVALID_ARG_EX;
+    RequireSameCurve(*group, result->curve, "EC_POINT_mul: a result point of another curve");
+    const bool withPoint = point != nullptr && pointScalar != nullptr;
+    if (generatorScalar == nullptr && !withPoint) {
+        Check(mbedtls_ecp_set_zero(&result->point), __func__);
+        return 1;
+    }
+    if (withPoint) {
+        RequireSameCurve(*group, point->curve, "EC_POINT_mul: a point of another curve");
+        if (!AtInfinity(point->point) && mbedtls_ecp_check_pubkey(&group->group, &point->point) != 0) NotImplemented_nid_no_patch("EC_POINT_mul: a point off the curve");
+    }
+    auto& curve = const_cast<mbedtls_ecp_group&>(group->group);
+    Point generatorTerm;
+    Point pointTerm;
+    const bool hasGeneratorTerm = generatorScalar != nullptr && ScaledTerm(curve, *generatorScalar, curve.G, generatorTerm.value, __func__);
+    const bool hasPointTerm = withPoint && !AtInfinity(point->point) && ScaledTerm(curve, *pointScalar, point->point, pointTerm.value, __func__);
+    Point sum;
+    if (hasGeneratorTerm && hasPointTerm) {
+        Mpi one;
+        Check(mbedtls_mpi_lset(&one.value, 1), __func__);
+        Check(mbedtls_ecp_muladd(&curve, &sum.value, &one.value, &generatorTerm.value, &one.value, &pointTerm.value), __func__);
+    } else if (hasGeneratorTerm) {
+        Check(mbedtls_ecp_copy(&sum.value, &generatorTerm.value), __func__);
+    } else if (hasPointTerm) {
+        Check(mbedtls_ecp_copy(&sum.value, &pointTerm.value), __func__);
+    } else {
+        Check(mbedtls_ecp_set_zero(&sum.value), __func__);
+    }
+    Check(mbedtls_ecp_copy(&result->point, &sum.value), __func__);
+    return 1;
 }
 
 EcKey* APS5_VABI EC_KEY_new_nid_postfix(void) {
