@@ -1,9 +1,11 @@
+#include "prx/libcairo/include/Path.hpp"
 #include "prx/libcairo/include/Pattern.hpp"
 
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -353,6 +355,152 @@ void CheckMeshErrors() {
     cairo_pattern_set_matrix(nullptr, nullptr);
 }
 
+int Status(CairoContext* context) {
+    CairoPath* path = cairo_copy_path(context);
+    const int status = path->status;
+    cairo_path_destroy(path);
+    return status;
+}
+
+std::array<int, 8> order{};
+int orderCount = 0;
+CairoUserDataKey orderKey{};
+
+void APS5_VABI RecordOrder(void* data) {
+    order[orderCount++] = *static_cast<int*>(data);
+}
+
+CairoContext* NewContext() {
+    CairoSurface* surface = cairo_image_surface_create(0, 8, 8);
+    CairoContext* context = cairo_create(surface);
+    cairo_surface_destroy(surface);
+    return context;
+}
+
+void CheckContextOperatorAndFonts() {
+    CairoContext* context = NewContext();
+    assert(cairo_get_operator(context) == 2);
+    cairo_set_operator(context, 7);
+    assert(cairo_get_operator(context) == 7);
+    cairo_save(context);
+    cairo_set_operator(context, 99);
+    assert(cairo_get_operator(context) == 99);
+    cairo_restore(context);
+    assert(cairo_get_operator(context) == 7);
+
+    cairo_set_font_size(context, 12.5);
+    cairo_set_font_size(context, -3);
+    cairo_font_options_t* options = cairo_font_options_create();
+    cairo_font_options_set_antialias(options, CAIRO_ANTIALIAS_BEST);
+    cairo_set_font_options(context, options);
+    cairo_font_options_destroy(options);
+    assert(Status(context) == 0);
+
+    cairo_set_font_options(context, cairo_font_options_copy(nullptr));
+    assert(Status(context) == 1);
+    assert(cairo_get_operator(context) == 2);
+    cairo_set_operator(context, 5);
+    assert(cairo_get_operator(context) == 2);
+    cairo_destroy(context);
+
+    context = NewContext();
+    cairo_set_font_options(context, nullptr);
+    assert(Status(context) == 7);
+    cairo_destroy(context);
+    assert(cairo_get_operator(nullptr) == 2);
+}
+
+void CheckContextSources() {
+    CairoPattern* linear = cairo_pattern_create_linear(0, 0, 1, 1);
+    auto* state = Inspect(linear);
+    CairoContext* context = NewContext();
+    cairo_set_source(context, linear);
+    assert(Status(context) == 0 && state->references.load() == 2);
+    cairo_set_source(context, linear);
+    assert(state->references.load() == 2);
+    cairo_save(context);
+    assert(state->references.load() == 3);
+    cairo_set_source_rgb(context, 1, 0, 0);
+    assert(state->references.load() == 2);
+    cairo_set_source_rgba(context, 2, -1, 0.5, 0.5);
+    cairo_restore(context);
+    assert(state->references.load() == 2);
+    cairo_set_source_rgba(context, 0, 0, 0, 1);
+    assert(state->references.load() == 1 && Status(context) == 0);
+    cairo_set_source(context, linear);
+    cairo_destroy(context);
+    assert(state->references.load() == 1);
+
+    context = NewContext();
+    cairo_set_source(context, nullptr);
+    assert(Status(context) == 7);
+    cairo_set_source(context, linear);
+    assert(state->references.load() == 1);
+    cairo_set_source_rgb(context, 1, 1, 1);
+    cairo_set_source_surface(context, nullptr, 0, 0);
+    assert(Status(context) == 7);
+    cairo_destroy(context);
+
+    CairoPattern* broken = cairo_pattern_create_linear(0, 0, 1, 1);
+    const CairoMatrix singular{0, 0, 0, 0, 0, 0};
+    cairo_pattern_set_matrix(broken, &singular);
+    context = NewContext();
+    cairo_set_source(context, linear);
+    cairo_set_source(context, broken);
+    assert(Status(context) == 5 && Inspect(broken)->references.load() == 1);
+    assert(state->references.load() == 2);
+    cairo_destroy(context);
+    assert(state->references.load() == 1);
+    cairo_pattern_destroy(broken);
+
+    context = NewContext();
+    cairo_set_source_surface(context, nullptr, 0, 0);
+    assert(Status(context) == 7);
+    cairo_destroy(context);
+
+    context = NewContext();
+    cairo_set_source(context, linear);
+    CairoSurface* invalid = cairo_image_surface_create(0, 40000, 1);
+    cairo_set_source_surface(context, invalid, 1, 2);
+    assert(Status(context) == 32 && state->references.load() == 1);
+    cairo_destroy(context);
+    cairo_pattern_destroy(linear);
+}
+
+void CheckSourceSurfaceLifetime() {
+    int ids[3] = {1, 2, 3};
+    order.fill(0);
+    orderCount = 0;
+    CairoSurface* target = cairo_image_surface_create(0, 8, 8);
+    CairoSurface* bottom = cairo_image_surface_create(0, 2, 2);
+    CairoSurface* top = cairo_image_surface_create(0, 2, 2);
+    assert(cairo_surface_set_user_data(target, &orderKey, &ids[0], RecordOrder) == 0);
+    assert(cairo_surface_set_user_data(bottom, &orderKey, &ids[1], RecordOrder) == 0);
+    assert(cairo_surface_set_user_data(top, &orderKey, &ids[2], RecordOrder) == 0);
+    CairoContext* context = cairo_create(target);
+    cairo_surface_destroy(target);
+    cairo_set_source_surface(context, bottom, 0.5, -0.25);
+    cairo_surface_destroy(bottom);
+    cairo_save(context);
+    cairo_set_source_surface(context, top, 0, 0);
+    cairo_surface_destroy(top);
+    assert(orderCount == 0 && Status(context) == 0);
+    cairo_destroy(context);
+    assert(orderCount == 3 && order[0] == 3 && order[1] == 1 && order[2] == 2);
+
+    order.fill(0);
+    orderCount = 0;
+    context = NewContext();
+    CairoSurface* source = cairo_image_surface_create(0, 2, 2);
+    assert(cairo_surface_set_user_data(source, &orderKey, &ids[1], RecordOrder) == 0);
+    cairo_set_source_surface(context, source, std::numeric_limits<double>::infinity(), 0);
+    cairo_surface_destroy(source);
+    assert(orderCount == 0 && Status(context) == 0);
+    cairo_set_source_rgb(context, 0, 0, 1);
+    assert(orderCount == 1 && order[0] == 2);
+    cairo_destroy(context);
+}
+
 } // namespace
 
 int main() {
@@ -362,6 +510,9 @@ int main() {
     CheckMatrixFilterExtend();
     CheckMeshConstruction();
     CheckMeshErrors();
+    CheckContextOperatorAndFonts();
+    CheckContextSources();
+    CheckSourceSurfaceLifetime();
     std::puts("guest_cairo_pattern: ok");
     return 0;
 }

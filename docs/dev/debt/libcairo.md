@@ -28,29 +28,27 @@
 
 - [Pattern.cpp](../../../core/libs/prx/libcairo/Pattern.cpp) implements sixteen gradient, surface and mesh pattern constructors, reference counting, color stops, matrix, filter, extend and mesh patch exports following [Cairo 1.18.0](https://cairographics.org/releases/cairo-1.18.0.tar.xz) `src/cairo-pattern.c`. No pattern getter or rasterizer is exported, so the stored state is only checked by host tests; not measured on a console. A null pattern passed to a mutator is ignored, whereas Cairo dereferences it. Mesh patches are zero-initialised, so a corner copied from an unset corner 0 is transparent where Cairo copies uninitialised memory.
 
+- [Context sources in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implement `cairo_set_source`, `cairo_set_source_rgb`, `cairo_set_source_rgba`, `cairo_set_source_surface`, `cairo_set_operator`, `cairo_get_operator`, `cairo_set_font_size` and `cairo_set_font_options` as saved graphics state with Cairo 1.18.0 reference ownership and destruction order. The source, font matrix and font options are not used by any implemented drawing or text export; not measured on a console.
+
 ### Callable exports
 
-- [Callable exports](../../../core/libs/prx/libcairo/Export.cpp) - 58 remaining callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libcairo.c) and [selected export metadata](https://gist.github.com/kyon-eth/a0bb48f2b3070a5eac8a638810f195f2/a3838ac54ebcc0bbfeb3cc46002a9a2dcce4dbdc) from two version-labelled images (SHA-256 `ec2158e0c5875316d200037d7f4bc48861626451752523f6930d687307c75ef8`). The labels are not authenticated. Prototypes and behavior of these remaining declarations are unverified; they still throw through `NotImplemented_nid_no_patch`.
+- [Callable exports](../../../core/libs/prx/libcairo/Export.cpp) - 50 remaining callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libcairo.c) and [selected export metadata](https://gist.github.com/kyon-eth/a0bb48f2b3070a5eac8a638810f195f2/a3838ac54ebcc0bbfeb3cc46002a9a2dcce4dbdc) from two version-labelled images (SHA-256 `ec2158e0c5875316d200037d7f4bc48861626451752523f6930d687307c75ef8`). The labels are not authenticated. Prototypes and behavior of these remaining declarations are unverified; they still throw through `NotImplemented_nid_no_patch`.
 
 | Name | NID |
 | --- | --- |
 | `cairo_scaled_font_get_font_face` | `+BL3-h8zGDo` |
 | `cairo_paint` | `+PEo5Z7DOlY` |
-| `cairo_set_font_options` | `-aqFIBn0h78` |
 | `cairo_font_face_set_user_data` | `1GGpdjyZslI` |
 | `cairo_stroke_extents` | `1K5ly63m6fo` |
 | `cairo_arc_negative` | `2w5H3b3yPqw` |
 | `cairo_image_surface_create_from_png_stream` | `4dvdsqyLM8c` |
 | `cairo_ft_scaled_font_lock_face` | `4gDTaBZH8lo` |
 | `cairo_glyph_path` | `54HrgUIQHOk` |
-| `cairo_set_source_rgb` | `6DvK+OdIPW4` |
 | `cairo_scaled_font_destroy` | `6Y3HHedGzlw` |
 | `cairo_scaled_font_get_font_options` | `8SOxQrQ7AfQ` |
 | `cairo_in_stroke` | `8zMm0QOWZAA` |
 | `cairo_scaled_font_get_ctm` | `A++pFuyxZPg` |
-| `cairo_set_font_size` | `A-0StSi2AwA` |
 | `cairo_surface_write_to_png_stream` | `A3FLVZ4FHbY` |
-| `cairo_set_source_rgba` | `BZFvjfb9xDk` |
 | `cairo_ft_font_face_create_for_pattern` | `By6b1vjSVok` |
 | `cairo_mask` | `D1KYCZ80Sac` |
 | `cairo_rectangle` | `E5LkpnAY7po` |
@@ -71,10 +69,8 @@
 | `cairo_paint_with_alpha` | `TAIhaLjmAlg` |
 | `cairo_scaled_font_status` | `a5WkqZXnG2w` |
 | `cairo_in_fill` | `akimK5gpdho` |
-| `cairo_set_source` | `bU0QXekwNes` |
 | `cairo_font_face_get_user_data` | `bXupa3+NYIs` |
 | `cairo_stroke` | `cdr2T4SoIyU` |
-| `cairo_set_operator` | `dc4bb-f5YEE` |
 | `cairo_fill_preserve` | `dewyjTlk+u8` |
 | `cairo_fill_extents` | `dkoQNd4kBlQ` |
 | `cairo_ft_font_face_create_for_ft_face` | `dqEhIWRTjuo` |
@@ -88,7 +84,5 @@
 | `cairo_scaled_font_glyph_extents` | `oy7NcAkex1I` |
 | `cairo_show_text` | `psdqLsaPnkk` |
 | `cairo_set_font_face` | `qzEwpfbLVxI` |
-| `cairo_get_operator` | `tYTJIi4s6t0` |
 | `cairo_scaled_font_create` | `uKNPDudJTmo` |
-| `cairo_set_source_surface` | `vcN1gg+gWRg` |
 | `cairo_device_destroy` | `wO1D4B90k0k` |

@@ -18,6 +18,9 @@ constexpr int kNullPointer = 7;
 constexpr int kInvalidDash = 19;
 constexpr int kInvalidPathData = 9;
 
+constexpr int kOperatorOver = 2;
+constexpr double kDefaultFontSize = 10.0;
+
 constexpr CairoMatrix kIdentity{1, 0, 0, 1, 0, 0};
 
 struct GraphicsStyle {
@@ -30,6 +33,10 @@ struct GraphicsStyle {
     double* dashes{};
     int dashCount{};
     double dashOffset{};
+    CairoPattern* source{CairoPatternBlack()};
+    int op{kOperatorOver};
+    CairoMatrix fontMatrix{kDefaultFontSize, 0, 0, kDefaultFontSize, 0, 0};
+    CairoFontOptionsState fontOptions{};
 };
 
 struct SavedState {
@@ -91,16 +98,50 @@ ContextStorage* Valid(CairoContext* context) {
 }
 
 void ReleaseStorage(ContextStorage* state) {
-    delete state->path;
+    CairoPattern* bottomSource = state->style.source;
     delete[] state->style.dashes;
     while (state->saved) {
+        cairo_pattern_destroy(bottomSource);
         SavedState* previous = state->saved->previous;
+        bottomSource = state->saved->style.source;
         delete[] state->saved->style.dashes;
         delete state->saved;
         state->saved = previous;
     }
     if (state->target) cairo_surface_destroy(state->target);
+    cairo_pattern_destroy(bottomSource);
+    delete state->path;
     delete state;
+}
+
+int SetSource(ContextStorage* state, CairoPattern* source) {
+    const int status = CairoPatternInternal(source)->status;
+    if (status != kSuccess) return status;
+    cairo_pattern_reference(source);
+    cairo_pattern_destroy(state->style.source);
+    state->style.source = source;
+    return kSuccess;
+}
+
+void Fail(ContextStorage* state, int status) {
+    if (status != kSuccess) state->status = status;
+}
+
+int SetSourceRgba(ContextStorage* state, double red, double green, double blue, double alpha) {
+    const auto* current = CairoPatternInternal(state->style.source);
+    if (current->type == 0) {
+        auto restrict = [](double value) { return value < 0.0 ? 0.0 : value > 1.0 ? 1.0 : value; };
+        const CairoColor color = CairoColorFromRgba(restrict(red), restrict(green),
+                                                    restrict(blue), restrict(alpha));
+        if (CairoColorEqual(color, current->color)) return kSuccess;
+    }
+    SetSource(state, CairoPatternBlack());
+    CairoPattern* pattern = CairoPatternCreateRgba(red, green, blue, alpha);
+    const int status = CairoPatternInternal(pattern)->status;
+    if (status != kSuccess) return status;
+    const int result = SetSource(state, pattern);
+    cairo_pattern_destroy(pattern);
+    return result;
 }
 
 void ReplaceMatrix(ContextStorage* state, const CairoMatrix& candidate) {
@@ -252,6 +293,7 @@ void APS5_VABI cairo_save(CairoContext* context) {
         }
         std::copy_n(state->style.dashes, snapshot->style.dashCount, snapshot->style.dashes);
     }
+    cairo_pattern_reference(snapshot->style.source);
     state->saved = snapshot;
 }
 
@@ -265,6 +307,7 @@ void APS5_VABI cairo_restore(CairoContext* context) {
     SavedState* snapshot = state->saved;
     state->matrix = snapshot->matrix;
     delete[] state->style.dashes;
+    cairo_pattern_destroy(state->style.source);
     state->style = snapshot->style;
     state->saved = snapshot->previous;
     delete snapshot;
@@ -493,6 +536,76 @@ void APS5_VABI cairo_get_dash(CairoContext* context, double* dashes, double* off
 int APS5_VABI cairo_get_dash_count(CairoContext* context) {
     auto* state = Valid(context);
     return state ? state->style.dashCount : 0;
+}
+
+void APS5_VABI cairo_set_source(CairoContext* context, CairoPattern* source) {
+    auto* state = Valid(context);
+    if (!state) return;
+    if (!source) {
+        state->status = kNullPointer;
+        return;
+    }
+    Fail(state, SetSource(state, source));
+}
+
+void APS5_VABI cairo_set_source_rgb(CairoContext* context, double red, double green, double blue) {
+    auto* state = Valid(context);
+    if (state) Fail(state, SetSourceRgba(state, red, green, blue, 1.0));
+}
+
+void APS5_VABI cairo_set_source_rgba(CairoContext* context, double red, double green, double blue,
+                                     double alpha) {
+    auto* state = Valid(context);
+    if (state) Fail(state, SetSourceRgba(state, red, green, blue, alpha));
+}
+
+void APS5_VABI cairo_set_source_surface(CairoContext* context, CairoSurface* surface,
+                                        double x, double y) {
+    auto* state = Valid(context);
+    if (!state) return;
+    if (!surface) {
+        state->status = kNullPointer;
+        return;
+    }
+    SetSource(state, CairoPatternBlack());
+    CairoPattern* pattern = cairo_pattern_create_for_surface(surface);
+    const int status = CairoPatternInternal(pattern)->status;
+    if (status != kSuccess) {
+        cairo_pattern_destroy(pattern);
+        state->status = status;
+        return;
+    }
+    CairoMatrix matrix{};
+    cairo_matrix_init_translate(&matrix, -x, -y);
+    cairo_pattern_set_matrix(pattern, &matrix);
+    Fail(state, SetSource(state, pattern));
+    cairo_pattern_destroy(pattern);
+}
+
+void APS5_VABI cairo_set_operator(CairoContext* context, int op) {
+    auto* state = Valid(context);
+    if (state) state->style.op = op;
+}
+
+int APS5_VABI cairo_get_operator(CairoContext* context) {
+    auto* state = Valid(context);
+    return state ? state->style.op : kOperatorOver;
+}
+
+void APS5_VABI cairo_set_font_size(CairoContext* context, double size) {
+    auto* state = Valid(context);
+    if (state) cairo_matrix_init(&state->style.fontMatrix, size, 0, 0, size, 0, 0);
+}
+
+void APS5_VABI cairo_set_font_options(CairoContext* context, const cairo_font_options_t* options) {
+    auto* state = Valid(context);
+    if (!state) return;
+    const int status = CairoFontOptionsStatus(options);
+    if (status != kSuccess) {
+        state->status = status;
+        return;
+    }
+    state->style.fontOptions = *CairoFontOptionsRead(options);
 }
 
 void APS5_VABI cairo_new_path(CairoContext* context) {

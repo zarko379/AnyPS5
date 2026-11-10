@@ -36,6 +36,16 @@ enum cairo_hint_metrics_t : int {
     CAIRO_HINT_METRICS_ON,
 };
 
+struct CairoFontOptionsState {
+    cairo_antialias_t antialias;
+    cairo_subpixel_order_t subpixel_order;
+    cairo_hint_style_t hint_style;
+    cairo_hint_metrics_t hint_metrics;
+};
+
+int CairoFontOptionsStatus(const cairo_font_options_t* options);
+const CairoFontOptionsState* CairoFontOptionsRead(const cairo_font_options_t* options);
+
 struct CairoRegion;
 
 struct CairoRectangleInt {
@@ -49,21 +59,17 @@ extern "C" {
 
 int APS5_VABI cairo_scaled_font_get_font_face();
 int APS5_VABI cairo_paint();
-int APS5_VABI cairo_set_font_options();
 int APS5_VABI cairo_font_face_set_user_data();
 int APS5_VABI cairo_stroke_extents();
 int APS5_VABI cairo_arc_negative();
 int APS5_VABI cairo_image_surface_create_from_png_stream();
 int APS5_VABI cairo_ft_scaled_font_lock_face();
 int APS5_VABI cairo_glyph_path();
-int APS5_VABI cairo_set_source_rgb();
 int APS5_VABI cairo_scaled_font_destroy();
 int APS5_VABI cairo_scaled_font_get_font_options();
 int APS5_VABI cairo_in_stroke();
 int APS5_VABI cairo_scaled_font_get_ctm();
-int APS5_VABI cairo_set_font_size();
 int APS5_VABI cairo_surface_write_to_png_stream();
-int APS5_VABI cairo_set_source_rgba();
 int APS5_VABI cairo_ft_font_face_create_for_pattern();
 int APS5_VABI cairo_mask();
 int APS5_VABI cairo_rectangle();
@@ -84,10 +90,8 @@ int APS5_VABI cairo_ft_scaled_font_unlock_face();
 int APS5_VABI cairo_paint_with_alpha();
 int APS5_VABI cairo_scaled_font_status();
 int APS5_VABI cairo_in_fill();
-int APS5_VABI cairo_set_source();
 int APS5_VABI cairo_font_face_get_user_data();
 int APS5_VABI cairo_stroke();
-int APS5_VABI cairo_set_operator();
 int APS5_VABI cairo_fill_preserve();
 int APS5_VABI cairo_fill_extents();
 int APS5_VABI cairo_ft_font_face_create_for_ft_face();
@@ -101,9 +105,7 @@ int APS5_VABI cairo_scaled_font_text_to_glyphs();
 int APS5_VABI cairo_scaled_font_glyph_extents();
 int APS5_VABI cairo_show_text();
 int APS5_VABI cairo_set_font_face();
-int APS5_VABI cairo_get_operator();
 int APS5_VABI cairo_scaled_font_create();
-int APS5_VABI cairo_set_source_surface();
 int APS5_VABI cairo_device_destroy();
 
 cairo_font_options_t* APS5_VABI cairo_font_options_create();

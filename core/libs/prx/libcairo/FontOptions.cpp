@@ -3,12 +3,7 @@
 
 namespace {
 
-struct CairoFontOptionsStorage {
-    cairo_antialias_t antialias;
-    cairo_subpixel_order_t subpixel_order;
-    cairo_hint_style_t hint_style;
-    cairo_hint_metrics_t hint_metrics;
-};
+using CairoFontOptionsStorage = CairoFontOptionsState;
 
 const CairoFontOptionsStorage nilOptions{};
 
@@ -28,6 +23,15 @@ cairo_font_options_t* Nil() {
     return reinterpret_cast<cairo_font_options_t*>(const_cast<CairoFontOptionsStorage*>(&nilOptions));
 }
 
+}
+
+int CairoFontOptionsStatus(const cairo_font_options_t* options) {
+    if (options == nullptr) return 7;
+    return Storage(options) == &nilOptions ? 1 : 0;
+}
+
+const CairoFontOptionsState* CairoFontOptionsRead(const cairo_font_options_t* options) {
+    return Storage(options);
 }
 
 extern "C" {

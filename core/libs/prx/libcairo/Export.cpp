@@ -12,10 +12,6 @@ int APS5_VABI cairo_paint() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI cairo_set_font_options() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 
 int APS5_VABI cairo_font_face_set_user_data() {
     NotImplemented_nid_no_patch(__func__);
@@ -45,10 +41,6 @@ int APS5_VABI cairo_glyph_path() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI cairo_set_source_rgb() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI cairo_scaled_font_destroy() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -65,18 +57,10 @@ int APS5_VABI cairo_scaled_font_get_ctm() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI cairo_set_font_size() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI cairo_surface_write_to_png_stream() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-
-int APS5_VABI cairo_set_source_rgba() {
-    NotImplemented_nid_no_patch(__func__);
-}
 
 int APS5_VABI cairo_ft_font_face_create_for_pattern() {
     NotImplemented_nid_no_patch(__func__);
@@ -170,20 +154,12 @@ int APS5_VABI cairo_in_fill() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI cairo_set_source() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI cairo_font_face_get_user_data() {
     NotImplemented_nid_no_patch(__func__);
 }
 
 
 int APS5_VABI cairo_stroke() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI cairo_set_operator() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -248,15 +224,7 @@ int APS5_VABI cairo_set_font_face() {
 
 
 
-int APS5_VABI cairo_get_operator() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI cairo_scaled_font_create() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI cairo_set_source_surface() {
     NotImplemented_nid_no_patch(__func__);
 }
 
