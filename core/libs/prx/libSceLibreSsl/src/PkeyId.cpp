@@ -8,6 +8,6 @@ struct PkeyHeader {
 }
 
 extern "C" int APS5_VABI EVP_PKEY_id_nid_postfix(const void* value) {
-    if (!value) NotImplemented_nid_no_patch(__func__);
+    if (!value) APS5_INVALID_ARG_EX;
     return static_cast<const PkeyHeader*>(value)->type;
 }

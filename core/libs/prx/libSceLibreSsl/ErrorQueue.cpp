@@ -15,7 +15,7 @@ char* APS5_VABI ERR_error_string_nid_postfix(std::uint64_t error, char* buffer) 
 }
 
 void APS5_VABI ERR_error_string_n_nid_postfix(std::uint64_t error, char* buffer, std::size_t length) {
-    if (buffer == nullptr && length != 0) NotImplemented_nid_no_patch(__func__);
+    if (buffer == nullptr && length != 0) APS5_INVALID_ARG_EX;
     const int library = (error >> 24) & 255;
     const int function = (error >> 12) & 4095;
     const int reason = error & 4095;

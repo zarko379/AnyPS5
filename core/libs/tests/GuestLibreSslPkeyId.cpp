@@ -7,6 +7,7 @@
 #include <cstring>
 #include <exception>
 #include <limits>
+#include <stdexcept>
 
 
 namespace {
@@ -24,5 +25,12 @@ int main() {
         std::memcpy(pkey.data(), &expected, sizeof(expected));
         Require(EVP_PKEY_id_nid_postfix(pkey.data()) == expected, "returns the key's stored type unchanged");
     }
+    bool threw = false;
+    try {
+        EVP_PKEY_id_nid_postfix(nullptr);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw, "a null key throws");
     return 0;
 }

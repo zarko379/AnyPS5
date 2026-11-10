@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdexcept>
 #include <thread>
 #include <string>
 
@@ -92,6 +93,13 @@ static void TestStrings() {
     ERR_error_string_n_nid_postfix(0xe1abc789, tiny, sizeof(tiny));
     Require(std::strcmp(tiny, "e::::") == 0, "historical truncation placement");
     ERR_error_string_n_nid_postfix(0, nullptr, 0);
+    bool threw = false;
+    try {
+        ERR_error_string_n_nid_postfix(0, nullptr, 1);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw, "a null buffer with a length throws");
 }
 
 static void TestQueue() {
