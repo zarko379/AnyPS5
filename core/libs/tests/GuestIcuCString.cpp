@@ -167,6 +167,86 @@ void CaseConversion() {
     Require(mixed == "ABCD-ZZ [\\]^_` @09\tI-I", "uppercase traverses complete strings");
 }
 
+template<class TText>
+std::uint32_t ReferenceHash(const TText* text, int length, int stride, bool fold) {
+    std::uint32_t hash = 0;
+    for (int index = 0; index < length; index += stride) {
+        std::uint32_t unit = static_cast<std::make_unsigned_t<TText>>(text[index]);
+        if (fold && unit >= 'A' && unit <= 'Z') unit += 32;
+        hash = hash * 37u + unit;
+    }
+    return hash;
+}
+
+void Hashes() {
+    Require(ustr_hashCharsN_nid_postfix("abc", 3) == 136518, "three bytes hash by base 37");
+    Require(ustr_hashICharsN_nid_postfix("ABC", 3) == 136518, "caseless hash lowercases ASCII");
+    Require(ustr_hashUCharsN_nid_postfix(u"abc", 3) == 136518, "three units hash by base 37");
+    Require(ustr_hashCharsN_nid_postfix("\xff", 1) == 255 && ustr_hashICharsN_nid_postfix("\xff", 1) == 255, "bytes are unsigned");
+    Require(ustr_hashICharsN_nid_postfix("\xc1", 1) == 0xc1, "caseless hash folds only ASCII");
+    Require(ustr_hashUCharsN_nid_postfix(u"\xffff", 1) == 0xffff, "units are unsigned");
+    for (const std::int32_t length : {0, -1, -32, std::numeric_limits<std::int32_t>::min()}) {
+        Require(ustr_hashCharsN_nid_postfix("abc", length) == 0, "nonpositive byte length hashes nothing");
+        Require(ustr_hashICharsN_nid_postfix("abc", length) == 0, "nonpositive caseless length hashes nothing");
+        Require(ustr_hashUCharsN_nid_postfix(u"abc", length) == 0, "nonpositive unit length hashes nothing");
+    }
+    Require(ustr_hashCharsN_nid_postfix(nullptr, 5) == 0 && ustr_hashICharsN_nid_postfix(nullptr, 5) == 0 && ustr_hashUCharsN_nid_postfix(nullptr, 5) == 0, "null text hashes to zero");
+    std::array<char, 200> bytes{};
+    std::array<char16_t, 200> units{};
+    for (std::size_t index = 0; index < bytes.size(); ++index) {
+        bytes[index] = static_cast<char>("AbCdEfGhIjKlMnOpQrStUvWxYz\x80\xff"[index % 28]);
+        units[index] = static_cast<char16_t>(0x41 + index * 331);
+    }
+    for (const int length : {1, 2, 31, 32, 33, 63, 64, 65, 95, 96, 100, 127, 128, 200}) {
+        const int stride = length < 64 ? 1 : length < 96 ? 2 : length < 128 ? 3 : length < 160 ? 4 : length < 192 ? 5 : 6;
+        Require(static_cast<std::uint32_t>(ustr_hashCharsN_nid_postfix(bytes.data(), length)) == ReferenceHash(bytes.data(), length, stride, false), "sampled byte hash");
+        Require(static_cast<std::uint32_t>(ustr_hashICharsN_nid_postfix(bytes.data(), length)) == ReferenceHash(bytes.data(), length, stride, true), "sampled caseless hash");
+        Require(static_cast<std::uint32_t>(ustr_hashUCharsN_nid_postfix(units.data(), length)) == ReferenceHash(units.data(), length, stride, false), "sampled unit hash");
+    }
+    std::array<char, 64> sampled{};
+    sampled.fill('a');
+    const auto before = ustr_hashCharsN_nid_postfix(sampled.data(), 64);
+    const auto shorter = ustr_hashCharsN_nid_postfix(sampled.data(), 63);
+    sampled[1] = 'z';
+    sampled[63] = 'z';
+    Require(ustr_hashCharsN_nid_postfix(sampled.data(), 64) == before, "a 64-byte hash skips odd positions");
+    Require(ustr_hashCharsN_nid_postfix(sampled.data(), 63) != shorter, "a 63-byte hash reads every byte");
+}
+
+void IntegerToUnits() {
+    std::array<char16_t, 16> buffer{};
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 16, 0xbeef, 16, 0) == 4, "hex length");
+    Require(std::u16string_view(buffer.data(), 5) == std::u16string_view(u"BEEF\0", 5), "hex digits are uppercase and terminated");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 16, 42, 10, 5) == 5, "zero padding counts");
+    Require(std::u16string_view(buffer.data(), 6) == std::u16string_view(u"00042\0", 6), "padding goes before the digits");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 16, 0, 10, 0) == 1 && buffer[0] == u'0' && buffer[1] == 0, "zero writes one digit");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 16, 0xffffffffu, 2, 0) == 16 && buffer[0] == u'1' && buffer[15] == u'1', "digits stop at the capacity");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 3, 12345, 10, 0) == 3, "no terminator at the capacity");
+    Require(std::u16string_view(buffer.data(), 4) == std::u16string_view(u"345#", 4), "the low digits are kept in reading order");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 0, 7, 10, 0) == 1 && buffer[0] == u'7' && buffer[1] == u'#', "a zero capacity still writes one digit");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), -4, 98, 10, 3) == 3, "padding ignores the capacity");
+    Require(std::u16string_view(buffer.data(), 4) == std::u16string_view(u"008#", 4), "a negative capacity writes one digit and the padding");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 16, 35, 36, 0) == 1 && buffer[0] == u'Z', "base 36 uses uppercase letters");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 16, 36, 37, 0) == 1 && buffer[0] == u'[', "digits past Z continue in code order");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 4, 5, 1, 0) == 4 && std::u16string_view(buffer.data(), 5) == std::u16string_view(u"0000#", 5), "radix one stops at the capacity");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 16, 0xfffffff0u, 0xfffffff1u, 0) == 1 && buffer[0] == static_cast<char16_t>(0xfffffff0u + 0x30u), "a digit above INT32_MAX wraps as ICU's int does");
+    buffer.fill(u'#');
+    Require(uprv_itou_nid_postfix(buffer.data(), 16, 0x7ffffff0u, 0x7ffffff1u, 0) == 1 && buffer[0] == static_cast<char16_t>(0x7ffffff0u + 0x37u), "a large positive digit adds the letter offset");
+    Require(Rejects([&] { uprv_itou_nid_postfix(buffer.data(), 16, 1, 0, 0); }), "radix zero rejected");
+    Require(Rejects([] { uprv_itou_nid_postfix(nullptr, 0, 1, 10, 0); }), "null buffer rejected");
+}
+
 int FoldedByte(unsigned char value) {
     return value >= 'A' && value <= 'Z' ? value + 32 : value;
 }
@@ -231,4 +311,6 @@ int main() {
     CaseConversion();
     CharacterHelpers();
     CaselessComparison();
+    Hashes();
+    IntegerToUnits();
 }

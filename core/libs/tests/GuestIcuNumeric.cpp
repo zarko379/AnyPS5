@@ -128,6 +128,39 @@ void MaximumPointer() {
     Require(limit(top - 0x7ffffffe) == top && limit(top) == top, "maximum pointer saturates instead of wrapping");
 }
 
+void Comparators() {
+    const std::uint16_t shortValues[] = {0, 1, 0x7fff, 0x8000, 0xffff};
+    for (const auto left : shortValues)
+        for (const auto right : shortValues)
+            Require(uprv_uint16Comparator_nid_postfix(nullptr, &left, &right) == static_cast<std::int32_t>(left) - static_cast<std::int32_t>(right), "uint16 difference");
+    const std::uint16_t high = 0xffff;
+    const std::uint16_t low = 0;
+    Require(uprv_uint16Comparator_nid_postfix(&high, &high, &low) == 0xffff, "uint16 values are unsigned and the context is ignored");
+    const std::int32_t intValues[] = {std::numeric_limits<std::int32_t>::min(), -2, -1, 0, 1, 2, std::numeric_limits<std::int32_t>::max()};
+    for (const auto left : intValues)
+        for (const auto right : intValues) {
+            const auto expected = static_cast<std::int32_t>(static_cast<std::uint32_t>(static_cast<std::int64_t>(left) - right));
+            Require(uprv_int32Comparator_nid_postfix(nullptr, &left, &right) == expected, "int32 difference wraps");
+        }
+    const std::int32_t minimum = std::numeric_limits<std::int32_t>::min();
+    const std::int32_t one = 1;
+    Require(uprv_int32Comparator_nid_postfix(nullptr, &minimum, &one) == std::numeric_limits<std::int32_t>::max(), "INT32_MIN minus one wraps positive");
+    Require(uprv_int32Comparator_nid_postfix(nullptr, &one, &minimum) == minimum + 1, "one minus INT32_MIN wraps negative");
+    const std::uint32_t unsignedValues[] = {0, 1, 0x7fffffffu, 0x80000000u, 0xffffffffu};
+    for (const auto left : unsignedValues)
+        for (const auto right : unsignedValues)
+            Require(uprv_uint32Comparator_nid_postfix(nullptr, &left, &right) == (left < right ? -1 : left == right ? 0 : 1), "uint32 ordering");
+    const std::uint32_t top = 0xffffffffu;
+    const std::uint32_t zero = 0;
+    Require(uprv_uint32Comparator_nid_postfix(nullptr, &top, &zero) == 1, "uint32 comparison does not overflow");
+    Require(Rejects([&] { uprv_uint16Comparator_nid_postfix(nullptr, nullptr, &low); }), "null uint16 left rejected");
+    Require(Rejects([&] { uprv_uint16Comparator_nid_postfix(nullptr, &low, nullptr); }), "null uint16 right rejected");
+    Require(Rejects([&] { uprv_int32Comparator_nid_postfix(nullptr, nullptr, &one); }), "null int32 left rejected");
+    Require(Rejects([&] { uprv_int32Comparator_nid_postfix(nullptr, &one, nullptr); }), "null int32 right rejected");
+    Require(Rejects([&] { uprv_uint32Comparator_nid_postfix(nullptr, nullptr, &zero); }), "null uint32 left rejected");
+    Require(Rejects([&] { uprv_uint32Comparator_nid_postfix(nullptr, &zero, nullptr); }), "null uint32 right rejected");
+}
+
 }
 
 int main() {
@@ -137,5 +170,6 @@ int main() {
     Extremes();
     Overflow();
     MaximumPointer();
+    Comparators();
     return 0;
 }

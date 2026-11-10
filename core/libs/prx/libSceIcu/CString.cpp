@@ -42,6 +42,16 @@ char AsciiLower(char value) {
     return value >= 0x41 && value <= 0x5a ? static_cast<char>(value + 0x20) : value;
 }
 
+template<class TUnit>
+std::int32_t HashSampled(const void* text, std::int32_t length, TUnit unit) {
+    std::uint32_t hash = 0;
+    if (text && length > 0) {
+        const std::int32_t step = (length - 32) / 32 + 1;
+        for (std::int64_t index = 0; index < length; index += step) hash = hash * 37 + unit(index);
+    }
+    return std::bit_cast<std::int32_t>(hash);
+}
+
 int CompareFolded(const char* first, const char* second, std::uint64_t limit) {
     if (!first) return second ? -1 : 0;
     if (!second) return 1;
@@ -110,6 +120,32 @@ int APS5_VABI uprv_stricmp_nid_postfix(const char* first, const char* second) {
 
 int APS5_VABI uprv_strnicmp_nid_postfix(const char* first, const char* second, std::uint32_t count) {
     return CompareFolded(first, second, count);
+}
+
+std::int32_t APS5_VABI ustr_hashUCharsN_nid_postfix(const char16_t* text, std::int32_t length) {
+    return HashSampled(text, length, [text](std::int64_t index) { return static_cast<std::uint32_t>(text[index]); });
+}
+
+std::int32_t APS5_VABI ustr_hashCharsN_nid_postfix(const char* text, std::int32_t length) {
+    return HashSampled(text, length, [text](std::int64_t index) { return static_cast<std::uint32_t>(static_cast<std::uint8_t>(text[index])); });
+}
+
+std::int32_t APS5_VABI ustr_hashICharsN_nid_postfix(const char* text, std::int32_t length) {
+    return HashSampled(text, length, [text](std::int64_t index) { return static_cast<std::uint32_t>(static_cast<std::uint8_t>(AsciiLower(text[index]))); });
+}
+
+std::int32_t APS5_VABI uprv_itou_nid_postfix(char16_t* buffer, std::int32_t capacity, std::uint32_t value, std::uint32_t radix, std::int32_t minimumWidth) {
+    if (!buffer || radix == 0) APS5_INVALID_ARG_EX;
+    std::int32_t length = 0;
+    do {
+        const auto digit = static_cast<std::int32_t>(value % radix);
+        buffer[length++] = static_cast<char16_t>(static_cast<std::uint32_t>(digit) + (digit <= 9 ? 0x30u : 0x37u));
+        value /= radix;
+    } while (value != 0 && length < capacity);
+    while (length < minimumWidth) buffer[length++] = u'0';
+    if (length < capacity) buffer[length] = 0;
+    std::reverse(buffer, buffer + length);
+    return length;
 }
 
 }

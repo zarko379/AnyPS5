@@ -134,4 +134,23 @@ std::int32_t APS5_VABI uprv_min_nid_postfix(std::int32_t x, std::int32_t y) {
     return x > y ? y : x;
 }
 
+std::int32_t APS5_VABI uprv_uint16Comparator_nid_postfix(const void*, const void* left, const void* right) {
+    if (!left || !right) APS5_INVALID_ARG_EX;
+    return static_cast<std::int32_t>(*static_cast<const std::uint16_t*>(left)) - static_cast<std::int32_t>(*static_cast<const std::uint16_t*>(right));
+}
+
+std::int32_t APS5_VABI uprv_int32Comparator_nid_postfix(const void*, const void* left, const void* right) {
+    if (!left || !right) APS5_INVALID_ARG_EX;
+    const auto difference = std::bit_cast<std::uint32_t>(*static_cast<const std::int32_t*>(left)) - std::bit_cast<std::uint32_t>(*static_cast<const std::int32_t*>(right));
+    return std::bit_cast<std::int32_t>(difference);
+}
+
+std::int32_t APS5_VABI uprv_uint32Comparator_nid_postfix(const void*, const void* left, const void* right) {
+    if (!left || !right) APS5_INVALID_ARG_EX;
+    const auto first = *static_cast<const std::uint32_t*>(left);
+    const auto second = *static_cast<const std::uint32_t*>(right);
+    if (first < second) return -1;
+    return first == second ? 0 : 1;
+}
+
 }

@@ -27,4 +27,7 @@ double APS5_VABI uprv_log_nid_postfix(double);
 void* APS5_VABI uprv_maximumPtr_nid_postfix(void*);
 std::int32_t APS5_VABI uprv_max_nid_postfix(std::int32_t, std::int32_t);
 std::int32_t APS5_VABI uprv_min_nid_postfix(std::int32_t, std::int32_t);
+std::int32_t APS5_VABI uprv_uint16Comparator_nid_postfix(const void*, const void*, const void*);
+std::int32_t APS5_VABI uprv_int32Comparator_nid_postfix(const void*, const void*, const void*);
+std::int32_t APS5_VABI uprv_uint32Comparator_nid_postfix(const void*, const void*, const void*);
 }
