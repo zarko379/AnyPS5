@@ -139,9 +139,9 @@ int APS5_VABI kmq_setattr_nid_postfix(int descriptor, const GuestMqAttr* attr, G
 std::int64_t APS5_VABI kmq_timedreceive_nid_postfix(int descriptor, char* buffer, std::size_t length, unsigned int* priority, const GuestTimespec* abstime);
 int APS5_VABI kmq_timedsend_nid_postfix(int descriptor, const char* message, std::size_t length, unsigned int priority, const GuestTimespec* abstime);
 int APS5_VABI kmq_unlink_nid_postfix(const char* path);
-int APS5_VABI ksem_close_nid_postfix(void);
-int APS5_VABI ksem_open_nid_postfix(void);
-int APS5_VABI ksem_unlink_nid_postfix(void);
+int APS5_VABI ksem_close_nid_postfix(std::intptr_t id);
+int APS5_VABI ksem_open_nid_postfix(std::intptr_t* idp, const char* name, int oflag, std::uint16_t mode, unsigned int value);
+int APS5_VABI ksem_unlink_nid_postfix(const char* name);
 int APS5_VABI ktrace_nid_postfix(void);
 int APS5_VABI mdbg_call_nid_postfix(void);
 int APS5_VABI mdbg_service_nid_postfix(void);

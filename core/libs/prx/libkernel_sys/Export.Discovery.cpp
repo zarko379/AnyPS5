@@ -14,6 +14,7 @@
 #include "prx/libkernel/KernelErrors.hpp"
 #include "prx/libkernel/Apr/include/AprCommandBuffer.hpp"
 #include "prx/libkernel/DirectMemory/DirectMemory.hpp"
+#include "prx/libkernel/Semaphore/include/Ksem.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -144,19 +145,16 @@ int APS5_VABI kmq_notify_nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI ksem_close_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI ksem_close_nid_postfix(std::intptr_t id) {
+    return KsemClose_nid_no_patch(id);
 }
 
-int APS5_VABI ksem_open_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI ksem_open_nid_postfix(std::intptr_t* idp, const char* name, int oflag, std::uint16_t mode, unsigned int value) {
+    return KsemOpen_nid_no_patch(idp, name, oflag, mode, value);
 }
 
-int APS5_VABI ksem_unlink_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI ksem_unlink_nid_postfix(const char* name) {
+    return KsemUnlink_nid_no_patch(name);
 }
 
 int APS5_VABI ktrace_nid_postfix(void) {

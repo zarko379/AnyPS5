@@ -1,5 +1,6 @@
 #include "SceTypes.hpp"
 #include "prx/libc/include/Api.hpp"
+#include "prx/libc/include/CreationMask.hpp"
 #include "prx/libc/include/General.hpp"
 #include "prx/libkernel/Equeue/Equeue.hpp"
 #include "prx/libkernel/include/Api.hpp"
@@ -7,12 +8,14 @@
 #include "prx/libkernel/Time/include/Time.hpp"
 #include "prx/libkernel/Time/include/TimedWait.hpp"
 #include <algorithm>
+#include <cerrno>
 #include <climits>
 #include <cstdint>
 #include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <string>
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
@@ -23,25 +26,62 @@
 
 namespace {
 
+constexpr int GuestEnoent = 2;
 constexpr int GuestEfault = 14;
 constexpr int GuestEbusy = 16;
+constexpr int GuestEexist = 17;
 constexpr int GuestEinval = 22;
+constexpr int GuestEnfile = 23;
+constexpr int GuestEmfile = 24;
 constexpr int GuestEnospc = 28;
 constexpr int GuestEagain = 35;
 constexpr int GuestEtimedout = 60;
 constexpr int GuestEoverflow = 84;
 constexpr unsigned SemValueMax = 0x7fffffffu;
 constexpr std::size_t SemMax = 30;
+constexpr int GuestOCreat = 0x0200;
+constexpr int GuestOExcl = 0x0800;
+constexpr std::uint16_t AccessPerms = 0777;
+constexpr std::uint16_t OwnerReadWrite = 0600;
+constexpr std::uint16_t AnonymousMode = 0770;
+
+std::mutex g_countLock;
+std::size_t g_objects = 0;
 
 struct Ksem {
     std::mutex lock;
     TimedWait::Condition available;
     unsigned count = 0;
     unsigned waiters = 0;
+    std::uint16_t mode = 0;
+    bool anonymous = false;
+
+    ~Ksem() {
+        std::lock_guard counted(g_countLock);
+        --g_objects;
+    }
 };
 
 std::mutex g_ksemLock;
 std::map<int, std::shared_ptr<Ksem>> g_ksems;
+std::map<std::string, std::shared_ptr<Ksem>> g_names;
+
+std::shared_ptr<Ksem> Allocate(std::uint16_t mode, unsigned value, bool anonymous) {
+    {
+        std::lock_guard counted(g_countLock);
+        if (g_objects == SemMax) return {};
+        ++g_objects;
+    }
+    auto ksem = std::make_shared<Ksem>();
+    ksem->mode = mode;
+    ksem->count = value;
+    ksem->anonymous = anonymous;
+    return ksem;
+}
+
+bool Accessible(const Ksem& ksem) {
+    return (ksem.mode & OwnerReadWrite) == OwnerReadWrite;
+}
 
 int Fail(int error) {
     *__error_nid_postfix() = error;
@@ -61,6 +101,16 @@ int ReserveDescriptor() {
 #else
     return ::open("/dev/null", O_RDONLY | O_CLOEXEC);
 #endif
+}
+
+bool CopyOutId(std::intptr_t* idp, int descriptor) {
+    const std::intptr_t id = descriptor;
+    return GuestCopyOut_nid_no_patch(idp, &id, sizeof(id));
+}
+
+int CloseAndFail(int descriptor, int error) {
+    close_nid_postfix(descriptor);
+    return Fail(error);
 }
 
 void DescriptorClosed(int descriptor) {
@@ -129,24 +179,15 @@ extern "C" {
 
 int APS5_VABI ksem_init_nid_postfix(std::intptr_t* idp, unsigned int value) {
     if (value > SemValueMax) return Fail(GuestEinval);
+    const auto mode = static_cast<std::uint16_t>(AnonymousMode & ~File::GetCreationMask_nid_no_patch() & AccessPerms);
     const int descriptor = ReserveDescriptor();
     if (descriptor < 0) return Fail(GuestEnospc);
-    if (idp == nullptr) {
-        close_nid_postfix(descriptor);
-        return Fail(GuestEfault);
-    }
-    *idp = descriptor;
-    auto ksem = std::make_shared<Ksem>();
-    ksem->count = value;
-    {
-        std::lock_guard lock(g_ksemLock);
-        if (g_ksems.size() < SemMax) {
-            g_ksems[descriptor] = std::move(ksem);
-            return 0;
-        }
-    }
-    close_nid_postfix(descriptor);
-    return Fail(GuestEnospc);
+    if (!CopyOutId(idp, descriptor)) return CloseAndFail(descriptor, GuestEfault);
+    auto ksem = Allocate(mode, value, true);
+    if (!ksem) return CloseAndFail(descriptor, GuestEnospc);
+    std::lock_guard lock(g_ksemLock);
+    g_ksems[descriptor] = std::move(ksem);
+    return 0;
 }
 
 int APS5_VABI ksem_post_nid_postfix(std::intptr_t id) {
@@ -187,11 +228,75 @@ int APS5_VABI ksem_getvalue_nid_postfix(std::intptr_t id, int* value) {
 
 int APS5_VABI ksem_destroy_nid_postfix(std::intptr_t id) {
     const auto ksem = Find(id);
-    if (!ksem) return Fail(GuestEinval);
+    if (!ksem || !ksem->anonymous) return Fail(GuestEinval);
     {
         std::lock_guard lock(ksem->lock);
         if (ksem->waiters != 0) return Fail(GuestEbusy);
     }
+    return close_nid_postfix(static_cast<int>(id));
+}
+
+int KsemOpen_nid_no_patch(std::intptr_t* idp, const char* name, int oflag, std::uint16_t mode, unsigned int value) {
+    if ((oflag & ~(GuestOCreat | GuestOExcl)) != 0) return Fail(GuestEinval);
+    if (value > SemValueMax) return Fail(GuestEinval);
+    const auto permissions = static_cast<std::uint16_t>(mode & ~File::GetCreationMask_nid_no_patch() & AccessPerms);
+    const int descriptor = ReserveDescriptor();
+    if (descriptor < 0) return Fail(errno == ENFILE ? GuestEnfile : GuestEmfile);
+    if (!CopyOutId(idp, descriptor)) return CloseAndFail(descriptor, GuestEfault);
+    std::string path;
+    if (const int error = CopyGuestPath_nid_no_patch(name, path)) return CloseAndFail(descriptor, error);
+    if (path.empty() || path[0] != '/') return CloseAndFail(descriptor, GuestEinval);
+    int error = 0;
+    bool denied = false;
+    {
+        std::lock_guard lock(g_ksemLock);
+        std::shared_ptr<Ksem> ksem;
+        const auto found = g_names.find(path);
+        if (found == g_names.end()) {
+            if ((oflag & GuestOCreat) == 0) {
+                error = GuestEnoent;
+            } else if (ksem = Allocate(permissions, value, false); !ksem) {
+                error = GuestEnfile;
+            } else {
+                g_names[path] = ksem;
+            }
+        } else if ((oflag & (GuestOCreat | GuestOExcl)) == (GuestOCreat | GuestOExcl)) {
+            error = GuestEexist;
+        } else if (!Accessible(*found->second)) {
+            denied = true;
+        } else {
+            ksem = found->second;
+        }
+        if (ksem) g_ksems[descriptor] = std::move(ksem);
+    }
+    if (denied) {
+        close_nid_postfix(descriptor);
+        NotImplemented_nid_no_patch("ksem_open: reopening a semaphore whose mode denies the owner read and write needs the console's credential privileges");
+    }
+    if (error != 0) return CloseAndFail(descriptor, error);
+    return 0;
+}
+
+int KsemUnlink_nid_no_patch(const char* name) {
+    std::string path;
+    if (const int error = CopyGuestPath_nid_no_patch(name, path)) return Fail(error);
+    std::shared_ptr<Ksem> removed;
+    {
+        std::lock_guard lock(g_ksemLock);
+        const auto found = g_names.find(path);
+        if (found == g_names.end()) return Fail(GuestEnoent);
+        if (Accessible(*found->second)) {
+            removed = std::move(found->second);
+            g_names.erase(found);
+        }
+    }
+    if (!removed) NotImplemented_nid_no_patch("ksem_unlink: unlinking a semaphore whose mode denies the owner read and write needs the console's credential privileges");
+    return 0;
+}
+
+int KsemClose_nid_no_patch(std::intptr_t id) {
+    const auto ksem = Find(id);
+    if (!ksem || ksem->anonymous) return Fail(GuestEinval);
     return close_nid_postfix(static_cast<int>(id));
 }
 
