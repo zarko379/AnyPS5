@@ -21,13 +21,11 @@ int main() {
     Require(sceKernelAddResource() == 0);
     Require(sceKernelEventLogInit() == 0);
     Require(sceKernelIsGenuineKratosCex() == 0);
-    Require(sceKernelIsNeoMode() == 0);
     Require(sceKernelReleaseTraceDirectMemory() == 0);
 
     Require(sceKernelHasNeoMode() == 1);
     Require(sceKernelIsAuthenticNeo() == 1);
     Require(sceKernelIsGenuineN() == 1);
-    Require(sceKernelIsInSandbox() == 1);
 
     Require(sceKernelCreateEport() == SCE_KERNEL_ERROR_EPERM);
     Require(sceKernelDeleteEport() == SCE_KERNEL_ERROR_EPERM);

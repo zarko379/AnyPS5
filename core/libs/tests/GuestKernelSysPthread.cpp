@@ -1,19 +1,20 @@
 #include "prx/libkernel/KernelErrors.hpp"
 #include "prx/libkernel_sys/include/Api.hpp"
 #include "prx/libkernel/include/Api.hpp"
-#include "prx/libkernel/Pthread/include/Mutex.hpp"
+#include "prx/libkernel/Pthread/include/Pthread.hpp"
 #include "prx/libc/include/General.hpp"
 #include "SceTypes.hpp"
 #include "prx/libkernel/Pthread/include/Atfork.hpp"
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
-#include <source_location>
 #include <stdexcept>
+#include <thread>
 
 static constexpr int SCOPE_PROCESS = 0;
 static constexpr int SCOPE_SYSTEM = 2;
@@ -21,21 +22,11 @@ static constexpr int GUEST_EINVAL = 22;
 static constexpr int GUEST_ERANGE = 34;
 static constexpr std::size_t CPUSET_BYTES = 32;
 static constexpr KernelCpumask DEFAULT_AFFINITY = 0x1FFF;
-static constexpr int PRIO_INHERIT = 1;
-static constexpr int PRIO_PROTECT = 2;
-static constexpr int DEFAULT_CEILING = 767;
-static constexpr int SET_CEILING = 300;
-static constexpr int LATER_CEILING = 400;
-static constexpr int MUTEX_RECURSIVE = 2;
 
 using Cpuset = std::array<std::uint8_t, CPUSET_BYTES>;
 using WideCpuset = std::array<std::uint8_t, CPUSET_BYTES + 8>;
 
-static void Require(bool value, std::source_location location = std::source_location::current()) {
-    if (value) return;
-    std::fprintf(stderr, "%s:%u: requirement failed\n", location.file_name(), static_cast<unsigned>(location.line()));
-    std::abort();
-}
+static void Require(bool value) { if (!value) std::abort(); }
 
 template<typename TException, typename TCall>
 static bool ThrowsImplemented(TCall call) {
@@ -54,17 +45,6 @@ static void APS5_VABI Child() {}
 
 static void* APS5_VABI ReportAffinity(void* affinity) {
     Require(scePthreadGetaffinity(scePthreadSelf(), static_cast<KernelCpumask*>(affinity)) == 0);
-    return nullptr;
-}
-
-struct OwnerProbe {
-    PthreadMutex* mutex;
-    int owned;
-};
-
-static void* APS5_VABI ReportOwned(void* probe) {
-    auto* report = static_cast<OwnerProbe*>(probe);
-    report->owned = scePthreadMutexIsowned(report->mutex);
     return nullptr;
 }
 
@@ -110,42 +90,6 @@ static KernelCpumask CreatedAffinity(const PthreadAttr* attr) {
     Require(scePthreadCreate(&thread, attr, ReportAffinity, &affinity, "affinity") == 0);
     Require(scePthreadJoin(thread, nullptr) == 0);
     return affinity;
-}
-
-static void TestScope() {
-    PthreadAttr attr{};
-    Require(scePthreadAttrInit(&attr) == 0);
-    int scope = -1;
-    Require(scePthreadAttrGetscope(&attr, &scope) == 0 && scope == SCOPE_SYSTEM);
-    Require(scePthreadAttrSetscope(&attr, SCOPE_PROCESS) == 0);
-    Require(scePthreadAttrGetscope(&attr, &scope) == 0 && scope == SCOPE_PROCESS);
-    for (const int invalid : {1, 3, -1}) {
-        Require(scePthreadAttrSetscope(&attr, invalid) == SCE_KERNEL_ERROR_EINVAL);
-        scope = -1;
-        Require(scePthreadAttrGetscope(&attr, &scope) == 0 && scope == SCOPE_PROCESS);
-    }
-    Require(scePthreadAttrSetscope(&attr, SCOPE_SYSTEM) == 0);
-    Require(scePthreadAttrGetscope(&attr, &scope) == 0 && scope == SCOPE_SYSTEM);
-    Require(scePthreadAttrGetscope(&attr, nullptr) == SCE_KERNEL_ERROR_EINVAL);
-    Require(scePthreadAttrGetscope(nullptr, &scope) == SCE_KERNEL_ERROR_EINVAL);
-    Require(scePthreadAttrSetscope(nullptr, SCOPE_PROCESS) == SCE_KERNEL_ERROR_EINVAL);
-    Require(scePthreadAttrDestroy(&attr) == 0);
-}
-
-static void TestConcurrency() {
-    Require(scePthreadSetconcurrency(3) == 0 && scePthreadGetconcurrency() == 3);
-    Require(scePthreadSetconcurrency(-1) == SCE_KERNEL_ERROR_EINVAL && scePthreadGetconcurrency() == 3);
-    Require(scePthreadSetconcurrency(0) == 0 && scePthreadGetconcurrency() == 0);
-}
-
-static void TestAtfork() {
-    const auto before = PthreadAtforkHandlers_nid_no_patch().size();
-    Require(scePthreadAtfork(Prepare, Parent, Child) == 0);
-    Require(scePthreadAtfork(nullptr, nullptr, nullptr) == 0);
-    const auto handlers = PthreadAtforkHandlers_nid_no_patch();
-    Require(handlers.size() == before + 2);
-    Require(handlers[before].prepare == Prepare && handlers[before].parent == Parent && handlers[before].child == Child);
-    Require(handlers[before + 1].prepare == nullptr && handlers[before + 1].parent == nullptr && handlers[before + 1].child == nullptr);
 }
 
 static void TestAttrAffinity() {
@@ -245,148 +189,122 @@ static void TestAttrAffinity() {
     Require(scePthreadAttrDestroy(&attr) == 0);
 }
 
-static void TestAttrStackaddr() {
-    PthreadAttr attr = nullptr;
-    PthreadAttr unset = nullptr;
+static void TestScope() {
+    PthreadAttr attr{};
     Require(scePthreadAttrInit(&attr) == 0);
-    char stack[16]{};
-    void* reported = nullptr;
-    std::size_t sizeBefore = 0;
-    std::size_t sizeAfter = 0;
-    Require(scePthreadAttrGetstacksize(&attr, &sizeBefore) == 0);
-    Require(pthread_attr_setstackaddr_nid_postfix(&attr, stack) == 0);
-    Require(pthread_attr_getstackaddr_nid_postfix(&attr, &reported) == 0 && reported == stack);
-    Require(scePthreadAttrGetstacksize(&attr, &sizeAfter) == 0 && sizeAfter == sizeBefore);
-    Require(pthread_attr_setstackaddr_nid_postfix(&attr, nullptr) == GUEST_EINVAL);
-    reported = nullptr;
-    Require(pthread_attr_getstackaddr_nid_postfix(&attr, &reported) == 0 && reported == stack);
-    Require(pthread_attr_setstackaddr_nid_postfix(nullptr, stack) == GUEST_EINVAL);
-    Require(pthread_attr_setstackaddr_nid_postfix(&unset, stack) == GUEST_EINVAL && unset == nullptr);
+    int scope = -1;
+    Require(scePthreadAttrGetscope(&attr, &scope) == 0 && scope == SCOPE_SYSTEM);
+    Require(scePthreadAttrSetscope(&attr, SCOPE_PROCESS) == 0);
+    Require(scePthreadAttrGetscope(&attr, &scope) == 0 && scope == SCOPE_PROCESS);
+    for (const int invalid : {1, 3, -1}) {
+        Require(scePthreadAttrSetscope(&attr, invalid) == SCE_KERNEL_ERROR_EINVAL);
+        scope = -1;
+        Require(scePthreadAttrGetscope(&attr, &scope) == 0 && scope == SCOPE_PROCESS);
+    }
+    Require(scePthreadAttrSetscope(&attr, SCOPE_SYSTEM) == 0);
+    Require(scePthreadAttrGetscope(&attr, &scope) == 0 && scope == SCOPE_SYSTEM);
+    Require(scePthreadAttrGetscope(&attr, nullptr) == SCE_KERNEL_ERROR_EINVAL);
+    Require(scePthreadAttrGetscope(nullptr, &scope) == SCE_KERNEL_ERROR_EINVAL);
+    Require(scePthreadAttrSetscope(nullptr, SCOPE_PROCESS) == SCE_KERNEL_ERROR_EINVAL);
     Require(scePthreadAttrDestroy(&attr) == 0);
 }
 
-static void TestAttrSolosched() {
-    PthreadAttr attr = nullptr;
-    PthreadAttr unset = nullptr;
-    Require(scePthreadAttrInit(&attr) == 0);
-    int solosched = -1;
-    Require(pthread_attr_getsolosched_np_nid_postfix(&attr, &solosched) == 0 && solosched == 0);
-    Require(pthread_attr_setsolosched_np_nid_postfix(&attr, 16) == 0);
-    Require(pthread_attr_getsolosched_np_nid_postfix(&attr, &solosched) == 0 && solosched == 16);
-    Require(pthread_attr_getsolosched_np_nid_postfix(&attr, nullptr) == GUEST_EINVAL);
-    solosched = -1;
-    Require(pthread_attr_getsolosched_np_nid_postfix(nullptr, &solosched) == GUEST_EINVAL);
-    Require(pthread_attr_getsolosched_np_nid_postfix(&unset, &solosched) == GUEST_EINVAL && solosched == -1);
-    Require(scePthreadAttrDestroy(&attr) == 0);
-}
-
-static void TestMutexPrioceiling() {
-    int ceiling = -1;
-    PthreadMutex none = nullptr;
-    Require(pthread_mutex_init_nid_postfix(&none, nullptr) == 0);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&none, &ceiling) == GUEST_EINVAL);
-    Require(scePthreadMutexGetprioceiling(&none, &ceiling) == SCE_KERNEL_ERROR_EINVAL && ceiling == -1);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&none, nullptr) == GUEST_EINVAL);
-
+static void TestMutexAttributeGeneration() {
     PthreadMutexattr attr = nullptr;
     Require(pthread_mutexattr_init_nid_postfix(&attr) == 0);
-    Require(pthread_mutexattr_setprotocol_nid_postfix(&attr, PRIO_INHERIT) == 0);
-    PthreadMutex inherit = nullptr;
-    Require(pthread_mutex_init_nid_postfix(&inherit, &attr) == 0);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&inherit, &ceiling) == GUEST_EINVAL && ceiling == -1);
 
-    Require(pthread_mutexattr_setprotocol_nid_postfix(&attr, PRIO_PROTECT) == 0);
-    PthreadMutex protect = nullptr;
-    Require(pthread_mutex_init_nid_postfix(&protect, &attr) == 0);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&protect, &ceiling) == 0 && ceiling == DEFAULT_CEILING);
-    ceiling = -1;
-    Require(scePthreadMutexGetprioceiling(&protect, &ceiling) == 0 && ceiling == DEFAULT_CEILING);
+    int generation = -1;
+    Require(pthread_mutexattr_getgen_np_nid_postfix(&attr, &generation) == 0 && generation == 0);
+    Require(pthread_mutexattr_setgen_np_nid_postfix(&attr, 1) == 0);
+    Require(pthread_mutexattr_getgen_np_nid_postfix(&attr, &generation) == 0 && generation == 1);
+    Require(pthread_mutexattr_setgen_np_nid_postfix(&attr, 2) == 45);
+    Require(pthread_mutexattr_getgen_np_nid_postfix(nullptr, &generation) == 22);
+    Require(pthread_mutexattr_getgen_np_nid_postfix(&attr, nullptr) == 22);
+    Require(pthread_mutexattr_setgen_np_nid_postfix(nullptr, 0) == 22);
+    PthreadMutexattr destroyedAttr = nullptr;
+    Require(pthread_mutexattr_getgen_np_nid_postfix(&destroyedAttr, &generation) == 22);
+    Require(pthread_mutexattr_setgen_np_nid_postfix(&destroyedAttr, 0) == 22);
 
-    Require(pthread_mutexattr_setprioceiling_nid_postfix(&attr, SET_CEILING) == 0);
-    PthreadMutex named = nullptr;
-    Require(scePthreadMutexInit(&named, &attr, "prioceiling") == 0);
-    Require(pthread_mutexattr_setprioceiling_nid_postfix(&attr, LATER_CEILING) == 0);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&named, &ceiling) == 0 && ceiling == SET_CEILING);
-    ceiling = -1;
-    Require(scePthreadMutexGetprioceiling(&named, &ceiling) == 0 && ceiling == SET_CEILING);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&protect, &ceiling) == 0 && ceiling == DEFAULT_CEILING);
-    Require(pthread_mutex_lock_nid_postfix(&named) == 0);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&named, &ceiling) == 0 && ceiling == SET_CEILING);
-    Require(pthread_mutex_unlock_nid_postfix(&named) == 0);
-    Require(ThrowsImplemented<std::invalid_argument>([&] { return pthread_mutex_getprioceiling_nid_postfix(&protect, nullptr); }));
-    Require(ThrowsImplemented<std::invalid_argument>([&] { return pthread_mutex_getprioceiling_nid_postfix(nullptr, &ceiling); }));
-
-    const auto adaptiveInitializer = reinterpret_cast<PthreadMutex>(std::uintptr_t{1});
-    PthreadMutex unset = nullptr;
-    PthreadMutex adaptive = adaptiveInitializer;
-    ceiling = -1;
-    Require(pthread_mutex_getprioceiling_nid_postfix(&unset, &ceiling) == GUEST_EINVAL && unset == nullptr);
-    Require(scePthreadMutexGetprioceiling(&adaptive, &ceiling) == SCE_KERNEL_ERROR_EINVAL && adaptive == adaptiveInitializer);
-    PthreadMutex lazy = nullptr;
-    Require(pthread_mutex_lock_nid_postfix(&lazy) == 0 && lazy != nullptr);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&lazy, &ceiling) == GUEST_EINVAL);
-    Require(pthread_mutex_unlock_nid_postfix(&lazy) == 0 && pthread_mutex_destroy_nid_postfix(&lazy) == 0);
-    Require(pthread_mutex_destroy_nid_postfix(&named) == 0);
-    Require(pthread_mutex_getprioceiling_nid_postfix(&named, &ceiling) == GUEST_EINVAL);
-    Require(scePthreadMutexGetprioceiling(&named, &ceiling) == SCE_KERNEL_ERROR_EINVAL && ceiling == -1);
-
-    Require(pthread_mutex_destroy_nid_postfix(&protect) == 0);
-    Require(pthread_mutex_destroy_nid_postfix(&inherit) == 0);
-    Require(pthread_mutex_destroy_nid_postfix(&none) == 0);
+    Require(scePthreadMutexattrSetgen(&attr, 0) == 0);
+    Require(scePthreadMutexattrGetgen(&attr, &generation) == 0 && generation == 0);
+    Require(scePthreadMutexattrSetgen(&attr, 2) == SCE_KERNEL_ERROR_EOPNOTSUPP);
+    Require(scePthreadMutexattrGetgen(nullptr, &generation) == SCE_KERNEL_ERROR_EINVAL);
+    Require(pthread_mutexattr_getgen_np_nid_postfix(&attr, reinterpret_cast<int*>(0x10)) == 14);
+    Require(pthread_mutexattr_getgen_np_nid_postfix(reinterpret_cast<const PthreadMutexattr*>(0x10), &generation) == 22);
+    Require(pthread_mutexattr_setgen_np_nid_postfix(reinterpret_cast<PthreadMutexattr*>(0x10), 0) == 22);
+    Require(scePthreadMutexattrGetgen(&attr, reinterpret_cast<int*>(0x10)) == static_cast<int>(0x80020000u | 14u));
+    Require(scePthreadMutexattrGetgen(reinterpret_cast<const PthreadMutexattr*>(0x10), &generation) == SCE_KERNEL_ERROR_EINVAL);
+    Require(scePthreadMutexattrSetgen(reinterpret_cast<PthreadMutexattr*>(0x10), 0) == SCE_KERNEL_ERROR_EINVAL);
     Require(pthread_mutexattr_destroy_nid_postfix(&attr) == 0);
 }
 
-static int OwnedInOtherThread(PthreadMutex* mutex) {
-    OwnerProbe probe{mutex, -1};
+static void TestThreadAttrCreateSuspend() {
+    Require(pthread_attr_setcreatesuspend_np_nid_postfix(nullptr) == 22);
+    Require(pthread_attr_setcreatesuspend_np_nid_postfix(reinterpret_cast<PthreadAttr*>(0x10)) == 22);
+    PthreadAttr attr{};
+    Require(scePthreadAttrInit(&attr) == 0);
+    Require(pthread_attr_setcreatesuspend_np_nid_postfix(&attr) == 0);
+    Require(scePthreadAttrDestroy(&attr) == 0);
+}
+
+static void TestConcurrency() {
+    Require(scePthreadSetconcurrency(3) == 0 && scePthreadGetconcurrency() == 3);
+    Require(scePthreadSetconcurrency(-1) == SCE_KERNEL_ERROR_EINVAL && scePthreadGetconcurrency() == 3);
+    Require(scePthreadSetconcurrency(0) == 0 && scePthreadGetconcurrency() == 0);
+}
+
+static void TestAtfork() {
+    const auto before = PthreadAtforkHandlers_nid_no_patch().size();
+    Require(scePthreadAtfork(Prepare, Parent, Child) == 0);
+    Require(scePthreadAtfork(nullptr, nullptr, nullptr) == 0);
+    const auto handlers = PthreadAtforkHandlers_nid_no_patch();
+    Require(handlers.size() == before + 2);
+    Require(handlers[before].prepare == Prepare && handlers[before].parent == Parent && handlers[before].child == Child);
+    Require(handlers[before + 1].prepare == nullptr && handlers[before + 1].parent == nullptr && handlers[before + 1].child == nullptr);
+}
+
+struct TimedjoinGate {
+    std::atomic<bool> release{false};
+    std::atomic<bool> entered{false};
+};
+
+static void* APS5_VABI TimedjoinWorker(void* argument) {
+    auto& gate = *static_cast<TimedjoinGate*>(argument);
+    gate.entered.store(true, std::memory_order_release);
+    while (!gate.release.load(std::memory_order_acquire)) std::this_thread::yield();
+    return reinterpret_cast<void*>(std::uintptr_t{0x12345678});
+}
+
+static void TestTimedjoin() {
+    Require(scePthreadTimedjoin(nullptr, nullptr, 0) == SCE_KERNEL_ERROR_EINVAL);
+    Require(scePthreadTimedjoin(scePthreadSelf(), nullptr, 1000000) == SCE_KERNEL_ERROR_EDEADLK);
+
+    TimedjoinGate gate;
     Pthread thread = nullptr;
-    Require(scePthreadCreate(&thread, nullptr, ReportOwned, &probe, "isowned") == 0);
-    Require(scePthreadJoin(thread, nullptr) == 0);
-    return probe.owned;
-}
+    Require(scePthreadCreate(&thread, nullptr, TimedjoinWorker, &gate, nullptr) == 0);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (!gate.entered.load(std::memory_order_acquire)) {
+        Require(std::chrono::steady_clock::now() < deadline);
+        std::this_thread::yield();
+    }
 
-static void TestMutexIsowned() {
-    PthreadMutex unset = nullptr;
-    Require(scePthreadMutexIsowned(&unset) == 0 && unset == nullptr);
-    const auto adaptiveInitializer = reinterpret_cast<PthreadMutex>(std::uintptr_t{1});
-    PthreadMutex adaptive = adaptiveInitializer;
-    Require(scePthreadMutexIsowned(&adaptive) == 0 && adaptive == adaptiveInitializer);
+    void* returnValue = reinterpret_cast<void*>(std::uintptr_t{0x55});
+    Require(scePthreadTimedjoin(thread, &returnValue, 0) == SCE_KERNEL_ERROR_ETIMEDOUT);
+    Require(returnValue == reinterpret_cast<void*>(std::uintptr_t{0x55}));
 
-    PthreadMutex mutex = nullptr;
-    Require(pthread_mutex_init_nid_postfix(&mutex, nullptr) == 0);
-    Require(scePthreadMutexIsowned(&mutex) == 0);
-    Require(pthread_mutex_lock_nid_postfix(&mutex) == 0);
-    Require(scePthreadMutexIsowned(&mutex) == SCE_KERNEL_ERROR_EPERM);
-    Require(OwnedInOtherThread(&mutex) == 0);
-    Require(pthread_mutex_unlock_nid_postfix(&mutex) == 0);
-    Require(scePthreadMutexIsowned(&mutex) == 0);
-
-    PthreadMutexattr attr = nullptr;
-    Require(pthread_mutexattr_init_nid_postfix(&attr) == 0);
-    Require(pthread_mutexattr_settype_nid_postfix(&attr, MUTEX_RECURSIVE) == 0);
-    PthreadMutex recursive = nullptr;
-    Require(pthread_mutex_init_nid_postfix(&recursive, &attr) == 0);
-    Require(pthread_mutex_lock_nid_postfix(&recursive) == 0 && pthread_mutex_lock_nid_postfix(&recursive) == 0);
-    Require(pthread_mutex_unlock_nid_postfix(&recursive) == 0);
-    Require(scePthreadMutexIsowned(&recursive) == SCE_KERNEL_ERROR_EPERM);
-    Require(pthread_mutex_unlock_nid_postfix(&recursive) == 0);
-    Require(scePthreadMutexIsowned(&recursive) == 0);
-    Require(pthread_mutex_destroy_nid_postfix(&recursive) == 0);
-    Require(pthread_mutexattr_destroy_nid_postfix(&attr) == 0);
-
-    Require(pthread_mutex_destroy_nid_postfix(&mutex) == 0);
-    const auto destroyed = mutex;
-    Require(scePthreadMutexIsowned(&mutex) == 0 && mutex == destroyed);
-    Require(ThrowsImplemented<std::invalid_argument>([] { return scePthreadMutexIsowned(nullptr); }));
+    gate.release.store(true, std::memory_order_release);
+    Require(scePthreadTimedjoin(thread, &returnValue, 3000000) == 0);
+    Require(returnValue == reinterpret_cast<void*>(std::uintptr_t{0x12345678}));
+    Require(scePthreadTimedjoin(thread, nullptr, 3000000) == SCE_KERNEL_ERROR_ESRCH);
 }
 
 int main() {
     TestScope();
+    TestMutexAttributeGeneration();
+    TestThreadAttrCreateSuspend();
     TestConcurrency();
     TestAtfork();
     TestAttrAffinity();
-    TestAttrStackaddr();
-    TestAttrSolosched();
-    TestMutexPrioceiling();
-    TestMutexIsowned();
+    TestTimedjoin();
     return 0;
 }

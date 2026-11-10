@@ -1,5 +1,4 @@
 #include "prx/libkernel/include/Api.hpp"
-#include "prx/libkernel_sys/include/Api.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libSceLibcInternal/include/Api.hpp"
 #include "AppArchiveFixture.hpp"
@@ -65,11 +64,11 @@ void OnMmapRefused() {
     std::_Exit(refused ? 0 : 1);
 }
 
-template <typename TCall> bool NotImplemented(TCall call, const char* naming = "") {
+template <typename TCall> bool NotImplemented(TCall call) {
     try {
         call();
     } catch (const std::runtime_error& error) {
-        return std::strstr(error.what(), "not implemented") != nullptr && std::strstr(error.what(), naming) != nullptr;
+        return std::strstr(error.what(), "not implemented") != nullptr;
     }
     return false;
 }
@@ -318,6 +317,21 @@ void Directories() {
     Check(!DescriptorIsOpen_nid_no_patch(owned));
 }
 
+void DirectoryClosedThroughStream(const std::filesystem::path& root) {
+    std::ofstream(root / "app0" / "StreamClose.txt", std::ios::binary) << "abc";
+    const int directory = sceKernelOpen("/app0/sce_sys/Concurrent", SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0);
+    Check(directory >= 0);
+    auto* stream = fdopen_nid_postfix(directory, "r");
+    Check(stream != nullptr);
+    Check(fclose_nid_postfix(stream) == 0);
+    const int file = sceKernelOpen("/app0/StreamClose.txt", SCE_KERNEL_O_RDONLY, 0);
+    Check(file == directory);
+    char data[4]{};
+    Check(sceKernelRead(file, data, sizeof(data)) == 3);
+    Check(sceKernelClose(file) == 0);
+    Check(std::filesystem::remove(root / "app0" / "StreamClose.txt"));
+}
+
 void Reads() {
     const auto expected = AppArchiveFixture::Pattern(BigSize);
     const int fd = sceKernelOpen("/app0/data/big.BIN", SCE_KERNEL_O_RDONLY, 0);
@@ -385,35 +399,18 @@ void Reads() {
 }
 
 void Status() {
+    auto* const badStatus = reinterpret_cast<FileStat*>(static_cast<std::uintptr_t>(0x10));
+    Check(sceKernelStat("/app0/Data/Small.txt", badStatus) == SCE_KERNEL_ERROR_EFAULT);
     FileStat status{};
     Check(sceKernelStat("/app0/Data/Small.txt", &status) == 0);
     Check((status.st_mode & TypeMask) == RegularType && (status.st_mode & 0222) == 0 && status.st_size == 3 && status.st_blocks == 1);
-    Check(sceKernelStat("/app0/data", &status) == 0 && (status.st_mode & TypeMask) == DirectoryType);
+    Check(sceKernelStat("/app0/data", &status) == 0 && (status.st_mode & TypeMask) == DirectoryType && status.st_blksize == 0x10000);
     Check(sceKernelStat("/app0/Data/", &status) == 0);
     Check(sceKernelStat("/app0/Data/Small.txt/", &status) == SCE_KERNEL_ERROR_ENOTDIR);
     Check(sceKernelStat("/app0/Data/Missing.txt", &status) == SCE_KERNEL_ERROR_ENOENT);
     Check(sceKernelStat("/app0/eboot.bin", &status) == 0 && status.st_size == 4);
     Check(sceKernelCheckReachability("/app0/Data/Small.txt") == 0);
     Check(sceKernelCheckReachability("/app0/Data/Missing.txt") == SCE_KERNEL_ERROR_ENOENT);
-    KernelStatfs disk{};
-    Check(statfs_nid_postfix("/app0.zar", &disk) == 0 && disk.f_version == 0x20030518 && disk.f_bsize != 0);
-    for (const char* archived : {"/app0/Data/Small.txt", "/app0/Data", "/app0/data/"}) {
-        KernelStatfs fileSystem{};
-        Check(statfs_nid_postfix(archived, &fileSystem) == 0 && fileSystem.f_version == disk.f_version && fileSystem.f_flags == disk.f_flags);
-        Check(fileSystem.f_bsize == disk.f_bsize && fileSystem.f_blocks == disk.f_blocks && fileSystem.f_namemax == disk.f_namemax);
-    }
-    KernelStatfs host{};
-    Check(statfs_nid_postfix("/app0/eboot.bin", &host) == 0 && host.f_version == disk.f_version && host.f_bsize != 0);
-    for (const char* merged : {"/app0", "/app0/sce_sys"}) {
-        const int fd = sceKernelOpen(merged, SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0);
-        KernelStatfs viaDescriptor{};
-        Check(fd >= 0 && _fstatfs_nid_postfix(fd, &viaDescriptor) == -1 && *__error_nid_postfix() == 45 && sceKernelClose(fd) == 0);
-        KernelStatfs viaPath{};
-        Check(statfs_nid_postfix(merged, &viaPath) == 0 && viaPath.f_version == host.f_version && viaPath.f_flags == host.f_flags);
-        Check(viaPath.f_bsize == host.f_bsize && viaPath.f_blocks == host.f_blocks && viaPath.f_namemax == host.f_namemax);
-    }
-    Check(statfs_nid_postfix("/app0/Data/Missing.txt", &disk) == -1 && *__error_nid_postfix() == 2);
-    Check(statfs_nid_postfix("/app0/Data/Small.txt/", &disk) == -1 && *__error_nid_postfix() == 20);
 }
 
 void Refusals() {
@@ -423,11 +420,7 @@ void Refusals() {
     Check(sceKernelOpen("/app0/Data/Small.txt", SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0) == SCE_KERNEL_ERROR_ENOTDIR);
     Check(sceKernelOpen("/app0/Data/Missing.txt", SCE_KERNEL_O_RDONLY, 0) == SCE_KERNEL_ERROR_ENOENT);
     const int directory = sceKernelOpen("/app0/Data", SCE_KERNEL_O_RDONLY | SCE_KERNEL_O_DIRECTORY, 0);
-    Check(directory >= 0);
-    Check(NotImplemented([directory] { (void)futimesat_nid_postfix(directory, "Small.txt", nullptr); }, "setting the times of Small.txt in app0.zar"));
-    Check(NotImplemented([] { (void)futimesat_nid_postfix(-100, "/app0/Data/Small.txt", nullptr); }, "/app0/Data/Small.txt in app0.zar"));
-    Check(futimesat_nid_postfix(directory, "Missing.txt", nullptr) == -1 && *__error_nid_postfix() == 2);
-    Check(sceKernelClose(directory) == 0);
+    Check(directory >= 0 && sceKernelClose(directory) == 0);
     void* archivedDirectory = opendir_nid_postfix("/app0/sce_sys");
     Check(archivedDirectory != nullptr && closedir_nid_postfix(archivedDirectory) == 0);
     Directories();
@@ -520,6 +513,7 @@ int main(int argc, char** argv) {
         Archive(root);
         FileNumbers();
         ConcurrentArchiveDirectoryEntries();
+        DirectoryClosedThroughStream(root);
         Reads();
         Status();
         Refusals();

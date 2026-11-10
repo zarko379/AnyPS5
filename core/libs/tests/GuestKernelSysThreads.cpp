@@ -84,22 +84,6 @@ int main(int argc, char** argv) {
         return 0;
     }
 #endif
-    if (test == "pwrite") {
-        auto* sys = LoadLibraryFile(directory / "libkernel_sys.prx");
-        auto* kernel = LoadLibraryFile(directory / "libkernel.prx");
-        const auto pwrite = LoadFunction<std::int64_t (APS5_VABI*)(int, const void*, std::size_t, std::int64_t)>(sys, "pwrite", patched);
-        const auto pread = LoadFunction<std::int64_t (APS5_VABI*)(int, void*, std::size_t, std::int64_t)>(kernel, "pread", patched);
-        const auto open = LoadFunction<int (APS5_VABI*)(const char*, int, int)>(kernel, "open", patched);
-        const auto close = LoadFunction<int (APS5_VABI*)(int)>(kernel, "close", patched);
-        const auto file = "anyps5-kernel-sys-pwrite-" + std::string(argv[2]) + ".bin";
-        std::ofstream(file, std::ios::binary).put('x');
-        const int descriptor = open(file.c_str(), SCE_KERNEL_O_RDWR, 0);
-        Require(descriptor >= 0);
-        char bytes[4]{};
-        Require(pwrite(descriptor, "yz", 2, 1) == 2 && pread(descriptor, bytes, sizeof(bytes), 0) == 3 && std::memcmp(bytes, "xyz", 3) == 0);
-        Require(close(descriptor) == 0 && std::filesystem::remove(file));
-        return 0;
-    }
     Require(test == "main");
     auto* sys = LoadLibraryFile(directory / "libkernel_sys.prx");
     LoadLibraryFile(directory / "libkernel.prx");

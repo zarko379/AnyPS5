@@ -255,12 +255,6 @@ inline std::optional<AmmProtectCommand> EncodeAmmProtect(Opcode opcode, std::uin
 
 }
 
-struct AmmSubmitResult {
-    std::int32_t result;
-    std::uint32_t errorOffset;
-};
-static_assert(sizeof(AmmSubmitResult) == 8);
-
 extern "C" {
 int AmmGiveDirectMemory_nid_no_patch(std::int64_t searchStart, std::int64_t searchEnd, std::size_t size, std::size_t alignment, int usage, std::int64_t* offset);
 void AmmVirtualAddressRanges_nid_no_patch(std::uint64_t* start, std::uint64_t* end, std::uint64_t* multimapStart, std::uint64_t* multimapEnd);

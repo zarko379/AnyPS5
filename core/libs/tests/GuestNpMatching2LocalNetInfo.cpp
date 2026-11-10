@@ -65,10 +65,7 @@ bool Untouched(const NpMatching2SignalingNetInfo& info, std::uint64_t size) {
 }
 
 bool PaddingCleared(const NpMatching2SignalingNetInfo& info) {
-    for (const std::uint8_t byte : info.padding) {
-        if (byte != 0) return false;
-    }
-    return true;
+    return info.padding == 0;
 }
 
 bool HostAddress(std::uint32_t& address) {
@@ -152,8 +149,8 @@ void CheckStunAnswer(std::uint32_t local) {
     Require(answered, "the STUN responders did not get both binding requests");
     Require(result == 0, "a call with a STUN answer failed");
     Require(info.size == NetInfoSize, "the size field was changed");
-    Require(info.localAddress == local, "the local address changed with a STUN answer");
-    Require(info.mappedAddress == mapped, "the mapped address is not the address the STUN servers saw");
+    Require(info.localAddr == local, "the local address changed with a STUN answer");
+    Require(info.mappedAddr == mapped, "the mapped address is not the address the STUN servers saw");
     Require(info.natStatus == 2, "the NAT status is not the NAT type 2 NetCtl found");
     Require(PaddingCleared(info), "the padding was not cleared");
 }
@@ -186,8 +183,8 @@ int main() {
     info = Filled(NetInfoSize);
     Require(sceNpMatching2SignalingGetLocalNetInfo(&info) == 0, "a call without a STUN server failed");
     Require(info.size == NetInfoSize, "the size field was changed");
-    Require(info.localAddress == local, "the local address is not the NetCtl IPv4 address, or 127.0.0.1 without one");
-    Require(info.mappedAddress == local, "without a STUN answer the mapped address is not the local address");
+    Require(info.localAddr == local, "the local address is not the NetCtl IPv4 address, or 127.0.0.1 without one");
+    Require(info.mappedAddr == local, "without a STUN answer the mapped address is not the local address");
     Require(info.natStatus == 0, "without a STUN answer the NAT status is not 0");
     Require(PaddingCleared(info), "the padding was not cleared");
 
