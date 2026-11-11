@@ -5,11 +5,13 @@
 #include <unicode/uclean.h>
 #include <unicode/udata.h>
 #include <unicode/uenum.h>
+#include <unicode/locid.h>
 #include <unicode/uniset.h>
 #include <unicode/ures.h>
 #include <unicode/uset.h>
 #include <atomic>
 #include <cstddef>
+#include <cstring>
 #include <mutex>
 #include <stdexcept>
 #include <unordered_set>
@@ -140,6 +142,10 @@ void CheckFallback(const std::int32_t* status) {
 
 bool LocaleData(const char* tree, const char* locale) {
     Ensure();
+    char compat[8] = "";
+    UErrorCode compatStatus = U_ZERO_ERROR;
+    const std::int32_t compatLength = icu::Locale(locale).getKeywordValue("compat", compat, sizeof(compat), compatStatus);
+    if (U_SUCCESS(compatStatus) && compatLength > 0 && std::strcmp(compat, "host") == 0) NotImplemented_nid_no_patch("libSceIcu: the host's own formats (@compat=host)");
     UErrorCode status = U_ZERO_ERROR;
     ures_close(ures_open(tree, locale, &status));
     const bool needsDefault = status == U_USING_DEFAULT_WARNING;

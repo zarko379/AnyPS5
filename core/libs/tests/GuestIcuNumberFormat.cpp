@@ -344,6 +344,17 @@ void CheckNumberFormatErrors() {
             Require(Throws<std::runtime_error>([style, locale] { std::int32_t ok = Ok; unum_open_nid_postfix(style, PatternFor(style), -1, locale, nullptr, &ok); }), std::string("a locale without data throws: ") + locale + " " + std::to_string(style));
         }
     }
+    for (const char* locale : {"en@compat=host", "de_DE@compat=host;numbers=latn", "@compat=host"}) {
+        for (std::int32_t style : {std::int32_t{UNUM_DECIMAL}, std::int32_t{UNUM_CURRENCY}, std::int32_t{UNUM_SPELLOUT}}) {
+            Require(Throws<std::runtime_error>([style, locale] { std::int32_t ok = Ok; unum_open_nid_postfix(style, nullptr, 0, locale, nullptr, &ok); }), std::string("a request for the host's own formats throws: ") + locale);
+        }
+    }
+    for (const char* locale : {"en@compat=hostx", "en@compat=other"}) {
+        std::int32_t ok = Ok;
+        void* format = unum_open_nid_postfix(UNUM_DECIMAL, nullptr, 0, locale, nullptr, &ok);
+        Require(format && ok <= Ok, std::string("another compat value is accepted: ") + locale);
+        unum_close_nid_postfix(format);
+    }
     for (std::int32_t style : {UNUM_SPELLOUT, UNUM_ORDINAL, UNUM_DURATION, UNUM_NUMBERING_SYSTEM}) {
         Require(Throws<std::runtime_error>([style] { std::int32_t ok = Ok; unum_open_nid_postfix(style, nullptr, 0, "bn", nullptr, &ok); }), "a locale without rule-based data throws for the rule-based styles");
     }

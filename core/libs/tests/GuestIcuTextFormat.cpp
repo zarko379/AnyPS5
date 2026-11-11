@@ -369,6 +369,7 @@ void CheckRelativeErrors() {
         status = Ok;
         Require(!ureldatefmt_open_nid_postfix("en", nullptr, width, UDISPCTX_STANDARD_NAMES, &status) && status == IllegalArgument, "a bad context fails before the width is used");
     }
+    Require(Throws<std::runtime_error>([] { std::int32_t ok = Ok; ureldatefmt_open_nid_postfix("en@compat=host", nullptr, UDAT_STYLE_LONG, UDISPCTX_CAPITALIZATION_NONE, &ok); }), "a request for the host's own number format throws");
     status = Ok;
     URelativeDateTimeFormatter* formatter = ureldatefmt_open_nid_postfix("en", nullptr, UDAT_STYLE_LONG, UDISPCTX_CAPITALIZATION_FOR_BEGINNING_OF_SENTENCE, &status);
     char16_t buffer[64] = {};
