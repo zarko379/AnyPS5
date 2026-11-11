@@ -39,3 +39,4 @@
 #include "StringSearch.hpp"
 #include "Idna.hpp"
 #include "EnumerationSources.hpp"
+#include "BreakIterator.hpp"

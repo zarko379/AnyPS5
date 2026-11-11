@@ -417,10 +417,6 @@ int APS5_VABI _ZNK6icu_6810UnicodeSet12spanBackUTF8EPKci17USetSpanCondition_nid_
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI ubrk_getRuleStatusVec_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZNK6icu_6810Normalizer8getIndexEv_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -546,10 +542,6 @@ int APS5_VABI sceIcuLegacyUnknown_1nek04WkGb0_nid_no_patch() {
     NotImplemented_nid_no_patch(__func__);
 }
 APS5_EXPORT("1nek04WkGb0", sceIcuLegacyUnknown_1nek04WkGb0_nid_no_patch);
-
-int APS5_VABI ubrk_safeClone_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
 
 int APS5_VABI _ZNK6icu_6813UnicodeString7toUTF32EPiiR10UErrorCode_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
@@ -5374,10 +5366,6 @@ int APS5_VABI ucnv_swap_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI ubrk_openBinaryRules_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI sceIcuLegacyUnknown_X_plus__plus_EgTQvxIo_nid_no_patch() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -6310,10 +6298,6 @@ int APS5_VABI _ZN6icu_6814UnicodeFunctorD0Ev_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI ubrk_getBinaryRules_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN6icu_6822RuleBasedBreakIteratorC1ERKS0__nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -7239,10 +7223,6 @@ int APS5_VABI sceIcuLegacyUnknown_jERsFgmcFp8_nid_no_patch() {
 }
 APS5_EXPORT("jERsFgmcFp8", sceIcuLegacyUnknown_jERsFgmcFp8_nid_no_patch);
 
-int APS5_VABI ubrk_openRules_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN6icu_6810UnicodeSet10complementEv_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -7306,10 +7286,6 @@ int APS5_VABI _ZN6icu_6813LocaleBuilder12setExtensionEcNS_11StringPieceE_nid_pos
 }
 
 int APS5_VABI _ZNK6icu_6816ICULocaleService9createKeyEPKNS_13UnicodeStringEiR10UErrorCode_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI ubrk_getLocaleByType_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 

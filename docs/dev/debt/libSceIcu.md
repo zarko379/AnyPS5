@@ -6,26 +6,12 @@
 
 ### Additional callable exports
 
-- [Additional callable exports](../../../core/libs/prx/libSceIcu/Export.cpp) - 49 remaining throwing functions match NIDs in the public 3.20 catalogue and both version-labelled images; neither image label authenticates retail firmware provenance. Their prototypes and behavior are unverified and retain `NotImplemented_nid_no_patch`. The six locale functions described above have been removed from this throwing inventory.
+- [Additional callable exports](../../../core/libs/prx/libSceIcu/Export.cpp) - 35 remaining throwing functions match NIDs in the public 3.20 catalogue and both version-labelled images; neither image label authenticates retail firmware provenance. Their prototypes and behavior are unverified and retain `NotImplemented_nid_no_patch`. The six locale functions described above have been removed from this throwing inventory.
 
 - [Per-image ELF records](https://gist.github.com/kyon-eth/a8e9ce3fc8802f48d30cd94c413904b7/211c546f6f8e79a23b5ec6ea8fd0610527beabee) describe the module, library, raw names, type, values and sizes for the declarations in [Export.cpp](../../../core/libs/prx/libSceIcu/Export.cpp). The metadata SHA-256 is `551b2d4f646b934cb7eae6a2f2f3bf58e4fb2ba53644d2d1af40f133fda15eb9`; image provenance and labels are not authenticated.
 
 | Name | NID |
 | --- | --- |
-| `ubrk_close` | `-Hc6XkAq-eU` |
-| `ubrk_countAvailable` | `bZT8JIrrg3I` |
-| `ubrk_current` | `fsgqunLD2b8` |
-| `ubrk_first` | `cL3dlqTcRqk` |
-| `ubrk_following` | `dC+0Pz5afr0` |
-| `ubrk_getAvailable` | `+Nd4bYkEgRc` |
-| `ubrk_getRuleStatus` | `av8J5NBkbRE` |
-| `ubrk_isBoundary` | `ypOz3lP3VhE` |
-| `ubrk_last` | `n6SEUE4Txvg` |
-| `ubrk_next` | `4Uj1DZGlHTw` |
-| `ubrk_open` | `NfGO57hqUEw` |
-| `ubrk_preceding` | `9hkT1aMC0Rs` |
-| `ubrk_previous` | `tGeOQLpMGgA` |
-| `ubrk_setText` | `NtjY-lZG4ss` |
 | `ubrk_setUText` | `qQMUbG5L6oE` |
 | `ucnv_cbFromUWriteBytes` | `qjWeIkH81-Y` |
 | `ucnv_close` | `JTIHqYZFMQE` |
@@ -70,7 +56,7 @@
 
 ### Break iterator factories
 
-- [Break iterator factories](../../../core/libs/prx/libSceIcu/Export.cpp) - Four 3.20 callable NIDs are the ICU 68 `BreakIterator::createCharacterInstance`, `createWordInstance`, `createLineInstance` and `createSentenceInstance(const Locale&, UErrorCode&)`: their `icu_68` mangled names hash to these NIDs, and the selector each wrapper passes is the `UBreakIteratorType` that ICU 68 passes to `BreakIterator::createInstance`. They are declared as throwing placeholders; their prototypes are not verified and break iteration needs ICU rule data that no host library provides. The four selector wrappers have identical instruction bytes in the 3.20 and later version-labelled modules, and corresponding consumer switch cases call them. Their NIDs and internal layouts differ, and the later NIDs match no `icu_60` to `icu_79` name of these functions; no forwarding or binary compatibility is claimed. Later image version metadata does not authenticate a retail firmware release.
+- [Break iterator factories](../../../core/libs/prx/libSceIcu/Export.cpp) - Four 3.20 callable NIDs are the ICU 68 `BreakIterator::createCharacterInstance`, `createWordInstance`, `createLineInstance` and `createSentenceInstance(const Locale&, UErrorCode&)`: their `icu_68` mangled names hash to these NIDs, and the selector each wrapper passes is the `UBreakIteratorType` that ICU 68 passes to `BreakIterator::createInstance`. They are declared as throwing placeholders; their prototypes are not verified, and they would return a C++ `BreakIterator` whose virtual functions guest code calls with the guest ABI, while the `ubrk_` C exports forward to the bundled ICU. The four selector wrappers have identical instruction bytes in the 3.20 and later version-labelled modules, and corresponding consumer switch cases call them. Their NIDs and internal layouts differ, and the later NIDs match no `icu_60` to `icu_79` name of these functions; no forwarding or binary compatibility is claimed. Later image version metadata does not authenticate a retail firmware release.
 
 | 3.20 NID | Later candidate NID | Selector | ICU 68 function |
 | --- | --- | --- | --- |
@@ -101,9 +87,11 @@
 
 - [uidna](../../../core/libs/prx/libSceIcu/Idna.cpp) (libSceIcu) - not measured on a console. `uidna_openUTS46`, `uidna_close`, `uidna_nameToASCII` and `uidna_nameToUnicode` forward to ICU 68.2 (UTS 46 data of Unicode 13.0). `UIDNAInfo` has the same 16-byte layout for the guest and ICU; as in ICU, a `size` field of 16 or more is required and ICU clears every byte it covers after the field. A null status, or a null instance once ICU's argument checks pass, throws.
 
+- [ubrk](../../../core/libs/prx/libSceIcu/BreakIterator.cpp) (libSceIcu) - not measured on a console. The `ubrk_` exports forward to ICU 68.2 and its break rules and dictionaries. Break data loads with `ures_openNoDefault`, so a fallback warning means root; `@ss=standard` sentence suppressions use `ures_open` but ignore a default-locale fallback, so the result never depends on the default. A NULL locale throws until the guest sets a default. As in ICU, an iterator keeps pointers to the guest's text and binary rules. A null iterator or status ICU reads, a NULL status vector ICU would write, a negative index or the index one past ICU's locale array throws. `ubrk_setUText` and `ubrk_refreshUText` throw (no guest `UText` exists: every `utext_` export throws), as does `ubrk_swap` (`UDataSwapper`).
+
 - [Enumeration sources](../../../core/libs/prx/libSceIcu/EnumerationSources.cpp) (libSceIcu) - not measured on a console. `uloc_openKeywords`, `uloc_openKeywordList`, `uloc_openAvailableByType`, `ucurr_openISOCurrencies`, `ucurr_getKeywordValuesForLocale`, `ucnv_openAllNames`, `ucnv_openStandardNames`, `ucal_openTimeZones`, `ucal_openTimeZoneIDEnumeration`, `ucal_getKeywordValuesForLocale`, `unumsys_openAvailableNames`, `uenum_openCharStringsEnumeration`, `uenum_openUCharStringsEnumeration` and the two `ucol_getKeywordValues` exports forward to ICU 68.2 and wrap ICU's enumeration in a guest-allocated `UEnumeration` whose callbacks forward to it; strings stay valid until the next call, as in ICU. A NULL locale throws until the guest sets a default. A keyword list whose last keyword is unterminated, a negative size or a null status ICU reads throws. `uenum_openFromStringEnumeration`, `uenum_nextDefault`, `uenum_unextDefault` and the `ures_` enumerations throw.
 
-- [Older callable exports](../../../core/libs/prx/libSceIcu/LegacyExports.cpp) - 1616 of the 2347 3.20 callable NIDs are declared under ICU 68 names, excluding the helpers implemented below: each NID is the `tools/nid_names.py` hash of a dynamic symbol of `libicuuc`, `libicui18n` or `libicuio` in the [ICU 68.2 Ubuntu 20.04 build](https://github.com/unicode-org/icu/releases/download/release-68-2/icu4c-68_2-Ubuntu20.04-x64.tgz), with the `_68` renaming suffix removed from C names; 1293 of them are C++ names in the `icu_68` namespace. A name match does not show that the console function has ICU 68's prototype or behavior, and none is implemented; each throws through `NotImplemented_nid_no_patch`. The other 656 keep placeholder names; 652 of them match no ICU 68.2 symbol. These NIDs do not appear in the later version-labelled module inventory; no cross-version identity or compatibility is claimed.
+- [Older callable exports](../../../core/libs/prx/libSceIcu/LegacyExports.cpp) - 1610 of the 2347 3.20 callable NIDs are declared under ICU 68 names, excluding the helpers implemented below: each NID is the `tools/nid_names.py` hash of a dynamic symbol of `libicuuc`, `libicui18n` or `libicuio` in the [ICU 68.2 Ubuntu 20.04 build](https://github.com/unicode-org/icu/releases/download/release-68-2/icu4c-68_2-Ubuntu20.04-x64.tgz), with the `_68` renaming suffix removed from C names; 1293 of them are C++ names in the `icu_68` namespace. A name match does not show that the console function has ICU 68's prototype or behavior, and none is implemented; each throws through `NotImplemented_nid_no_patch`. The other 656 keep placeholder names; 652 of them match no ICU 68.2 symbol. These NIDs do not appear in the later version-labelled module inventory; no cross-version identity or compatibility is claimed.
 
 - [NUL-termination and ASCII case helpers](../../../core/libs/prx/libSceIcu/Terminate.cpp) `u_terminateUChars`, `u_terminateWChars` and `u_asciiToUpper` have no console ABI or behavior verification. Their NIDs are ICU 68 symbol hashes, but signatures and behavior follow ICU 78.1 [ustr_imp.h](https://github.com/unicode-org/icu/blob/049e0d6a420629ac7db77256987d083a563287b5/icu4c/source/common/ustr_imp.h) and [ustring.cpp](https://github.com/unicode-org/icu/blob/049e0d6a420629ac7db77256987d083a563287b5/icu4c/source/common/ustring.cpp); ICU 68 behavior is assumed identical. `wchar_t` is taken as two bytes from the guest libc `wcslen`. A null error pointer does nothing, as in ICU; a write through a null destination throws instead of reproducing invalid memory access. Closes when: compared with the console.
 
