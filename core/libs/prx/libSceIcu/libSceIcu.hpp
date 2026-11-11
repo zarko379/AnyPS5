@@ -47,3 +47,4 @@
 #include "ResourceBundle.hpp"
 #include "LocaleInfo.hpp"
 #include "Currency.hpp"
+#include "Converter.hpp"

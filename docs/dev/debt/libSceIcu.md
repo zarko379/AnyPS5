@@ -6,7 +6,7 @@
 
 ### Additional callable exports
 
-- [Additional callable exports](../../../core/libs/prx/libSceIcu/Export.cpp) - 21 remaining throwing functions match NIDs in the public 3.20 catalogue and both version-labelled images; neither image label authenticates retail firmware provenance. Their prototypes and behavior are unverified and retain `NotImplemented_nid_no_patch`. The six locale functions described above have been removed from this throwing inventory.
+- [Additional callable exports](../../../core/libs/prx/libSceIcu/Export.cpp) - 11 remaining throwing functions match NIDs in the public 3.20 catalogue and both version-labelled images; neither image label authenticates retail firmware provenance. Their prototypes and behavior are unverified and retain `NotImplemented_nid_no_patch`. The six locale functions described above have been removed from this throwing inventory.
 
 - [Per-image ELF records](https://gist.github.com/kyon-eth/a8e9ce3fc8802f48d30cd94c413904b7/211c546f6f8e79a23b5ec6ea8fd0610527beabee) describe the module, library, raw names, type, values and sizes for the declarations in [Export.cpp](../../../core/libs/prx/libSceIcu/Export.cpp). The metadata SHA-256 is `551b2d4f646b934cb7eae6a2f2f3bf58e4fb2ba53644d2d1af40f133fda15eb9`; image provenance and labels are not authenticated.
 
@@ -14,19 +14,9 @@
 | --- | --- |
 | `ubrk_setUText` | `qQMUbG5L6oE` |
 | `ucnv_cbFromUWriteBytes` | `qjWeIkH81-Y` |
-| `ucnv_close` | `JTIHqYZFMQE` |
-| `ucnv_convertEx` | `lPKKDtEmEgM` |
-| `ucnv_fromUnicode` | `6ZIjQAWKeRs` |
 | `ucnv_getCanonicalName` | `0GnpUt-BVlE` |
-| `ucnv_getName` | `7pCOClUrUmM` |
-| `ucnv_open` | `AKenFQbXGE0` |
-| `ucnv_reset` | `5O8bmW45o0U` |
-| `ucnv_setFallback` | `iEe61PaW1pg` |
 | `ucnv_setFromUCallBack` | `E0yB1UHl4VI` |
-| `ucnv_setSubstChars` | `Ku0Rs703XaI` |
 | `ucnv_setToUCallBack` | `UIU5m-5O68c` |
-| `ucnv_toUChars` | `LvSzmTZ0Mss` |
-| `ucnv_toUnicode` | `O1eMKYxVlTs` |
 | `udata_setCommonData` | `wHZwCpZVcGI` |
 | `udata_setFileAccess` | `mCyTdtewGpk` |
 | `utext_close` | `2NaZ-stsAv0` |
@@ -93,7 +83,9 @@
 
 - [ucurr](../../../core/libs/prx/libSceIcu/Currency.cpp) (libSceIcu) - not measured on a console. The `ucurr_` lookups, names, plural names, registrations, fraction digits, rounding increments, numeric codes and availability forward to ICU 68.2; `ucurr_forLocale` takes the first currency of the region's map and never reads the clock. Registrations are ICU's opaque keys and `u_cleanup` drops them. Without a guest default, a NULL locale, `i-default` with keywords in the name lookups, a name locale that falls back to the default locale, and a name or plural found in a non-root parent bundle or through fallback throw, since ICU picks that warning by comparing with the default locale. ICU 68.2 dereferences a missing `from` or `to` date in `ucurr_countCurrencies` and `ucurr_forLocaleAndDate` (US, CH, CN, BO, CL, CO, MX, UY, AQ); such calls throw. A NULL currency, or a NULL length where ICU writes the ISO code's, throws.
 
-- [Older callable exports](../../../core/libs/prx/libSceIcu/LegacyExports.cpp) - 1537 of the 2347 3.20 callable NIDs are declared under ICU 68 names, excluding the helpers implemented below: each NID is the `tools/nid_names.py` hash of a dynamic symbol of `libicuuc`, `libicui18n` or `libicuio` in the [ICU 68.2 Ubuntu 20.04 build](https://github.com/unicode-org/icu/releases/download/release-68-2/icu4c-68_2-Ubuntu20.04-x64.tgz), with the `_68` renaming suffix removed from C names; 1293 of them are C++ names in the `icu_68` namespace. A name match does not show that the console function has ICU 68's prototype or behavior, and none is implemented; each throws through `NotImplemented_nid_no_patch`. The other 656 keep placeholder names; 652 of them match no ICU 68.2 symbol. These NIDs do not appear in the later version-labelled module inventory; no cross-version identity or compatibility is claimed.
+- [ucnv](../../../core/libs/prx/libSceIcu/Converter.cpp) (libSceIcu) - not measured on a console. The `ucnv_` open, conversion, substitution, property and reset exports forward to ICU 68.2 and its converter tables. A NULL converter name throws until the guest sets a default converter, as do `ucnv_openU`, which converts the name with the default converter, and `ucnv_convert` with a NULL name. `ucnv_openPackage` takes only ICU's own data (see ures); `ucnv_createConverter` into caller memory throws, since that memory would hold ICU's internal `UConverter`. A null status, converter or buffer that ICU dereferences throws, as does a `ucnv_openU` name of 60 or more bytes in the default charset, which ICU 68.2 copies past its name buffer. The callback, alias and name exports, `ucnv_safeClone`, `ucnv_load`, `ucnv_unload`, `ucnv_swap` and `ucnv_swapAliases` throw.
+
+- [Older callable exports](../../../core/libs/prx/libSceIcu/LegacyExports.cpp) - 1510 of the 2347 3.20 callable NIDs are declared under ICU 68 names, excluding the helpers implemented below: each NID is the `tools/nid_names.py` hash of a dynamic symbol of `libicuuc`, `libicui18n` or `libicuio` in the [ICU 68.2 Ubuntu 20.04 build](https://github.com/unicode-org/icu/releases/download/release-68-2/icu4c-68_2-Ubuntu20.04-x64.tgz), with the `_68` renaming suffix removed from C names; 1293 of them are C++ names in the `icu_68` namespace. A name match does not show that the console function has ICU 68's prototype or behavior, and none is implemented; each throws through `NotImplemented_nid_no_patch`. The other 656 keep placeholder names; 652 of them match no ICU 68.2 symbol. These NIDs do not appear in the later version-labelled module inventory; no cross-version identity or compatibility is claimed.
 
 - [NUL-termination and ASCII case helpers](../../../core/libs/prx/libSceIcu/Terminate.cpp) `u_terminateUChars`, `u_terminateWChars` and `u_asciiToUpper` have no console ABI or behavior verification. Their NIDs are ICU 68 symbol hashes, but signatures and behavior follow ICU 78.1 [ustr_imp.h](https://github.com/unicode-org/icu/blob/049e0d6a420629ac7db77256987d083a563287b5/icu4c/source/common/ustr_imp.h) and [ustring.cpp](https://github.com/unicode-org/icu/blob/049e0d6a420629ac7db77256987d083a563287b5/icu4c/source/common/ustring.cpp); ICU 68 behavior is assumed identical. `wchar_t` is taken as two bytes from the guest libc `wcslen`. A null error pointer does nothing, as in ICU; a write through a null destination throws instead of reproducing invalid memory access. Closes when: compared with the console.
 
