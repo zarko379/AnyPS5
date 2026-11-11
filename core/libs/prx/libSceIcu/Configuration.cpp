@@ -1,5 +1,6 @@
 #include "prx/libSceIcu/libSceIcu.hpp"
 #include "prx/libSceIcu/Status.hpp"
+#include "prx/libSceIcu/Backend.hpp"
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -149,6 +150,7 @@ const char* APS5_VABI utrace_functionName_nid_postfix(std::int32_t function) {
 
 
 void APS5_VABI u_cleanup_nid_postfix() {
+    IcuBackend::Cleanup();
     {
         const std::lock_guard lock(MemoryLock);
         Memory = {};

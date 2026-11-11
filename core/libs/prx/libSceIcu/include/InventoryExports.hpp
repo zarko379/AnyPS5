@@ -49,7 +49,6 @@ int APS5_VABI uloc_getAvailable();
 std::int32_t APS5_VABI uloc_getBaseName(const char* locale, char* result, std::int32_t capacity, std::int32_t* status);
 int APS5_VABI uloc_getCharacterOrientation();
 std::int32_t APS5_VABI uloc_getCountry(const char* locale, char* result, std::int32_t capacity, std::int32_t* status);
-int APS5_VABI uloc_getDefault();
 std::int32_t APS5_VABI uloc_getKeywordValue(const char* locale, const char* keyword, char* result,
                                           std::int32_t capacity, std::int32_t* status);
 std::int32_t APS5_VABI uloc_getLanguage(const char* locale, char* result, std::int32_t capacity, std::int32_t* status);
