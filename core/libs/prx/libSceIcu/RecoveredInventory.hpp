@@ -2,7 +2,6 @@
 #include "prx/libc/include/general/VabiMacros.hpp"
 
 extern "C" {
-int APS5_VABI u_strToTitle_nid_postfix();
 int APS5_VABI ubidi_setClassCallback_nid_postfix();
 int APS5_VABI ucal_clone_nid_postfix();
 int APS5_VABI ucal_close_nid_postfix();

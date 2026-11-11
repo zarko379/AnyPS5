@@ -82,10 +82,6 @@ int APS5_VABI res_read_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI u_caseInsensitivePrefixMatch_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI u_flushDefaultConverter_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -94,35 +90,7 @@ int APS5_VABI u_getDefaultConverter_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI u_memcasecmp_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI u_releaseDefaultConverter_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI u_strCaseCompare_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI u_strFoldCase_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI u_strToLower_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI u_strToUpper_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI u_strcasecmp_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI u_strncasecmp_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 

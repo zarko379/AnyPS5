@@ -19,17 +19,9 @@ int APS5_VABI res_getStringNoTrace_nid_postfix();
 int APS5_VABI res_getTableItemByIndex_nid_postfix();
 int APS5_VABI res_getTableItemByKey_nid_postfix();
 int APS5_VABI res_read_nid_postfix();
-int APS5_VABI u_caseInsensitivePrefixMatch_nid_postfix();
 int APS5_VABI u_charDigitValue_nid_postfix(std::int32_t character);
 int APS5_VABI u_digit_nid_postfix(std::int32_t character, std::int8_t radix);
 int APS5_VABI u_flushDefaultConverter_nid_postfix();
 int APS5_VABI u_getDefaultConverter_nid_postfix();
-int APS5_VABI u_memcasecmp_nid_postfix();
 int APS5_VABI u_releaseDefaultConverter_nid_postfix();
-int APS5_VABI u_strCaseCompare_nid_postfix();
-int APS5_VABI u_strFoldCase_nid_postfix();
-int APS5_VABI u_strToLower_nid_postfix();
-int APS5_VABI u_strToUpper_nid_postfix();
-int APS5_VABI u_strcasecmp_nid_postfix();
-int APS5_VABI u_strncasecmp_nid_postfix();
 }

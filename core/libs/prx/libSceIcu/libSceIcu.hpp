@@ -34,3 +34,4 @@
 #include "Properties.hpp"
 #include "Script.hpp"
 #include "Bidi.hpp"
+#include "CaseMap.hpp"
