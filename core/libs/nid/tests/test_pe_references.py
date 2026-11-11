@@ -31,6 +31,36 @@ def reference(*, headers=False, address=0x2000, ordinal=0):
     return image
 
 
+def exporter(names):
+    names = sorted(names)
+    image = bytearray(2048)
+    image[:2] = b"MZ"
+    struct.pack_into("<I", image, 0x3c, 0x40)
+    struct.pack_into("<IHHIIIHH", image, 0x40, 0x4550, 0x8664, 2, 0, 0, 0, 240, 0x2022)
+    optional = 0x58
+    struct.pack_into("<H", image, optional, 0x20b)
+    struct.pack_into("<I", image, optional + 60, 512)
+    struct.pack_into("<I", image, optional + 108, 16)
+    for index, (name, va, offset) in enumerate(((b".edata", 0x1000, 512), (b".text", 0x2000, 1024))):
+        struct.pack_into("<8sIIIIIIHHI", image, optional + 240 + index * 40, name, 512, va, 512, offset, 0, 0, 0, 0, 0x40000040)
+    count = len(names)
+    functions, name_table, ordinals = 40, 40 + count * 4, 40 + count * 8
+    strings = ordinals + count * 2
+    data = bytearray(strings)
+    dll = 0x1000 + len(data)
+    data.extend(b"test.prx\0")
+    for index, name in enumerate(names):
+        struct.pack_into("<I", data, functions + index * 4, 0x2000)
+        struct.pack_into("<I", data, name_table + index * 4, 0x1000 + len(data))
+        struct.pack_into("<H", data, ordinals + index * 2, index)
+        data.extend(name.encode() + b"\0")
+    struct.pack_into("<IIHHIIIIIII", data, 0, 0, 0, 0, 0, dll, 1, count, count, 0x1000 + functions, 0x1000 + name_table, 0x1000 + ordinals)
+    assert len(data) <= 512
+    image[512:512 + len(data)] = data
+    struct.pack_into("<II", image, optional + 112, 0x1000, len(data))
+    return image
+
+
 def forwarding_image(names, bits=64, dll_last=False, direct_data=False):
     optional_size = 240 if bits == 64 else 224
     directory_offset = 112 if bits == 64 else 96
@@ -564,6 +594,66 @@ class LibraryImportTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("delay-loaded", result.stdout + result.stderr)
                     self.assertEqual(patched, image)
+
+    def patch_with_imports(self, image, exported, *arguments):
+        with tempfile.TemporaryDirectory() as directory:
+            if exported is not None:
+                (Path(directory) / "test.prx").write_bytes(exporter(exported))
+            path = Path(directory) / "library.dll"
+            path.write_bytes(image)
+            command = [str(PATCHER), "libtest"] + [argument.replace("{directory}", directory) for argument in arguments] + [str(path)]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=20)
+            return result, path.read_bytes()
+
+    def test_imports_from_a_library_in_the_import_directory_follow_its_export_names(self):
+        exported = ["plain", "twin", "twin_nid_postfix", "helper_nid_no_patch", "sceB"]
+        names = ["plain", "twin", "helper_nid_no_patch", "sceB", "absent"]
+        result, patched = self.patch_with_imports(self.library(names), exported, "--import-directory", "{directory}")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        after, _ = self.imports(patched, len(names))
+        self.assertEqual([name for _, name in after], [nid("plain"), "twin", "helper_nid_no_patch", nid("sceB"), "absent"])
+
+    def test_imports_keep_the_default_rule_without_the_library_or_the_option(self):
+        exported = ["plain", "twin", "twin_nid_postfix", "helper_nid_no_patch", "sceB"]
+        names = ["plain", "twin", "helper_nid_no_patch", "sceB", "absent"]
+        expected = ["plain", "twin", "helper_nid_no_patch", nid("sceB"), "absent"]
+        for exporting, arguments in ((exported, ()), (None, ("--import-directory", "{directory}"))):
+            with self.subTest(exporting=exporting is not None):
+                result, patched = self.patch_with_imports(self.library(names), exporting, *arguments)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                after, _ = self.imports(patched, len(names))
+                self.assertEqual([name for _, name in after], expected)
+
+    def test_import_directory_only_renames_imports_the_default_rule_keeps(self):
+        exported = ["plain", "kept", "listed_nid_postfix"]
+        names = ["plain", "kept", "listed_nid_postfix"]
+        with tempfile.TemporaryDirectory() as lists:
+            preserved = Path(lists) / "preserved.exports"
+            preserved.write_bytes(b"kept\nlisted\n")
+            arguments = ("--preserve-export-list", str(preserved))
+            default, _ = self.patch_with_imports(self.library(names), exported, *arguments)
+            result, patched = self.patch_with_imports(self.library(names), exported, *arguments, "--import-directory", "{directory}")
+            self.assertEqual(default.returncode, 0, default.stdout + default.stderr)
+            _, unchanged = self.patch_with_imports(self.library(names), exported, *arguments)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        before, _ = self.imports(unchanged, len(names))
+        after, _ = self.imports(patched, len(names))
+        self.assertEqual([name for _, name in after], [nid("plain"), "kept", before[2][1]])
+        self.assertEqual(before[2][1], nid("listed"))
+
+    def test_import_directory_option_is_validated(self):
+        image = self.library(["plain"])
+        for arguments in (("--import-directory",), ("--import-directory", "{directory}", "--import-directory", "{directory}"), ("--import-directory", "")):
+            with self.subTest(arguments=arguments):
+                result, patched = self.patch_with_imports(image, None, *arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(patched, image)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "app"
+            path.write_bytes(image)
+            result = subprocess.run([str(PATCHER), "--exec", "--import-directory", directory, str(path)], capture_output=True, text=True, timeout=20)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(path.read_bytes(), image)
 
     def test_huge_name_count_is_rejected_before_allocation(self):
         for count in (0xFFFFFFFF, 0x40000000):

@@ -85,4 +85,5 @@
 ### FreeType font-option substitution
 
 - [FreeType font-option substitution](../../../core/libs/prx/libcairo/src/FtFontOptions.cpp) follows Cairo 1.18.0 [cairo-ft-font.c](https://gitlab.freedesktop.org/cairo/cairo/-/blob/1.18.0/src/cairo-ft-font.c), `_cairo_ft_font_options_substitute` and its public wrapper, through the guest Fontconfig exports. PS5 behavior is unmeasured. The existing four-field font-options state has no internal LCD filter; its Cairo default leaves `lcdfilter` untouched. Hint metrics are unused by upstream substitution. Allocation failure stops substitution without rolling back earlier properties, as in the void upstream wrapper.
+- [libfontconfig imports of the patched module](../../../core/libs/nid/src/PeNidPatcher.cpp) were not measured on a console. libcairo calls `FcPatternAddBool`, `FcPatternAddInteger`, `FcPatternDel` and `FcPatternGet` from libfontconfig; nid_patcher renames those raw exports to NIDs, and with `--import-directory` the PE patcher gives the importer the same NIDs. The ELF and Mach-O patchers do not take the option and keep the raw import names, which the patched libfontconfig does not export.
 

@@ -27,7 +27,7 @@ void _writeFile(const std::string& path, const std::vector<std::uint8_t>& data) 
 
 int Run(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: nid_patcher <library_name> [--preserve-exports <unpatched-library> | --preserve-export-list <export-list>] <file> [file2 ...]\n"
+        std::cerr << "Usage: nid_patcher <library_name> [--preserve-exports <unpatched-library> | --preserve-export-list <export-list>] [--import-directory <unpatched-libraries>] <file> [file2 ...]\n"
                      "       nid_patcher --exec [--only-sce] [--preserve-exports <unpatched-library> | --preserve-export-list <export-list>] <file> [file2 ...]\n"
                      "       nid_patcher --write-export-list <unpatched-library> <export-list>\n";
         return 1;
@@ -60,6 +60,10 @@ int Run(int argc, char* argv[]) {
             if (argument == "--only-sce") {
                 if (!options.executable || options.onlySce) throw std::runtime_error("--only-sce requires --exec and may appear once");
                 options.onlySce = true;
+            } else if (argument == "--import-directory") {
+                if (options.executable || !options.importDirectory.empty() || i + 1 == argc) throw std::runtime_error("--import-directory requires a library and exactly one directory");
+                options.importDirectory = argv[++i];
+                if (options.importDirectory.empty()) throw std::runtime_error("--import-directory requires a library and exactly one directory");
             } else if (argument == "--preserve-exports" || argument == "--preserve-export-list") {
                 if (hasReference || i + 1 == argc) throw std::runtime_error(argument + " requires exactly one reference");
                 hasReference = true;

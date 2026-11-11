@@ -11,6 +11,7 @@ namespace Nid {
 struct PatchOptions {
     bool executable = false;
     bool onlySce = false;
+    std::string importDirectory;
 };
 
 class IBinaryPatcher {

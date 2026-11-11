@@ -1,5 +1,8 @@
 #include <nid/NidResolver.hpp>
 #include <nid/ExportExclusions.hpp>
+#include <nid/NativePath.hpp>
+#include <filesystem>
+#include <nid/ExportExclusions.hpp>
 #include <nid/NidCompute.hpp>
 #include <nid/NidPatcherUtils.hpp>
 #include <cstdint>
@@ -36,6 +39,17 @@ std::unordered_map<std::string, std::string> ResolveImportNids(const std::vector
         else if (!options.executable) result.at(name) = ResolveOneName(name);
     }
     return result;
+}
+
+std::unordered_map<std::string, std::string> ResolveLibraryImportNids(const std::string& directory, const std::string& library, const std::unordered_set<std::string>& excluded) {
+    if (directory.empty() || library.empty() || library.find_first_of("/\\") != std::string::npos) return {};
+    const auto path = Internal::NativePath(directory) / Internal::NativePath(library);
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(path, error)) return {};
+    const auto utf8 = path.u8string();
+    const auto exports = ReadReferenceExports(std::string(utf8.begin(), utf8.end()));
+    const auto stem = path.stem().u8string();
+    return ResolveNids(std::vector<std::string>(exports.begin(), exports.end()), std::string(stem.begin(), stem.end()), excluded);
 }
 
 std::string ResolveOneName(const std::string& funcName) {

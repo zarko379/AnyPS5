@@ -14,6 +14,8 @@ bool IsMangledSceImport(const std::string& name);
 
 std::unordered_map<std::string, std::string> ResolveImportNids(const std::vector<std::string>& names, const std::unordered_set<std::string>& excluded, const PatchOptions& options);
 
+std::unordered_map<std::string, std::string> ResolveLibraryImportNids(const std::string& directory, const std::string& library, const std::unordered_set<std::string>& excluded);
+
 std::string ResolveOneName(const std::string& funcName);
 
 std::unordered_map<std::string, std::string> ResolveNids(const std::vector<std::string>& exportedNames, const std::string& libraryName, const std::unordered_set<std::string>& excludedExports);

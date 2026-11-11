@@ -141,7 +141,7 @@ std::string NormalizeExportName(const std::string& name) {
     return name;
 }
 
-std::unordered_set<std::string> ReadExportExclusions(const std::string& path) {
+std::unordered_set<std::string> ReadReferenceExports(const std::string& path) {
     if constexpr (std::endian::native != std::endian::little) throw std::runtime_error("export references require a little-endian host");
     std::ifstream input(Internal::NativePath(path), std::ios::binary | std::ios::ate);
     if (!input) throw std::runtime_error("cannot open export reference: " + path);
@@ -164,6 +164,11 @@ std::unordered_set<std::string> ReadExportExclusions(const std::string& path) {
     } else {
         throw std::runtime_error("unrecognized export reference format: " + path);
     }
+    return exports;
+}
+
+std::unordered_set<std::string> ReadExportExclusions(const std::string& path) {
+    const auto exports = ReadReferenceExports(path);
     std::unordered_set<std::string> result;
     result.reserve(exports.size());
     for (const auto& name : exports) {

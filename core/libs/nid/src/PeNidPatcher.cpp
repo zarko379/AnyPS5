@@ -1,3 +1,4 @@
+#include <cctype>
 #include <nid/PeNidPatcher.hpp>
 #include <nid/NidResolver.hpp>
 #include <nid/NidPatcherUtils.hpp>
@@ -270,6 +271,8 @@ void PeNidPatcher::PatchNids(std::vector<std::uint8_t>& pe, const std::string& l
         std::size_t LookupOffset;
         std::size_t AddressOffset;
         std::string Name;
+        std::string Library;
+        std::string Patched;
     };
     std::vector<ImportUse> imports;
     std::vector<std::string> importNames;
@@ -283,6 +286,7 @@ void PeNidPatcher::PatchNids(std::vector<std::uint8_t>& pe, const std::string& l
         if (desc.OriginalFirstThunk == 0u && desc.FirstThunk == 0u)
             break;
 
+        const std::string library = desc.Name != 0u ? ReadCStr(pe, RvaToOffset(pe, desc.Name, peHeaderOffset, numberOfSections, sizeOfOptionalHeader)) : std::string{};
         const std::uint32_t thunkRva = desc.OriginalFirstThunk != 0u ? desc.OriginalFirstThunk : desc.FirstThunk;
         std::size_t thunkOffset = RvaToOffset(pe, thunkRva, peHeaderOffset, numberOfSections, sizeOfOptionalHeader);
 
@@ -310,7 +314,7 @@ void PeNidPatcher::PatchNids(std::vector<std::uint8_t>& pe, const std::string& l
                 const std::string funcName = ReadCStr(pe, hintNameOffset + 2u);
                 if (!funcName.empty()) {
                     const auto addressOffset = RvaToOffset(pe, desc.FirstThunk, peHeaderOffset, numberOfSections, sizeOfOptionalHeader) + thunkOffset - RvaToOffset(pe, thunkRva, peHeaderOffset, numberOfSections, sizeOfOptionalHeader);
-                    imports.push_back({hintNameOffset + 2u, thunkOffset, addressOffset, funcName});
+                    imports.push_back({hintNameOffset + 2u, thunkOffset, addressOffset, funcName, library, {}});
                     importNames.push_back(funcName);
                 }
             }
@@ -321,11 +325,21 @@ void PeNidPatcher::PatchNids(std::vector<std::uint8_t>& pe, const std::string& l
         importDescOffset += sizeof(PeImportDescriptor);
     }
     const auto importMap = ResolveImportNids(importNames, excludedExports, options);
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> libraryImports;
+    for (auto& item : imports) {
+        item.Patched = importMap.at(item.Name);
+        if (options.executable || options.importDirectory.empty() || item.Library.empty()) continue;
+        auto key = item.Library;
+        std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        auto [entry, inserted] = libraryImports.try_emplace(key);
+        if (inserted) entry->second = ResolveLibraryImportNids(options.importDirectory, item.Library, excludedExports);
+        if (const auto found = entry->second.find(item.Name); found != entry->second.end() && item.Patched == item.Name) item.Patched = found->second;
+    }
     const auto fitsInPlace = [&](const ImportUse& item) {
-        return !options.executable && importMap.at(item.Name).size() <= item.Name.size();
+        return !options.executable && item.Patched.size() <= item.Name.size();
     };
     const bool growsImports = options.executable || std::any_of(imports.begin(), imports.end(), [&](const ImportUse& item) {
-        return !fitsInPlace(item) && importMap.at(item.Name) != item.Name;
+        return !fitsInPlace(item) && item.Patched != item.Name;
     });
     for (const auto index : {4u, 11u, 13u}) {
         if (index >= directoryCount) continue;
@@ -335,13 +349,13 @@ void PeNidPatcher::PatchNids(std::vector<std::uint8_t>& pe, const std::string& l
     }
     for (const auto& item : imports) {
         if (!fitsInPlace(item)) continue;
-        const auto& name = importMap.at(item.Name);
+        const auto& name = item.Patched;
         std::memcpy(pe.data() + item.NameOffset, name.c_str(), name.size() + 1);
     }
     std::vector<std::uint8_t> strings;
     std::unordered_map<std::string, std::uint32_t> stringOffsets;
     for (const auto& item : imports) {
-        const auto& name = importMap.at(item.Name);
+        const auto& name = item.Patched;
         if (name == item.Name || fitsInPlace(item) || stringOffsets.contains(name)) continue;
         if (strings.size() & 1u) strings.push_back(0);
         if (strings.size() > 0xffffffffu - name.size() - 3u) throw std::runtime_error("PE import string table overflow");
@@ -386,7 +400,7 @@ void PeNidPatcher::PatchNids(std::vector<std::uint8_t>& pe, const std::string& l
     Write(pe, optionalHeaderOffset + 56u, imageSize);
     Write(pe, optionalHeaderOffset + 64u, std::uint32_t{0});
     for (const auto& item : imports) {
-        const auto& name = importMap.at(item.Name);
+        const auto& name = item.Patched;
         if (name == item.Name || fitsInPlace(item)) continue;
         const auto rva = section.VirtualAddress + stringOffsets.at(name);
         for (const auto offset : {item.LookupOffset, item.AddressOffset}) {
