@@ -1,17 +1,22 @@
 #include "prx/libSceIcu/Converter.hpp"
+#include "prx/libSceIcu/ConverterCallbacks.hpp"
 #include "prx/libSceIcu/Configuration.hpp"
 #include "prx/libSceIcu/Defaults.hpp"
 #include <unicode/uclean.h>
 #include <unicode/ucnv.h>
+#include <unicode/ucnv_cb.h>
+#include <unicode/ucnv_err.h>
 #include <unicode/udata.h>
 #include <unicode/ustring.h>
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -542,6 +547,577 @@ void CheckSweep() {
 
 }
 
+#if defined(_WIN32)
+extern "C" {
+extern void* __imp_UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix;
+extern void* __imp_UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix;
+extern void* __imp_UCNV_FROM_U_CALLBACK_STOP_nid_postfix;
+extern void* __imp_UCNV_FROM_U_CALLBACK_SKIP_nid_postfix;
+extern void* __imp_UCNV_TO_U_CALLBACK_SUBSTITUTE_nid_postfix;
+extern void* __imp_UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix;
+extern void* __imp_UCNV_TO_U_CALLBACK_STOP_nid_postfix;
+extern void* __imp_UCNV_TO_U_CALLBACK_SKIP_nid_postfix;
+}
+#endif
+
+namespace {
+
+template<typename TCallback>
+TCallback Library(TCallback local, void* imported) {
+#if defined(_WIN32)
+    (void)local;
+    return reinterpret_cast<TCallback>(imported);
+#else
+    (void)imported;
+    return local;
+#endif
+}
+
+#if defined(_WIN32)
+#define APS5_TEST_IMPORT(name) __imp_##name
+#else
+#define APS5_TEST_IMPORT(name) nullptr
+#endif
+
+Icu::ConverterFromUCallback FromSubstitute() {
+    return Library<Icu::ConverterFromUCallback>(UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix, APS5_TEST_IMPORT(UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix));
+}
+
+Icu::ConverterFromUCallback FromEscape() {
+    return Library<Icu::ConverterFromUCallback>(UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix, APS5_TEST_IMPORT(UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix));
+}
+
+Icu::ConverterFromUCallback FromStop() {
+    return Library<Icu::ConverterFromUCallback>(UCNV_FROM_U_CALLBACK_STOP_nid_postfix, APS5_TEST_IMPORT(UCNV_FROM_U_CALLBACK_STOP_nid_postfix));
+}
+
+Icu::ConverterFromUCallback FromSkip() {
+    return Library<Icu::ConverterFromUCallback>(UCNV_FROM_U_CALLBACK_SKIP_nid_postfix, APS5_TEST_IMPORT(UCNV_FROM_U_CALLBACK_SKIP_nid_postfix));
+}
+
+Icu::ConverterToUCallback ToSubstitute() {
+    return Library<Icu::ConverterToUCallback>(UCNV_TO_U_CALLBACK_SUBSTITUTE_nid_postfix, APS5_TEST_IMPORT(UCNV_TO_U_CALLBACK_SUBSTITUTE_nid_postfix));
+}
+
+Icu::ConverterToUCallback ToEscape() {
+    return Library<Icu::ConverterToUCallback>(UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix, APS5_TEST_IMPORT(UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix));
+}
+
+Icu::ConverterToUCallback ToStop() {
+    return Library<Icu::ConverterToUCallback>(UCNV_TO_U_CALLBACK_STOP_nid_postfix, APS5_TEST_IMPORT(UCNV_TO_U_CALLBACK_STOP_nid_postfix));
+}
+
+Icu::ConverterToUCallback ToSkip() {
+    return Library<Icu::ConverterToUCallback>(UCNV_TO_U_CALLBACK_SKIP_nid_postfix, APS5_TEST_IMPORT(UCNV_TO_U_CALLBACK_SKIP_nid_postfix));
+}
+
+struct Call {
+    std::int32_t reason;
+    UConverter* converter;
+    std::int32_t length;
+    std::int32_t codePoint;
+    std::int32_t firstUnit;
+    std::uint16_t size;
+};
+
+struct Recorder {
+    std::vector<Call> calls;
+    std::string replacement;
+    bool checkOnClose = false;
+};
+
+void APS5_VABI RecordFromUnicode_nid_no_patch(const void* context, Icu::ConverterFromUnicodeArgs* arguments, const char16_t* codeUnits, std::int32_t length, std::int32_t codePoint, std::int32_t reason, std::int32_t* status) {
+    auto* recorder = static_cast<Recorder*>(const_cast<void*>(context));
+    auto* args = reinterpret_cast<UConverterFromUnicodeArgs*>(arguments);
+    recorder->calls.push_back({reason, args->converter, length, codePoint, length > 0 ? codeUnits[0] : -1, args->size});
+    if (reason == UCNV_CLOSE && recorder->checkOnClose) {
+        Icu::ConverterFromUCallback action = nullptr;
+        const void* current = nullptr;
+        ucnv_getFromUCallBack_nid_postfix(args->converter, &action, &current);
+        Require(action == RecordFromUnicode_nid_no_patch && current == context, "the record is alive while ICU closes the converter");
+    }
+    if (reason <= UCNV_IRREGULAR) {
+        *status = U_ZERO_ERROR;
+        ucnv_cbFromUWriteBytes_nid_postfix(arguments, recorder->replacement.data(), static_cast<std::int32_t>(recorder->replacement.size()), 0, status);
+    }
+}
+
+void APS5_VABI RecordToUnicode_nid_no_patch(const void* context, Icu::ConverterToUnicodeArgs* arguments, const char* codeUnits, std::int32_t length, std::int32_t reason, std::int32_t* status) {
+    auto* recorder = static_cast<Recorder*>(const_cast<void*>(context));
+    auto* args = reinterpret_cast<UConverterToUnicodeArgs*>(arguments);
+    recorder->calls.push_back({reason, args->converter, length, 0, length > 0 ? static_cast<std::uint8_t>(codeUnits[0]) : -1, args->size});
+    if (reason <= UCNV_IRREGULAR) {
+        *status = U_ZERO_ERROR;
+        const char16_t marks[] = {0x2329, 0x232a};
+        ucnv_cbToUWriteUChars_nid_postfix(arguments, marks, 2, 0, status);
+    }
+}
+
+Recorder* clonedRecorder = nullptr;
+
+void APS5_VABI CloneFromUnicode_nid_no_patch(const void* context, Icu::ConverterFromUnicodeArgs* arguments, const char16_t*, std::int32_t, std::int32_t, std::int32_t reason, std::int32_t* status) {
+    auto* args = reinterpret_cast<UConverterFromUnicodeArgs*>(arguments);
+    if (reason == UCNV_CLONE) {
+        Icu::ConverterFromUCallback oldAction = nullptr;
+        const void* oldContext = nullptr;
+        std::int32_t inner = Ok;
+        ucnv_setFromUCallBack_nid_postfix(args->converter, RecordFromUnicode_nid_no_patch, clonedRecorder, &oldAction, &oldContext, &inner);
+        Require(inner == Ok && oldAction == CloneFromUnicode_nid_no_patch && oldContext == context, "a clone callback sees the copied guest callback");
+    }
+    if (reason <= UCNV_IRREGULAR) *status = U_ZERO_ERROR;
+}
+
+std::string Convert(UConverter* converter, const std::u16string& text, std::int32_t* status) {
+    char buffer[256];
+    const std::int32_t length = ucnv_fromUChars_nid_postfix(converter, buffer, sizeof(buffer), text.data(), static_cast<std::int32_t>(text.size()), status);
+    return Bytes(buffer, length);
+}
+
+std::u16string ConvertBack(UConverter* converter, const std::string& bytes, std::int32_t* status) {
+    char16_t buffer[256];
+    const std::int32_t length = ucnv_toUChars_nid_postfix(converter, buffer, 256, bytes.data(), static_cast<std::int32_t>(bytes.size()), status);
+    return std::u16string(buffer, static_cast<std::size_t>(length));
+}
+
+const void* HostFromContext(const UConverter* converter) {
+    UConverterFromUCallback action = nullptr;
+    const void* context = nullptr;
+    ucnv_getFromUCallBack(converter, &action, &context);
+    return context;
+}
+
+const void* HostToContext(const UConverter* converter) {
+    UConverterToUCallback action = nullptr;
+    const void* context = nullptr;
+    ucnv_getToUCallBack(converter, &action, &context);
+    return context;
+}
+
+void CheckDefaultCallbacks() {
+    UConverter* converter = Open("US-ASCII");
+    Icu::ConverterFromUCallback fromAction = nullptr;
+    const void* fromContext = &fromAction;
+    ucnv_getFromUCallBack_nid_postfix(converter, &fromAction, &fromContext);
+    Require(fromAction == FromSubstitute() && fromContext == nullptr, "the default from-Unicode callback is the SUBSTITUTE export");
+    Icu::ConverterToUCallback toAction = nullptr;
+    const void* toContext = &toAction;
+    ucnv_getToUCallBack_nid_postfix(converter, &toAction, &toContext);
+    Require(toAction == ToSubstitute() && toContext == nullptr, "the default to-Unicode callback is the SUBSTITUTE export");
+    Require(Invalid([&] { ucnv_getFromUCallBack_nid_postfix(converter, nullptr, &fromContext); }) && Invalid([&] { ucnv_getToUCallBack_nid_postfix(converter, &toAction, nullptr); }), "get with null out-params");
+    Require(Invalid([&] { ucnv_getFromUCallBack_nid_postfix(nullptr, &fromAction, &fromContext); }), "get with a null converter");
+    ucnv_close_nid_postfix(converter);
+    UConverter* iso2022 = Open("ISO-2022-JP");
+    const std::string jis = Bytes({0x1b, 0x24, 0x42, 0x30, 0x21, 0x1b, 0x28, 0x42, 0x41});
+    std::int32_t status = Ok;
+    Require(ConvertBack(iso2022, jis, &status) == Units({0x4e9c, 0x41}) && status == Ok, "ISO-2022-JP");
+    ucnv_getToUCallBack_nid_postfix(iso2022, &toAction, &toContext);
+    Require(toAction == ToSubstitute(), "ISO-2022-JP keeps the guest-visible callback");
+    ucnv_close_nid_postfix(iso2022);
+}
+
+void CheckGuestCallbacks() {
+    UConverter* converter = Open("US-ASCII");
+    Recorder from{{}, "[?]"};
+    Icu::ConverterFromUCallback oldFrom = nullptr;
+    const void* oldFromContext = &from;
+    std::int32_t status = Ok;
+    ucnv_setFromUCallBack_nid_postfix(converter, RecordFromUnicode_nid_no_patch, &from, &oldFrom, &oldFromContext, &status);
+    Require(status == Ok && oldFrom == FromSubstitute() && oldFromContext == nullptr, "set returns the SUBSTITUTE export as the old callback");
+    Require(HostFromContext(converter) != &from, "a guest callback runs through a host record");
+    const std::u16string text = Units({0x41, 0x20ac, 0x42, 0xd83d, 0xde00});
+    Require(Convert(converter, text, &status) == "A[?]B[?]" && status == Ok, "a guest callback writes its replacement");
+    Require(from.calls.size() >= 2, "the guest callback is called");
+    std::vector<Call> errors;
+    for (const Call& call : from.calls)
+        if (call.reason <= UCNV_IRREGULAR) errors.push_back(call);
+    Require(errors.size() == 2, "two unassigned characters");
+    Require(errors[0].reason == UCNV_UNASSIGNED && errors[0].converter == converter && errors[0].length == 1 && errors[0].codePoint == 0x20ac && errors[0].firstUnit == 0x20ac && errors[0].size == sizeof(UConverterFromUnicodeArgs), "the guest callback receives ICU's arguments");
+    Require(errors[1].length == 2 && errors[1].codePoint == 0x1f600 && errors[1].firstUnit == 0xd83d, "the guest callback receives a surrogate pair");
+    Icu::ConverterFromUCallback action = nullptr;
+    const void* context = nullptr;
+    ucnv_getFromUCallBack_nid_postfix(converter, &action, &context);
+    Require(action == RecordFromUnicode_nid_no_patch && context == &from, "get returns the guest callback and context");
+    from.calls.clear();
+    ucnv_reset_nid_postfix(converter);
+    Require(from.calls.size() == 1 && from.calls[0].reason == UCNV_RESET && from.calls[0].converter == converter, "reset calls the guest callback");
+    from.calls.clear();
+    ucnv_resetToUnicode_nid_postfix(converter);
+    Require(from.calls.empty(), "a to-Unicode reset leaves the from-Unicode callback");
+    Recorder to{{}, ""};
+    Icu::ConverterToUCallback oldTo = nullptr;
+    const void* oldToContext = &to;
+    ucnv_setToUCallBack_nid_postfix(converter, RecordToUnicode_nid_no_patch, &to, &oldTo, &oldToContext, &status);
+    Require(status == Ok && oldTo == ToSubstitute() && oldToContext == nullptr, "setToUCallBack old values");
+    Require(ConvertBack(converter, Bytes({0x41, 0x80, 0x42}), &status) == Units({0x41, 0x2329, 0x232a, 0x42}) && status == Ok, "a guest to-Unicode callback writes its replacement");
+    Require(!to.calls.empty() && to.calls.back().reason == UCNV_ILLEGAL && to.calls.back().length == 1 && to.calls.back().firstUnit == 0x80 && to.calls.back().converter == converter, "the guest to-Unicode callback receives ICU's arguments");
+    Icu::ConverterToUCallback toAction = nullptr;
+    const void* toContext = nullptr;
+    ucnv_getToUCallBack_nid_postfix(converter, &toAction, &toContext);
+    Require(toAction == RecordToUnicode_nid_no_patch && toContext == &to, "getToUCallBack returns the guest callback");
+    ucnv_setFromUCallBack_nid_postfix(converter, FromEscape(), UCNV_ESCAPE_XML_DEC, &oldFrom, &oldFromContext, &status);
+    Require(status == Ok && oldFrom == RecordFromUnicode_nid_no_patch && oldFromContext == &from, "replacing returns the guest callback");
+    Require(HostFromContext(converter) == UCNV_ESCAPE_XML_DEC, "the ESCAPE export is installed as ICU's own callback");
+    Require(Convert(converter, Units({0x41, 0x20ac, 0xd83d, 0xde00}), &status) == "A&#8364;&#128512;" && status == Ok, "ESCAPE with the XML decimal context");
+    ucnv_getFromUCallBack_nid_postfix(converter, &action, &context);
+    Require(action == FromEscape() && context == UCNV_ESCAPE_XML_DEC, "get returns the ESCAPE export and its context");
+    ucnv_setToUCallBack_nid_postfix(converter, ToEscape(), UCNV_ESCAPE_C, &oldTo, &oldToContext, &status);
+    Require(oldTo == RecordToUnicode_nid_no_patch && oldToContext == &to && HostToContext(converter) == UCNV_ESCAPE_C, "the to-Unicode ESCAPE export is installed directly");
+    const std::u16string escaped = ConvertBack(converter, Bytes({0x41, 0x80}), &status);
+    Require(escaped == Units({0x41, 0x5c, 0x78, 0x38, 0x30}), "to-Unicode ESCAPE with the C context");
+    const std::u16string skipping = Units({0x41, 0xe9, 0x42});
+    ucnv_setFromUCallBack_nid_postfix(converter, FromSkip(), nullptr, nullptr, nullptr, &status);
+    Require(HostFromContext(converter) != nullptr && Convert(converter, skipping, &status) == "AB" && status == Ok, "the hand SKIP runs through the bridge");
+    ucnv_getFromUCallBack_nid_postfix(converter, &action, &context);
+    Require(action == FromSkip() && context == nullptr, "get returns the SKIP export");
+    ucnv_setFromUCallBack_nid_postfix(converter, FromStop(), nullptr, nullptr, nullptr, &status);
+    Require(Convert(converter, Units({0x41, 0x180f, 0x42}), &status) == "AB" && status == Ok, "the hand STOP clears the error for U+180F");
+    Convert(converter, skipping, &status);
+    Require(status == U_INVALID_CHAR_FOUND, "the hand STOP stops on an unassigned character");
+    status = Ok;
+    ucnv_setToUCallBack_nid_postfix(converter, ToStop(), nullptr, nullptr, nullptr, &status);
+    ConvertBack(converter, Bytes({0x41, 0x80}), &status);
+    Require(status == U_ILLEGAL_CHAR_FOUND, "to-Unicode STOP");
+    status = Ok;
+    ucnv_setToUCallBack_nid_postfix(converter, ToSkip(), nullptr, nullptr, nullptr, &status);
+    Require(ConvertBack(converter, Bytes({0x41, 0x80, 0x42}), &status) == Units({0x41, 0x42}) && status == Ok, "to-Unicode SKIP");
+    ucnv_getToUCallBack_nid_postfix(converter, &toAction, &toContext);
+    Require(toAction == ToSkip(), "get returns the to-Unicode SKIP export");
+    ucnv_setFromUCallBack_nid_postfix(converter, UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix, UCNV_ESCAPE_XML_HEX, nullptr, nullptr, &status);
+    Require(Convert(converter, Units({0x41, 0x20ac}), &status) == "A&#x20AC;" && status == Ok, "the ESCAPE export through a guest-visible address");
+    ucnv_getFromUCallBack_nid_postfix(converter, &action, &context);
+    Require(action == UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix && context == UCNV_ESCAPE_XML_HEX, "get returns the address the guest set");
+    ucnv_setFromUCallBack_nid_postfix(converter, FromSubstitute(), nullptr, nullptr, nullptr, &status);
+    Require(HostFromContext(converter) == nullptr && Convert(converter, Units({0x41, 0x20ac}), &status) == Bytes({0x41, 0x1a}), "SUBSTITUTE again");
+    from.calls.clear();
+    from.checkOnClose = true;
+    ucnv_setFromUCallBack_nid_postfix(converter, RecordFromUnicode_nid_no_patch, &from, nullptr, nullptr, &status);
+    ucnv_close_nid_postfix(converter);
+    Require(from.calls.size() == 1 && from.calls[0].reason == UCNV_CLOSE && from.calls[0].converter == converter, "close calls the guest callback");
+}
+
+void CheckCallbackErrors() {
+    UConverter* converter = Open("US-ASCII");
+    Icu::ConverterFromUCallback oldFrom = reinterpret_cast<Icu::ConverterFromUCallback>(std::uintptr_t{1});
+    const void* oldContext = &oldFrom;
+    std::int32_t status = U_INVALID_CHAR_FOUND;
+    Recorder recorder{{}, "x"};
+    ucnv_setFromUCallBack_nid_postfix(converter, RecordFromUnicode_nid_no_patch, &recorder, &oldFrom, &oldContext, &status);
+    Require(oldFrom == reinterpret_cast<Icu::ConverterFromUCallback>(std::uintptr_t{1}) && oldContext == &oldFrom, "a failed status leaves everything");
+    Icu::ConverterFromUCallback action = nullptr;
+    const void* context = nullptr;
+    ucnv_getFromUCallBack_nid_postfix(converter, &action, &context);
+    Require(action == FromSubstitute(), "a failed status sets nothing");
+    ucnv_setFromUCallBack_nid_postfix(nullptr, nullptr, nullptr, nullptr, nullptr, &status);
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_setFromUCallBack_nid_postfix(converter, nullptr, nullptr, nullptr, nullptr, &error); }), "a null callback");
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_setToUCallBack_nid_postfix(converter, nullptr, nullptr, nullptr, nullptr, &error); }), "a null to-Unicode callback");
+    Require(Invalid([&] { ucnv_setFromUCallBack_nid_postfix(converter, RecordFromUnicode_nid_no_patch, &recorder, nullptr, nullptr, nullptr); }), "a null status");
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_setToUCallBack_nid_postfix(nullptr, RecordToUnicode_nid_no_patch, &recorder, nullptr, nullptr, &error); }), "a null converter");
+    ucnv_getFromUCallBack_nid_postfix(converter, &action, &context);
+    Require(action == FromSubstitute(), "rejected calls set nothing");
+    ucnv_close_nid_postfix(converter);
+}
+
+void CheckClones() {
+    UConverter* original = Open("US-ASCII");
+    Recorder from{{}, "<c>"};
+    Recorder to{{}, ""};
+    std::int32_t status = Ok;
+    ucnv_setFromUCallBack_nid_postfix(original, RecordFromUnicode_nid_no_patch, &from, nullptr, nullptr, &status);
+    ucnv_setToUCallBack_nid_postfix(original, RecordToUnicode_nid_no_patch, &to, nullptr, nullptr, &status);
+    std::int32_t size = 0;
+    Require(ucnv_safeClone_nid_postfix(original, nullptr, &size, &status) == nullptr && size > 0 && status == Ok, "safeClone preflight");
+    from.calls.clear();
+    UConverter* clone = ucnv_safeClone_nid_postfix(original, nullptr, nullptr, &status);
+    Require(clone && status == U_SAFECLONE_ALLOCATED_WARNING, "safeClone allocates");
+    Require(!from.calls.empty() && from.calls.back().reason == UCNV_CLONE && from.calls.back().converter == clone, "safeClone calls the guest callback for the clone");
+    Require(HostFromContext(clone) != HostFromContext(original) && HostToContext(clone) != HostToContext(original), "the clone has its own records");
+    Icu::ConverterFromUCallback action = nullptr;
+    const void* context = nullptr;
+    ucnv_getFromUCallBack_nid_postfix(clone, &action, &context);
+    Require(action == RecordFromUnicode_nid_no_patch && context == &from, "the clone reports the guest callback");
+    Icu::ConverterToUCallback toAction = nullptr;
+    const void* toContext = nullptr;
+    ucnv_getToUCallBack_nid_postfix(clone, &toAction, &toContext);
+    Require(toAction == RecordToUnicode_nid_no_patch && toContext == &to, "the clone reports the guest to-Unicode callback");
+    from.calls.clear();
+    ucnv_close_nid_postfix(original);
+    Require(from.calls.size() == 1 && from.calls[0].reason == UCNV_CLOSE && from.calls[0].converter == original, "closing the original");
+    status = Ok;
+    from.calls.clear();
+    Require(Convert(clone, Units({0x41, 0x20ac}), &status) == "A<c>" && status == Ok, "the clone still runs the guest callback");
+    Require(from.calls.back().converter == clone, "the clone passes itself");
+    Require(ConvertBack(clone, Bytes({0x80}), &status) == Units({0x2329, 0x232a}), "the clone runs the guest to-Unicode callback");
+    alignas(16) std::array<char, U_CNV_SAFECLONE_BUFFERSIZE> buffer{};
+    std::int32_t bufferSize = static_cast<std::int32_t>(buffer.size());
+    status = Ok;
+    UConverter* stackClone = ucnv_safeClone_nid_postfix(clone, buffer.data(), &bufferSize, &status);
+    Require(stackClone && status == Ok && reinterpret_cast<char*>(stackClone) >= buffer.data() && reinterpret_cast<char*>(stackClone) < buffer.data() + buffer.size(), "safeClone into a buffer");
+    Require(HostFromContext(stackClone) != HostFromContext(clone), "a buffer clone has its own record");
+    ucnv_close_nid_postfix(clone);
+    Require(Convert(stackClone, Units({0x20ac}), &status) == "<c>", "a buffer clone outlives its source");
+    ucnv_close_nid_postfix(stackClone);
+    UConverter* source = Open("US-ASCII");
+    Recorder later{{}, "{n}"};
+    clonedRecorder = &later;
+    int marker = 0;
+    ucnv_setFromUCallBack_nid_postfix(source, CloneFromUnicode_nid_no_patch, &marker, nullptr, nullptr, &status);
+    status = Ok;
+    UConverter* swapped = ucnv_safeClone_nid_postfix(source, nullptr, nullptr, &status);
+    ucnv_getFromUCallBack_nid_postfix(swapped, &action, &context);
+    Require(action == RecordFromUnicode_nid_no_patch && context == &later, "a callback set during UCNV_CLONE stays on the clone");
+    ucnv_getFromUCallBack_nid_postfix(source, &action, &context);
+    Require(action == CloneFromUnicode_nid_no_patch && context == &marker, "the source keeps its callback");
+    status = Ok;
+    Require(Convert(swapped, Units({0x20ac}), &status) == "{n}", "the clone runs the callback set during UCNV_CLONE");
+    ucnv_close_nid_postfix(swapped);
+    ucnv_close_nid_postfix(source);
+    UConverter* substituted = Open("US-ASCII");
+    Recorder internal{{}, "?"};
+    ucnv_setFromUCallBack_nid_postfix(substituted, RecordFromUnicode_nid_no_patch, &internal, nullptr, nullptr, &status);
+    const std::u16string replacement = Units({0x2a});
+    status = Ok;
+    ucnv_setSubstString_nid_postfix(substituted, replacement.data(), 1, &status);
+    Require(status == Ok && internal.calls.size() == 1 && internal.calls[0].reason == UCNV_CLONE && internal.calls[0].converter != substituted, "setSubstString clones through ICU");
+    ucnv_getFromUCallBack_nid_postfix(substituted, &action, &context);
+    Require(action == RecordFromUnicode_nid_no_patch && context == &internal, "setSubstString keeps the guest callback");
+    ucnv_close_nid_postfix(substituted);
+    Require(ucnv_safeClone_nid_postfix(nullptr, nullptr, nullptr, &status) == nullptr && status == U_ILLEGAL_ARGUMENT_ERROR, "safeClone of a null converter");
+    Require(ucnv_safeClone_nid_postfix(nullptr, nullptr, nullptr, nullptr) == nullptr, "safeClone with a null status");
+}
+
+UConverterFromUnicodeArgs FromArguments(UConverter* converter, char* target, std::size_t capacity) {
+    UConverterFromUnicodeArgs args{};
+    args.size = sizeof(args);
+    args.flush = 1;
+    args.converter = converter;
+    args.target = target;
+    args.targetLimit = target + capacity;
+    return args;
+}
+
+UConverterToUnicodeArgs ToArguments(UConverter* converter, char16_t* target, std::size_t capacity) {
+    UConverterToUnicodeArgs args{};
+    args.size = sizeof(args);
+    args.flush = 1;
+    args.converter = converter;
+    args.target = target;
+    args.targetLimit = target + capacity;
+    return args;
+}
+
+Icu::ConverterFromUnicodeArgs* Guest(UConverterFromUnicodeArgs* args) {
+    return reinterpret_cast<Icu::ConverterFromUnicodeArgs*>(args);
+}
+
+Icu::ConverterToUnicodeArgs* Guest(UConverterToUnicodeArgs* args) {
+    return reinterpret_cast<Icu::ConverterToUnicodeArgs*>(args);
+}
+
+void CheckEscapeExports() {
+    UConverter* guest = Open("US-ASCII");
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    UConverter* host = ucnv_open("US-ASCII", &hostStatus);
+    const char* contexts[] = {nullptr, UCNV_ESCAPE_JAVA, UCNV_ESCAPE_C, UCNV_ESCAPE_XML_DEC, UCNV_ESCAPE_XML_HEX, UCNV_ESCAPE_UNICODE, UCNV_ESCAPE_CSS2, "", "Q"};
+    const char16_t pair[] = {0xd83d, 0xde00, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47};
+    for (const char* context : contexts) {
+        for (std::int32_t length : {0, 1, 2, 8}) {
+            char guestTarget[64] = {};
+            char hostTarget[64] = {};
+            UConverterFromUnicodeArgs guestArgs = FromArguments(guest, guestTarget, sizeof(guestTarget));
+            UConverterFromUnicodeArgs hostArgs = FromArguments(host, hostTarget, sizeof(hostTarget));
+            std::int32_t status = U_INVALID_CHAR_FOUND;
+            hostStatus = U_INVALID_CHAR_FOUND;
+            UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(context, Guest(&guestArgs), pair, length, 0x1f600, UCNV_UNASSIGNED, &status);
+            UCNV_FROM_U_CALLBACK_ESCAPE(context, &hostArgs, pair, length, 0x1f600, UCNV_UNASSIGNED, &hostStatus);
+            const std::string label = std::string("from-Unicode ESCAPE ") + (context ? context : "NULL") + " " + std::to_string(length);
+            Require(status == hostStatus && guestArgs.target - guestTarget == hostArgs.target - hostTarget && std::memcmp(guestTarget, hostTarget, sizeof(hostTarget)) == 0, label);
+        }
+    }
+    const char bytes[] = {char(0x80), char(0xff), char(0x01), char(0x7f), char(0x80), char(0xff), char(0x01), char(0x7f), char(0x10), char(0x20), char(0x30), char(0x40)};
+    for (const char* context : {static_cast<const char*>(nullptr), UCNV_ESCAPE_XML_DEC, UCNV_ESCAPE_XML_HEX, UCNV_ESCAPE_C, UCNV_ESCAPE_UNICODE, ""}) {
+        for (std::int32_t length : {0, 1, 2, 7}) {
+            char16_t guestTarget[64] = {};
+            char16_t hostTarget[64] = {};
+            UConverterToUnicodeArgs guestArgs = ToArguments(guest, guestTarget, 64);
+            UConverterToUnicodeArgs hostArgs = ToArguments(host, hostTarget, 64);
+            std::int32_t status = U_ILLEGAL_CHAR_FOUND;
+            hostStatus = U_ILLEGAL_CHAR_FOUND;
+            UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(context, Guest(&guestArgs), bytes, length, UCNV_ILLEGAL, &status);
+            UCNV_TO_U_CALLBACK_ESCAPE(context, &hostArgs, bytes, length, UCNV_ILLEGAL, &hostStatus);
+            const std::string label = std::string("to-Unicode ESCAPE ") + (context ? context : "NULL") + " " + std::to_string(length);
+            Require(status == hostStatus && guestArgs.target - guestTarget == hostArgs.target - hostTarget && std::memcmp(guestTarget, hostTarget, sizeof(hostTarget)) == 0, label);
+        }
+    }
+    for (std::int32_t reason : {0, 1, 2, 3, 4, 5}) {
+        for (const char* context : {static_cast<const char*>(nullptr), UCNV_SUB_STOP_ON_ILLEGAL, "x"}) {
+            for (std::int32_t codePoint : {0x20ac, 0x200b}) {
+                char guestTarget[8] = {};
+                char hostTarget[8] = {};
+                UConverterFromUnicodeArgs guestArgs = FromArguments(guest, guestTarget, sizeof(guestTarget));
+                UConverterFromUnicodeArgs hostArgs = FromArguments(host, hostTarget, sizeof(hostTarget));
+                std::int32_t status = U_INVALID_CHAR_FOUND;
+                hostStatus = U_INVALID_CHAR_FOUND;
+                UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix(context, Guest(&guestArgs), nullptr, 1, codePoint, reason, &status);
+                UCNV_FROM_U_CALLBACK_SUBSTITUTE(context, &hostArgs, nullptr, 1, codePoint, static_cast<UConverterCallbackReason>(reason), &hostStatus);
+                const std::string label = "from-Unicode SUBSTITUTE " + std::to_string(reason) + " " + (context ? context : "NULL") + " " + std::to_string(codePoint);
+                Require(status == hostStatus && guestArgs.target - guestTarget == hostArgs.target - hostTarget && std::memcmp(guestTarget, hostTarget, 8) == 0, label);
+                char16_t guestUnits[4] = {};
+                char16_t hostUnits[4] = {};
+                UConverterToUnicodeArgs guestTo = ToArguments(guest, guestUnits, 4);
+                UConverterToUnicodeArgs hostTo = ToArguments(host, hostUnits, 4);
+                status = U_ILLEGAL_CHAR_FOUND;
+                hostStatus = U_ILLEGAL_CHAR_FOUND;
+                UCNV_TO_U_CALLBACK_SUBSTITUTE_nid_postfix(context, Guest(&guestTo), "\x80", 1, reason, &status);
+                UCNV_TO_U_CALLBACK_SUBSTITUTE(context, &hostTo, "\x80", 1, static_cast<UConverterCallbackReason>(reason), &hostStatus);
+                Require(status == hostStatus && guestTo.target - guestUnits == hostTo.target - hostUnits && std::memcmp(guestUnits, hostUnits, sizeof(hostUnits)) == 0, "to-Unicode " + label);
+            }
+        }
+    }
+    char target[64];
+    UConverterFromUnicodeArgs args = FromArguments(guest, target, sizeof(target));
+    const char16_t nine[9] = {0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49};
+    Require(Invalid([&] { std::int32_t error = U_INVALID_CHAR_FOUND; UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(nullptr, Guest(&args), nine, 9, 0x41, UCNV_UNASSIGNED, &error); }), "ESCAPE past ICU's 48-unit buffer");
+    Require(Invalid([&] { std::int32_t error = U_INVALID_CHAR_FOUND; UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(UCNV_ESCAPE_JAVA, Guest(&args), nine, 9, 0x41, UCNV_UNASSIGNED, &error); }), "Java ESCAPE past ICU's buffer");
+    std::int32_t escapeStatus = U_INVALID_CHAR_FOUND;
+    UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(UCNV_ESCAPE_CSS2, Guest(&args), nullptr, 9, 0x41, UCNV_UNASSIGNED, &escapeStatus);
+    Require(escapeStatus == Ok, "CSS2 ESCAPE reads only the code point");
+    Require(Invalid([&] { std::int32_t error = U_INVALID_CHAR_FOUND; UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(UCNV_ESCAPE_C, Guest(&args), nullptr, 1, 0x41, UCNV_UNASSIGNED, &error); }), "C ESCAPE reads the first unit");
+    Require(Invalid([&] { std::int32_t error = U_INVALID_CHAR_FOUND; UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(nullptr, nullptr, nine, 1, 0x41, UCNV_UNASSIGNED, &error); }), "ESCAPE with null arguments");
+    Require(Invalid([&] { UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(nullptr, Guest(&args), nine, 1, 0x41, UCNV_UNASSIGNED, nullptr); }), "ESCAPE with a null status");
+    UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(nullptr, nullptr, nullptr, 9, 0x41, UCNV_CLOSE, nullptr);
+    escapeStatus = U_INVALID_CHAR_FOUND;
+    UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(nullptr, nullptr, nullptr, 9, 0x200b, UCNV_UNASSIGNED, &escapeStatus);
+    Require(escapeStatus == Ok, "ESCAPE skips a default ignorable without arguments");
+    escapeStatus = U_INVALID_CHAR_FOUND;
+    UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix("x", nullptr, nullptr, 1, 0x41, UCNV_UNASSIGNED, &escapeStatus);
+    Require(escapeStatus == U_INVALID_CHAR_FOUND, "SUBSTITUTE with another context leaves the error");
+    UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix("x", nullptr, nullptr, 1, 0x41, UCNV_UNASSIGNED, nullptr);
+    escapeStatus = U_INVALID_CHAR_FOUND;
+    UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix(nullptr, nullptr, nullptr, 1, 0x200b, UCNV_UNASSIGNED, &escapeStatus);
+    Require(escapeStatus == Ok, "SUBSTITUTE skips a default ignorable without arguments");
+    Require(Invalid([] { std::int32_t error = U_INVALID_CHAR_FOUND; UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix(nullptr, nullptr, nullptr, 1, 0x41, UCNV_UNASSIGNED, &error); }), "SUBSTITUTE with null arguments");
+    Require(Invalid([] { UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix(nullptr, nullptr, nullptr, 1, 0x200b, UCNV_UNASSIGNED, nullptr); }), "SUBSTITUTE with a null status");
+    UConverterFromUnicodeArgs detached = FromArguments(nullptr, target, sizeof(target));
+    Require(Invalid([&] { std::int32_t error = U_INVALID_CHAR_FOUND; UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix(nullptr, Guest(&detached), nullptr, 1, 0x41, UCNV_UNASSIGNED, &error); }), "SUBSTITUTE without a converter");
+    char16_t units[64];
+    UConverterToUnicodeArgs toArgs = ToArguments(guest, units, 64);
+    const char dec[9] = {char(0xff), char(0xff), char(0xff), char(0xff), char(0xff), char(0xff), char(0xff), char(0xff), char(0xff)};
+    std::int32_t toStatus = U_ILLEGAL_CHAR_FOUND;
+    UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(UCNV_ESCAPE_XML_DEC, Guest(&toArgs), dec, 8, UCNV_ILLEGAL, &toStatus);
+    Require(toStatus == Ok && toArgs.target - units == 48, "XML decimal ESCAPE fills ICU's buffer exactly");
+    Require(Invalid([&] { std::int32_t error = U_ILLEGAL_CHAR_FOUND; UConverterToUnicodeArgs more = ToArguments(guest, units, 64); UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(UCNV_ESCAPE_XML_DEC, Guest(&more), dec, 9, UCNV_ILLEGAL, &error); }), "XML decimal ESCAPE past ICU's buffer");
+    const char small[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    toArgs = ToArguments(guest, units, 64);
+    toStatus = U_ILLEGAL_CHAR_FOUND;
+    UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(UCNV_ESCAPE_XML_HEX, Guest(&toArgs), small, 9, UCNV_ILLEGAL, &toStatus);
+    Require(toStatus == Ok && toArgs.target - units == 45, "XML hex ESCAPE of one-digit bytes");
+    Require(Invalid([&] { std::int32_t error = U_ILLEGAL_CHAR_FOUND; UConverterToUnicodeArgs more = ToArguments(guest, units, 64); UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(UCNV_ESCAPE_XML_HEX, Guest(&more), small, 10, UCNV_ILLEGAL, &error); }), "XML hex ESCAPE past ICU's buffer");
+    toArgs = ToArguments(guest, units, 64);
+    toStatus = U_ILLEGAL_CHAR_FOUND;
+    UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(UCNV_ESCAPE_C, Guest(&toArgs), bytes, 12, UCNV_ILLEGAL, &toStatus);
+    Require(toStatus == Ok && toArgs.target - units == 48, "C ESCAPE of twelve bytes");
+    const char thirteen[13] = {};
+    Require(Invalid([&] { std::int32_t error = U_ILLEGAL_CHAR_FOUND; UConverterToUnicodeArgs more = ToArguments(guest, units, 64); UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(nullptr, Guest(&more), thirteen, 13, UCNV_ILLEGAL, &error); }), "ESCAPE of thirteen bytes");
+    Require(Invalid([&] { std::int32_t error = U_ILLEGAL_CHAR_FOUND; UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(nullptr, Guest(&toArgs), nullptr, 1, UCNV_ILLEGAL, &error); }), "to-Unicode ESCAPE null bytes");
+    Require(Invalid([&] { UCNV_TO_U_CALLBACK_SUBSTITUTE_nid_postfix(nullptr, Guest(&toArgs), nullptr, 1, UCNV_ILLEGAL, nullptr); }), "to-Unicode SUBSTITUTE null status");
+    UCNV_TO_U_CALLBACK_SUBSTITUTE_nid_postfix("x", nullptr, nullptr, 1, UCNV_ILLEGAL, nullptr);
+    UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(nullptr, nullptr, nullptr, 99, UCNV_RESET, nullptr);
+    ucnv_close(host);
+    ucnv_close_nid_postfix(guest);
+}
+
+void CheckWriteExports() {
+    UConverter* converter = Open("US-ASCII");
+    char target[4];
+    UConverterFromUnicodeArgs args = FromArguments(converter, target, sizeof(target));
+    std::string bytes(36, 'z');
+    std::int32_t status = Ok;
+    ucnv_cbFromUWriteBytes_nid_postfix(Guest(&args), bytes.data(), 36, 0, &status);
+    Require(status == U_BUFFER_OVERFLOW_ERROR && args.target == target + 4, "cbFromUWriteBytes keeps 32 bytes for later");
+    char rest[40];
+    char* restTarget = rest;
+    const char16_t* none = nullptr;
+    status = Ok;
+    ucnv_fromUnicode_nid_postfix(converter, &restTarget, rest + sizeof(rest), &none, nullptr, nullptr, 1, &status);
+    Require(status == Ok && restTarget - rest == 32, "the overflow bytes come out on the next call");
+    args = FromArguments(converter, target, sizeof(target));
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_cbFromUWriteBytes_nid_postfix(Guest(&args), bytes.data(), 37, 0, &error); }), "cbFromUWriteBytes past the overflow buffer");
+    UConverterFromUnicodeArgs detached = FromArguments(nullptr, target, sizeof(target));
+    std::string many(100, 'y');
+    status = Ok;
+    ucnv_cbFromUWriteBytes_nid_postfix(Guest(&detached), many.data(), 100, 0, &status);
+    Require(status == U_BUFFER_OVERFLOW_ERROR && detached.target == target + 4, "without a converter ICU drops the overflow");
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_cbFromUWriteBytes_nid_postfix(Guest(&args), nullptr, 1, 0, &error); }), "cbFromUWriteBytes null bytes");
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_cbFromUWriteBytes_nid_postfix(nullptr, "a", 1, 0, &error); }), "cbFromUWriteBytes null arguments");
+    std::int32_t failed = U_INVALID_CHAR_FOUND;
+    ucnv_cbFromUWriteBytes_nid_postfix(nullptr, nullptr, 99, 0, &failed);
+    ucnv_cbFromUWriteSub_nid_postfix(nullptr, 0, &failed);
+    ucnv_cbFromUWriteUChars_nid_postfix(nullptr, nullptr, nullptr, 0, &failed);
+    ucnv_cbToUWriteUChars_nid_postfix(nullptr, nullptr, 99, 0, &failed);
+    Require(failed == U_INVALID_CHAR_FOUND, "a failed status returns first");
+    ucnv_resetFromUnicode_nid_postfix(converter);
+    char subTarget[8] = {};
+    UConverterFromUnicodeArgs subArgs = FromArguments(converter, subTarget, sizeof(subTarget));
+    status = Ok;
+    ucnv_cbFromUWriteSub_nid_postfix(Guest(&subArgs), 0, &status);
+    Require(status == Ok && subArgs.target == subTarget + 1 && subTarget[0] == 0x1a, "cbFromUWriteSub");
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_cbFromUWriteSub_nid_postfix(Guest(&detached), 0, &error); }), "cbFromUWriteSub without a converter");
+    const std::u16string text = Units({0x41, 0x42});
+    const char16_t* source = text.data();
+    status = Ok;
+    ucnv_cbFromUWriteUChars_nid_postfix(Guest(&subArgs), &source, text.data() + 2, 0, &status);
+    Require(status == Ok && subArgs.target == subTarget + 3 && subTarget[1] == 'A' && subTarget[2] == 'B' && source == text.data() + 2, "cbFromUWriteUChars");
+    status = Ok;
+    ucnv_cbFromUWriteUChars_nid_postfix(Guest(&detached), &source, text.data() + 2, 0, &status);
+    Require(status == U_ILLEGAL_ARGUMENT_ERROR, "cbFromUWriteUChars without a converter");
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_cbFromUWriteUChars_nid_postfix(nullptr, &source, text.data(), 0, &error); }), "cbFromUWriteUChars null arguments");
+    char16_t units[2];
+    UConverterToUnicodeArgs toArgs = ToArguments(converter, units, 2);
+    std::u16string unitText(34, u'q');
+    status = Ok;
+    ucnv_cbToUWriteUChars_nid_postfix(Guest(&toArgs), unitText.data(), 34, 0, &status);
+    Require(status == U_BUFFER_OVERFLOW_ERROR && toArgs.target == units + 2, "cbToUWriteUChars keeps 32 units");
+    ucnv_resetToUnicode_nid_postfix(converter);
+    toArgs = ToArguments(converter, units, 2);
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_cbToUWriteUChars_nid_postfix(Guest(&toArgs), unitText.data(), 35, 0, &error); }), "cbToUWriteUChars past the overflow buffer");
+    Require(Invalid([&] { std::int32_t error = Ok; ucnv_cbToUWriteUChars_nid_postfix(Guest(&toArgs), nullptr, 1, 0, &error); }), "cbToUWriteUChars null units");
+    char16_t subUnits[4] = {};
+    UConverterToUnicodeArgs subTo = ToArguments(converter, subUnits, 4);
+    status = Ok;
+    ucnv_cbToUWriteSub_nid_postfix(Guest(&subTo), 0, &status);
+    Require(status == Ok && subTo.target == subUnits + 1 && subUnits[0] == 0xfffd, "cbToUWriteSub");
+    Require(Invalid([&] { ucnv_cbToUWriteSub_nid_postfix(Guest(&subTo), 0, nullptr); }), "cbToUWriteSub null status");
+    Require(Invalid([] { std::int32_t error = U_INVALID_CHAR_FOUND; ucnv_cbToUWriteSub_nid_postfix(nullptr, 0, &error); }), "cbToUWriteSub reads the converter first");
+    ucnv_close_nid_postfix(converter);
+}
+
+void CheckThreads() {
+    std::vector<std::thread> threads;
+    std::atomic<int> failures{0};
+    for (int index = 0; index < 8; ++index) {
+        threads.emplace_back([&failures, index] {
+            for (int round = 0; round < 50; ++round) {
+                std::int32_t status = Ok;
+                UConverter* converter = ucnv_open_nid_postfix("US-ASCII", &status);
+                Recorder recorder{{}, std::string(1, static_cast<char>('a' + index))};
+                ucnv_setFromUCallBack_nid_postfix(converter, RecordFromUnicode_nid_no_patch, &recorder, nullptr, nullptr, &status);
+                UConverter* clone = ucnv_safeClone_nid_postfix(converter, nullptr, nullptr, &status);
+                ucnv_close_nid_postfix(converter);
+                status = Ok;
+                const std::u16string text = Units({0x20ac});
+                char out[8];
+                const std::int32_t length = ucnv_fromUChars_nid_postfix(clone, out, sizeof(out), text.data(), 1, &status);
+                if (status != Ok || length != 1 || out[0] != static_cast<char>('a' + index)) ++failures;
+                ucnv_close_nid_postfix(clone);
+            }
+        });
+    }
+    for (std::thread& thread : threads) thread.join();
+    Require(failures.load() == 0, "guest callbacks on clones across threads");
+}
+
+}
+
 int main() {
     UErrorCode status = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &status);
@@ -555,6 +1131,13 @@ int main() {
     CheckOpenErrors();
     CheckDefault();
     CheckSweep();
+    CheckDefaultCallbacks();
+    CheckGuestCallbacks();
+    CheckCallbackErrors();
+    CheckClones();
+    CheckEscapeExports();
+    CheckWriteExports();
+    CheckThreads();
     SetDefault(nullptr);
     std::puts("guest_icu_converter passed");
     return 0;
