@@ -48,3 +48,4 @@
 #include "LocaleInfo.hpp"
 #include "Currency.hpp"
 #include "Converter.hpp"
+#include "Trie.hpp"
