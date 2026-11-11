@@ -44,3 +44,4 @@
 #include "TextFormat.hpp"
 #include "NumberFormatter.hpp"
 #include "DateFormat.hpp"
+#include "ResourceBundle.hpp"

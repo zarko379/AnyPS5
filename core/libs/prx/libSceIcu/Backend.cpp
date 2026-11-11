@@ -4,6 +4,8 @@
 #include "prx/libc/include/Api.hpp"
 #include <unicode/uclean.h>
 #include <unicode/udata.h>
+#include <unicode/putil.h>
+#include <unicode/uloc.h>
 #include <unicode/uenum.h>
 #include <unicode/locid.h>
 #include <unicode/uniset.h>
@@ -90,6 +92,7 @@ void APS5_VABI ResetHostEnumeration_nid_no_patch(GuestEnumerationLayout* enumera
 void ApplyFileAccess() {
     UErrorCode status = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &status);
+    u_setTimeZoneFilesDirectory("", &status);
     if (U_FAILURE(status)) throw std::runtime_error("libSceIcu backend: udata_setFileAccess failed");
 }
 
@@ -140,6 +143,38 @@ const char16_t* Zone(const char16_t* zone, std::int32_t) {
 void CheckFallback(const std::int32_t* status) {
     if (status && *status == U_USING_DEFAULT_WARNING && !guestDefaultLocale.load())
         NotImplemented_nid_no_patch("libSceIcu: a fallback to the console's default locale");
+}
+
+bool GuestDefault() {
+    return guestDefaultLocale.load();
+}
+
+void RequireGuestDefault() {
+    Ensure();
+    if (!guestDefaultLocale.load()) NotImplemented_nid_no_patch("libSceIcu: a result decided by the console's default locale");
+}
+
+const char* CanonicalLocale(const char* locale) {
+    Locale(locale);
+    if (!locale || std::strncmp(locale, "i-default", 9) != 0) return locale;
+    const char next = locale[9];
+    if (next != '\0' && next != '@' && next != '.' && next != '_' && next != '-') return locale;
+    if (!std::strchr(locale, '@')) {
+        char converted[ULOC_FULLNAME_CAPACITY];
+        UErrorCode status = U_ZERO_ERROR;
+        const std::int32_t length = uloc_forLanguageTag(locale, converted, sizeof(converted), nullptr, &status);
+        if (length > 0 || U_FAILURE(status) || status == U_STRING_NOT_TERMINATED_WARNING) return locale;
+    }
+    RequireGuestDefault();
+    return locale;
+}
+
+const char* Package(const char* path) {
+    Ensure();
+    if (!path) return path;
+    const bool tree = std::strcmp(path, "ICUDATA") == 0 || std::strncmp(path, "ICUDATA-", 8) == 0 || std::strncmp(path, U_ICUDATA_NAME "-", sizeof(U_ICUDATA_NAME)) == 0;
+    if (!tree || std::strchr(path, '\\')) NotImplemented_nid_no_patch("libSceIcu: a resource package outside ICU's own data (ICU would read the package from the file system)");
+    return path;
 }
 
 bool LocaleData(const char* tree, const char* locale) {
