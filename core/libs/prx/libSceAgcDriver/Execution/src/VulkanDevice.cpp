@@ -2698,7 +2698,6 @@ VulkanDevice::VulkanDevice(const PresentationWindow* window, bool compileOnly) :
         std::uint32_t drawableWidth = 0;
         std::uint32_t drawableHeight = 0;
         window->getDrawableSize(window->context, &drawableWidth, &drawableHeight);
-        require(drawableWidth != 0 && drawableHeight != 0, "window has a zero drawable size at creation");
         VkSurfaceCapabilitiesKHR surface{};
         check(state->InstanceFunction<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>("vkGetPhysicalDeviceSurfaceCapabilitiesKHR")(selected, state->surface, &surface), "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
         state->extent = {drawableWidth, drawableHeight};
@@ -2710,7 +2709,9 @@ VulkanDevice::VulkanDevice(const PresentationWindow* window, bool compileOnly) :
             drawableHeight = surface.currentExtent.height;
             state->extent = {drawableWidth, drawableHeight};
         }
-        require(drawableWidth >= surface.minImageExtent.width && drawableWidth <= surface.maxImageExtent.width && drawableHeight >= surface.minImageExtent.height && drawableHeight <= surface.maxImageExtent.height, "unsupported output extent");
+        const bool minimized = drawableWidth == 0 || drawableHeight == 0 || surface.currentExtent.width == 0 || surface.currentExtent.height == 0;
+        if (minimized) state->extent = {0, 0};
+        else require(drawableWidth >= surface.minImageExtent.width && drawableWidth <= surface.maxImageExtent.width && drawableHeight >= surface.minImageExtent.height && drawableHeight <= surface.maxImageExtent.height, "unsupported output extent");
         require((surface.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) != 0, "surface does not support transfer destination images");
         require((surface.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) != 0, "opaque composition is unavailable");
         require((surface.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) != 0, "identity surface transform is unavailable");
@@ -2725,26 +2726,30 @@ VulkanDevice::VulkanDevice(const PresentationWindow* window, bool compileOnly) :
         presentModes.resize(presentModeCount);
         state->presentMode = SelectPresentMode(std::getenv("ANYPS5_PRESENT_MODE"), presentModes);
         require((surface.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) != 0, "surface does not support color attachment images");
-        VkSwapchainCreateInfoKHR swapchain{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
-        swapchain.surface = state->surface;
-        swapchain.minImageCount = AgcDriver::SwapchainImageCount(surface);
-        swapchain.imageFormat = state->surfaceFormat;
-        swapchain.imageColorSpace = state->surfaceColorSpace;
-        swapchain.imageExtent = state->extent;
-        swapchain.imageArrayLayers = 1;
-        swapchain.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        swapchain.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        swapchain.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-        swapchain.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        swapchain.presentMode = state->presentMode;
-        swapchain.clipped = VK_FALSE;
-        check(state->DeviceFunction<PFN_vkCreateSwapchainKHR>("vkCreateSwapchainKHR")(state->device, &swapchain, nullptr, &state->swapchain), "vkCreateSwapchainKHR");
         std::uint32_t imageCount = 0;
-        auto getImages = state->DeviceFunction<PFN_vkGetSwapchainImagesKHR>("vkGetSwapchainImagesKHR");
-        check(getImages(state->device, state->swapchain, &imageCount, nullptr), "vkGetSwapchainImagesKHR");
-        state->images.resize(imageCount);
-        check(getImages(state->device, state->swapchain, &imageCount, state->images.data()), "vkGetSwapchainImagesKHR");
-        APS5_LOG_OUT("Swapchain created swapchain=%p extent=%ux%u images=%u", reinterpret_cast<void*>(state->swapchain), state->extent.width, state->extent.height, imageCount);
+        if (minimized) {
+            APS5_LOG_OUT("Swapchain deferred: the window is minimized drawable=%ux%u surface=%ux%u", drawableWidth, drawableHeight, surface.currentExtent.width, surface.currentExtent.height);
+        } else {
+            VkSwapchainCreateInfoKHR swapchain{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
+            swapchain.surface = state->surface;
+            swapchain.minImageCount = AgcDriver::SwapchainImageCount(surface);
+            swapchain.imageFormat = state->surfaceFormat;
+            swapchain.imageColorSpace = state->surfaceColorSpace;
+            swapchain.imageExtent = state->extent;
+            swapchain.imageArrayLayers = 1;
+            swapchain.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            swapchain.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            swapchain.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+            swapchain.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+            swapchain.presentMode = state->presentMode;
+            swapchain.clipped = VK_FALSE;
+            check(state->DeviceFunction<PFN_vkCreateSwapchainKHR>("vkCreateSwapchainKHR")(state->device, &swapchain, nullptr, &state->swapchain), "vkCreateSwapchainKHR");
+            auto getImages = state->DeviceFunction<PFN_vkGetSwapchainImagesKHR>("vkGetSwapchainImagesKHR");
+            check(getImages(state->device, state->swapchain, &imageCount, nullptr), "vkGetSwapchainImagesKHR");
+            state->images.resize(imageCount);
+            check(getImages(state->device, state->swapchain, &imageCount, state->images.data()), "vkGetSwapchainImagesKHR");
+            APS5_LOG_OUT("Swapchain created swapchain=%p extent=%ux%u images=%u", reinterpret_cast<void*>(state->swapchain), state->extent.width, state->extent.height, imageCount);
+        }
         VkFenceCreateInfo fence{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         const auto createFence = state->DeviceFunction<PFN_vkCreateFence>("vkCreateFence");
         check(createFence(state->device, &fence, nullptr, &state->acquireFence), "vkCreateFence");
@@ -3656,12 +3661,11 @@ void* VulkanDevice::Window() const {
 
 void VulkanDevice::Resize(std::uint32_t width, std::uint32_t height) {
     APS5_LOG_OUT_DEBUG("Resize requested=%ux%u current=%ux%u", width, height, state->extent.width, state->extent.height);
-    require(state->swapchain != VK_NULL_HANDLE, "cannot resize an unavailable swapchain");
     if (width == 0 || height == 0) {
         state->extent = {0, 0};
         return;
     }
-    if (state->extent.width == width && state->extent.height == height) return;
+    if (state->swapchain != VK_NULL_HANDLE && state->extent.width == width && state->extent.height == height) return;
     recreateSwapchain(width, height, false);
 }
 
@@ -3704,7 +3708,7 @@ void VulkanDevice::recreateSwapchain(std::uint32_t width, std::uint32_t height, 
     state->retiredSwapchains.reserve(state->retiredSwapchains.size() + 1);
     VkSwapchainKHR replacement = VK_NULL_HANDLE;
     check(state->DeviceFunction<PFN_vkCreateSwapchainKHR>("vkCreateSwapchainKHR")(state->device, &create, nullptr, &replacement), "vkCreateSwapchainKHR resize");
-    state->retiredSwapchains.push_back({state->swapchain, std::move(state->rendered)});
+    if (state->swapchain != VK_NULL_HANDLE) state->retiredSwapchains.push_back({state->swapchain, std::move(state->rendered)});
     state->swapchain = replacement;
     state->extent = create.imageExtent;
     auto getImages = state->DeviceFunction<PFN_vkGetSwapchainImagesKHR>("vkGetSwapchainImagesKHR");
@@ -3775,7 +3779,7 @@ void VulkanDevice::useSurfaceFormat(VkSurfaceFormatKHR format) {
 
 void VulkanDevice::SelectDynamicRange(const DisplayBuffer* buffer) {
     GuestMemory::AssertGpuLockHeld("VulkanDevice::SelectDynamicRange");
-    require(state->swapchain != VK_NULL_HANDLE, "cannot select the dynamic range of an unavailable swapchain");
+    if (state->swapchain == VK_NULL_HANDLE) return;
     if (AgcDriver::CurrentHostHdr().displayGeneration != state->surfaceDisplayGeneration) refreshSurfaceFormats();
     const auto host = AgcDriver::CurrentHostHdr();
     const bool metadataStale = state->surfaceColorSpace == VK_COLOR_SPACE_HDR10_ST2084_EXT && host.available && host.generation != state->metadataGeneration;
