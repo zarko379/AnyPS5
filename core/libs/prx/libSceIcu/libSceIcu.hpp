@@ -49,3 +49,4 @@
 #include "Currency.hpp"
 #include "Converter.hpp"
 #include "Trie.hpp"
+#include "CaseProperties.hpp"
