@@ -50,3 +50,4 @@
 #include "Converter.hpp"
 #include "Trie.hpp"
 #include "CaseProperties.hpp"
+#include "DataMemory.hpp"
