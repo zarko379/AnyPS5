@@ -40,3 +40,4 @@
 #include "Idna.hpp"
 #include "EnumerationSources.hpp"
 #include "BreakIterator.hpp"
+#include "NumberFormat.hpp"

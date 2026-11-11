@@ -6,11 +6,13 @@
 #include <unicode/udata.h>
 #include <unicode/uenum.h>
 #include <unicode/uniset.h>
+#include <unicode/ures.h>
 #include <unicode/uset.h>
 #include <atomic>
 #include <cstddef>
 #include <mutex>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace IcuBackend {
 
@@ -18,6 +20,16 @@ namespace {
 
 std::atomic<bool> guestDefaultLocale{false};
 std::atomic<bool> guestDefaultConverter{false};
+
+std::mutex& TrackedMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::unordered_set<const void*>& TrackedHandles() {
+    static std::unordered_set<const void*> handles;
+    return handles;
+}
 
 struct GuestEnumerationLayout {
     using CloseFn = void (APS5_VABI*)(GuestEnumerationLayout* enumeration);
@@ -124,6 +136,38 @@ const char16_t* Zone(const char16_t* zone, std::int32_t) {
 void CheckFallback(const std::int32_t* status) {
     if (status && *status == U_USING_DEFAULT_WARNING && !guestDefaultLocale.load())
         NotImplemented_nid_no_patch("libSceIcu: a fallback to the console's default locale");
+}
+
+bool LocaleData(const char* tree, const char* locale) {
+    Ensure();
+    UErrorCode status = U_ZERO_ERROR;
+    ures_close(ures_open(tree, locale, &status));
+    const bool needsDefault = status == U_USING_DEFAULT_WARNING;
+    if (needsDefault && !guestDefaultLocale.load()) NotImplemented_nid_no_patch("libSceIcu: a fallback to the console's default locale");
+    return needsDefault;
+}
+
+void Track(const void* handle, bool needsDefault) {
+    if (!handle) return;
+    const std::lock_guard lock(TrackedMutex());
+    if (needsDefault) TrackedHandles().insert(handle);
+    else TrackedHandles().erase(handle);
+}
+
+void CheckTracked(const void* handle) {
+    if (guestDefaultLocale.load()) return;
+    const std::lock_guard lock(TrackedMutex());
+    if (TrackedHandles().count(handle)) NotImplemented_nid_no_patch("libSceIcu: an object whose locale falls back to the console's default locale");
+}
+
+bool Tracked(const void* handle) {
+    const std::lock_guard lock(TrackedMutex());
+    return TrackedHandles().count(handle) != 0;
+}
+
+void Untrack(const void* handle) {
+    const std::lock_guard lock(TrackedMutex());
+    TrackedHandles().erase(handle);
 }
 
 void Cleanup() {
