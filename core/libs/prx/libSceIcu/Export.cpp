@@ -155,10 +155,6 @@ int APS5_VABI ucnv_toUnicode() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI ucurr_getName() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI udata_setCommonData() {
     NotImplemented_nid_no_patch(__func__);
 }

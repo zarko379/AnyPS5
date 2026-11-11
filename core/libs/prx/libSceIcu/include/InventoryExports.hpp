@@ -19,7 +19,6 @@ int APS5_VABI ucnv_setSubstChars();
 int APS5_VABI ucnv_setToUCallBack();
 int APS5_VABI ucnv_toUChars();
 int APS5_VABI ucnv_toUnicode();
-int APS5_VABI ucurr_getName();
 int APS5_VABI udata_setCommonData();
 int APS5_VABI udata_setFileAccess();
 std::int32_t APS5_VABI uloc_canonicalize(const char* locale, char* result, std::int32_t capacity, std::int32_t* status);

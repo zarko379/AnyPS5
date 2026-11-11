@@ -46,3 +46,4 @@
 #include "DateFormat.hpp"
 #include "ResourceBundle.hpp"
 #include "LocaleInfo.hpp"
+#include "Currency.hpp"
