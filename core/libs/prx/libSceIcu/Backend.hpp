@@ -4,6 +4,7 @@
 
 struct USet;
 struct UEnumeration;
+struct UResourceBundle;
 
 namespace IcuBackend {
 
@@ -21,6 +22,8 @@ bool GuestDefault();
 void RequireGuestDefault();
 const char* CanonicalLocale(const char* locale);
 const char* Package(const char* path);
+void CheckKey(const UResourceBundle* bundle, const char* key, const std::int32_t* status);
+void CheckWithFallback(const UResourceBundle* bundle, const char* key, const std::int32_t* status);
 bool LocaleData(const char* tree, const char* locale);
 void Track(const void* handle, bool needsDefault);
 void CheckTracked(const void* handle);

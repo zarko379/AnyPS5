@@ -11,6 +11,7 @@
 #include <unicode/uniset.h>
 #include <unicode/ures.h>
 #include <unicode/uset.h>
+#include "uresimp.h"
 #include <atomic>
 #include <cstddef>
 #include <cstring>
@@ -87,6 +88,35 @@ const char* APS5_VABI NextHostEnumeration_nid_no_patch(GuestEnumerationLayout* e
 
 void APS5_VABI ResetHostEnumeration_nid_no_patch(GuestEnumerationLayout* enumeration, std::int32_t* status) {
     uenum_reset(HostEnumeration(enumeration), EnumerationStatus(status));
+}
+
+const char* ParentEntryName(const UResourceBundle* bundle, const char* key) {
+    if (!bundle || !key || !bundle->fHasFallback || !URES_IS_TABLE(RES_GET_TYPE(bundle->fRes))) return nullptr;
+    std::int32_t index = 0;
+    const char* probe = key;
+    if (res_getTableItemByKey(&bundle->fResData, bundle->fRes, &index, &probe) != RES_BOGUS) return nullptr;
+    UResourceDataEntry* entry = bundle->fData;
+    if (!entry) return nullptr;
+    Resource found = RES_BOGUS;
+    std::int32_t searched = 0;
+    if (entry->fBogus == U_ZERO_ERROR) {
+        probe = key;
+        found = res_getTableItemByKey(&entry->fData, entry->fData.rootRes, &index, &probe);
+        ++searched;
+    }
+    while (found == RES_BOGUS && entry->fParent) {
+        entry = entry->fParent;
+        if (entry->fBogus == U_ZERO_ERROR) {
+            ++searched;
+            probe = key;
+            found = res_getTableItemByKey(&entry->fData, entry->fData.rootRes, &index, &probe);
+        }
+    }
+    return found != RES_BOGUS && searched > 1 ? entry->fName : nullptr;
+}
+
+bool Proceeds(const std::int32_t* status) {
+    return status && *status <= U_ZERO_ERROR;
 }
 
 void ApplyFileAccess() {
@@ -175,6 +205,20 @@ const char* Package(const char* path) {
     const bool tree = std::strcmp(path, "ICUDATA") == 0 || std::strncmp(path, "ICUDATA-", 8) == 0 || std::strncmp(path, U_ICUDATA_NAME "-", sizeof(U_ICUDATA_NAME)) == 0;
     if (!tree || std::strchr(path, '\\')) NotImplemented_nid_no_patch("libSceIcu: a resource package outside ICU's own data (ICU would read the package from the file system)");
     return path;
+}
+
+void CheckKey(const UResourceBundle* bundle, const char* key, const std::int32_t* status) {
+    if (!Proceeds(status) || guestDefaultLocale.load()) return;
+    const char* name = ParentEntryName(bundle, key);
+    if (name && std::strcmp(name, "root") != 0) RequireGuestDefault();
+}
+
+void CheckWithFallback(const UResourceBundle* bundle, const char* key, const std::int32_t* status) {
+    if (!Proceeds(status) || !bundle || guestDefaultLocale.load()) return;
+    icu::StackUResourceBundle probe;
+    UErrorCode probeStatus = U_ZERO_ERROR;
+    ures_getByKeyWithFallback(bundle, key, probe.getAlias(), &probeStatus);
+    if (probeStatus == U_USING_DEFAULT_WARNING || probeStatus == U_USING_FALLBACK_WARNING) RequireGuestDefault();
 }
 
 bool LocaleData(const char* tree, const char* locale) {

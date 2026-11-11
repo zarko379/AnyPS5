@@ -85,45 +85,6 @@ void OpenDirect(const char* path, const char* locale) {
     if (U_SUCCESS(probe)) APS5_INVALID_ARG_EX;
 }
 
-const char* ParentEntryName(const UResourceBundle* bundle, const char* key) {
-    if (!bundle || !key || !bundle->fHasFallback || !URES_IS_TABLE(RES_GET_TYPE(bundle->fRes))) return nullptr;
-    std::int32_t index = 0;
-    const char* probe = key;
-    if (res_getTableItemByKey(&bundle->fResData, bundle->fRes, &index, &probe) != RES_BOGUS) return nullptr;
-    UResourceDataEntry* entry = bundle->fData;
-    if (!entry) return nullptr;
-    Resource found = RES_BOGUS;
-    std::int32_t searched = 0;
-    if (entry->fBogus == U_ZERO_ERROR) {
-        probe = key;
-        found = res_getTableItemByKey(&entry->fData, entry->fData.rootRes, &index, &probe);
-        ++searched;
-    }
-    while (found == RES_BOGUS && entry->fParent) {
-        entry = entry->fParent;
-        if (entry->fBogus == U_ZERO_ERROR) {
-            ++searched;
-            probe = key;
-            found = res_getTableItemByKey(&entry->fData, entry->fData.rootRes, &index, &probe);
-        }
-    }
-    return found != RES_BOGUS && searched > 1 ? entry->fName : nullptr;
-}
-
-void CheckKey(const UResourceBundle* bundle, const char* key, const std::int32_t* status) {
-    if (!Proceeds(status) || IcuBackend::GuestDefault()) return;
-    const char* name = ParentEntryName(bundle, key);
-    if (name && std::strcmp(name, "root") != 0) IcuBackend::RequireGuestDefault();
-}
-
-void CheckWithFallback(const UResourceBundle* bundle, const char* key, const std::int32_t* status) {
-    if (!Proceeds(status) || !bundle || IcuBackend::GuestDefault()) return;
-    icu::StackUResourceBundle probe;
-    UErrorCode probeStatus = U_ZERO_ERROR;
-    ures_getByKeyWithFallback(bundle, key, probe.getAlias(), &probeStatus);
-    if (probeStatus == U_USING_DEFAULT_WARNING || probeStatus == U_USING_FALLBACK_WARNING) IcuBackend::RequireGuestDefault();
-}
-
 void CheckFind(const char* pathToResource) {
     std::string path(pathToResource);
     std::string package;
@@ -245,7 +206,7 @@ void APS5_VABI ures_getVersion_nid_postfix(const UResourceBundle* resB, std::uin
 
 void APS5_VABI ures_getVersionByKey_nid_postfix(const UResourceBundle* res, const char* key, std::uint8_t* ver, std::int32_t* status) {
     UErrorCode* error = Status(status);
-    if (res) CheckKey(Bundle(res), key, status);
+    if (res) IcuBackend::CheckKey(Bundle(res), key, status);
     ures_getVersionByKey(res, key, ver, error);
 }
 
@@ -338,25 +299,25 @@ UResourceBundle* APS5_VABI ures_getByKey_nid_postfix(const UResourceBundle* reso
     Bundle(resourceBundle);
     if (!Proceeds(status) || !resourceBundle) return ures_getByKey(resourceBundle, key, fillIn, error);
     FillIn(fillIn);
-    CheckKey(resourceBundle, key, status);
+    IcuBackend::CheckKey(resourceBundle, key, status);
     return Own(ures_getByKey(resourceBundle, key, fillIn, error));
 }
 
 const char16_t* APS5_VABI ures_getStringByKey_nid_postfix(const UResourceBundle* resB, const char* key, std::int32_t* len, std::int32_t* status) {
     UErrorCode* error = Optional(status);
-    CheckKey(Bundle(resB), key, status);
+    IcuBackend::CheckKey(Bundle(resB), key, status);
     return ures_getStringByKey(resB, key, len, error);
 }
 
 const char* APS5_VABI ures_getUTF8StringByKey_nid_postfix(const UResourceBundle* resB, const char* key, char* dest, std::int32_t* pLength, std::int8_t forceCopy, std::int32_t* status) {
     UErrorCode* error = Status(status);
-    CheckKey(Bundle(resB), key, status);
+    IcuBackend::CheckKey(Bundle(resB), key, status);
     return ures_getUTF8StringByKey(resB, key, dest, pLength, forceCopy, error);
 }
 
 std::int32_t APS5_VABI ures_countArrayItems_nid_postfix(const UResourceBundle* resourceBundle, const char* resourceKey, std::int32_t* err) {
     UErrorCode* error = Optional(err);
-    CheckKey(Bundle(resourceBundle), resourceKey, err);
+    IcuBackend::CheckKey(Bundle(resourceBundle), resourceKey, err);
     return ures_countArrayItems(resourceBundle, resourceKey, error);
 }
 
@@ -383,13 +344,13 @@ UResourceBundle* APS5_VABI ures_getByKeyWithFallback_nid_postfix(const UResource
     Bundle(resB);
     if (!Proceeds(status) || !resB) return ures_getByKeyWithFallback(resB, inKey, fillIn, error);
     FillIn(fillIn);
-    CheckWithFallback(resB, inKey, status);
+    IcuBackend::CheckWithFallback(resB, inKey, status);
     return Own(ures_getByKeyWithFallback(resB, inKey, fillIn, error));
 }
 
 const char16_t* APS5_VABI ures_getStringByKeyWithFallback_nid_postfix(const UResourceBundle* resB, const char* inKey, std::int32_t* len, std::int32_t* status) {
     UErrorCode* error = Status(status);
-    CheckWithFallback(Bundle(resB), inKey, status);
+    IcuBackend::CheckWithFallback(Bundle(resB), inKey, status);
     return ures_getStringByKeyWithFallback(resB, inKey, len, error);
 }
 

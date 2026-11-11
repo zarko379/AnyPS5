@@ -23,7 +23,7 @@ icu_backend_sources(icuToolUtilSources tools/toolutil)
 
 add_library(icu_common_backend STATIC EXCLUDE_FROM_ALL ${icuCommonSources})
 target_include_directories(icu_common_backend PUBLIC ${icuSourceDir}/common)
-target_compile_definitions(icu_common_backend PRIVATE U_COMMON_IMPLEMENTATION PUBLIC U_STATIC_IMPLEMENTATION U_ATTRIBUTE_DEPRECATED=)
+target_compile_definitions(icu_common_backend PRIVATE U_COMMON_IMPLEMENTATION UCONFIG_USE_WINDOWS_LCID_MAPPING_API=0 PUBLIC U_STATIC_IMPLEMENTATION U_ATTRIBUTE_DEPRECATED=)
 
 add_library(icu_i18n_backend STATIC EXCLUDE_FROM_ALL ${icuI18nSources})
 target_include_directories(icu_i18n_backend PUBLIC ${icuSourceDir}/i18n)

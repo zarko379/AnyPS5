@@ -45,3 +45,4 @@
 #include "NumberFormatter.hpp"
 #include "DateFormat.hpp"
 #include "ResourceBundle.hpp"
+#include "LocaleInfo.hpp"
