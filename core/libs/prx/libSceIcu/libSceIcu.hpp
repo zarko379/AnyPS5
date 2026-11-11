@@ -31,3 +31,4 @@
 #include "ConverterHelpers.hpp"
 #include "Normalization.hpp"
 #include "Defaults.hpp"
+#include "Properties.hpp"

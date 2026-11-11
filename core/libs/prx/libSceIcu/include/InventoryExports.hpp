@@ -4,10 +4,6 @@
 
 extern "C" {
 
-int APS5_VABI u_tolower();
-int APS5_VABI u_totitle();
-int APS5_VABI u_toupper();
-int APS5_VABI ublock_getCode();
 int APS5_VABI ubrk_close();
 int APS5_VABI ubrk_countAvailable();
 int APS5_VABI ubrk_current();
