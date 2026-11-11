@@ -6,21 +6,17 @@
 
 ### Additional callable exports
 
-- [Additional callable exports](../../../core/libs/prx/libSceIcu/Export.cpp) - 9 remaining throwing functions match NIDs in the public 3.20 catalogue and both version-labelled images; neither image label authenticates retail firmware provenance. Their prototypes and behavior are unverified and retain `NotImplemented_nid_no_patch`. The six locale functions described above have been removed from this throwing inventory, `u_tolower`, `u_toupper`, `u_totitle` and `ublock_getCode` are in [CodePoints.cpp](../../../core/libs/prx/libSceIcu/CodePoints.cpp), six `unorm2_*` in [Normalization.cpp](../../../core/libs/prx/libSceIcu/Normalization.cpp) and the `ubrk_`, `uloc_`, `ures_` and `uscript_` ones in the ICU 68.2 family files.
+- [Additional callable exports](../../../core/libs/prx/libSceIcu/Export.cpp) - 5 remaining throwing functions match NIDs in the public 3.20 catalogue and both version-labelled images; neither image label authenticates retail firmware provenance. Their prototypes and behavior are unverified and retain `NotImplemented_nid_no_patch`. The six locale functions described above have been removed from this throwing inventory, `u_tolower`, `u_toupper`, `u_totitle` and `ublock_getCode` are in [CodePoints.cpp](../../../core/libs/prx/libSceIcu/CodePoints.cpp), six `unorm2_*` in [Normalization.cpp](../../../core/libs/prx/libSceIcu/Normalization.cpp) and the `ubrk_`, `uloc_`, `ures_` and `uscript_` ones in the ICU 68.2 family files.
 
 - [Per-image ELF records](https://gist.github.com/kyon-eth/a8e9ce3fc8802f48d30cd94c413904b7/211c546f6f8e79a23b5ec6ea8fd0610527beabee) describe the module, library, raw names, type, values and sizes for the declarations in [Export.cpp](../../../core/libs/prx/libSceIcu/Export.cpp). The metadata SHA-256 is `551b2d4f646b934cb7eae6a2f2f3bf58e4fb2ba53644d2d1af40f133fda15eb9`; image provenance and labels are not authenticated.
 
 | Name | NID |
 | --- | --- |
-| `ubrk_setUText` | `qQMUbG5L6oE` |
 | `udata_setCommonData` | `wHZwCpZVcGI` |
 | `udata_setFileAccess` | `mCyTdtewGpk` |
 | `unorm2_getNFKCInstance` | `u7NoGsVfzcU` |
 | `unorm2_getNFKDInstance` | `nyO3x1IgiSI` |
-| `utext_close` | `2NaZ-stsAv0` |
 | `utext_openConstUnicodeString` | `yc1XEzBopCw` |
-| `utext_openUChars` | `o9+yMOok2Zs` |
-| `utext_setup` | `sEKpfqARKPI` |
 
 ### Unknown function info
 
@@ -62,7 +58,8 @@
 
 - [uidna](../../../core/libs/prx/libSceIcu/Idna.cpp) (libSceIcu) - not measured on a console. `uidna_openUTS46`, `uidna_close`, `uidna_nameToASCII` and `uidna_nameToUnicode` forward to ICU 68.2 (UTS 46 data of Unicode 13.0). `UIDNAInfo` has the same 16-byte layout for the guest and ICU; as in ICU, a `size` field of 16 or more is required and ICU clears every byte it covers after the field. A null status, or a null instance once ICU's argument checks pass, throws.
 
-- [ubrk](../../../core/libs/prx/libSceIcu/BreakIterator.cpp) (libSceIcu) - not measured on a console. The `ubrk_` exports forward to ICU 68.2 and its break rules and dictionaries. Break data loads with `ures_openNoDefault`, so a fallback warning means root; `@ss=standard` sentence suppressions use `ures_open` but ignore a default-locale fallback, so the result never depends on the default. A NULL locale throws until the guest sets a default. As in ICU, an iterator keeps pointers to the guest's text and binary rules. A null iterator or status ICU reads, a NULL status vector ICU would write, a negative index or the index one past ICU's locale array throws. `ubrk_setUText` and `ubrk_refreshUText` throw (no guest `UText` exists: every `utext_` export throws), as does `ubrk_swap` (`UDataSwapper`).
+- [ubrk](../../../core/libs/prx/libSceIcu/BreakIterator.cpp) (libSceIcu) - not measured on a console. The `ubrk_` exports forward to ICU 68.2 and its break rules and dictionaries. Break data loads with `ures_openNoDefault`, so a fallback warning means root; `@ss=standard` sentence suppressions use `ures_open` but ignore a default-locale fallback, so the result never depends on the default. A NULL locale throws until the guest sets a default. As in ICU, an iterator keeps pointers to the guest's text and binary rules. A null iterator or status ICU reads, a NULL status vector ICU would write, a negative index or the index one past ICU's locale array throws. `ubrk_setUText` and `ubrk_refreshUText` take texts from the utext exports below; `ubrk_swap` (`UDataSwapper`) throws.
+- [utext](../../../core/libs/prx/libSceIcu/Text.cpp) (libSceIcu) - not measured on a console. The `utext_` exports and `ubrk_setUText`/`ubrk_refreshUText` forward to ICU 68.2; texts open over guest UTF-16 or UTF-8 memory, the heap ones and their provider buffers come from ICU, and native indices are code units or bytes as in ICU. A UText whose open provider table is not ICU's UChars or UTF-8 table throws: a guest provider, or one left by `utext_setup` without a table, would have its callbacks called with the host ABI. `utext_openUnicodeString`, `utext_openConstUnicodeString`, `utext_openReplaceable` and `utext_openCharacterIterator` throw, as they take guest C++ objects. A NULL, closed or magic-less UText ICU would dereference, a NULL status, and a writable flag set on an ICU table without replace or copy throw.
 
 - [Enumeration sources](../../../core/libs/prx/libSceIcu/EnumerationSources.cpp) (libSceIcu) - not measured on a console. `uloc_openKeywords`, `uloc_openKeywordList`, `uloc_openAvailableByType`, `ucurr_openISOCurrencies`, `ucurr_getKeywordValuesForLocale`, `ucnv_openAllNames`, `ucnv_openStandardNames`, `ucal_openTimeZones`, `ucal_openTimeZoneIDEnumeration`, `ucal_getKeywordValuesForLocale`, `unumsys_openAvailableNames`, `uenum_openCharStringsEnumeration`, `uenum_openUCharStringsEnumeration` and the two `ucol_getKeywordValues` exports forward to ICU 68.2 and wrap ICU's enumeration in a guest-allocated `UEnumeration`; strings stay valid until the next call, as in ICU. A NULL locale throws until the guest sets a default. Collation keyword values throw only when their `ures_open` falls back to the default locale. A keyword list ICU would read past, a negative size or a null status ICU reads throws. `uenum_openFromStringEnumeration`, `uenum_nextDefault` and `uenum_unextDefault` throw.
 

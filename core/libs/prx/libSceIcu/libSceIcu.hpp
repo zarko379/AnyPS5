@@ -46,6 +46,7 @@
 #include "BreakIterator.hpp"
 #include "NumberFormat.hpp"
 #include "TextFormat.hpp"
+#include "Text.hpp"
 #include "NumberFormatter.hpp"
 #include "DateFormat.hpp"
 #include "ResourceBundle.hpp"
