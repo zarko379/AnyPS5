@@ -41,9 +41,7 @@ std::int32_t APS5_VABI u_strToLower_nid_postfix(char16_t* dest, std::int32_t des
 
 std::int32_t APS5_VABI u_strToTitle_nid_postfix(char16_t* dest, std::int32_t destCapacity, const char16_t* src, std::int32_t srcLength, UBreakIterator* titleIter, const char* locale, std::int32_t* status) {
     UErrorCode* error = RequiredStatus(status);
-    if (U_FAILURE(*error)) return 0;
-    if (titleIter) NotImplemented_nid_no_patch("u_strToTitle with a guest break iterator");
-    return u_strToTitle(dest, destCapacity, src, srcLength, nullptr, CaseLocale(locale, error, dest, destCapacity, src, srcLength), error);
+    return u_strToTitle(dest, destCapacity, src, srcLength, titleIter, CaseLocale(locale, error, dest, destCapacity, src, srcLength), error);
 }
 
 std::int32_t APS5_VABI u_strFoldCase_nid_postfix(char16_t* dest, std::int32_t destCapacity, const char16_t* src, std::int32_t srcLength, std::uint32_t options, std::int32_t* status) {

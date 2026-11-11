@@ -16,8 +16,7 @@ extern "C" {
 UStringSearch* APS5_VABI usearch_open_nid_postfix(const char16_t* pattern, std::int32_t patternLength, const char16_t* text, std::int32_t textLength, const char* locale, UBreakIterator* breakIterator, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
-    if (breakIterator) NotImplemented_nid_no_patch("usearch_open with a guest UBreakIterator");
-    return usearch_open(pattern, patternLength, text, textLength, locale, nullptr, error);
+    return usearch_open(pattern, patternLength, text, textLength, locale, breakIterator, error);
 }
 
 UCollator* APS5_VABI usearch_getCollator_nid_postfix(const UStringSearch* search) {

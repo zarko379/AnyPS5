@@ -1,5 +1,7 @@
 #include "prx/libSceIcu/CaseMap.hpp"
+#include "prx/libSceIcu/BreakIterator.hpp"
 #include "prx/libSceIcu/Defaults.hpp"
+#include <unicode/ubrk.h>
 #include <unicode/uchar.h>
 #include <unicode/udata.h>
 #include <unicode/ustring.h>
@@ -126,7 +128,6 @@ void CheckMappingErrors() {
     std::int32_t status = Ok;
     Require(u_strFoldCase_nid_postfix(buffer, 8, u"A", -1, 0, &status) == 1 && status == Ok && buffer[0] == u'a', "folding takes no locale");
     auto* iterator = reinterpret_cast<UBreakIterator*>(buffer);
-    Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; u_strToTitle_nid_postfix(buffer, 8, u"a", -1, iterator, "", &ok); }), "a guest break iterator throws");
     status = BufferOverflow;
     Require(u_strToTitle_nid_postfix(buffer, 8, u"a", -1, iterator, "", &status) == 0 && status == BufferOverflow, "a failed status returns before the break iterator");
 
@@ -245,6 +246,52 @@ void CheckComparisons() {
     Require(status == Ok && match1 == 0 && match2 == 0, "a null terminated prefix string is empty, as in ICU");
 }
 
+
+std::u16string GuestTitle(const char16_t* source, UBreakIterator* iterator, const char* locale, std::int32_t& status) {
+    char16_t buffer[128] = {};
+    const std::int32_t length = u_strToTitle_nid_postfix(buffer, 128, source, -1, iterator, locale, &status);
+    return std::u16string(buffer, static_cast<std::size_t>(length > 0 && length <= 128 ? length : 0));
+}
+
+std::u16string HostTitle(const char16_t* source, UBreakIterator* iterator, const char* locale, UErrorCode& status) {
+    char16_t buffer[128] = {};
+    const std::int32_t length = u_strToTitle(buffer, 128, source, -1, iterator, locale, &status);
+    return std::u16string(buffer, static_cast<std::size_t>(length > 0 && length <= 128 ? length : 0));
+}
+
+void CheckTitleIterators() {
+    const char16_t* sources[] = {u"hello wORLD. foo bar", u"ijssel ijs", u"ßtraße i̇stanbul", u"one-two three's", u""};
+    for (const std::int32_t type : {UBRK_CHARACTER, UBRK_WORD, UBRK_SENTENCE, UBRK_LINE, UBRK_TITLE}) {
+        for (const char* locale : {"en", "nl", "tr", "el"}) {
+            for (const char16_t* source : sources) {
+                std::int32_t status = Ok;
+                UBreakIterator* guestIterator = ubrk_open_nid_postfix(type, "en", nullptr, 0, &status);
+                UErrorCode hostStatus = U_ZERO_ERROR;
+                UBreakIterator* hostIterator = ubrk_open(static_cast<UBreakIteratorType>(type), "en", nullptr, 0, &hostStatus);
+                Require(guestIterator && hostIterator, "the title break iterators open");
+                status = Ok;
+                hostStatus = U_ZERO_ERROR;
+                Require(GuestTitle(source, guestIterator, locale, status) == HostTitle(source, hostIterator, locale, hostStatus) && status == hostStatus, "title case with a guest break iterator matches ICU");
+                ubrk_close_nid_postfix(guestIterator);
+                ubrk_close(hostIterator);
+            }
+        }
+    }
+    std::int32_t status = Ok;
+    UBreakIterator* characters = ubrk_open_nid_postfix(UBRK_CHARACTER, "en", nullptr, 0, &status);
+    status = Ok;
+    Require(GuestTitle(u"hello world", characters, "en", status) == u"HELLO WORLD" && status == Ok, "a character iterator title-cases every letter");
+    UBreakIterator* sentences = ubrk_open_nid_postfix(UBRK_SENTENCE, "en", nullptr, 0, &status);
+    status = Ok;
+    Require(GuestTitle(u"hello wORLD? foo bar", sentences, "en", status) == u"Hello world? Foo bar" && status == Ok, "a sentence iterator title-cases each sentence");
+    status = Ok;
+    Require(GuestTitle(u"ijssel", sentences, "nl", status) == u"IJssel" && status == Ok, "the locale still drives case mapping with a guest iterator");
+    status = Ok;
+    Require(Throws<std::runtime_error>([&] { GuestTitle(u"abc", sentences, nullptr, status); }), "a NULL locale throws with a guest iterator too");
+    ubrk_close_nid_postfix(characters);
+    ubrk_close_nid_postfix(sentences);
+}
+
 }
 
 int main() {
@@ -254,5 +301,6 @@ int main() {
     CheckMappingErrors();
     CheckMappingSweep();
     CheckComparisons();
+    CheckTitleIterators();
     return 0;
 }

@@ -1,6 +1,8 @@
 #include "prx/libSceIcu/StringSearch.hpp"
+#include "prx/libSceIcu/BreakIterator.hpp"
 #include "prx/libSceIcu/Collation.hpp"
 #include "prx/libSceIcu/Defaults.hpp"
+#include <unicode/ubrk.h>
 #include <unicode/ucol.h>
 #include <unicode/udata.h>
 #include <unicode/usearch.h>
@@ -77,7 +79,6 @@ void CheckOpen() {
     auto* iterator = reinterpret_cast<UBreakIterator*>(16);
     std::int32_t status = IllegalArgument;
     Require(!usearch_open_nid_postfix(u"a", -1, u"a", -1, "", iterator, &status) && status == IllegalArgument, "a failed status returns NULL before the break iterator is read");
-    Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; usearch_open_nid_postfix(u"a", -1, u"a", -1, "", iterator, &ok); }), "a guest break iterator throws");
     status = Ok;
     Require(!usearch_open_nid_postfix(u"a", -1, u"a", -1, nullptr, nullptr, &status) && status == IllegalArgument, "a NULL locale is an illegal argument, not the default locale");
     status = Ok;
@@ -242,6 +243,33 @@ void CheckSweep() {
     }
 }
 
+
+void CheckBreakIterators() {
+    const char16_t* text = u"foxes fox outfox fox. Fox";
+    const char16_t* pattern = u"fox";
+    for (const std::int32_t type : {UBRK_CHARACTER, UBRK_WORD, UBRK_SENTENCE, UBRK_LINE}) {
+        std::int32_t status = Ok;
+        UBreakIterator* guestIterator = ubrk_open_nid_postfix(type, "en", nullptr, 0, &status);
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UBreakIterator* hostIterator = ubrk_open(static_cast<UBreakIteratorType>(type), "en", nullptr, 0, &hostStatus);
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        UStringSearch* guest = usearch_open_nid_postfix(pattern, -1, text, -1, "en", guestIterator, &status);
+        UStringSearch* host = usearch_open(pattern, -1, text, -1, "en", hostIterator, &hostStatus);
+        Require(guest && host && status == hostStatus, "a search with a break iterator opens as in ICU");
+        Require(All(guest) == HostAll(host), "a search with a guest break iterator matches ICU");
+        Require(ubrk_current_nid_postfix(guestIterator) == ubrk_current(hostIterator), "the search leaves the iterator where ICU does");
+    }
+    std::int32_t status = Ok;
+    UBreakIterator* words = ubrk_open_nid_postfix(UBRK_WORD, "en", nullptr, 0, &status);
+    status = Ok;
+    UStringSearch* search = usearch_open_nid_postfix(pattern, -1, text, -1, "en", words, &status);
+    Require(search && status <= Ok && All(search) == Matches{{6, 3}, {17, 3}}, "a word iterator rejects matches inside words");
+    Require(ubrk_first_nid_postfix(words) == 0 && ubrk_next_nid_postfix(words) == 5, "the search sets the iterator's text");
+    UStringSearch* plain = Open(pattern, text, "en");
+    Require(All(plain) == Matches{{0, 3}, {6, 3}, {13, 3}, {17, 3}}, "without an iterator matches inside words are found");
+}
+
 }
 
 int main() {
@@ -251,5 +279,6 @@ int main() {
     CheckKnownMatches();
     CheckErrors();
     CheckSweep();
+    CheckBreakIterators();
     return 0;
 }
