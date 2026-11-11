@@ -1,4 +1,4 @@
-set(icuSourceDir ${CMAKE_SOURCE_DIR}/3rdparty/icu/icu4c/source)
+set(icuSourceDir ${CMAKE_SOURCE_DIR}/3rdparty/icu68/icu4c/source)
 if(NOT Python3_EXECUTABLE)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
 endif()
@@ -106,4 +106,4 @@ add_custom_command(
     VERBATIM)
 add_custom_target(icu_backend_data DEPENDS ${icuDataFile})
 
-install(FILES ${CMAKE_SOURCE_DIR}/3rdparty/icu/icu4c/LICENSE DESTINATION licenses/icu)
+install(FILES ${CMAKE_SOURCE_DIR}/3rdparty/icu68/icu4c/LICENSE DESTINATION licenses/icu68)
