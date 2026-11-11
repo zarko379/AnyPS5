@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -130,6 +131,48 @@ void CheckKnownConversions() {
     UConverter* utf8 = Open("UTF-8");
     Require(ToUnicode(utf8, Bytes({0x61, 0xff, 0x62})) == Units({0x61, 0xfffd, 0x62}), "UTF-8 illegal byte");
     ucnv_close_nid_postfix(utf8);
+}
+
+void CheckCintltstCases() {
+    const std::string gb18030 = Bytes({0x24, 0x7f, 0x81, 0x30, 0x81, 0x30, 0xa8, 0xbf, 0xa2, 0xe3, 0xd2, 0xbb, 0x82, 0x35, 0x8f, 0x33, 0x84, 0x31, 0xa4, 0x39, 0x90, 0x30, 0x81, 0x30, 0xe3, 0x32, 0x9a, 0x35});
+    const std::int32_t results[] = {1, 0x24, 1, 0x7f, 4, 0x80, 2, 0x1f9, 2, 0x20ac, 2, 0x4e00, 4, 0x9fa6, 4, 0xffff, 4, 0x10000, 4, 0x10ffff};
+    UConverter* converter = Open("gb18030");
+    const char* source = gb18030.data();
+    for (std::size_t index = 0; index < std::size(results); index += 2) {
+        const char* before = source;
+        std::int32_t status = Ok;
+        const std::int32_t codePoint = ucnv_getNextUChar_nid_postfix(converter, &source, gb18030.data() + gb18030.size(), &status);
+        Require(status == Ok && source - before == results[index] && codePoint == results[index + 1], "nucnvtst TestGB18030 step " + std::to_string(index / 2));
+    }
+    ucnv_close_nid_postfix(converter);
+    struct Name {
+        const char* name;
+        const char* standard;
+        const char* expected;
+    };
+    const Name standardNames[] = {
+        {"ibm-1208", "MIME", "UTF-8"}, {"ascii", "MIME", "US-ASCII"}, {"csiso2022jp2", "MIME", "ISO-2022-JP-2"},
+        {"Iso20-22__cN", "IANA", "ISO-2022-CN"}, {"ascii", "IANA", "ANSI_X3.4-1968"}, {"cp850", "IANA", "IBM850"},
+        {"crazy", "MIME", nullptr}, {"ASCII", "crazy", nullptr}, {"LMBCS-1", "MIME", nullptr},
+    };
+    for (const Name& item : standardNames) {
+        std::int32_t status = Ok;
+        const char* name = ucnv_getStandardName_nid_postfix(item.name, item.standard, &status);
+        Require(status <= Ok && (item.expected ? name && std::strcmp(name, item.expected) == 0 : name == nullptr), std::string("stdnmtst getStandardName ") + item.name + " " + item.standard);
+    }
+    const Name canonicalNames[] = {
+        {"UTF-8", "IANA", "UTF-8"}, {"UTF-8", "MIME", "UTF-8"}, {"ibm-1208", "IBM", "UTF-8"}, {"ibm-5305", "IBM", "UTF-8"},
+        {"ibm-5305", "MIME", nullptr}, {"ascii", "MIME", nullptr}, {"ibm-1208", "IANA", nullptr}, {"ibm-5305", "IANA", nullptr},
+        {"cp1208", "", "UTF-8"}, {"UTF16_BigEndian", "", "UTF-16BE"}, {"ISO-2022-CN", "IANA", "ISO_2022,locale=zh,version=0"},
+        {"Shift_JIS", "MIME", "ibm-943_P15A-2003"}, {"Shift_JIS", "", "ibm-943_P130-1999"}, {"ibm-943", "", "ibm-943_P15A-2003"},
+        {"ibm-943", "IBM", "ibm-943_P130-1999"}, {"ibm-1363", "", "ibm-1363_P11B-1998"}, {"ibm-1363", "IBM", "ibm-1363_P110-1997"},
+        {"crazy", "MIME", nullptr},
+    };
+    for (const Name& item : canonicalNames) {
+        std::int32_t status = Ok;
+        const char* name = ucnv_getCanonicalName_nid_postfix(item.name, item.standard, &status);
+        Require(status <= Ok && (item.expected ? name && std::strcmp(name, item.expected) == 0 : name == nullptr), std::string("stdnmtst getCanonicalName ") + item.name + " " + item.standard);
+    }
 }
 
 void CheckStreaming() {
@@ -655,6 +698,13 @@ void APS5_VABI RecordToUnicode_nid_no_patch(const void* context, Icu::ConverterT
     }
 }
 
+void APS5_VABI OverflowFromUnicode_nid_no_patch(const void*, Icu::ConverterFromUnicodeArgs* arguments, const char16_t*, std::int32_t, std::int32_t, std::int32_t reason, std::int32_t* status) {
+    if (reason > UCNV_IRREGULAR) return;
+    const std::string bytes(40, 'o');
+    *status = U_ZERO_ERROR;
+    ucnv_cbFromUWriteBytes_nid_postfix(arguments, bytes.data(), static_cast<std::int32_t>(bytes.size()), 0, status);
+}
+
 Recorder* clonedRecorder = nullptr;
 
 void APS5_VABI CloneFromUnicode_nid_no_patch(const void* context, Icu::ConverterFromUnicodeArgs* arguments, const char16_t*, std::int32_t, std::int32_t, std::int32_t reason, std::int32_t* status) {
@@ -798,6 +848,18 @@ void CheckGuestCallbacks() {
 }
 
 void CheckCallbackErrors() {
+    UConverter* overflowing = Open("US-ASCII");
+    std::int32_t overflowStatus = Ok;
+    ucnv_setFromUCallBack_nid_postfix(overflowing, OverflowFromUnicode_nid_no_patch, nullptr, nullptr, nullptr, &overflowStatus);
+    Require(Invalid([&] {
+        char out[4];
+        char* target = out;
+        const std::u16string text = Units({0x20ac});
+        const char16_t* source = text.data();
+        std::int32_t error = Ok;
+        ucnv_fromUnicode_nid_postfix(overflowing, &target, out + sizeof(out), &source, text.data() + 1, nullptr, 1, &error);
+    }), "a guard thrown in a guest callback unwinds through ICU");
+    ucnv_close_nid_postfix(overflowing);
     UConverter* converter = Open("US-ASCII");
     Icu::ConverterFromUCallback oldFrom = reinterpret_cast<Icu::ConverterFromUCallback>(std::uintptr_t{1});
     const void* oldContext = &oldFrom;
@@ -1278,6 +1340,7 @@ int main() {
     udata_setFileAccess(UDATA_NO_FILES, &status);
     SetDefault(nullptr);
     CheckKnownConversions();
+    CheckCintltstCases();
     CheckStreaming();
     CheckPreflight();
     CheckConvert();
