@@ -51,3 +51,4 @@
 #include "Trie.hpp"
 #include "CaseProperties.hpp"
 #include "DataMemory.hpp"
+#include "DataSwapper.hpp"
