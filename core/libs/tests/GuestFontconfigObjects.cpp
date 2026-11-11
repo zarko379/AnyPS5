@@ -1,11 +1,9 @@
 #include "prx/libfontconfig/libfontconfig.hpp"
-#include "prx/libfontconfig/include/Sets.hpp"
 
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
 #include <iterator>
 #include <limits>
 
@@ -247,118 +245,135 @@ static void FontSets() {
     FcFontSetDestroy(set);
 }
 
-static void CharSets() {
-    auto* set = FcCharSetCreate();
+static void CharSetValues() {
     auto* pattern = FcPatternCreate();
-    CHECK(set && pattern);
-    CHECK(FcCharSetAddChar(set, 'a'));
-    CHECK(FcPatternAddCharSet(pattern, "charset", nullptr) == 0);
-    CHECK(FcPatternAddCharSet(pattern, "family", set) == 0);
-    CHECK(FcPatternAddCharSet(pattern, "lang", set) == 0);
-    CHECK(set->references == 1);
-    CHECK(FcPatternAddCharSet(pattern, "charset", set));
-    CHECK(FcPatternAddCharSet(pattern, "custom", set));
-    CHECK(set->references == 3);
-    FcCharSet* found = nullptr;
-    CHECK(FcPatternGetCharSet(pattern, "charset", 0, &found) == FcResultMatch && found == set);
-    found = nullptr;
-    CHECK(FcPatternGetCharSet(pattern, "custom", 0, &found) == FcResultMatch && found == set);
-    found = nullptr;
-    CHECK(FcPatternGetCharSet(pattern, "charset", 1, &found) == FcResultNoId && !found);
-    CHECK(FcPatternGetCharSet(pattern, "missing", 0, &found) == FcResultNoMatch && !found);
-    CHECK(FcPatternGetCharSet(nullptr, "charset", 0, &found) == FcResultNoMatch && !found);
-    FcValue value{};
-    CHECK(FcPatternGet(pattern, "charset", 0, &value) == FcResultMatch);
-    CHECK(value.type == FcTypeCharSet && value.u.c == set);
-    FcChar8* string = nullptr;
-    CHECK(FcPatternGetString(pattern, "charset", 0, &string) == FcResultTypeMismatch && !string);
-    CHECK(FcPatternAddString(pattern, "family", Text("Example")));
-    CHECK(FcPatternGetCharSet(pattern, "family", 0, &found) == FcResultTypeMismatch && !found);
-    FcCharSetDestroy(set);
-    CHECK(set->references == 2);
-    CHECK(FcPatternGetCharSet(pattern, "charset", 0, &found) == FcResultMatch && found == set);
-    CHECK(FcCharSetAddChar(found, 'b'));
-    auto* copy = FcPatternDuplicate(pattern);
-    CHECK(copy && set->references == 4);
-    FcCharSet* copied = nullptr;
-    CHECK(FcPatternGetCharSet(copy, "charset", 0, &copied) == FcResultMatch && copied == set);
-    CHECK(FcPatternEqual(pattern, copy));
     auto* other = FcPatternCreate();
-    auto* same = FcCharSetCreate();
-    CHECK(other && same);
-    CHECK(FcCharSetAddChar(same, 'b') && FcCharSetAddChar(same, 'a'));
-    CHECK(FcPatternAddString(other, "family", Text("EXAMPLE")));
-    CHECK(FcPatternAddCharSet(other, "charset", same));
-    CHECK(FcPatternAddCharSet(other, "custom", same));
-    CHECK(FcPatternEqual(pattern, other) && FcPatternEqual(other, pattern));
-    CHECK(FcCharSetAddChar(same, 0x10000));
-    CHECK(!FcPatternEqual(pattern, other) && !FcPatternEqual(other, pattern));
-    CHECK(FcCharSetAddChar(set, 0x10000));
+    auto* first = FcCharSetCreate();
+    auto* second = FcCharSetCreate();
+    CHECK(pattern && other && first && second);
+    CHECK(FcCharSetAddChar(first, 'A'));
+    CHECK(FcCharSetAddChar(second, 'A'));
+    CHECK(!FcPatternAddCharSet(pattern, "family", first));
+    CHECK(!FcPatternAddCharSet(pattern, "charset", nullptr));
+    CHECK(FcPatternAddCharSet(pattern, "charset", first));
+    CHECK(FcPatternAddCharSet(other, "charset", second));
     CHECK(FcPatternEqual(pattern, other));
-    CHECK(FcCharSetAddChar(set, 0x10001));
+
+    auto* borrowed = second;
+    CHECK(FcPatternGetCharSet(pattern, "absent", 0, &borrowed) == FcResultNoMatch && borrowed == second);
+    CHECK(FcPatternGetCharSet(pattern, "charset", -1, &borrowed) == FcResultNoId && borrowed == second);
+    CHECK(FcPatternGetCharSet(pattern, "charset", INT_MAX, &borrowed) == FcResultNoId && borrowed == second);
+    CHECK(FcPatternAddString(pattern, "family", Text("example")));
+    CHECK(FcPatternGetCharSet(pattern, "family", 0, &borrowed) == FcResultTypeMismatch && borrowed == second);
+    CHECK(FcPatternDel(pattern, "family"));
+    CHECK(FcPatternGetCharSet(pattern, "charset", 0, &borrowed) == FcResultMatch && borrowed == first);
+    FcValue value{};
+    CHECK(FcPatternGet(pattern, "charset", 0, &value) == FcResultMatch && value.type == FcTypeCharSet && value.u.c == borrowed);
+    FcCharSetDestroy(first);
+    CHECK(FcCharSetAddChar(borrowed, 0x1f680));
     CHECK(!FcPatternEqual(pattern, other));
-    CHECK(FcPatternDel(copy, "custom"));
-    CHECK(set->references == 3);
-    FcPatternDestroy(copy);
-    CHECK(set->references == 2);
+    CHECK(FcCharSetSubtractCount(borrowed, second) == 1);
+
+    auto* copy = FcPatternDuplicate(pattern);
+    auto* select = FcObjectSetBuild("charset", "charset", static_cast<const char*>(nullptr));
+    CHECK(copy && select && FcPatternEqual(pattern, copy));
+    auto* filtered = FcPatternFilter(pattern, select);
+    FcObjectSetDestroy(select);
+    CHECK(filtered);
     CHECK(FcPatternRemove(pattern, "charset", 0));
-    CHECK(set->references == 1);
     FcPatternDestroy(pattern);
-    CHECK(same->references == 3);
+    FcPatternDestroy(copy);
+    CHECK(FcPatternRemove(filtered, "charset", 0));
+    auto* retained = second;
+    CHECK(FcPatternGetCharSet(filtered, "charset", 0, &retained) == FcResultMatch && retained == borrowed);
+    CHECK(FcCharSetSubtractCount(retained, second) == 1);
+    CHECK(FcCharSetAddChar(second, 0x1f680));
+    CHECK(FcPatternEqual(filtered, other));
+    FcCharSetDestroy(second);
     FcPatternDestroy(other);
-    CHECK(same->references == 1);
-    FcCharSetDestroy(same);
+    FcPatternDestroy(filtered);
 }
 
-static void LangSets() {
-    auto* set = FcLangSetCreate();
+static void LangSetValues() {
     auto* pattern = FcPatternCreate();
-    CHECK(set && pattern);
-    CHECK(FcLangSetAdd(set, Text("en")));
-    CHECK(FcPatternAddLangSet(pattern, "lang", nullptr) == 0);
-    CHECK(FcPatternAddLangSet(pattern, "family", set) == 0);
-    CHECK(FcPatternAddLangSet(pattern, "charset", set) == 0);
-    CHECK(FcPatternAddLangSet(pattern, "lang", set));
-    CHECK(FcPatternAddString(pattern, "lang", Text("fr")));
-    CHECK(FcPatternAddLangSet(pattern, "custom", set));
-    FcLangSet* found = nullptr;
-    CHECK(FcPatternGetLangSet(pattern, "lang", 0, &found) == FcResultMatch);
-    CHECK(found && found != set);
-    CHECK(FcLangSetHasLang(found, Text("en")) == FcLangEqual);
-    FcLangSet* again = nullptr;
-    CHECK(FcPatternGetLangSet(pattern, "lang", 0, &again) == FcResultMatch && again == found);
-    FcLangSet* custom = nullptr;
-    CHECK(FcPatternGetLangSet(pattern, "custom", 0, &custom) == FcResultMatch && custom != found && custom != set);
-    FcLangSet* untouched = nullptr;
-    CHECK(FcPatternGetLangSet(pattern, "lang", 1, &untouched) == FcResultTypeMismatch && !untouched);
-    CHECK(FcPatternGetLangSet(pattern, "lang", 2, &untouched) == FcResultNoId && !untouched);
-    CHECK(FcPatternGetLangSet(pattern, "missing", 0, &untouched) == FcResultNoMatch && !untouched);
+    auto* languages = FcLangSetCreate();
+    CHECK(pattern && languages);
+    CHECK(FcLangSetAdd(languages, Text("en")));
+    CHECK(FcLangSetAdd(languages, Text("x-private-font")));
+    CHECK(!FcPatternAddLangSet(pattern, "family", languages));
+    CHECK(!FcPatternAddLangSet(pattern, "lang", nullptr));
+    CHECK(FcPatternAddString(pattern, "lang", Text("en")));
+    CHECK(FcPatternAddLangSet(pattern, "lang", languages));
+    auto* borrowed = languages;
+    CHECK(FcPatternGetLangSet(pattern, "absent", 0, &borrowed) == FcResultNoMatch && borrowed == languages);
+    CHECK(FcPatternGetLangSet(pattern, "lang", 0, &borrowed) == FcResultTypeMismatch && borrowed == languages);
+    CHECK(FcPatternGetLangSet(pattern, "lang", 2, &borrowed) == FcResultNoId && borrowed == languages);
+    CHECK(FcPatternGetLangSet(pattern, "lang", 1, &borrowed) == FcResultMatch && borrowed != languages);
     FcValue value{};
-    CHECK(FcPatternGet(pattern, "lang", 0, &value) == FcResultMatch && value.type == FcTypeLangSet && value.u.l == found);
-    CHECK(FcLangSetAdd(set, Text("de")));
-    CHECK(FcLangSetHasLang(found, Text("de")) == FcLangDifferentLang);
-    FcLangSetDestroy(set);
-    CHECK(FcLangSetHasLang(found, Text("en")) == FcLangEqual);
-    auto* copy = FcPatternDuplicate(pattern);
-    CHECK(copy && FcPatternEqual(pattern, copy));
-    FcLangSet* copied = nullptr;
-    CHECK(FcPatternGetLangSet(copy, "lang", 0, &copied) == FcResultMatch && copied != found);
-    CHECK(FcLangSetHasLang(copied, Text("en")) == FcLangEqual);
-    CHECK(FcLangSetAdd(copied, Text("de")));
+    CHECK(FcPatternGet(pattern, "lang", 1, &value) == FcResultMatch && value.type == FcTypeLangSet && value.u.l == borrowed);
+    CHECK(FcLangSetAdd(languages, Text("fr")));
+    CHECK(FcLangSetHasLang(borrowed, Text("fr")) == FcLangDifferentLang);
+    FcLangSetDestroy(languages);
+    CHECK(FcLangSetHasLang(borrowed, Text("en")) == FcLangEqual);
+    CHECK(FcLangSetHasLang(borrowed, Text("x-private-font")) == FcLangEqual);
+
+    auto* copy = FcPatternFilter(pattern, nullptr);
+    auto* select = FcObjectSetBuild("lang", "lang", static_cast<const char*>(nullptr));
+    CHECK(copy && copy != pattern && select && FcPatternEqual(pattern, copy));
+    auto* filtered = FcPatternFilter(pattern, select);
+    FcObjectSetDestroy(select);
+    CHECK(filtered);
+    FcLangSet* copyLanguages = nullptr;
+    FcLangSet* selectedFirst = nullptr;
+    FcLangSet* selectedSecond = nullptr;
+    CHECK(FcPatternGetLangSet(copy, "lang", 1, &copyLanguages) == FcResultMatch && copyLanguages != borrowed);
+    CHECK(FcPatternGetLangSet(filtered, "lang", 1, &selectedFirst) == FcResultMatch && selectedFirst != borrowed);
+    CHECK(FcPatternGetLangSet(filtered, "lang", 3, &selectedSecond) == FcResultMatch && selectedSecond != selectedFirst);
+    CHECK(FcLangSetAdd(borrowed, Text("de")));
     CHECK(!FcPatternEqual(pattern, copy));
-    CHECK(FcLangSetHasLang(found, Text("de")) == FcLangDifferentLang);
-    CHECK(FcLangSetAdd(found, Text("de")));
+    CHECK(FcLangSetHasLang(copyLanguages, Text("de")) == FcLangDifferentLang);
+    CHECK(FcLangSetAdd(copyLanguages, Text("de")));
     CHECK(FcPatternEqual(pattern, copy));
-    CHECK(FcLangSetAdd(found, Text("x-private")));
-    CHECK(!FcPatternEqual(pattern, copy));
-    CHECK(FcLangSetAdd(copied, Text("X-PRIVATE")));
-    CHECK(!FcPatternEqual(pattern, copy));
-    CHECK(FcLangSetAdd(found, Text("X-PRIVATE")));
-    CHECK(FcLangSetAdd(copied, Text("x-private")));
-    CHECK(FcPatternEqual(pattern, copy));
-    FcPatternDestroy(copy);
-    CHECK(FcLangSetHasLang(found, Text("x-private")) == FcLangEqual);
+    CHECK(FcLangSetAdd(selectedFirst, Text("it")));
+    CHECK(FcLangSetHasLang(selectedSecond, Text("it")) == FcLangDifferentLang);
+    CHECK(FcPatternDel(pattern, "lang"));
     FcPatternDestroy(pattern);
+    FcPatternDestroy(copy);
+    CHECK(FcLangSetHasLang(selectedFirst, Text("it")) == FcLangEqual);
+    CHECK(FcLangSetHasLang(selectedSecond, Text("x-private-font")) == FcLangEqual);
+    FcPatternDestroy(filtered);
+}
+
+static void PatternFiltering() {
+    auto* source = FcPatternCreate();
+    CHECK(source);
+    CHECK(FcPatternAddString(source, "family", Text("First")));
+    CHECK(FcPatternAddString(source, "family", Text("Second")));
+    CHECK(FcPatternAddInteger(source, "weight", 180));
+    CHECK(FcPatternAddDouble(source, "size", 12.5));
+    auto* select = FcObjectSetBuild("family", "missing", "family", "size", static_cast<const char*>(nullptr));
+    auto* selectNone = FcObjectSetBuild(nullptr);
+    CHECK(select && selectNone);
+    auto* filtered = FcPatternFilter(source, select);
+    auto* empty = FcPatternFilter(source, selectNone);
+    FcObjectSetDestroy(select);
+    FcObjectSetDestroy(selectNone);
+    CHECK(filtered && empty && !FcPatternEqual(source, filtered));
+    FcPatternDestroy(source);
+    FcValue value{};
+    CHECK(FcPatternGet(empty, "family", 0, &value) == FcResultNoMatch);
+    CHECK(FcPatternGet(filtered, "missing", 0, &value) == FcResultNoMatch);
+    CHECK(FcPatternGet(filtered, "weight", 0, &value) == FcResultNoMatch);
+    CHECK(FcPatternGet(filtered, "size", 0, &value) == FcResultMatch && value.type == FcTypeDouble && value.u.d == 12.5);
+    const char* expected[] = {"First", "Second", "First", "Second"};
+    for (int index = 0; index < static_cast<int>(std::size(expected)); ++index) {
+        FcChar8* text = nullptr;
+        CHECK(FcPatternGetString(filtered, "family", index, &text) == FcResultMatch);
+        CHECK(std::strcmp(reinterpret_cast<const char*>(text), expected[index]) == 0);
+    }
+    CHECK(FcPatternGet(filtered, "family", 4, &value) == FcResultNoId);
+    FcPatternDestroy(empty);
+    FcPatternDestroy(filtered);
 }
 
 static void FreeTypeFaces() {
@@ -376,100 +391,14 @@ static void FreeTypeFaces() {
     FcPatternDestroy(pattern);
 }
 
-static void Filters() {
-    auto* set = FcCharSetCreate();
-    auto* languages = FcLangSetCreate();
-    auto* pattern = FcPatternCreate();
-    CHECK(set && languages && pattern);
-    CHECK(FcCharSetAddChar(set, 'a') && FcLangSetAdd(languages, Text("en")));
-    CHECK(FcPatternAddString(pattern, "family", Text("First")));
-    CHECK(FcPatternAddString(pattern, "family", Text("Second")));
-    CHECK(FcPatternAddInteger(pattern, "weight", 80));
-    CHECK(FcPatternAddCharSet(pattern, "charset", set));
-    CHECK(FcPatternAddLangSet(pattern, "lang", languages));
-    const char* names[] = {"family", "missing", "charset", "family", "lang"};
-    const FcObjectSet objects{5, static_cast<int>(sizeof(names)), names};
-    auto* filtered = FcPatternFilter(pattern, &objects);
-    CHECK(filtered && filtered != pattern);
-    const char* expected[] = {"First", "Second", "First", "Second"};
-    for (int i = 0; i < 4; ++i) {
-        FcChar8* string = nullptr;
-        CHECK(FcPatternGetString(filtered, "family", i, &string) == FcResultMatch);
-        CHECK(std::strcmp(reinterpret_cast<const char*>(string), expected[i]) == 0);
-    }
-    FcValue value{};
-    CHECK(FcPatternGet(filtered, "family", 4, &value) == FcResultNoId);
-    CHECK(FcPatternGet(filtered, "weight", 0, &value) == FcResultNoMatch);
-    CHECK(FcPatternGet(filtered, "missing", 0, &value) == FcResultNoMatch);
-    FcCharSet* charSet = nullptr;
-    CHECK(FcPatternGetCharSet(filtered, "charset", 0, &charSet) == FcResultMatch && charSet == set);
-    CHECK(set->references == 3);
-    FcLangSet* original = nullptr;
-    FcLangSet* copied = nullptr;
-    CHECK(FcPatternGetLangSet(pattern, "lang", 0, &original) == FcResultMatch);
-    CHECK(FcPatternGetLangSet(filtered, "lang", 0, &copied) == FcResultMatch);
-    CHECK(copied != original && FcLangSetHasLang(copied, Text("en")) == FcLangEqual);
-    CHECK(FcPatternDel(filtered, "family"));
-    FcChar8* string = nullptr;
-    CHECK(FcPatternGetString(pattern, "family", 1, &string) == FcResultMatch);
-    CHECK(std::strcmp(reinterpret_cast<const char*>(string), "Second") == 0);
-    FcPatternDestroy(filtered);
-    CHECK(set->references == 2);
-
-    const char* subset[] = {"weight"};
-    const FcObjectSet single{1, static_cast<int>(sizeof(subset)), subset};
-    filtered = FcPatternFilter(pattern, &single);
-    int weight = 0;
-    CHECK(filtered && FcPatternGetInteger(filtered, "weight", 0, &weight) == FcResultMatch && weight == 80);
-    CHECK(FcPatternGet(filtered, "family", 0, &value) == FcResultNoMatch);
-    FcPatternDestroy(filtered);
-
-    const FcObjectSet none{0, 0, nullptr};
-    filtered = FcPatternFilter(pattern, &none);
-    CHECK(filtered && filtered != pattern);
-    CHECK(FcPatternGet(filtered, "family", 0, &value) == FcResultNoMatch);
-    CHECK(!FcPatternEqual(filtered, pattern));
-    FcPatternDestroy(filtered);
-    filtered = FcPatternFilter(nullptr, &none);
-    CHECK(filtered && FcPatternGet(filtered, "family", 0, &value) == FcResultNoMatch);
-    FcPatternDestroy(filtered);
-    const FcObjectSet negative{-1, 0, nullptr};
-    filtered = FcPatternFilter(nullptr, &negative);
-    CHECK(filtered);
-    FcPatternDestroy(filtered);
-
-    filtered = FcPatternFilter(pattern, nullptr);
-    CHECK(filtered && filtered != pattern && FcPatternEqual(filtered, pattern));
-    CHECK(set->references == 3);
-    FcPatternDestroy(filtered);
-    CHECK(FcPatternFilter(nullptr, nullptr) == nullptr);
-    const auto throws = [](FcPattern* source, const FcObjectSet* set) {
-        try {
-            FcPatternFilter(source, set);
-        } catch (const std::exception&) {
-            return true;
-        }
-        return false;
-    };
-    CHECK(throws(nullptr, &single));
-    const char* invalid[] = {"weight", nullptr};
-    const FcObjectSet withNull{2, static_cast<int>(sizeof(invalid)), invalid};
-    CHECK(throws(pattern, &withNull));
-
-    FcPatternDestroy(pattern);
-    CHECK(set->references == 1);
-    FcCharSetDestroy(set);
-    FcLangSetDestroy(languages);
-}
-
 int main() {
+    CharSetValues();
+    LangSetValues();
+    PatternFiltering();
+    FreeTypeFaces();
     Languages();
     Patterns();
     IntegerGetters();
     Equality();
     FontSets();
-    CharSets();
-    LangSets();
-    FreeTypeFaces();
-    Filters();
 }

@@ -22,7 +22,6 @@ const char* APS5_VABI uloc_getAvailable_nid_postfix(std::int32_t n);
 std::int32_t APS5_VABI uloc_addLikelySubtags_nid_postfix(const char* localeID, char* maximizedLocaleID, std::int32_t maximizedLocaleIDCapacity, std::int32_t* err);
 std::int32_t APS5_VABI uloc_minimizeSubtags_nid_postfix(const char* localeID, char* minimizedLocaleID, std::int32_t minimizedLocaleIDCapacity, std::int32_t* err);
 std::int32_t APS5_VABI uloc_toLanguageTag_nid_postfix(const char* localeID, char* langtag, std::int32_t langtagCapacity, std::int8_t strict, std::int32_t* err);
-std::int32_t APS5_VABI uloc_forLanguageTag_nid_postfix(const char* langtag, char* localeID, std::int32_t localeIDCapacity, std::int32_t* parsedLength, std::int32_t* err);
 std::int32_t APS5_VABI uloc_getCharacterOrientation_nid_postfix(const char* localeId, std::int32_t* status);
 std::int32_t APS5_VABI uloc_getLineOrientation_nid_postfix(const char* localeId, std::int32_t* status);
 std::int8_t APS5_VABI uloc_isRightToLeft_nid_postfix(const char* locale);

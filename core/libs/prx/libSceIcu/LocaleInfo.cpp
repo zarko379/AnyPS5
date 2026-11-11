@@ -263,13 +263,6 @@ std::int32_t APS5_VABI uloc_toLanguageTag_nid_postfix(const char* localeID, char
     return Chars(langtag, langtagCapacity, [&](char* dest, std::int32_t capacity) { return uloc_toLanguageTag(localeID, dest, capacity, strict, error); });
 }
 
-std::int32_t APS5_VABI uloc_forLanguageTag_nid_postfix(const char* langtag, char* localeID, std::int32_t localeIDCapacity, std::int32_t* parsedLength, std::int32_t* err) {
-    UErrorCode* error = Status(err);
-    if (U_FAILURE(*error)) return 0;
-    IcuBackend::RequireObject(langtag);
-    return Chars(localeID, localeIDCapacity, [&](char* dest, std::int32_t capacity) { return uloc_forLanguageTag(langtag, dest, capacity, parsedLength, error); });
-}
-
 std::int32_t APS5_VABI uloc_getCharacterOrientation_nid_postfix(const char* localeId, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_SUCCESS(*error)) CheckOrientation(localeId);

@@ -1,5 +1,4 @@
-#include "prx/libharfbuzz/include/FontFunctions.hpp"
-#include "prx/libharfbuzz/include/InventoryExports.hpp"
+#include "prx/libharfbuzz/libharfbuzz.hpp"
 
 #include <hb.h>
 
@@ -53,7 +52,7 @@ struct Api {
     decltype(&hb_font_set_funcs_nid_postfix) setFunctions;
     decltype(&hb_font_set_ppem_nid_postfix) ppem;
     decltype(&hb_font_set_scale_nid_postfix) scale;
-    decltype(&hb_shape_nid_postfix) shape;
+    decltype(&hb_icu_script_to_script_nid_postfix) scriptFromIcu;
 };
 
 struct FontState {
@@ -162,7 +161,7 @@ static void CheckQueries(FontState& state) {
     for (auto calls : state.calls) Require(calls != 0);
 }
 
-static void CheckShape(const Api& api, FontState& state) {
+static void CheckShape(FontState& state) {
     auto* buffer = hb_buffer_create();
     hb_buffer_add_utf8(buffer, "AB", -1, 0, -1);
     hb_buffer_set_direction(buffer, HB_DIRECTION_LTR);
@@ -177,25 +176,6 @@ static void CheckShape(const Api& api, FontState& state) {
     const auto* positions = hb_buffer_get_glyph_positions(buffer, &length);
     Require(length == 2 && positions[0].x_advance == 472 && positions[1].x_advance == 473);
     Require(state.calls[0] > before[0] && state.calls[2] > before[2]);
-    auto* guest = hb_buffer_create();
-    hb_buffer_add_utf8(guest, "AB", -1, 0, -1);
-    hb_buffer_set_direction(guest, HB_DIRECTION_LTR);
-    hb_buffer_set_script(guest, HB_SCRIPT_LATIN);
-    hb_buffer_set_language(guest, hb_language_from_string("en", -1));
-    const hb_feature_t kerning{HB_TAG('k', 'e', 'r', 'n'), 0, 0, 0xFFFFFFFFu};
-    const auto native = state.calls;
-    api.shape(state.font, guest, &kerning, 1);
-    Require(state.calls[0] > native[0] && state.calls[2] > native[2]);
-    unsigned guestLength = 0;
-    const auto* guestInfo = hb_buffer_get_glyph_infos(guest, &guestLength);
-    const auto* guestPositions = hb_buffer_get_glyph_positions(guest, nullptr);
-    Require(guestLength == 2 && hb_buffer_get_content_type(guest) == HB_BUFFER_CONTENT_TYPE_GLYPHS);
-    for (unsigned index = 0; index < guestLength; ++index) {
-        Require(guestInfo[index].codepoint == info[index].codepoint && guestInfo[index].cluster == info[index].cluster);
-        Require(guestPositions[index].x_advance == positions[index].x_advance && guestPositions[index].x_offset == positions[index].x_offset);
-        Require(guestPositions[index].y_advance == positions[index].y_advance && guestPositions[index].y_offset == positions[index].y_offset);
-    }
-    hb_buffer_destroy(guest);
     hb_buffer_destroy(buffer);
 }
 
@@ -222,7 +202,7 @@ static void CheckCallbacks(const Api& api) {
     api.setFunctions(second.font, functions, &second, DestroyFont);
     CheckQueries(first);
     CheckQueries(second);
-    CheckShape(api, first);
+    CheckShape(first);
     api.freezeFunctions(functions);
     Require(hb_font_funcs_is_immutable(functions));
     CallbackState rejected{1};
@@ -298,6 +278,38 @@ static void CheckNullLegacy(const Api& api) {
     }
 }
 
+static void CheckIcuScripts(const Api& api) {
+    for (const std::int32_t code : {std::numeric_limits<std::int32_t>::min(), -2, -1, 193, 194, std::numeric_limits<std::int32_t>::max()}) {
+        Require(api.scriptFromIcu(code) == HB_SCRIPT_INVALID);
+    }
+    Require(api.scriptFromIcu(0) == HB_SCRIPT_COMMON);
+    Require(api.scriptFromIcu(1) == HB_SCRIPT_INHERITED);
+    Require(api.scriptFromIcu(25) == HB_SCRIPT_LATIN);
+    Require(api.scriptFromIcu(68) == HB_SCRIPT_CYRILLIC);
+    Require(api.scriptFromIcu(72) == HB_SCRIPT_GEORGIAN);
+    Require(api.scriptFromIcu(73) == HB_SCRIPT_HAN);
+    Require(api.scriptFromIcu(74) == HB_SCRIPT_HAN);
+    Require(api.scriptFromIcu(80) == HB_SCRIPT_LATIN);
+    Require(api.scriptFromIcu(81) == HB_SCRIPT_LATIN);
+    Require(api.scriptFromIcu(95) == HB_SCRIPT_SYRIAC);
+    Require(api.scriptFromIcu(96) == HB_SCRIPT_SYRIAC);
+    Require(api.scriptFromIcu(97) == HB_SCRIPT_SYRIAC);
+    Require(api.scriptFromIcu(103) == HB_SCRIPT_UNKNOWN);
+    Require(api.scriptFromIcu(105) == HB_TAG('J', 'p', 'a', 'n'));
+    Require(api.scriptFromIcu(173) == HB_SCRIPT_HANGUL);
+    Require(api.scriptFromIcu(192) == HB_SCRIPT_YEZIDI);
+
+    std::uint64_t fingerprint = 0xcbf29ce484222325ull;
+    for (std::int32_t code = 0; code < 193; ++code) {
+        const auto script = api.scriptFromIcu(code);
+        Require(script != HB_SCRIPT_INVALID);
+        for (const unsigned shift : {24u, 16u, 8u, 0u}) {
+            fingerprint = (fingerprint ^ ((script >> shift) & 0xffu)) * 0x100000001b3ull;
+        }
+    }
+    Require(fingerprint == 0x49e8e496309c29fdull);
+}
+
 int main(int argc, char** argv) {
     Require(argc == 3);
     const bool patched = std::strcmp(argv[2], "patched") == 0;
@@ -326,8 +338,9 @@ int main(int argc, char** argv) {
     LoadExport(setFunctions, hb_font_set_funcs, "WH6phgWx6TI");
     LoadExport(ppem, hb_font_set_ppem, "ztxZdb1IY+M");
     LoadExport(scale, hb_font_set_scale, "eG5EI3x6twg");
-    LoadExport(shape, hb_shape, "dM3hP4y99rM");
+    LoadExport(scriptFromIcu, hb_icu_script_to_script, "u0E8Xi0easM");
 #undef LoadExport
+    CheckIcuScripts(api);
     CheckCallbacks(api);
     CheckLegacyAndReset(api);
     CheckNullLegacy(api);

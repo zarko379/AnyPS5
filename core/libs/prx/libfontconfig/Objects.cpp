@@ -22,6 +22,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "prx/libfontconfig/include/InventoryExports.hpp"
 #include "prx/libfontconfig/include/Sets.hpp"
 #include "prx/libc/include/General.hpp"
 #include "FontconfigData.hpp"
@@ -37,7 +38,11 @@
 #include <set>
 #include <string>
 #include <string_view>
-#include <utility>
+
+struct FcLangSet {
+    std::array<bool, std::size(fontconfig_data::Languages)> known{};
+    std::set<std::string> extra;
+};
 
 namespace {
 
@@ -135,53 +140,17 @@ int CompareLanguageIndex(std::string_view known, std::string_view language) {
     return CompareIgnoringCase(known.substr(2), language.substr(2));
 }
 
+struct ReleaseCharSet {
+    void operator()(FcCharSet* set) const { FcCharSetDestroy(set); }
+};
+
+using CharSetValue = std::unique_ptr<FcCharSet, ReleaseCharSet>;
+
+CharSetValue RetainCharSet(const FcCharSet* source) {
+    auto* set = const_cast<FcCharSet*>(source);
+    if (set) set->references.fetch_add(1, std::memory_order_relaxed);
+    return CharSetValue(set);
 }
-
-struct FcLangSet {
-    std::array<bool, std::size(fontconfig_data::Languages)> known{};
-    std::set<std::string> extra;
-};
-
-namespace {
-
-class CharSetReference {
-public:
-    CharSetReference() = default;
-    explicit CharSetReference(const FcCharSet* value) : set(const_cast<FcCharSet*>(value)) {
-        set->references.fetch_add(1, std::memory_order_relaxed);
-    }
-    CharSetReference(const CharSetReference& other) : set(other.set) {
-        if (set) set->references.fetch_add(1, std::memory_order_relaxed);
-    }
-    CharSetReference(CharSetReference&& other) noexcept : set(std::exchange(other.set, nullptr)) {}
-    CharSetReference& operator=(CharSetReference other) noexcept {
-        std::swap(set, other.set);
-        return *this;
-    }
-    ~CharSetReference() {
-        FcCharSetDestroy(set);
-    }
-    FcCharSet* Get() const { return set; }
-
-private:
-    FcCharSet* set = nullptr;
-};
-
-class LangSetCopy {
-public:
-    LangSetCopy() = default;
-    explicit LangSetCopy(const FcLangSet& value) : set(std::make_unique<FcLangSet>(value)) {}
-    LangSetCopy(const LangSetCopy& other) : set(other.set ? std::make_unique<FcLangSet>(*other.set) : nullptr) {}
-    LangSetCopy(LangSetCopy&&) noexcept = default;
-    LangSetCopy& operator=(LangSetCopy other) noexcept {
-        set = std::move(other.set);
-        return *this;
-    }
-    FcLangSet* Get() const { return set.get(); }
-
-private:
-    std::unique_ptr<FcLangSet> set;
-};
 
 struct PatternValue {
     FcType type = FcTypeVoid;
@@ -189,8 +158,15 @@ struct PatternValue {
     double real = 0;
     std::string text;
     FcMatrix matrix{};
-    CharSetReference charSet;
-    LangSetCopy langSet;
+    CharSetValue charset;
+    std::unique_ptr<FcLangSet> langset;
+
+    PatternValue() = default;
+    PatternValue(PatternValue&&) noexcept = default;
+    PatternValue(const PatternValue& other)
+        : type(other.type), integer(other.integer), real(other.real), text(other.text), matrix(other.matrix),
+          charset(RetainCharSet(other.charset.get())),
+          langset(other.langset ? std::make_unique<FcLangSet>(*other.langset) : nullptr) {}
 
     FcValue View() const {
         FcValue value{};
@@ -201,8 +177,8 @@ struct PatternValue {
         case FcTypeDouble: value.u.d = real; break;
         case FcTypeString: value.u.s = reinterpret_cast<const FcChar8*>(text.c_str()); break;
         case FcTypeMatrix: value.u.m = &matrix; break;
-        case FcTypeCharSet: value.u.c = charSet.Get(); break;
-        case FcTypeLangSet: value.u.l = langSet.Get(); break;
+        case FcTypeCharSet: value.u.c = charset.get(); break;
+        case FcTypeLangSet: value.u.l = langset.get(); break;
         default: NotImplemented_nid_no_patch(__func__);
         }
         return value;
@@ -231,10 +207,10 @@ bool ValuesEqual(const PatternValue& first, const PatternValue& second) {
     case FcTypeBool: return first.integer == second.integer;
     case FcTypeDouble: return first.real == second.real;
     case FcTypeString: return CompareIgnoringCase(first.text, second.text) == 0;
+    case FcTypeCharSet: return first.charset->leaves == second.charset->leaves;
+    case FcTypeLangSet: return first.langset->known == second.langset->known && first.langset->extra == second.langset->extra;
     case FcTypeMatrix: return first.matrix.xx == second.matrix.xx && first.matrix.xy == second.matrix.xy
         && first.matrix.yx == second.matrix.yx && first.matrix.yy == second.matrix.yy;
-    case FcTypeCharSet: return first.charSet.Get() == second.charSet.Get() || first.charSet.Get()->leaves == second.charSet.Get()->leaves;
-    case FcTypeLangSet: return first.langSet.Get()->known == second.langSet.Get()->known && first.langSet.Get()->extra == second.langSet.Get()->extra;
     default: NotImplemented_nid_no_patch(__func__);
     }
 }
@@ -244,6 +220,9 @@ bool ValuesEqual(const PatternValue& first, const PatternValue& second) {
 struct FcPattern {
     std::atomic<unsigned> references{1};
     std::map<std::string, std::list<PatternValue>, std::less<>> objects;
+
+    FcPattern() = default;
+    FcPattern(const FcPattern& other) : objects(other.objects) {}
 };
 
 namespace {
@@ -330,8 +309,23 @@ void APS5_VABI FcPatternReference(FcPattern* pattern) {
 FcPattern* APS5_VABI FcPatternDuplicate(const FcPattern* pattern) {
     if (!pattern) return nullptr;
     try {
+        return new FcPattern(*pattern);
+    } catch (const std::bad_alloc&) {
+        return nullptr;
+    }
+}
+
+FcPattern* APS5_VABI FcPatternFilter(FcPattern* pattern, const FcObjectSet* objects) {
+    if (!objects) return FcPatternDuplicate(pattern);
+    if (!pattern) NotImplemented_nid_no_patch(__func__);
+    try {
         auto copy = std::make_unique<FcPattern>();
-        copy->objects = pattern->objects;
+        for (int i = 0; i < objects->nobject; ++i) {
+            const auto entry = pattern->objects.find(objects->objects[i]);
+            if (entry == pattern->objects.end()) continue;
+            auto& values = copy->objects[entry->first];
+            for (const auto& value : entry->second) values.push_back(value);
+        }
         return copy.release();
     } catch (const std::bad_alloc&) {
         return nullptr;
@@ -418,6 +412,36 @@ FcResult APS5_VABI FcPatternGetMatrix(const FcPattern* pattern, const char* obje
     return FcResultMatch;
 }
 
+FcResult APS5_VABI FcPatternGetCharSet(const FcPattern* pattern, const char* object, int id, FcCharSet** value) {
+    FcValue found{};
+    const auto result = FcPatternGet(pattern, object, id, &found);
+    if (result != FcResultMatch) return result;
+    if (found.type != FcTypeCharSet) return FcResultTypeMismatch;
+    if (!value) NotImplemented_nid_no_patch(__func__);
+    *value = const_cast<FcCharSet*>(found.u.c);
+    return FcResultMatch;
+}
+
+FcResult APS5_VABI FcPatternGetLangSet(const FcPattern* pattern, const char* object, int id, FcLangSet** value) {
+    FcValue found{};
+    const auto result = FcPatternGet(pattern, object, id, &found);
+    if (result != FcResultMatch) return result;
+    if (found.type != FcTypeLangSet) return FcResultTypeMismatch;
+    if (!value) NotImplemented_nid_no_patch(__func__);
+    *value = const_cast<FcLangSet*>(found.u.l);
+    return FcResultMatch;
+}
+
+FcResult APS5_VABI FcPatternGetFTFace(const FcPattern* pattern, const char* object, int id, void** face) {
+    FcValue found{};
+    const auto result = FcPatternGet(pattern, object, id, &found);
+    if (result != FcResultMatch) return result;
+    if (found.type != FcTypeFTFace) return FcResultTypeMismatch;
+    if (!face) NotImplemented_nid_no_patch(__func__);
+    *face = found.u.f;
+    return FcResultMatch;
+}
+
 FcBool APS5_VABI FcPatternAddInteger(FcPattern* pattern, const char* object, int value) {
     try {
         PatternValue entry;
@@ -456,24 +480,13 @@ FcBool APS5_VABI FcPatternAddString(FcPattern* pattern, const char* object, cons
     } catch (const std::bad_alloc&) { return 0; }
 }
 
-FcBool APS5_VABI FcPatternAddMatrix(FcPattern* pattern, const char* object, const FcMatrix* value) {
-    if (!pattern || !object) NotImplemented_nid_no_patch(__func__);
-    if (!value) return 0;
-    try {
-        PatternValue entry;
-        entry.type = FcTypeMatrix;
-        entry.matrix = *value;
-        return AddValue(pattern, object, std::move(entry));
-    } catch (const std::bad_alloc&) { return 0; }
-}
-
 FcBool APS5_VABI FcPatternAddCharSet(FcPattern* pattern, const char* object, const FcCharSet* value) {
     if (!pattern || !object) NotImplemented_nid_no_patch(__func__);
     if (!value) return 0;
     try {
         PatternValue entry;
         entry.type = FcTypeCharSet;
-        entry.charSet = CharSetReference(value);
+        entry.charset = RetainCharSet(value);
         return AddValue(pattern, object, std::move(entry));
     } catch (const std::bad_alloc&) { return 0; }
 }
@@ -484,58 +497,20 @@ FcBool APS5_VABI FcPatternAddLangSet(FcPattern* pattern, const char* object, con
     try {
         PatternValue entry;
         entry.type = FcTypeLangSet;
-        entry.langSet = LangSetCopy(*value);
+        entry.langset = std::make_unique<FcLangSet>(*value);
         return AddValue(pattern, object, std::move(entry));
     } catch (const std::bad_alloc&) { return 0; }
 }
 
-FcResult APS5_VABI FcPatternGetCharSet(const FcPattern* pattern, const char* object, int id, FcCharSet** value) {
-    FcValue found{};
-    const auto result = FcPatternGet(pattern, object, id, &found);
-    if (result != FcResultMatch) return result;
-    if (found.type != FcTypeCharSet) return FcResultTypeMismatch;
-    if (!value) NotImplemented_nid_no_patch(__func__);
-    *value = const_cast<FcCharSet*>(found.u.c);
-    return FcResultMatch;
-}
-
-FcResult APS5_VABI FcPatternGetLangSet(const FcPattern* pattern, const char* object, int id, FcLangSet** value) {
-    FcValue found{};
-    const auto result = FcPatternGet(pattern, object, id, &found);
-    if (result != FcResultMatch) return result;
-    if (found.type != FcTypeLangSet) return FcResultTypeMismatch;
-    if (!value) NotImplemented_nid_no_patch(__func__);
-    *value = const_cast<FcLangSet*>(found.u.l);
-    return FcResultMatch;
-}
-
-FcResult APS5_VABI FcPatternGetFTFace(const FcPattern* pattern, const char* object, int id, void** face) {
-    FcValue found{};
-    const auto result = FcPatternGet(pattern, object, id, &found);
-    if (result != FcResultMatch) return result;
-    if (found.type != FcTypeFTFace) return FcResultTypeMismatch;
-    if (!face) NotImplemented_nid_no_patch(__func__);
-    *face = found.u.f;
-    return FcResultMatch;
-}
-
-FcPattern* APS5_VABI FcPatternFilter(FcPattern* pattern, const FcObjectSet* objects) {
-    if (!objects) return FcPatternDuplicate(pattern);
-    if (!pattern && objects->nobject > 0) NotImplemented_nid_no_patch(__func__);
-    for (int i = 0; i < objects->nobject; ++i)
-        if (!objects->objects[i]) NotImplemented_nid_no_patch(__func__);
+FcBool APS5_VABI FcPatternAddMatrix(FcPattern* pattern, const char* object, const FcMatrix* value) {
+    if (!pattern || !object) NotImplemented_nid_no_patch(__func__);
+    if (!value) return 0;
     try {
-        auto filtered = std::make_unique<FcPattern>();
-        for (int i = 0; i < objects->nobject; ++i) {
-            const auto entry = pattern->objects.find(std::string_view(objects->objects[i]));
-            if (entry == pattern->objects.end()) continue;
-            auto& values = filtered->objects[entry->first];
-            values.insert(values.end(), entry->second.begin(), entry->second.end());
-        }
-        return filtered.release();
-    } catch (const std::bad_alloc&) {
-        return nullptr;
-    }
+        PatternValue entry;
+        entry.type = FcTypeMatrix;
+        entry.matrix = *value;
+        return AddValue(pattern, object, std::move(entry));
+    } catch (const std::bad_alloc&) { return 0; }
 }
 
 }

@@ -11,6 +11,7 @@ using FcBool = int;
 
 struct FcLangSet;
 struct FcPattern;
+struct FcObjectSet;
 using CharSetLeaf = std::array<uint32_t, 8>;
 
 struct FcCharSet {

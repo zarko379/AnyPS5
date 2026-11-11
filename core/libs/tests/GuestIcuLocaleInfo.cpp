@@ -167,15 +167,6 @@ void CheckStrings() {
             Require(layout == hostLayout && status == hostStatus, what + " orientation " + std::to_string(line));
         }
     }
-    const char* const tags[] = {"en-US", "zh-Hant-TW", "de-DE-u-co-phonebk", "i-default", "en-x-foo", "und-Latn", "", "-", "en_US", "x-private", "sgn-BE-FR",
-        "art-lojban", "ja-JP-u-ca-japanese-x-lvariant-JP", "toolong12345", "en-US-u-rg-gbzzzz-t-ja-x-a-b-c", "zh-min-nan", "en-a-bbb-x-a-ccc", "EN-us-POSIX", "de-1901-1901"};
-    for (const char* tag : tags) {
-        std::int32_t parsed = -9;
-        std::int32_t hostParsed = -9;
-        CompareChars(std::string("forLanguageTag ") + tag, [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_forLanguageTag_nid_postfix(tag, d, c, &parsed, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_forLanguageTag(tag, d, c, &hostParsed, s); });
-        Require(parsed == hostParsed, std::string("forLanguageTag parsed length ") + tag);
-        CompareChars(std::string("forLanguageTag without a length ") + tag, [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_forLanguageTag_nid_postfix(tag, d, c, nullptr, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_forLanguageTag(tag, d, c, nullptr, s); });
-    }
     const char* const keys[] = {"calendar", "ca", "collation", "co", "currency", "cu", "timezone", "tz", "colAlternate", "ka", "kr", "vt", "rg", "sd", "x", "abc", "a-b", "", "numbers", "nu", "hc", "em", "foo1"};
     const char* const values[] = {"gregorian", "gregory", "buddhist", "phonebook", "phonebk", "usd", "America/Los_Angeles", "uslax", "Etc/GMT+1", "shifted", "latn-digit", "0041", "u0041", "uszzzz", "usca", "", "a_", "x/y", "abc-def", "1234_5678", "-", "foo bar"};
     for (const char* key : keys) {
@@ -488,11 +479,9 @@ void CheckErrors() {
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_addLikelySubtags_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in addLikelySubtags");
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_minimizeSubtags_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in minimizeSubtags");
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_toLanguageTag_nid_postfix("en", buffer, 8, 0, nullptr); }), "a NULL status throws in toLanguageTag");
-    Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_forLanguageTag_nid_postfix("en", buffer, 8, nullptr, nullptr); }), "a NULL status throws in forLanguageTag");
     Require(Throws<std::invalid_argument>([] { uloc_getCharacterOrientation_nid_postfix("en", nullptr); }), "a NULL status throws in getCharacterOrientation");
     Require(Throws<std::invalid_argument>([] { uloc_getLineOrientation_nid_postfix("en", nullptr); }), "a NULL status throws in getLineOrientation");
     Require(Throws<std::invalid_argument>([] { char buffer[8]; ulocimp_getRegionForSupplementalData_nid_postfix("en", 0, buffer, 8, nullptr); }), "a NULL status throws in getRegionForSupplementalData");
-    Require(Throws<std::invalid_argument>([] { std::int32_t ok = Ok; char buffer[8]; uloc_forLanguageTag_nid_postfix(nullptr, buffer, 8, nullptr, &ok); }), "a NULL tag throws in forLanguageTag");
     Require(Throws<std::invalid_argument>([] { std::int32_t ok = Ok; ulocimp_getRegionForSupplementalData_nid_postfix("en_US", 0, nullptr, 8, &ok); }), "a NULL region buffer throws");
     Require(Throws<std::invalid_argument>([] { std::int32_t ok = Ok; char buffer[8]; ulocimp_getRegionForSupplementalData_nid_postfix("en_US", 0, buffer, -1, &ok); }), "a negative region capacity throws");
     std::int32_t status = Ok;
