@@ -37,3 +37,4 @@
 #include "CaseMap.hpp"
 #include "Collation.hpp"
 #include "StringSearch.hpp"
+#include "Idna.hpp"
