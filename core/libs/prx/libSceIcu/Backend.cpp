@@ -50,24 +50,24 @@ UErrorCode* EnumerationStatus(std::int32_t* status) {
     return reinterpret_cast<UErrorCode*>(status);
 }
 
-void APS5_VABI CloseHostEnumeration(GuestEnumerationLayout* enumeration) {
+void APS5_VABI CloseHostEnumeration_nid_no_patch(GuestEnumerationLayout* enumeration) {
     uenum_close(HostEnumeration(enumeration));
     free_nid_postfix(enumeration);
 }
 
-std::int32_t APS5_VABI CountHostEnumeration(GuestEnumerationLayout* enumeration, std::int32_t* status) {
+std::int32_t APS5_VABI CountHostEnumeration_nid_no_patch(GuestEnumerationLayout* enumeration, std::int32_t* status) {
     return uenum_count(HostEnumeration(enumeration), EnumerationStatus(status));
 }
 
-const char16_t* APS5_VABI UnicodeNextHostEnumeration(GuestEnumerationLayout* enumeration, std::int32_t* resultLength, std::int32_t* status) {
+const char16_t* APS5_VABI UnicodeNextHostEnumeration_nid_no_patch(GuestEnumerationLayout* enumeration, std::int32_t* resultLength, std::int32_t* status) {
     return uenum_unext(HostEnumeration(enumeration), resultLength, EnumerationStatus(status));
 }
 
-const char* APS5_VABI NextHostEnumeration(GuestEnumerationLayout* enumeration, std::int32_t* resultLength, std::int32_t* status) {
+const char* APS5_VABI NextHostEnumeration_nid_no_patch(GuestEnumerationLayout* enumeration, std::int32_t* resultLength, std::int32_t* status) {
     return uenum_next(HostEnumeration(enumeration), resultLength, EnumerationStatus(status));
 }
 
-void APS5_VABI ResetHostEnumeration(GuestEnumerationLayout* enumeration, std::int32_t* status) {
+void APS5_VABI ResetHostEnumeration_nid_no_patch(GuestEnumerationLayout* enumeration, std::int32_t* status) {
     uenum_reset(HostEnumeration(enumeration), EnumerationStatus(status));
 }
 
@@ -155,7 +155,7 @@ UEnumeration* GuestEnumeration(UEnumeration* host, std::int32_t* status) {
         *status = U_MEMORY_ALLOCATION_ERROR;
         return nullptr;
     }
-    *guest = GuestEnumerationLayout{nullptr, host, CloseHostEnumeration, CountHostEnumeration, UnicodeNextHostEnumeration, NextHostEnumeration, ResetHostEnumeration};
+    *guest = GuestEnumerationLayout{nullptr, host, CloseHostEnumeration_nid_no_patch, CountHostEnumeration_nid_no_patch, UnicodeNextHostEnumeration_nid_no_patch, NextHostEnumeration_nid_no_patch, ResetHostEnumeration_nid_no_patch};
     return reinterpret_cast<UEnumeration*>(guest);
 }
 
