@@ -32,3 +32,4 @@
 #include "Normalization.hpp"
 #include "Defaults.hpp"
 #include "Properties.hpp"
+#include "Script.hpp"

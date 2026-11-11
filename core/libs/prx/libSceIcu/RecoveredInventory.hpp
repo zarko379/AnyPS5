@@ -126,7 +126,6 @@ int APS5_VABI ureldatefmt_close_nid_postfix();
 int APS5_VABI ureldatefmt_format_nid_postfix();
 int APS5_VABI ureldatefmt_formatNumeric_nid_postfix();
 int APS5_VABI ureldatefmt_open_nid_postfix();
-int APS5_VABI uscript_getCode_nid_postfix();
 int APS5_VABI usearch_getCollator_nid_postfix();
 int APS5_VABI usearch_getMatchedLength_nid_postfix();
 int APS5_VABI usearch_next_nid_postfix();
