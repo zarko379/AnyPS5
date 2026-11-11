@@ -102,13 +102,4 @@ int APS5_VABI ureldatefmt_close_nid_postfix();
 int APS5_VABI ureldatefmt_format_nid_postfix();
 int APS5_VABI ureldatefmt_formatNumeric_nid_postfix();
 int APS5_VABI ureldatefmt_open_nid_postfix();
-int APS5_VABI usearch_getCollator_nid_postfix();
-int APS5_VABI usearch_getMatchedLength_nid_postfix();
-int APS5_VABI usearch_next_nid_postfix();
-int APS5_VABI usearch_open_nid_postfix();
-int APS5_VABI usearch_reset_nid_postfix();
-int APS5_VABI usearch_setAttribute_nid_postfix();
-int APS5_VABI usearch_setOffset_nid_postfix();
-int APS5_VABI usearch_setPattern_nid_postfix();
-int APS5_VABI usearch_setText_nid_postfix();
 }
