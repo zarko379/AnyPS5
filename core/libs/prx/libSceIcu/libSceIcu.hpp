@@ -29,3 +29,4 @@
 #include "Configuration.hpp"
 
 #include "ConverterHelpers.hpp"
+#include "Normalization.hpp"

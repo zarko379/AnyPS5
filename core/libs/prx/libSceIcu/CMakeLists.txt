@@ -11,6 +11,31 @@ target_sources(libSceIcu PRIVATE Utf8.cpp)
 target_sources(libSceIcu PRIVATE Resource.cpp)
 target_sources(libSceIcu PRIVATE Locale.cpp)
 
+include(Backend.cmake)
+target_sources(libSceIcu PRIVATE Backend.cpp Normalization.cpp IcuData.cpp)
+target_link_libraries(libSceIcu PRIVATE icu_i18n_backend icu_common_backend)
+add_dependencies(libSceIcu icu_backend_data)
+set_source_files_properties(IcuData.cpp PROPERTIES
+    COMPILE_DEFINITIONS "ICU_DATA_FILE=\"${icuDataFile}\""
+    OBJECT_DEPENDS ${icuDataFile})
+if(MINGW OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(libSceIcu PRIVATE LINKER:--exclude-libs,ALL)
+endif()
+
+if(BUILD_TESTING)
+    add_test_executable(guest_icu_normalization_tests ${LIBS_INCLUDE_DIR}/tests/GuestIcuNormalization.cpp IcuData.cpp)
+    target_include_directories(guest_icu_normalization_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(guest_icu_normalization_tests PRIVATE libSceIcu icu_i18n_backend icu_common_backend)
+    add_dependencies(guest_icu_normalization_tests icu_backend_data)
+    configure_windows_unwind(guest_icu_normalization_tests)
+    add_test(NAME guest_icu_normalization COMMAND guest_icu_normalization_tests)
+    set_tests_properties(guest_icu_normalization PROPERTIES TIMEOUT 30)
+    if(WIN32)
+        set_tests_properties(guest_icu_normalization PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
+    endif()
+endif()
+
 if(BUILD_TESTING)
     add_test_executable(guest_icu_locale_core_tests ${LIBS_INCLUDE_DIR}/tests/GuestIcuLocaleCore.cpp)
     target_include_directories(guest_icu_locale_core_tests PRIVATE ${LIBS_INCLUDE_DIR})
