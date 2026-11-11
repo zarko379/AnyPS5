@@ -5,6 +5,7 @@
 struct UCollator;
 struct UCharIterator;
 struct USet;
+struct UEnumeration;
 
 extern "C" {
 UCollator* APS5_VABI ucol_open_nid_postfix(const char* locale, std::int32_t* status);
@@ -21,4 +22,6 @@ std::int32_t APS5_VABI ucol_getReorderCodes_nid_postfix(const UCollator* collato
 std::int32_t APS5_VABI ucol_countAvailable_nid_postfix();
 const char* APS5_VABI ucol_getAvailable_nid_postfix(std::int32_t index);
 USet* APS5_VABI ucol_getTailoredSet_nid_postfix(const UCollator* collator, std::int32_t* status);
+UEnumeration* APS5_VABI ucol_getKeywordValues_nid_postfix(const char* keyword, std::int32_t* status);
+UEnumeration* APS5_VABI ucol_getKeywordValuesForLocale_nid_postfix(const char* key, const char* locale, std::int8_t commonlyUsed, std::int32_t* status);
 }

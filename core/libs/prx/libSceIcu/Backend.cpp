@@ -1,11 +1,14 @@
 #include "prx/libSceIcu/Backend.hpp"
 #include "prx/libSceIcu/Set.hpp"
 #include "prx/libc/include/General.hpp"
+#include "prx/libc/include/Api.hpp"
 #include <unicode/uclean.h>
 #include <unicode/udata.h>
+#include <unicode/uenum.h>
 #include <unicode/uniset.h>
 #include <unicode/uset.h>
 #include <atomic>
+#include <cstddef>
 #include <mutex>
 #include <stdexcept>
 
@@ -15,6 +18,58 @@ namespace {
 
 std::atomic<bool> guestDefaultLocale{false};
 std::atomic<bool> guestDefaultConverter{false};
+
+struct GuestEnumerationLayout {
+    using CloseFn = void (APS5_VABI*)(GuestEnumerationLayout* enumeration);
+    using CountFn = std::int32_t (APS5_VABI*)(GuestEnumerationLayout* enumeration, std::int32_t* status);
+    using UnicodeNextFn = const char16_t* (APS5_VABI*)(GuestEnumerationLayout* enumeration, std::int32_t* resultLength, std::int32_t* status);
+    using NextFn = const char* (APS5_VABI*)(GuestEnumerationLayout* enumeration, std::int32_t* resultLength, std::int32_t* status);
+    using ResetFn = void (APS5_VABI*)(GuestEnumerationLayout* enumeration, std::int32_t* status);
+
+    void* baseContext;
+    void* context;
+    CloseFn close;
+    CountFn count;
+    UnicodeNextFn uNext;
+    NextFn next;
+    ResetFn reset;
+};
+
+static_assert(offsetof(GuestEnumerationLayout, context) == 8);
+static_assert(offsetof(GuestEnumerationLayout, close) == 16);
+static_assert(offsetof(GuestEnumerationLayout, reset) == 48);
+static_assert(sizeof(GuestEnumerationLayout) == 56);
+
+UEnumeration* HostEnumeration(GuestEnumerationLayout* enumeration) {
+    IcuBackend::RequireObject(enumeration);
+    return static_cast<UEnumeration*>(enumeration->context);
+}
+
+UErrorCode* EnumerationStatus(std::int32_t* status) {
+    IcuBackend::RequireObject(status);
+    return reinterpret_cast<UErrorCode*>(status);
+}
+
+void APS5_VABI CloseHostEnumeration(GuestEnumerationLayout* enumeration) {
+    uenum_close(HostEnumeration(enumeration));
+    free_nid_postfix(enumeration);
+}
+
+std::int32_t APS5_VABI CountHostEnumeration(GuestEnumerationLayout* enumeration, std::int32_t* status) {
+    return uenum_count(HostEnumeration(enumeration), EnumerationStatus(status));
+}
+
+const char16_t* APS5_VABI UnicodeNextHostEnumeration(GuestEnumerationLayout* enumeration, std::int32_t* resultLength, std::int32_t* status) {
+    return uenum_unext(HostEnumeration(enumeration), resultLength, EnumerationStatus(status));
+}
+
+const char* APS5_VABI NextHostEnumeration(GuestEnumerationLayout* enumeration, std::int32_t* resultLength, std::int32_t* status) {
+    return uenum_next(HostEnumeration(enumeration), resultLength, EnumerationStatus(status));
+}
+
+void APS5_VABI ResetHostEnumeration(GuestEnumerationLayout* enumeration, std::int32_t* status) {
+    uenum_reset(HostEnumeration(enumeration), EnumerationStatus(status));
+}
 
 void ApplyFileAccess() {
     UErrorCode status = U_ZERO_ERROR;
@@ -89,6 +144,19 @@ USet* GuestSet(const USet* host) {
     if (!guest) return nullptr;
     for (std::int32_t index = 0; index < count; ++index) uset_addRange_nid_postfix(guest, set->getRangeStart(index), set->getRangeEnd(index));
     return guest;
+}
+
+UEnumeration* GuestEnumeration(UEnumeration* host, std::int32_t* status) {
+    if (!host) return nullptr;
+    auto* guest = static_cast<GuestEnumerationLayout*>(malloc_nid_postfix(sizeof(GuestEnumerationLayout)));
+    if (!guest) {
+        uenum_close(host);
+        if (!status) APS5_INVALID_ARG_EX;
+        *status = U_MEMORY_ALLOCATION_ERROR;
+        return nullptr;
+    }
+    *guest = GuestEnumerationLayout{nullptr, host, CloseHostEnumeration, CountHostEnumeration, UnicodeNextHostEnumeration, NextHostEnumeration, ResetHostEnumeration};
+    return reinterpret_cast<UEnumeration*>(guest);
 }
 
 }

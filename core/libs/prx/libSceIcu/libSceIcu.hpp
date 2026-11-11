@@ -38,3 +38,4 @@
 #include "Collation.hpp"
 #include "StringSearch.hpp"
 #include "Idna.hpp"
+#include "EnumerationSources.hpp"

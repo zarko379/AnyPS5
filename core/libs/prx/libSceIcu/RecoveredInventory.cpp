@@ -35,23 +35,11 @@ int APS5_VABI ucal_getDefaultTimeZone_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI ucal_getKeywordValuesForLocale_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI ucal_getTimeZoneDisplayName_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
 int APS5_VABI ucal_open_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI ucal_openTimeZoneIDEnumeration_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI ucal_openTimeZones_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -64,14 +52,6 @@ int APS5_VABI ucal_setMillis_nid_postfix() {
 }
 
 int APS5_VABI ucol_getContractionsAndExpansions_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI ucol_getKeywordValues_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI ucol_getKeywordValuesForLocale_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -344,10 +324,6 @@ int APS5_VABI unumsys_isAlgorithmic_nid_postfix() {
 }
 
 int APS5_VABI unumsys_open_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI unumsys_openAvailableNames_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 

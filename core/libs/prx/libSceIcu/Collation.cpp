@@ -2,6 +2,7 @@
 #include "prx/libSceIcu/Backend.hpp"
 #include "prx/libc/include/General.hpp"
 #include <unicode/ucol.h>
+#include <unicode/uenum.h>
 #include <unicode/uiter.h>
 #include <unicode/uset.h>
 #include <cstddef>
@@ -209,6 +210,18 @@ USet* APS5_VABI ucol_getTailoredSet_nid_postfix(const UCollator* collator, std::
     USet* guest = IcuBackend::GuestSet(host.getAlias());
     if (!guest) *error = U_MEMORY_ALLOCATION_ERROR;
     return guest;
+}
+
+UEnumeration* APS5_VABI ucol_getKeywordValues_nid_postfix(const char* keyword, std::int32_t* status) {
+    return IcuBackend::GuestEnumeration(ucol_getKeywordValues(keyword, Status(status)), status);
+}
+
+UEnumeration* APS5_VABI ucol_getKeywordValuesForLocale_nid_postfix(const char* key, const char* locale, std::int8_t commonlyUsed, std::int32_t* status) {
+    UErrorCode* error = Status(status);
+    if (U_FAILURE(*error)) return nullptr;
+    icu::LocalUEnumerationPointer host(ucol_getKeywordValuesForLocale(key, IcuBackend::Locale(locale), commonlyUsed, error));
+    IcuBackend::CheckFallback(status);
+    return IcuBackend::GuestEnumeration(host.orphan(), status);
 }
 
 }
