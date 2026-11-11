@@ -134,6 +134,7 @@ void* APS5_VABI udat_open_nid_postfix(std::int32_t timeStyle, std::int32_t dateS
     IcuBackend::Locale(locale);
     const bool needsDefault = IcuBackend::LocaleData(nullptr, locale);
     IcuBackend::Zone(tzID, tzIDLength);
+    IcuBackend::PatternGenerator();
     UDateFormat* format = udat_open(static_cast<UDateFormatStyle>(timeStyle), static_cast<UDateFormatStyle>(dateStyle), locale, tzID, tzIDLength, pattern, patternLength, error);
     IcuBackend::Track(format, needsDefault);
     return format;
@@ -185,6 +186,7 @@ void* APS5_VABI udatpg_open_nid_postfix(const char* locale, std::int32_t* pError
     if (U_FAILURE(*error)) return nullptr;
     IcuBackend::Locale(locale);
     IcuBackend::LocaleData(nullptr, locale);
+    IcuBackend::PatternGenerator();
     return udatpg_open(locale, error);
 }
 
@@ -225,6 +227,7 @@ UDateIntervalFormat* APS5_VABI udtitvfmt_open_nid_postfix(const char* locale, co
         IcuBackend::Locale(locale);
         needsDefault = IcuBackend::LocaleData(nullptr, locale);
         IcuBackend::Zone(tzID, tzIDLength);
+        IcuBackend::PatternGenerator();
     }
     UDateIntervalFormat* formatter = udtitvfmt_open(locale, skeleton, skeletonLength, tzID, tzIDLength, error);
     IcuBackend::Track(formatter, needsDefault);

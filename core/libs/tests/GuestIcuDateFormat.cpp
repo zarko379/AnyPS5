@@ -579,9 +579,31 @@ void CheckIntervalErrors() {
 
 }
 
+void CheckCleanupBefore() {
+    u_cleanup_nid_postfix();
+    std::int32_t status = Ok;
+    void* generator = udatpg_open_nid_postfix("en", &status);
+    Require(generator && status <= Ok, "u_cleanup before any pattern generator is harmless");
+    udatpg_close_nid_postfix(generator);
+}
+
+void CheckCleanupAfter() {
+    u_cleanup_nid_postfix();
+    Require(Throws<std::runtime_error>([] { std::int32_t ok = Ok; udatpg_open_nid_postfix("en", &ok); }), "a pattern generator after u_cleanup throws");
+    Require(Throws<std::runtime_error>([] { std::int32_t ok = Ok; udat_open_nid_postfix(UDAT_SHORT, UDAT_SHORT, "en", u"UTC", -1, nullptr, 0, &ok); }), "a date format after u_cleanup throws");
+    Require(Throws<std::runtime_error>([] { std::int32_t ok = Ok; udtitvfmt_open_nid_postfix("en", u"yMd", -1, u"UTC", -1, &ok); }), "an interval format after u_cleanup throws");
+    std::int32_t status = IllegalArgument;
+    Require(!udatpg_open_nid_postfix("en", &status) && status == IllegalArgument, "a failed status still returns first");
+    status = Ok;
+    void* calendar = ucal_open_nid_postfix(u"UTC", -1, "en", UCAL_GREGORIAN, &status);
+    Require(calendar && status <= Ok, "calendars still open after u_cleanup");
+    ucal_close_nid_postfix(calendar);
+}
+
 int main() {
     UErrorCode status = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &status);
+    CheckCleanupBefore();
     CheckCalendarErrors();
     CheckDateFormatErrors();
     CheckPatternGeneratorErrors();
@@ -599,6 +621,7 @@ int main() {
     }
     SetDefaults(nullptr);
     Require(opened > 1200, "the sweeps open calendars and formats");
+    CheckCleanupAfter();
     std::puts("guest_icu_date_format passed");
     return 0;
 }

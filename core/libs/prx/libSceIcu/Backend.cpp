@@ -22,6 +22,8 @@ namespace {
 
 std::atomic<bool> guestDefaultLocale{false};
 std::atomic<bool> guestDefaultConverter{false};
+std::atomic<bool> patternGeneratorUsed{false};
+std::atomic<bool> patternGeneratorFreed{false};
 
 std::mutex& TrackedMutex() {
     static std::mutex mutex;
@@ -176,11 +178,18 @@ void Untrack(const void* handle) {
     TrackedHandles().erase(handle);
 }
 
+void PatternGenerator() {
+    Ensure();
+    if (patternGeneratorFreed.load()) NotImplemented_nid_no_patch("libSceIcu: a pattern generator after u_cleanup (ICU 68.2 frees its allowed hour formats table without resetting its init-once)");
+    patternGeneratorUsed.store(true);
+}
+
 void Cleanup() {
     static std::mutex cleanupMutex;
     const std::lock_guard lock(cleanupMutex);
     Ensure();
     u_cleanup();
+    if (patternGeneratorUsed.load()) patternGeneratorFreed.store(true);
     guestDefaultLocale.store(false);
     guestDefaultConverter.store(false);
     ApplyFileAccess();
