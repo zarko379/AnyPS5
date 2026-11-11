@@ -1,7 +1,10 @@
 #include "prx/libSceIcu/Backend.hpp"
+#include "prx/libSceIcu/Set.hpp"
 #include "prx/libc/include/General.hpp"
 #include <unicode/uclean.h>
 #include <unicode/udata.h>
+#include <unicode/uniset.h>
+#include <unicode/uset.h>
 #include <atomic>
 #include <mutex>
 #include <stdexcept>
@@ -76,6 +79,16 @@ void Cleanup() {
     guestDefaultLocale.store(false);
     guestDefaultConverter.store(false);
     ApplyFileAccess();
+}
+
+USet* GuestSet(const USet* host) {
+    const icu::UnicodeSet* set = icu::UnicodeSet::fromUSet(host);
+    const std::int32_t count = set->getRangeCount();
+    if (uset_getItemCount(host) != count) NotImplemented_nid_no_patch("libSceIcu: a set with strings (the guest USet holds code point ranges only)");
+    USet* guest = uset_openEmpty_nid_postfix();
+    if (!guest) return nullptr;
+    for (std::int32_t index = 0; index < count; ++index) uset_addRange_nid_postfix(guest, set->getRangeStart(index), set->getRangeEnd(index));
+    return guest;
 }
 
 }

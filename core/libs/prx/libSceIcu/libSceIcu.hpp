@@ -35,3 +35,4 @@
 #include "Script.hpp"
 #include "Bidi.hpp"
 #include "CaseMap.hpp"
+#include "Collation.hpp"

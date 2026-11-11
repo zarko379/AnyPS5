@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+struct USet;
+
 namespace IcuBackend {
 
 void Ensure();
@@ -15,5 +17,6 @@ const char* Converter(const char* name);
 const char16_t* Zone(const char16_t* zone, std::int32_t length);
 void CheckFallback(const std::int32_t* status);
 void Cleanup();
+USet* GuestSet(const USet* host);
 
 }

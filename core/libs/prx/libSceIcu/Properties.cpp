@@ -1,9 +1,7 @@
 #include "prx/libSceIcu/Properties.hpp"
 #include "prx/libSceIcu/Backend.hpp"
-#include "prx/libSceIcu/Set.hpp"
 #include <unicode/uchar.h>
 #include <unicode/ucpmap.h>
-#include <unicode/uniset.h>
 #include <unicode/uset.h>
 #include <array>
 #include <mutex>
@@ -62,14 +60,6 @@ std::mutex& PropertySetMutex() {
 std::array<USet*, UCHAR_BINARY_LIMIT>& PropertySets() {
     static std::array<USet*, UCHAR_BINARY_LIMIT> sets{};
     return sets;
-}
-
-USet* GuestSet(const USet* host) {
-    const icu::UnicodeSet* set = icu::UnicodeSet::fromUSet(host);
-    USet* guest = uset_openEmpty_nid_postfix();
-    const std::int32_t count = set->getRangeCount();
-    for (std::int32_t index = 0; index < count; ++index) uset_addRange_nid_postfix(guest, set->getRangeStart(index), set->getRangeEnd(index));
-    return guest;
 }
 
 const UCPMap* Map(const UCPMap* map) {
@@ -285,7 +275,7 @@ const USet* APS5_VABI u_getBinaryPropertySet_nid_postfix(std::int32_t property, 
     if (!host) return nullptr;
     std::lock_guard lock(PropertySetMutex());
     USet*& guest = PropertySets()[property];
-    if (!guest) guest = GuestSet(host);
+    if (!guest) guest = IcuBackend::GuestSet(host);
     return guest;
 }
 
