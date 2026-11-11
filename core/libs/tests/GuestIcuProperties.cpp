@@ -1,12 +1,17 @@
 #include "prx/libSceIcu/Properties.hpp"
+#include "prx/libSceIcu/Set.hpp"
 #include <unicode/uchar.h>
+#include <unicode/ucpmap.h>
 #include <unicode/udata.h>
+#include <unicode/uset.h>
 #include <unicode/uscript.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -27,6 +32,16 @@ void Require(bool condition, const char* message) {
 bool SameName(const char* guest, const char* host) {
     if (!guest || !host) return guest == host;
     return std::strcmp(guest, host) == 0;
+}
+
+template<typename TException, typename TAction>
+bool Throws(TAction action) {
+    try {
+        action();
+    } catch (const TException&) {
+        return true;
+    }
+    return false;
 }
 
 template<typename TCheck>
@@ -259,6 +274,229 @@ void CheckClosure() {
     }
 }
 
+
+struct NameRecord {
+    std::int32_t code;
+    std::int32_t choice;
+    std::string name;
+    bool operator==(const NameRecord&) const = default;
+};
+
+struct NameCollector {
+    std::vector<NameRecord> records;
+    std::size_t stopAfter = static_cast<std::size_t>(-1);
+};
+
+std::int8_t APS5_VABI GuestName(void* context, std::int32_t code, std::int32_t choice, const char* name, std::int32_t length) {
+    auto* collector = static_cast<NameCollector*>(context);
+    collector->records.push_back({code, choice, std::string(name, static_cast<std::size_t>(length))});
+    return collector->records.size() < collector->stopAfter;
+}
+
+UBool U_CALLCONV HostName(void* context, UChar32 code, UCharNameChoice choice, const char* name, int32_t length) {
+    auto* collector = static_cast<NameCollector*>(context);
+    collector->records.push_back({code, choice, std::string(name, static_cast<std::size_t>(length))});
+    return collector->records.size() < collector->stopAfter;
+}
+
+std::vector<NameRecord> GuestNames(std::int32_t start, std::int32_t limit, std::int32_t choice, std::size_t stopAfter = static_cast<std::size_t>(-1)) {
+    NameCollector collector;
+    collector.stopAfter = stopAfter;
+    std::int32_t status = Ok;
+    u_enumCharNames_nid_postfix(start, limit, GuestName, &collector, choice, &status);
+    Require(status == Ok, "guest name enumeration succeeds");
+    return collector.records;
+}
+
+std::vector<NameRecord> HostNames(std::int32_t start, std::int32_t limit, std::int32_t choice, std::size_t stopAfter = static_cast<std::size_t>(-1)) {
+    NameCollector collector;
+    collector.stopAfter = stopAfter;
+    UErrorCode status = U_ZERO_ERROR;
+    u_enumCharNames(start, limit, HostName, &collector, static_cast<UCharNameChoice>(choice), &status);
+    Require(U_SUCCESS(status), "host name enumeration succeeds");
+    return collector.records;
+}
+
+void CheckNameEnumeration() {
+    const std::vector<NameRecord> latin = GuestNames(0x41, 0x44, U_UNICODE_CHAR_NAME);
+    Require(latin == std::vector<NameRecord>{{0x41, U_UNICODE_CHAR_NAME, "LATIN CAPITAL LETTER A"}, {0x42, U_UNICODE_CHAR_NAME, "LATIN CAPITAL LETTER B"}, {0x43, U_UNICODE_CHAR_NAME, "LATIN CAPITAL LETTER C"}}, "names of A to C");
+    const std::pair<std::int32_t, std::int32_t> ranges[] = {{0, 0x300}, {0x3400, 0x3410}, {0xAC00, 0xAC20}, {0x1F600, 0x1F650}, {0x10FFF0, 0x200000}, {-5, 0x20}};
+    for (const auto& [start, limit] : ranges) {
+        for (std::int32_t choice = 0; choice < U_CHAR_NAME_CHOICE_COUNT; ++choice) {
+            Require(GuestNames(start, limit, choice) == HostNames(start, limit, choice), "enumerated names match ICU");
+        }
+    }
+    Require(GuestNames(0x20, 0x100, U_UNICODE_CHAR_NAME, 5).size() == 5 && GuestNames(0x4E00, 0x4F00, U_UNICODE_CHAR_NAME, 3) == HostNames(0x4E00, 0x4F00, U_UNICODE_CHAR_NAME, 3), "a false callback result stops the enumeration");
+    Require(GuestNames(0x50, 0x50, U_UNICODE_CHAR_NAME).empty() && GuestNames(0x60, 0x50, U_UNICODE_CHAR_NAME).empty(), "empty ranges call nothing");
+
+    NameCollector collector;
+    std::int32_t status = Ok;
+    u_enumCharNames_nid_postfix(0x41, 0x50, nullptr, &collector, U_UNICODE_CHAR_NAME, &status);
+    Require(status == IllegalArgument, "a null callback is an illegal argument");
+    status = Ok;
+    u_enumCharNames_nid_postfix(0x41, 0x50, GuestName, &collector, U_CHAR_NAME_CHOICE_COUNT, &status);
+    Require(status == IllegalArgument && collector.records.empty(), "an unknown name choice is an illegal argument");
+    status = IllegalArgument;
+    u_enumCharNames_nid_postfix(0x41, 0x50, GuestName, &collector, U_UNICODE_CHAR_NAME, &status);
+    Require(status == IllegalArgument && collector.records.empty(), "a failed status calls nothing");
+    u_enumCharNames_nid_postfix(0x41, 0x50, GuestName, &collector, U_UNICODE_CHAR_NAME, nullptr);
+    Require(collector.records.empty(), "a null status calls nothing, as in ICU");
+}
+
+struct TypeRange {
+    std::int32_t start;
+    std::int32_t limit;
+    std::int32_t type;
+    bool operator==(const TypeRange&) const = default;
+};
+
+struct TypeCollector {
+    std::vector<TypeRange> ranges;
+    std::size_t stopAfter = static_cast<std::size_t>(-1);
+};
+
+std::int8_t APS5_VABI GuestTypes(const void* context, std::int32_t start, std::int32_t limit, std::int32_t type) {
+    auto* collector = const_cast<TypeCollector*>(static_cast<const TypeCollector*>(context));
+    collector->ranges.push_back({start, limit, type});
+    return collector->ranges.size() < collector->stopAfter;
+}
+
+UBool U_CALLCONV HostTypes(const void* context, UChar32 start, UChar32 limit, UCharCategory type) {
+    auto* collector = const_cast<TypeCollector*>(static_cast<const TypeCollector*>(context));
+    collector->ranges.push_back({start, limit, type});
+    return collector->ranges.size() < collector->stopAfter;
+}
+
+void CheckTypeEnumeration() {
+    TypeCollector guest;
+    TypeCollector host;
+    u_enumCharTypes_nid_postfix(GuestTypes, &guest);
+    u_enumCharTypes(HostTypes, &host);
+    Require(!guest.ranges.empty() && guest.ranges == host.ranges, "category ranges match ICU");
+    Require(guest.ranges.front().start == 0 && guest.ranges.back().limit == 0x110000 && guest.ranges.front().type == U_CONTROL_CHAR, "category ranges cover the code space");
+    TypeCollector stopped;
+    stopped.stopAfter = 4;
+    u_enumCharTypes_nid_postfix(GuestTypes, &stopped);
+    Require(stopped.ranges.size() == 4, "a false callback result stops the category enumeration");
+    u_enumCharTypes_nid_postfix(nullptr, &stopped);
+    Require(stopped.ranges.size() == 4, "a null callback does nothing");
+}
+
+std::vector<std::pair<std::int32_t, std::int32_t>> GuestItems(const USet* set) {
+    std::vector<std::pair<std::int32_t, std::int32_t>> items;
+    const std::int32_t count = uset_getItemCount_nid_postfix(set);
+    for (std::int32_t index = 0; index < count; ++index) {
+        std::int32_t start = 0;
+        std::int32_t end = 0;
+        std::int32_t status = Ok;
+        Require(uset_getItem_nid_postfix(set, index, &start, &end, nullptr, 0, &status) == 0 && status == Ok, "guest set items are ranges");
+        items.emplace_back(start, end);
+    }
+    return items;
+}
+
+std::vector<std::pair<std::int32_t, std::int32_t>> HostItems(const USet* set) {
+    std::vector<std::pair<std::int32_t, std::int32_t>> items;
+    const std::int32_t count = uset_getItemCount(set);
+    for (std::int32_t index = 0; index < count; ++index) {
+        UChar32 start = 0;
+        UChar32 end = 0;
+        UErrorCode status = U_ZERO_ERROR;
+        Require(uset_getItem(set, index, &start, &end, nullptr, 0, &status) == 0 && U_SUCCESS(status), "host set items are ranges");
+        items.emplace_back(start, end);
+    }
+    return items;
+}
+
+void CheckPropertySets() {
+    for (std::int32_t property = UCHAR_BINARY_START; property < UCHAR_BINARY_LIMIT; ++property) {
+        std::int32_t guestStatus = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        const USet* guest = u_getBinaryPropertySet_nid_postfix(property, &guestStatus);
+        const USet* host = u_getBinaryPropertySet(static_cast<UProperty>(property), &hostStatus);
+        Require(guestStatus == Ok && U_SUCCESS(hostStatus) && guest && GuestItems(guest) == HostItems(host), "binary property sets match ICU");
+        guestStatus = Ok;
+        Require(u_getBinaryPropertySet_nid_postfix(property, &guestStatus) == guest, "the same set is returned again");
+    }
+    std::int32_t status = Ok;
+    const USet* alphabetic = u_getBinaryPropertySet_nid_postfix(UCHAR_ALPHABETIC, &status);
+    Require(uset_contains_nid_postfix(alphabetic, 0x41) && !uset_contains_nid_postfix(alphabetic, 0x31), "the alphabetic set");
+    status = Ok;
+    Require(u_getBinaryPropertySet_nid_postfix(UCHAR_BINARY_LIMIT, &status) == nullptr && status == IllegalArgument, "a non-binary property is an illegal argument");
+    status = Ok;
+    Require(u_getBinaryPropertySet_nid_postfix(-1, &status) == nullptr && status == IllegalArgument, "a negative property is an illegal argument");
+    status = BufferOverflow;
+    Require(u_getBinaryPropertySet_nid_postfix(UCHAR_ALPHABETIC, &status) == nullptr && status == BufferOverflow, "a failed status returns null");
+    Require(Throws<std::invalid_argument>([] { u_getBinaryPropertySet_nid_postfix(UCHAR_ALPHABETIC, nullptr); }), "a null status throws");
+}
+
+std::uint32_t APS5_VABI GuestUppercaseFilter(const void* context, std::uint32_t value) {
+    return value == *static_cast<const std::uint32_t*>(context) ? 1 : 0;
+}
+
+uint32_t U_CALLCONV HostUppercaseFilter(const void* context, uint32_t value) {
+    return value == *static_cast<const std::uint32_t*>(context) ? 1 : 0;
+}
+
+void CheckPropertyMaps() {
+    for (std::int32_t property = UCHAR_INT_START; property < UCHAR_INT_LIMIT; ++property) {
+        std::int32_t guestStatus = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        const UCPMap* guest = u_getIntPropertyMap_nid_postfix(property, &guestStatus);
+        const UCPMap* host = u_getIntPropertyMap(static_cast<UProperty>(property), &hostStatus);
+        Require(guestStatus == Ok && U_SUCCESS(hostStatus) && guest, "integer property maps load");
+        for (std::int32_t c = -1; c <= 0x110000; c += 11) Require(ucpmap_get_nid_postfix(guest, c) == ucpmap_get(host, c), "map values match ICU");
+        for (std::int32_t option = UCPMAP_RANGE_NORMAL; option <= UCPMAP_RANGE_FIXED_ALL_SURROGATES; ++option) {
+            std::int32_t start = 0;
+            while (true) {
+                std::uint32_t guestValue = 0xDEAD;
+                uint32_t hostValue = 0xBEEF;
+                const std::int32_t guestEnd = ucpmap_getRange_nid_postfix(guest, start, option, 7, nullptr, nullptr, &guestValue);
+                const std::int32_t hostEnd = ucpmap_getRange(host, start, static_cast<UCPMapRangeOption>(option), 7, nullptr, nullptr, &hostValue);
+                Require(guestEnd == hostEnd && (guestEnd < 0 || guestValue == hostValue), "map ranges match ICU");
+                if (guestEnd < 0) break;
+                start = guestEnd + 1;
+            }
+        }
+    }
+    std::int32_t status = Ok;
+    const UCPMap* category = u_getIntPropertyMap_nid_postfix(UCHAR_GENERAL_CATEGORY, &status);
+    Require(ucpmap_get_nid_postfix(category, 0x41) == U_UPPERCASE_LETTER && ucpmap_get_nid_postfix(category, 0x110000) == 0, "general category map values");
+    const std::uint32_t uppercase = U_UPPERCASE_LETTER;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    const UCPMap* hostCategory = u_getIntPropertyMap(UCHAR_GENERAL_CATEGORY, &hostStatus);
+    std::int32_t start = 0;
+    std::int32_t filteredRanges = 0;
+    std::int32_t plainRanges = 0;
+    while (true) {
+        std::uint32_t guestValue = 0;
+        uint32_t hostValue = 0;
+        const std::int32_t guestEnd = ucpmap_getRange_nid_postfix(category, start, UCPMAP_RANGE_NORMAL, 0, GuestUppercaseFilter, &uppercase, &guestValue);
+        const std::int32_t hostEnd = ucpmap_getRange(hostCategory, start, UCPMAP_RANGE_NORMAL, 0, HostUppercaseFilter, &uppercase, &hostValue);
+        Require(guestEnd == hostEnd && (guestEnd < 0 || guestValue == hostValue), "filtered map ranges match ICU");
+        if (guestEnd < 0) break;
+        Require(guestValue <= 1, "the filter result is the range value");
+        start = guestEnd + 1;
+        ++filteredRanges;
+    }
+    for (start = 0; start >= 0; ++plainRanges) {
+        const std::int32_t end = ucpmap_getRange_nid_postfix(category, start, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr);
+        start = end < 0 ? -1 : end + 1;
+    }
+    Require(filteredRanges > 100 && filteredRanges < plainRanges, "the filter merges ranges by uppercase or not");
+    Require(ucpmap_getRange_nid_postfix(category, 0x41, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr) == 0x5A, "a null value pointer is allowed");
+    Require(ucpmap_getRange_nid_postfix(category, 0x110000, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr) == -1, "a start beyond U+10FFFF has no range");
+    status = Ok;
+    Require(u_getIntPropertyMap_nid_postfix(UCHAR_ALPHABETIC, &status) == nullptr && status == IllegalArgument, "a binary property has no integer map");
+    status = Ok;
+    Require(u_getIntPropertyMap_nid_postfix(UCHAR_INT_LIMIT, &status) == nullptr && status == IllegalArgument, "a property beyond the integer range has no map");
+    status = BufferOverflow;
+    Require(u_getIntPropertyMap_nid_postfix(UCHAR_GENERAL_CATEGORY, &status) == nullptr && status == BufferOverflow, "a failed status returns no map");
+    Require(Throws<std::invalid_argument>([] { u_getIntPropertyMap_nid_postfix(UCHAR_GENERAL_CATEGORY, nullptr); }), "a null map status throws");
+    Require(Throws<std::invalid_argument>([] { ucpmap_get_nid_postfix(nullptr, 0x41); }), "a null map throws in ucpmap_get");
+    Require(Throws<std::invalid_argument>([] { ucpmap_getRange_nid_postfix(nullptr, 0, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr); }), "a null map throws in ucpmap_getRange");
+}
+
 }
 
 int main() {
@@ -270,5 +508,9 @@ int main() {
     CheckNames();
     CheckCharacterNames();
     CheckClosure();
+    CheckNameEnumeration();
+    CheckTypeEnumeration();
+    CheckPropertySets();
+    CheckPropertyMaps();
     return 0;
 }

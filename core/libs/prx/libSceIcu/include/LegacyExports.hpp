@@ -1873,7 +1873,6 @@ int APS5_VABI _ZN6icu_6813UnicodeStringC2ERKS0_i_nid_postfix();
 int APS5_VABI utrie2_enum_nid_postfix();
 int APS5_VABI _ZNK6icu_6819FilteredNormalizer29normalizeERKNS_13UnicodeStringERS1_17USetSpanConditionR10UErrorCode_nid_postfix();
 int APS5_VABI _ZN6icu_6817StringTrieBuilder5buildE22UStringTrieBuildOptioniR10UErrorCode_nid_postfix();
-int APS5_VABI ucpmap_getRange_nid_postfix();
 int APS5_VABI _ZN6icu_6818UnicodeSetIterator5resetERKNS_10UnicodeSetE_nid_postfix();
 int APS5_VABI utext_getNativeIndex_nid_postfix();
 int APS5_VABI sceIcuLegacyUnknown_oEn8JIW94ss_nid_no_patch();
@@ -2033,7 +2032,6 @@ int APS5_VABI _ZN6icu_6810UnicodeSetC1ERKNS_13UnicodeStringER10UErrorCode_nid_po
 int APS5_VABI _ZN6icu_6818Normalizer2Factory15getNoopInstanceER10UErrorCode_nid_postfix();
 int APS5_VABI sceIcuLegacyUnknown_svSitLIoR0M_nid_no_patch();
 int APS5_VABI _ZN6icu_6812ByteSinkUtil12appendChangeEiPKDsiRNS_8ByteSinkEPNS_5EditsER10UErrorCode_nid_postfix();
-int APS5_VABI ucpmap_get_nid_postfix();
 int APS5_VABI uprv_dl_close_nid_postfix();
 int APS5_VABI _ZN6icu_6818Normalizer2Factory11getNFKCImplER10UErrorCode_nid_postfix();
 int APS5_VABI _ZN6icu_6810UnicodeSet10complementERKNS_13UnicodeStringE_nid_postfix();

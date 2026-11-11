@@ -8018,10 +8018,6 @@ int APS5_VABI _ZN6icu_6817StringTrieBuilder5buildE22UStringTrieBuildOptioniR10UE
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI ucpmap_getRange_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN6icu_6818UnicodeSetIterator5resetERKNS_10UnicodeSetE_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -8706,10 +8702,6 @@ int APS5_VABI sceIcuLegacyUnknown_svSitLIoR0M_nid_no_patch() {
 APS5_EXPORT("svSitLIoR0M", sceIcuLegacyUnknown_svSitLIoR0M_nid_no_patch);
 
 int APS5_VABI _ZN6icu_6812ByteSinkUtil12appendChangeEiPKDsiRNS_8ByteSinkEPNS_5EditsER10UErrorCode_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI ucpmap_get_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 

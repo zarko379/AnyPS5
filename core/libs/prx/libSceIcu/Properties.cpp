@@ -1,6 +1,12 @@
 #include "prx/libSceIcu/Properties.hpp"
 #include "prx/libSceIcu/Backend.hpp"
+#include "prx/libSceIcu/Set.hpp"
 #include <unicode/uchar.h>
+#include <unicode/ucpmap.h>
+#include <unicode/uniset.h>
+#include <unicode/uset.h>
+#include <array>
+#include <mutex>
 
 namespace {
 
@@ -12,6 +18,64 @@ UChar32 Ready(std::int32_t c) {
 UErrorCode* Status(std::int32_t* status) {
     IcuBackend::Ensure();
     return reinterpret_cast<UErrorCode*>(status);
+}
+
+UErrorCode* RequiredStatus(std::int32_t* status) {
+    return reinterpret_cast<UErrorCode*>(IcuBackend::RequireStatus(status));
+}
+
+struct CharNamesForward {
+    GuestCharNamesCallback fn;
+    void* context;
+};
+
+UBool U_CALLCONV ForwardCharName(void* context, UChar32 code, UCharNameChoice nameChoice, const char* name, int32_t length) {
+    const auto* forward = static_cast<const CharNamesForward*>(context);
+    return forward->fn(forward->context, code, nameChoice, name, length);
+}
+
+struct CharTypesForward {
+    GuestCharTypesCallback fn;
+    const void* context;
+};
+
+UBool U_CALLCONV ForwardCharTypes(const void* context, UChar32 start, UChar32 limit, UCharCategory type) {
+    const auto* forward = static_cast<const CharTypesForward*>(context);
+    return forward->fn(forward->context, start, limit, type);
+}
+
+struct ValueFilterForward {
+    GuestMapValueFilter fn;
+    const void* context;
+};
+
+uint32_t U_CALLCONV ForwardValueFilter(const void* context, uint32_t value) {
+    const auto* forward = static_cast<const ValueFilterForward*>(context);
+    return forward->fn(forward->context, value);
+}
+
+std::mutex& PropertySetMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::array<USet*, UCHAR_BINARY_LIMIT>& PropertySets() {
+    static std::array<USet*, UCHAR_BINARY_LIMIT> sets{};
+    return sets;
+}
+
+USet* GuestSet(const USet* host) {
+    const icu::UnicodeSet* set = icu::UnicodeSet::fromUSet(host);
+    USet* guest = uset_openEmpty_nid_postfix();
+    const std::int32_t count = set->getRangeCount();
+    for (std::int32_t index = 0; index < count; ++index) uset_addRange_nid_postfix(guest, set->getRangeStart(index), set->getRangeEnd(index));
+    return guest;
+}
+
+const UCPMap* Map(const UCPMap* map) {
+    IcuBackend::RequireObject(map);
+    IcuBackend::Ensure();
+    return map;
 }
 
 }
@@ -202,6 +266,40 @@ std::int32_t APS5_VABI u_getFC_NFKC_Closure_nid_postfix(std::int32_t c, char16_t
 
 std::int32_t APS5_VABI ublock_getCode_nid_postfix(std::int32_t c) {
     return ublock_getCode(Ready(c));
+}
+
+void APS5_VABI u_enumCharNames_nid_postfix(std::int32_t start, std::int32_t limit, GuestCharNamesCallback fn, void* context, std::int32_t nameChoice, std::int32_t* status) {
+    CharNamesForward forward{fn, context};
+    u_enumCharNames(start, limit, fn ? ForwardCharName : nullptr, &forward, static_cast<UCharNameChoice>(nameChoice), Status(status));
+}
+
+void APS5_VABI u_enumCharTypes_nid_postfix(GuestCharTypesCallback enumRange, const void* context) {
+    IcuBackend::Ensure();
+    const CharTypesForward forward{enumRange, context};
+    u_enumCharTypes(enumRange ? ForwardCharTypes : nullptr, &forward);
+}
+
+const USet* APS5_VABI u_getBinaryPropertySet_nid_postfix(std::int32_t property, std::int32_t* status) {
+    UErrorCode* error = RequiredStatus(status);
+    const USet* host = u_getBinaryPropertySet(static_cast<UProperty>(property), error);
+    if (!host) return nullptr;
+    std::lock_guard lock(PropertySetMutex());
+    USet*& guest = PropertySets()[property];
+    if (!guest) guest = GuestSet(host);
+    return guest;
+}
+
+const UCPMap* APS5_VABI u_getIntPropertyMap_nid_postfix(std::int32_t property, std::int32_t* status) {
+    return u_getIntPropertyMap(static_cast<UProperty>(property), RequiredStatus(status));
+}
+
+std::uint32_t APS5_VABI ucpmap_get_nid_postfix(const UCPMap* map, std::int32_t c) {
+    return ucpmap_get(Map(map), c);
+}
+
+std::int32_t APS5_VABI ucpmap_getRange_nid_postfix(const UCPMap* map, std::int32_t start, std::int32_t option, std::uint32_t surrogateValue, GuestMapValueFilter filter, const void* context, std::uint32_t* value) {
+    const ValueFilterForward forward{filter, context};
+    return ucpmap_getRange(Map(map), start, static_cast<UCPMapRangeOption>(option), surrogateValue, filter ? ForwardValueFilter : nullptr, &forward, value);
 }
 
 }
