@@ -246,7 +246,7 @@ void CheckClosure() {
     const struct {
         std::int32_t c;
         std::u16string closure;
-    } expected[] = {{0x00C4, u""}, {0x037A, u" ι"}, {0x20A8, u"rs"}, {0x2121, u"tel"}, {0x1D5DB, u"h"}, {0x0061, u""}};
+    } expected[] = {{0x00C4, u""}, {0x037A, u" \u03B9"}, {0x20A8, u"rs"}, {0x2121, u"tel"}, {0x1D5DB, u"h"}, {0x0061, u""}};
     for (const auto& item : expected) {
         char16_t buffer[16]{};
         std::int32_t status = Ok;

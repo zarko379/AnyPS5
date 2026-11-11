@@ -1184,7 +1184,6 @@ int APS5_VABI ucnv_getToUCallBack_nid_postfix();
 int APS5_VABI _ZNK6icu_6818UStringEnumeration5countER10UErrorCode_nid_postfix();
 int APS5_VABI sceIcuLegacyUnknown_UJx_minus_eyL5K3I_nid_no_patch();
 int APS5_VABI _ZN6icu_6819FilteredNormalizer2D1Ev_nid_postfix();
-int APS5_VABI ubidi_getClass_nid_postfix();
 int APS5_VABI _ZN6icu_6818CharStringByteSink6AppendEPKci_nid_postfix();
 int APS5_VABI uloc_getDisplayLanguage_nid_postfix();
 int APS5_VABI _ZNK6icu_6815Normalizer2Impl16getCanonStartSetEi_nid_postfix();

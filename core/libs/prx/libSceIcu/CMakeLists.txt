@@ -12,7 +12,7 @@ target_sources(libSceIcu PRIVATE Resource.cpp)
 target_sources(libSceIcu PRIVATE Locale.cpp)
 
 include(Backend.cmake)
-target_sources(libSceIcu PRIVATE Backend.cpp Normalization.cpp Defaults.cpp Properties.cpp Script.cpp IcuData.cpp)
+target_sources(libSceIcu PRIVATE Backend.cpp Normalization.cpp Defaults.cpp Properties.cpp Script.cpp Bidi.cpp IcuData.cpp)
 target_link_libraries(libSceIcu PRIVATE icu_i18n_backend icu_common_backend)
 add_dependencies(libSceIcu icu_backend_data)
 set_source_files_properties(IcuData.cpp PROPERTIES
@@ -56,6 +56,18 @@ if(BUILD_TESTING)
     set_tests_properties(guest_icu_script PROPERTIES TIMEOUT 60)
     if(WIN32)
         set_tests_properties(guest_icu_script PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
+    endif()
+
+    add_test_executable(guest_icu_bidi_tests ${LIBS_INCLUDE_DIR}/tests/GuestIcuBidi.cpp IcuData.cpp)
+    target_include_directories(guest_icu_bidi_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(guest_icu_bidi_tests PRIVATE libSceIcu icu_i18n_backend icu_common_backend)
+    add_dependencies(guest_icu_bidi_tests icu_backend_data)
+    configure_windows_unwind(guest_icu_bidi_tests)
+    add_test(NAME guest_icu_bidi COMMAND guest_icu_bidi_tests)
+    set_tests_properties(guest_icu_bidi PROPERTIES TIMEOUT 60)
+    if(WIN32)
+        set_tests_properties(guest_icu_bidi PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
     endif()
 

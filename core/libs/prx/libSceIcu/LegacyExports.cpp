@@ -5065,10 +5065,6 @@ int APS5_VABI _ZN6icu_6819FilteredNormalizer2D1Ev_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI ubidi_getClass_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN6icu_6818CharStringByteSink6AppendEPKci_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }

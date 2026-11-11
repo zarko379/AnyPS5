@@ -3,16 +3,7 @@
 
 extern "C" {
 int APS5_VABI u_strToTitle_nid_postfix();
-int APS5_VABI ubidi_close_nid_postfix();
-int APS5_VABI ubidi_countRuns_nid_postfix();
-int APS5_VABI ubidi_getBaseDirection_nid_postfix();
-int APS5_VABI ubidi_getLogicalRun_nid_postfix();
-int APS5_VABI ubidi_getParaLevel_nid_postfix();
-int APS5_VABI ubidi_getVisualRun_nid_postfix();
-int APS5_VABI ubidi_open_nid_postfix();
-int APS5_VABI ubidi_reorderVisual_nid_postfix();
 int APS5_VABI ubidi_setClassCallback_nid_postfix();
-int APS5_VABI ubidi_setPara_nid_postfix();
 int APS5_VABI ucal_clone_nid_postfix();
 int APS5_VABI ucal_close_nid_postfix();
 int APS5_VABI ucal_get_nid_postfix();
