@@ -237,6 +237,19 @@ if(BUILD_TESTING)
         set_tests_properties(guest_icu_defaults PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
     endif()
+
+    add_test_executable(guest_icu_data_files_tests ${LIBS_INCLUDE_DIR}/tests/GuestIcuDataFiles.cpp IcuData.cpp)
+    target_include_directories(guest_icu_data_files_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(guest_icu_data_files_tests PRIVATE libSceIcu libc icu_i18n_backend icu_common_backend)
+    target_compile_definitions(guest_icu_data_files_tests PRIVATE "ICU_DATA_FILE=\"${icuDataFile}\"")
+    add_dependencies(guest_icu_data_files_tests icu_backend_data)
+    configure_windows_unwind(guest_icu_data_files_tests)
+    add_test(NAME guest_icu_data_files COMMAND guest_icu_data_files_tests)
+    set_tests_properties(guest_icu_data_files PROPERTIES TIMEOUT 30)
+    if(WIN32)
+        set_tests_properties(guest_icu_data_files PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
+    endif()
 endif()
 
 if(BUILD_TESTING)

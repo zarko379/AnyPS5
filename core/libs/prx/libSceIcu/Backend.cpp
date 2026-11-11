@@ -21,6 +21,8 @@
 
 namespace IcuBackend {
 
+static_assert(UCONFIG_NO_FILE_IO, "the backend must never map ICU data files from disk");
+
 namespace {
 
 std::atomic<bool> guestDefaultLocale{false};
