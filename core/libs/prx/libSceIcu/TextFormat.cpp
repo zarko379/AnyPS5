@@ -106,6 +106,7 @@ std::int32_t APS5_VABI uldn_localeDisplayName_nid_postfix(const ULocaleDisplayNa
     UErrorCode* error = Status(pErrorCode);
     if (U_FAILURE(*error)) return 0;
     IcuBackend::CheckTracked(ldn);
+    if (ldn && locale && !BadBuffer(result, maxResultSize)) IcuBackend::LocaleObject(locale);
     return uldn_localeDisplayName(ldn, locale, result, maxResultSize, error);
 }
 

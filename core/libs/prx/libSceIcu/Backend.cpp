@@ -186,18 +186,37 @@ void RequireGuestDefault() {
     if (!guestDefaultLocale.load()) NotImplemented_nid_no_patch("libSceIcu: a result decided by the console's default locale");
 }
 
+bool ReadsDefaultLocale(const char* locale) {
+    Ensure();
+    if (!locale || std::strncmp(locale, "i-default", 9) != 0) return false;
+    const char next = locale[9];
+    if (next != '\0' && next != '@' && next != '.' && next != '_' && next != '-') return false;
+    if (std::strchr(locale, '@')) return true;
+    char converted[ULOC_FULLNAME_CAPACITY];
+    UErrorCode status = U_ZERO_ERROR;
+    const std::int32_t length = uloc_forLanguageTag(locale, converted, sizeof(converted), nullptr, &status);
+    return length <= 0 && U_SUCCESS(status) && status != U_STRING_NOT_TERMINATED_WARNING;
+}
+
+bool CanonicalNameReadsDefault(const char* locale) {
+    if (!locale || (locale[0] != 'i' && locale[0] != 'I') || (locale[1] != '-' && locale[1] != '_') || ReadsDefaultLocale(locale)) return false;
+    const icu::Locale canonical(locale);
+    return !canonical.isBogus() && ReadsDefaultLocale(canonical.getName());
+}
+
 const char* CanonicalLocale(const char* locale) {
     Locale(locale);
-    if (!locale || std::strncmp(locale, "i-default", 9) != 0) return locale;
-    const char next = locale[9];
-    if (next != '\0' && next != '@' && next != '.' && next != '_' && next != '-') return locale;
-    if (!std::strchr(locale, '@')) {
-        char converted[ULOC_FULLNAME_CAPACITY];
-        UErrorCode status = U_ZERO_ERROR;
-        const std::int32_t length = uloc_forLanguageTag(locale, converted, sizeof(converted), nullptr, &status);
-        if (length > 0 || U_FAILURE(status) || status == U_STRING_NOT_TERMINATED_WARNING) return locale;
-    }
-    RequireGuestDefault();
+    if (ReadsDefaultLocale(locale)) RequireGuestDefault();
+    return locale;
+}
+
+void NewDefaultLocale(const char* locale) {
+    if (ReadsDefaultLocale(locale) || CanonicalNameReadsDefault(locale)) NotImplemented_nid_no_patch("libSceIcu: a new default locale whose canonical name reads the old default (ICU 68.2 locks its default locale mutex again)");
+}
+
+const char* LocaleObject(const char* locale) {
+    CanonicalLocale(locale);
+    if (!guestDefaultLocale.load() && CanonicalNameReadsDefault(locale)) RequireGuestDefault();
     return locale;
 }
 
@@ -224,7 +243,7 @@ void CheckWithFallback(const UResourceBundle* bundle, const char* key, const std
 }
 
 bool LocaleData(const char* tree, const char* locale) {
-    Ensure();
+    LocaleObject(locale);
     char compat[8] = "";
     UErrorCode compatStatus = U_ZERO_ERROR;
     const std::int32_t compatLength = icu::Locale(locale).getKeywordValue("compat", compat, sizeof(compat), compatStatus);

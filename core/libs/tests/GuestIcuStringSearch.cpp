@@ -5,6 +5,7 @@
 #include <unicode/ubrk.h>
 #include <unicode/ucol.h>
 #include <unicode/udata.h>
+#include <unicode/uloc.h>
 #include <unicode/usearch.h>
 #include <cstdint>
 #include <cstdio>
@@ -100,6 +101,38 @@ void CheckOpen() {
     usearch_reset_nid_postfix(nullptr);
     status = Ok;
     Require(usearch_next_nid_postfix(nullptr, &status) == Done && status == Ok, "a null search finds nothing");
+}
+
+void CheckIDefault() {
+    for (const char* locale : {"i-default@collation=phonebook", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8"}) {
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; usearch_open_nid_postfix(u"abc", -1, u"xabcx ABC", -1, locale, nullptr, &ok); }), "an i-default locale that ICU canonicalizes to the default throws");
+        std::int32_t status = IllegalArgument;
+        Require(!usearch_open_nid_postfix(u"abc", -1, u"xabcx ABC", -1, locale, nullptr, &status) && status == IllegalArgument, "a failed status returns before the locale");
+    }
+    for (const char* locale : {"i-default", "de@collation=phonebook", "en"}) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UStringSearch* guest = usearch_open_nid_postfix(u"abc", -1, u"xabcx ABC abc", -1, locale, nullptr, &status);
+        UStringSearch* host = usearch_open(u"abc", -1, u"xabcx ABC abc", -1, locale, nullptr, &hostStatus);
+        Require(guest && host && status == hostStatus && All(guest) == HostAll(host), "a locale ICU canonicalizes without the default searches as in ICU");
+        usearch_close(host);
+    }
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    uloc_setDefault_nid_postfix("de", &status);
+    uloc_setDefault("de", &hostStatus);
+    for (const char* locale : {"i-default@collation=phonebook", "i-default_US@x=y", "i-default.utf8"}) {
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        UStringSearch* guest = usearch_open_nid_postfix(u"abc", -1, u"xabcx ABC abc", -1, locale, nullptr, &status);
+        UStringSearch* host = usearch_open(u"abc", -1, u"xabcx ABC abc", -1, locale, nullptr, &hostStatus);
+        Require(guest && host && status == hostStatus && All(guest) == HostAll(host), "an i-default locale searches with the guest default");
+        UErrorCode first = U_ZERO_ERROR;
+        UErrorCode second = U_ZERO_ERROR;
+        Require(std::string(ucol_getLocaleByType(usearch_getCollator_nid_postfix(guest), ULOC_ACTUAL_LOCALE, &first)) == ucol_getLocaleByType(usearch_getCollator(host), ULOC_ACTUAL_LOCALE, &second), "the guest default's collator is used");
+        usearch_close(host);
+    }
+    uloc_setDefault_nid_postfix(nullptr, &status);
 }
 
 void CheckKnownMatches() {
@@ -276,6 +309,7 @@ int main() {
     UErrorCode access = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &access);
     CheckOpen();
+    CheckIDefault();
     CheckKnownMatches();
     CheckErrors();
     CheckSweep();

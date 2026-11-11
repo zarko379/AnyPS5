@@ -577,6 +577,70 @@ void CheckIntervalErrors() {
     SetDefaults(nullptr);
 }
 
+void CompareIDefaultCalendars(const std::vector<std::pair<const char*, std::int32_t>>& cases, const std::string& label) {
+    for (const auto& [locale, type] : cases) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        void* guest = ucal_open_nid_postfix(u"Europe/Berlin", -1, locale, type, &status);
+        UCalendar* host = ucal_open(u"Europe/Berlin", -1, locale, static_cast<UCalendarType>(type), &hostStatus);
+        const std::string what = label + " calendar " + locale + " " + std::to_string(type);
+        Require(guest && host && status == hostStatus, what + " opens like ICU");
+        for (double date : Dates) {
+            status = Ok;
+            hostStatus = U_ZERO_ERROR;
+            ucal_setMillis_nid_postfix(guest, date, &status);
+            ucal_setMillis(host, date, &hostStatus);
+            CompareCalendars(guest, host, what);
+        }
+        for (std::int32_t nameType : {std::int32_t{UCAL_STANDARD}, std::int32_t{UCAL_SHORT_DST}}) {
+            Compare([&](char16_t* b, std::int32_t c, std::int32_t* s) { return ucal_getTimeZoneDisplayName_nid_postfix(guest, nameType, locale, b, c, s); }, [&](char16_t* b, std::int32_t c, UErrorCode* s) { return ucal_getTimeZoneDisplayName(host, static_cast<UCalendarDisplayNameType>(nameType), locale, b, c, s); }, what + " zone name");
+        }
+        ucal_close_nid_postfix(guest);
+        ucal_close(host);
+    }
+}
+
+void CheckIDefault() {
+    SetDefaults(nullptr);
+    std::int32_t status = Ok;
+    void* calendar = ucal_open_nid_postfix(u"Asia/Tokyo", -1, "en", UCAL_TRADITIONAL, &status);
+    char16_t buffer[64] = {};
+    for (const char* locale : {"i-default@calendar=buddhist", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8"}) {
+        const std::string what = std::string("an i-default locale that ICU canonicalizes to the default throws in ");
+        for (std::int32_t type : {std::int32_t{UCAL_TRADITIONAL}, std::int32_t{UCAL_GREGORIAN}}) {
+            Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ucal_open_nid_postfix(u"UTC", -1, locale, type, &ok); }), what + "ucal_open: " + locale);
+        }
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; udat_open_nid_postfix(UDAT_SHORT, UDAT_SHORT, locale, u"UTC", -1, nullptr, 0, &ok); }), what + "udat_open: " + locale);
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; udatpg_open_nid_postfix(locale, &ok); }), what + "udatpg_open: " + locale);
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; udtitvfmt_open_nid_postfix(locale, u"yMd", -1, u"UTC", -1, &ok); }), what + "udtitvfmt_open: " + locale);
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ucal_getTimeZoneDisplayName_nid_postfix(calendar, UCAL_DST, locale, buffer, 64, &ok); }), what + "ucal_getTimeZoneDisplayName: " + locale);
+        status = Ok;
+        Require(ucal_getTimeZoneDisplayName_nid_postfix(calendar, 9, locale, buffer, 64, &status) == 0 && status == Ok, std::string("an unknown name type never canonicalizes the locale: ") + locale);
+        status = Ok;
+        Require(!udtitvfmt_open_nid_postfix(locale, nullptr, 3, u"UTC", -1, &status) && status == IllegalArgument, std::string("a bad interval skeleton never canonicalizes the locale: ") + locale);
+    }
+    Require(Throws<std::runtime_error>([] { std::int32_t ok = Ok; ucal_open_nid_postfix(u"UTC", -1, "i-default", UCAL_GREGORIAN, &ok); }), "a Gregorian calendar adds a keyword to a plain i-default, so ICU canonicalizes it to the default");
+    Require(Throws<std::runtime_error>([] { std::int32_t ok = Ok; ucal_open_nid_postfix(u"UTC", -1, "i-default@", UCAL_GREGORIAN, &ok); }), "a Gregorian calendar fills an empty keyword list of i-default");
+    status = Ok;
+    std::string tooLong = "i-default@x=";
+    tooLong.append(260, 'a');
+    Require(!ucal_open_nid_postfix(u"UTC", -1, tooLong.c_str(), UCAL_GREGORIAN, &status) && status == IllegalArgument, "a Gregorian locale too long for ICU's buffer is an illegal argument before canonicalization");
+    status = Ok;
+    Require(!ucal_open_nid_postfix(u"UTC", -1, "i-default@x", UCAL_GREGORIAN, &status) && status == IllegalArgument, "a Gregorian keyword that ICU cannot add is an illegal argument before canonicalization");
+    ucal_close_nid_postfix(calendar);
+    CompareIDefaultCalendars({{"i-default", UCAL_TRADITIONAL}, {"en-US-u-ca-japanese", UCAL_GREGORIAN}, {"en-US-u-ca-japanese", UCAL_TRADITIONAL}, {"ja_JP@calendar=japanese", UCAL_GREGORIAN}}, "no default");
+    CheckDateFormats({"i-default"}, "no default");
+    CheckPatternGenerators({"i-default"}, "no default");
+    CheckIntervals({"i-default"}, "no default");
+    SetDefaults("th_TH");
+    CompareIDefaultCalendars({{"i-default", UCAL_GREGORIAN}, {"i-default", UCAL_TRADITIONAL}, {"i-default@calendar=japanese", UCAL_TRADITIONAL}, {"i-default@calendar=japanese", UCAL_GREGORIAN}, {"i-default_US@x=y", UCAL_TRADITIONAL}, {"i-default.utf8", UCAL_GREGORIAN}}, "default th_TH");
+    const std::vector<const char*> defaulted{"i-default@calendar=japanese", "i-default_US@x=y", "i-default.utf8"};
+    CheckDateFormats(defaulted, "default th_TH");
+    CheckPatternGenerators(defaulted, "default th_TH");
+    CheckIntervals(defaulted, "default th_TH");
+    SetDefaults(nullptr);
+}
+
 }
 
 void CheckCleanupBefore() {
@@ -608,6 +672,7 @@ int main() {
     CheckDateFormatErrors();
     CheckPatternGeneratorErrors();
     CheckIntervalErrors();
+    CheckIDefault();
     CheckCalendars();
     SetDefaults("en_US");
     CheckDateFormats({"en_US", "de", "ja_JP@calendar=japanese", "ar_EG", "fa", "zh_Hant", "th_TH", "", "en_US@numbers=arab", "en_GB@hours=h11"}, "sweep");

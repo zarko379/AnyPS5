@@ -650,6 +650,73 @@ void CheckPluralRules() {
     SetDefaults(nullptr);
 }
 
+std::u16string GuestPlural(const char* locale, double number) {
+    std::int32_t status = Ok;
+    UPluralRules* rules = uplrules_openForType_nid_postfix(locale, UPLURAL_TYPE_CARDINAL, &status);
+    void* format = unum_open_nid_postfix(UNUM_DECIMAL, nullptr, 0, "en", nullptr, &status);
+    Require(rules && format && status <= Ok, std::string("guest plural rules open for ") + locale);
+    char16_t keyword[16] = {};
+    const std::int32_t length = uplrules_selectWithFormat_nid_postfix(rules, number, format, keyword, 16, &status);
+    uplrules_close_nid_postfix(rules);
+    unum_close_nid_postfix(format);
+    return std::u16string(keyword, static_cast<std::size_t>(length > 0 && length < 16 ? length : 0));
+}
+
+std::u16string HostPlural(const char* locale, double number) {
+    UErrorCode status = U_ZERO_ERROR;
+    UPluralRules* rules = uplrules_openForType(locale, UPLURAL_TYPE_CARDINAL, &status);
+    UNumberFormat* format = unum_open(UNUM_DECIMAL, nullptr, 0, "en", nullptr, &status);
+    Require(rules && format && U_SUCCESS(status), std::string("host plural rules open for ") + locale);
+    char16_t keyword[16] = {};
+    const std::int32_t length = uplrules_selectWithFormat(rules, number, format, keyword, 16, &status);
+    uplrules_close(rules);
+    unum_close(format);
+    return std::u16string(keyword, static_cast<std::size_t>(length > 0 && length < 16 ? length : 0));
+}
+
+void CompareIDefault(const char* locale, const std::string& what) {
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    UNumberingSystem* system = unumsys_open_nid_postfix(locale, &status);
+    UNumberingSystem* hostSystem = unumsys_open(locale, &hostStatus);
+    Require(system && hostSystem && status == hostStatus && std::strcmp(unumsys_getName_nid_postfix(system), unumsys_getName(hostSystem)) == 0, what + ": the numbering system matches ICU");
+    unumsys_close_nid_postfix(system);
+    unumsys_close(hostSystem);
+    for (double number : {0.0, 1.0, 2.0, 5.0, 11.0}) Require(GuestPlural(locale, number) == HostPlural(locale, number), what + ": the plural keyword matches ICU");
+    for (std::int32_t style : {std::int32_t{UNUM_DECIMAL}, std::int32_t{UNUM_SPELLOUT}}) {
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        void* guest = unum_open_nid_postfix(style, nullptr, 0, locale, nullptr, &status);
+        UNumberFormat* host = unum_open(static_cast<UNumberFormatStyle>(style), nullptr, 0, locale, nullptr, &hostStatus);
+        Require(guest && host && status == hostStatus, what + ": the format opens as in ICU");
+        CompareFormats(guest, host, what);
+        unum_close_nid_postfix(guest);
+        unum_close(host);
+    }
+}
+
+void CheckIDefault() {
+    SetDefaults(nullptr);
+    for (const char* locale : {"i-default@numbers=arab", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8"}) {
+        const std::string what = std::string("i-default without a default ") + locale;
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; unumsys_open_nid_postfix(locale, &ok); }), what + " throws in unumsys_open");
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; uplrules_openForType_nid_postfix(locale, UPLURAL_TYPE_CARDINAL, &ok); }), what + " throws in uplrules_openForType");
+        for (std::int32_t style : {std::int32_t{UNUM_DECIMAL}, std::int32_t{UNUM_SPELLOUT}, std::int32_t{UNUM_PATTERN_DECIMAL}}) {
+            Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; unum_open_nid_postfix(style, PatternFor(style), -1, locale, nullptr, &ok); }), what + " throws in unum_open");
+        }
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        void* unknown = unum_open_nid_postfix(999, nullptr, 0, locale, nullptr, &status);
+        UNumberFormat* hostUnknown = unum_open(static_cast<UNumberFormatStyle>(999), nullptr, 0, locale, nullptr, &hostStatus);
+        Require(!unknown && !hostUnknown && status == hostStatus, what + ": an unknown style never canonicalizes the locale");
+    }
+    for (const char* locale : {"i-default", "ar_EG", "en@numbers=arab"}) CompareIDefault(locale, std::string("no default ") + locale);
+    SetDefaults("ar_EG");
+    for (const char* locale : {"i-default@numbers=latn", "i-default_US@x=y", "i-default.utf8"}) CompareIDefault(locale, std::string("default ar_EG ") + locale);
+    Require(GuestPlural("i-default@x=y", 2) == u"two", "the guest default's plural rules apply to an i-default locale");
+    SetDefaults(nullptr);
+}
+
 }
 
 int main() {
@@ -667,6 +734,7 @@ int main() {
     Sweep({"en", "de", "fr_CH", "ar_EG", "hi_IN", "ja", "zh_Hant", "th_TH@numbers=thai", "", "root", "sr_Latn", "es_419", "bn", "en@numbers=arab", "ru"}, "sweep");
     CheckDefaults();
     CheckPluralRules();
+    CheckIDefault();
     std::puts("guest_icu_number_format passed");
     return 0;
 }

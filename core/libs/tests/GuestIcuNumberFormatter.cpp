@@ -256,6 +256,35 @@ void CheckDefaults() {
     SetDefaults(nullptr);
 }
 
+void CompareSkeleton(const char* locale, const std::string& what) {
+    for (const char16_t* skeleton : {u"", u"compact-long", u"currency/EUR"}) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UNumberFormatter* guest = unumf_openForSkeletonAndLocale_nid_postfix(skeleton, -1, locale, &status);
+        UNumberFormatter* host = unumf_openForSkeletonAndLocale(skeleton, -1, locale, &hostStatus);
+        Require(guest && host && status == hostStatus, what + ": the formatter opens as in ICU");
+        for (double value : {1.0, 2.5, 1234567.0}) Require(Guest(guest, &value, nullptr, 0) == Host(host, &value, nullptr, 0), what + ": the formatter formats as ICU's");
+        unumf_close_nid_postfix(guest);
+        unumf_close(host);
+    }
+}
+
+void CheckIDefault() {
+    SetDefaults(nullptr);
+    for (const char* locale : {"i-default@numbers=arab", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8"}) {
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; unumf_openForSkeletonAndLocale_nid_postfix(u"compact-long", -1, locale, &ok); }), std::string("an i-default locale that ICU canonicalizes to the default throws: ") + locale);
+    }
+    for (const char* locale : {"i-default", "ar_EG", "en@numbers=arab"}) CompareSkeleton(locale, std::string("no default ") + locale);
+    SetDefaults("ar_EG");
+    for (const char* locale : {"i-default@numbers=latn", "i-default_US@x=y", "i-default.utf8"}) CompareSkeleton(locale, std::string("default ar_EG ") + locale);
+    std::int32_t status = Ok;
+    UNumberFormatter* arabic = unumf_openForSkeletonAndLocale_nid_postfix(u"", 0, "i-default@x=y", &status);
+    const double one = 1;
+    Require(arabic && Guest(arabic, &one, nullptr, 0).text == std::u16string(1, static_cast<char16_t>(0x0661)), "an i-default locale formats with the guest default");
+    unumf_close_nid_postfix(arabic);
+    SetDefaults(nullptr);
+}
+
 }
 
 int main() {
@@ -263,6 +292,7 @@ int main() {
     udata_setFileAccess(UDATA_NO_FILES, &status);
     CheckErrors();
     CheckDefaults();
+    CheckIDefault();
     SetDefaults("en_US");
     Sweep({"en", "de", "ar_EG", "ja", "hi", "", "fr_CH", "root", "ru", "en_IN", "bn"}, "sweep");
     for (const char* fallback : {"de", "ar_EG", "fa"}) {

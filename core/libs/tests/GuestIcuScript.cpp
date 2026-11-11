@@ -1,5 +1,7 @@
 #include "prx/libSceIcu/Script.hpp"
+#include "prx/libSceIcu/Defaults.hpp"
 #include <unicode/udata.h>
+#include <unicode/uloc.h>
 #include <unicode/uscript.h>
 #include <algorithm>
 #include <cstdint>
@@ -91,6 +93,44 @@ void CheckGetCode() {
             for (std::size_t index = 0; index < 8; ++index) Require(guest[index] == host[index], "filled script codes match ICU");
         }
     }
+}
+
+void CompareCodes(const char* name, const char* what) {
+    for (std::int32_t capacity : {0, 1, 8}) {
+        std::vector<std::int32_t> guest(8, -7);
+        std::vector<UScriptCode> host(8, static_cast<UScriptCode>(-7));
+        std::int32_t guestStatus = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        const std::int32_t guestLength = uscript_getCode_nid_postfix(name, capacity ? guest.data() : nullptr, capacity, &guestStatus);
+        const std::int32_t hostLength = uscript_getCode(name, capacity ? host.data() : nullptr, capacity, &hostStatus);
+        Require(guestLength == hostLength && guestStatus == hostStatus, what);
+        for (std::size_t index = 0; index < 8; ++index) Require(guest[index] == host[index], what);
+    }
+}
+
+void CheckIDefault() {
+    for (const char* name : {"i-default@x=y", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8"}) {
+        for (std::int32_t capacity : {0, 8}) {
+            Require(Throws<std::runtime_error>([&] { std::int32_t status = Ok; std::int32_t length = 0; GuestCodes(name, capacity, status, length); }), "an i-default locale whose likely subtags ICU takes from the default throws");
+        }
+        std::int32_t status = Ok;
+        std::int32_t one = 0;
+        Require(uscript_getCode_nid_postfix(name, nullptr, 1, &status) == 0 && status == IllegalArgument, "a null buffer with capacity never reaches the likely subtags");
+        status = Ok;
+        Require(uscript_getCode_nid_postfix(name, &one, -1, &status) == 0 && status == IllegalArgument, "a negative capacity never reaches the likely subtags");
+        status = BufferOverflow;
+        Require(uscript_getCode_nid_postfix(name, &one, 1, &status) == 0 && status == BufferOverflow, "a failed status never reaches the likely subtags");
+    }
+    for (const char* name : {"i-default", "I-DEFAULT@x=y", "i_default@x=y", "ru@x=y"}) CompareCodes(name, "a name ICU resolves without the default matches ICU");
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    uloc_setDefault_nid_postfix("ru", &status);
+    uloc_setDefault("ru", &hostStatus);
+    for (const char* name : {"i-default@x=y", "i-default_US@x=y", "i-default.utf8"}) CompareCodes(name, "an i-default locale takes the guest default's likely script");
+    std::int32_t length = 0;
+    std::vector<std::int32_t> codes = GuestCodes("i-default@x=y", 8, status, length);
+    Require(length == 1 && status == Ok && codes[0] == USCRIPT_CYRILLIC, "the guest default ru gives Cyrillic");
+    uloc_setDefault_nid_postfix(nullptr, &status);
 }
 
 void CheckScriptData() {
@@ -192,6 +232,7 @@ int main() {
     UErrorCode access = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &access);
     CheckGetCode();
+    CheckIDefault();
     CheckScriptData();
     CheckCodePoints();
     return 0;

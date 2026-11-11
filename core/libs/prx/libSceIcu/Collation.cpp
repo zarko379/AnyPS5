@@ -2,12 +2,16 @@
 #include "prx/libSceIcu/Backend.hpp"
 #include "prx/libc/include/General.hpp"
 #include <unicode/ucol.h>
+#include <unicode/udata.h>
 #include <unicode/uenum.h>
 #include <unicode/uiter.h>
+#include <unicode/ures.h>
 #include <unicode/uset.h>
 #include <cstddef>
 
 namespace {
+
+constexpr const char* CollationTree = U_ICUDATA_NAME U_TREE_SEPARATOR_STRING "coll";
 
 struct GuestIterator {
     using GetIndexFn = std::int32_t (APS5_VABI*)(GuestIterator* iterator, std::int32_t origin);
@@ -133,7 +137,7 @@ extern "C" {
 UCollator* APS5_VABI ucol_open_nid_postfix(const char* locale, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
-    return ucol_open(IcuBackend::Locale(locale), error);
+    return ucol_open(IcuBackend::LocaleObject(locale), error);
 }
 
 void APS5_VABI ucol_close_nid_postfix(UCollator* collator) {
@@ -219,8 +223,11 @@ UEnumeration* APS5_VABI ucol_getKeywordValues_nid_postfix(const char* keyword, s
 UEnumeration* APS5_VABI ucol_getKeywordValuesForLocale_nid_postfix(const char* key, const char* locale, std::int8_t commonlyUsed, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
-    icu::LocalUEnumerationPointer host(ucol_getKeywordValuesForLocale(key, IcuBackend::Locale(locale), commonlyUsed, error));
-    IcuBackend::CheckFallback(status);
+    IcuBackend::CanonicalLocale(locale);
+    UErrorCode probe = U_ZERO_ERROR;
+    ures_close(ures_open(CollationTree, locale, &probe));
+    if (probe == U_USING_DEFAULT_WARNING) IcuBackend::RequireGuestDefault();
+    icu::LocalUEnumerationPointer host(ucol_getKeywordValuesForLocale(key, locale, commonlyUsed, error));
     return IcuBackend::GuestEnumeration(host.orphan(), status);
 }
 

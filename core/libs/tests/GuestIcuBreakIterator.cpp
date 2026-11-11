@@ -240,6 +240,47 @@ void CheckOpen() {
     ubrk_close_nid_postfix(nullptr);
 }
 
+void CheckIDefault() {
+    const char16_t* japanese = Texts[3];
+    for (const char* locale : {"i-default@lb=strict", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8", "I-DEFAULT@lb=strict", "i_default_US"}) {
+        for (std::int32_t type : {UBRK_CHARACTER, UBRK_WORD, UBRK_LINE, UBRK_SENTENCE}) {
+            Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ubrk_open_nid_postfix(type, locale, japanese, -1, &ok); }), "an i-default locale that ICU canonicalizes to the default throws");
+        }
+        std::int32_t status = Ok;
+        Require(!ubrk_open_nid_postfix(5, locale, japanese, -1, &status) && status == IllegalArgument, "an unknown type never canonicalizes the locale");
+    }
+    for (const char* locale : {"i-default", "I-DEFAULT", "i-defaults@lb=strict", "ja", "ja@lb=strict"}) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UBreakIterator* guest = ubrk_open_nid_postfix(UBRK_LINE, locale, japanese, -1, &status);
+        UBreakIterator* host = ubrk_open(UBRK_LINE, locale, japanese, -1, &hostStatus);
+        Require(guest && host && status == hostStatus && GuestWalk(guest, Length(japanese)) == HostWalk(host, Length(japanese)), "a locale ICU canonicalizes without the default matches ICU");
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        Require(std::strcmp(ubrk_getLocaleByType_nid_postfix(guest, ULOC_ACTUAL_LOCALE, &status), ubrk_getLocaleByType(host, ULOC_ACTUAL_LOCALE, &hostStatus)) == 0, "the same break data opens");
+        ubrk_close_nid_postfix(guest);
+        ubrk_close(host);
+    }
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    uloc_setDefault_nid_postfix("ja", &status);
+    uloc_setDefault("ja", &hostStatus);
+    for (const char* locale : {"i-default@lb=strict", "i-default_US@x=y", "i-default.utf8"}) {
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        UBreakIterator* guest = ubrk_open_nid_postfix(UBRK_LINE, locale, japanese, -1, &status);
+        UBreakIterator* host = ubrk_open(UBRK_LINE, locale, japanese, -1, &hostStatus);
+        Require(guest && host && status == hostStatus && GuestWalk(guest, Length(japanese)) == HostWalk(host, Length(japanese)), "an i-default locale uses the guest default");
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        Require(std::strcmp(ubrk_getLocaleByType_nid_postfix(guest, ULOC_ACTUAL_LOCALE, &status), ubrk_getLocaleByType(host, ULOC_ACTUAL_LOCALE, &hostStatus)) == 0, "the guest default's break data opens as in ICU");
+        Require(std::strchr(locale, '@') == nullptr || std::strncmp(ubrk_getLocaleByType_nid_postfix(guest, ULOC_ACTUAL_LOCALE, &status), "ja", 2) == 0, "an i-default locale with keywords opens the guest default's data");
+        ubrk_close_nid_postfix(guest);
+        ubrk_close(host);
+    }
+    uloc_setDefault_nid_postfix(nullptr, &status);
+}
+
 void CheckText() {
     UBreakIterator* iterator = Open(UBRK_WORD, "en", u"one two");
     Require(Throws<std::invalid_argument>([&] { ubrk_setText_nid_postfix(iterator, u"a", -1, nullptr); }), "a null status throws in ubrk_setText");
@@ -432,6 +473,7 @@ int main() {
     udata_setFileAccess(UDATA_NO_FILES, &status);
     CheckKnown();
     CheckOpen();
+    CheckIDefault();
     CheckText();
     CheckRuleStatusVector();
     CheckRules();

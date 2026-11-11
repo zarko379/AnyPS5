@@ -28,7 +28,7 @@ extern "C" {
 UBreakIterator* APS5_VABI ubrk_open_nid_postfix(std::int32_t type, const char* locale, const char16_t* text, std::int32_t textLength, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
-    return ubrk_open(static_cast<UBreakIteratorType>(type), CannedType(type) ? IcuBackend::Locale(locale) : locale, text, textLength, error);
+    return ubrk_open(static_cast<UBreakIteratorType>(type), CannedType(type) ? IcuBackend::LocaleObject(locale) : locale, text, textLength, error);
 }
 
 UBreakIterator* APS5_VABI ubrk_openRules_nid_postfix(const char16_t* rules, std::int32_t rulesLength, const char16_t* text, std::int32_t textLength, UParseError* parseErr, std::int32_t* status) {

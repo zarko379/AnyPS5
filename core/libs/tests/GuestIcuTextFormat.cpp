@@ -413,6 +413,55 @@ void CheckRelativeErrors() {
     SetDefaults(nullptr);
 }
 
+void CompareNamedIDefault(const std::vector<const char*>& locales, const std::string& label) {
+    for (const char* display : {"en", "de", "ja"}) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        ULocaleDisplayNames* names = uldn_openForContext_nid_postfix(display, nullptr, 0, &status);
+        ULocaleDisplayNames* hostNames = uldn_openForContext(display, nullptr, 0, &hostStatus);
+        Require(names && hostNames && status == hostStatus, label + " display names open");
+        for (const char* locale : locales) {
+            CompareName([&](char16_t* b, std::int32_t c, std::int32_t* s) { return uldn_localeDisplayName_nid_postfix(names, locale, b, c, s); }, [&](char16_t* b, std::int32_t c, UErrorCode* s) { return uldn_localeDisplayName(hostNames, locale, b, c, s); }, label + " the name of " + locale + " in " + display);
+        }
+        uldn_close_nid_postfix(names);
+        uldn_close(hostNames);
+    }
+}
+
+void CheckIDefault() {
+    SetDefaults(nullptr);
+    const std::vector<const char*> throwing{"i-default@x=y", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8"};
+    std::int32_t status = Ok;
+    ULocaleDisplayNames* names = uldn_openForContext_nid_postfix("en", nullptr, 0, &status);
+    char16_t buffer[64] = {};
+    for (const char* locale : throwing) {
+        const std::string what = std::string("an i-default locale that ICU canonicalizes to the default throws in ");
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ulistfmt_openForType_nid_postfix(locale, ULISTFMT_TYPE_AND, ULISTFMT_WIDTH_WIDE, &ok); }), what + "ulistfmt_openForType: " + locale);
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; uldn_openForContext_nid_postfix(locale, nullptr, 0, &ok); }), what + "uldn_openForContext: " + locale);
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ureldatefmt_open_nid_postfix(locale, nullptr, UDAT_STYLE_LONG, UDISPCTX_CAPITALIZATION_NONE, &ok); }), what + "ureldatefmt_open: " + locale);
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; uldn_localeDisplayName_nid_postfix(names, locale, buffer, 64, &ok); }), what + "uldn_localeDisplayName: " + locale);
+        status = Ok;
+        Require(uldn_localeDisplayName_nid_postfix(names, locale, buffer, -1, &status) == 0 && status == IllegalArgument, std::string("an illegal display name buffer never canonicalizes the locale: ") + locale);
+        status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UListFormatter* list = ulistfmt_openForType_nid_postfix(locale, ULISTFMT_TYPE_UNITS + 1, ULISTFMT_WIDTH_WIDE, &status);
+        UListFormatter* hostList = ulistfmt_openForType(locale, static_cast<UListFormatterType>(ULISTFMT_TYPE_UNITS + 1), ULISTFMT_WIDTH_WIDE, &hostStatus);
+        Require(!list && !hostList && status == hostStatus, std::string("an unknown list type does not depend on the default: ") + locale);
+    }
+    uldn_close_nid_postfix(names);
+    CompareNamedIDefault({"i-default", "en_GB@x=y", "de"}, "no default");
+    CheckLists({"i-default"}, "no default");
+    CheckDisplayNames({"i-default"}, "no default");
+    CheckRelative({"i-default"}, "no default");
+    SetDefaults("de");
+    const std::vector<const char*> defaulted{"i-default@x=y", "i-default_US@x=y", "i-default.utf8"};
+    CompareNamedIDefault(defaulted, "default de");
+    CheckLists(defaulted, "default de");
+    CheckDisplayNames(defaulted, "default de");
+    CheckRelative(defaulted, "default de");
+    SetDefaults(nullptr);
+}
+
 }
 
 int main() {
@@ -421,6 +470,7 @@ int main() {
     CheckListErrors();
     CheckDisplayNameErrors();
     CheckRelativeErrors();
+    CheckIDefault();
     SetDefaults("en_US");
     CheckLists({"en", "de", "es", "he", "ja", "ar", "", "root", "it", "th", "zh_Hant", "ur_IN", "el", "en_IN"}, "sweep");
     CheckDisplayNames({"en", "de", "fr_CA", "ja", "zh_Hant", "", "ar", "sr_Latn", "ru"}, "sweep");

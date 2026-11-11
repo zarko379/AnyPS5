@@ -7,12 +7,16 @@
 #include <unicode/udata.h>
 #include <unicode/udateintervalformat.h>
 #include <unicode/udatpg.h>
+#include <unicode/uloc.h>
 #include <unicode/ufieldpositer.h>
 #include <unicode/umisc.h>
+#include <cstddef>
+#include <cstring>
 
 namespace {
 
 constexpr const char* ZoneTree = U_ICUDATA_NAME U_TREE_SEPARATOR_STRING "zone";
+constexpr std::size_t GregorianCapacity = ULOC_FULLNAME_CAPACITY + 1 + ULOC_KEYWORD_AND_VALUES_CAPACITY;
 
 UErrorCode* Status(std::int32_t* status) {
     return reinterpret_cast<UErrorCode*>(IcuBackend::RequireStatus(status));
@@ -41,6 +45,20 @@ bool DisplayNameType(std::int32_t type) {
     return type == UCAL_STANDARD || type == UCAL_SHORT_STANDARD || type == UCAL_DST || type == UCAL_SHORT_DST;
 }
 
+void CalendarLocale(const char* locale, std::int32_t type) {
+    IcuBackend::Locale(locale);
+    if (type != UCAL_GREGORIAN || !locale) {
+        IcuBackend::LocaleData(nullptr, locale);
+        return;
+    }
+    if (std::strlen(locale) >= GregorianCapacity) return;
+    char gregorian[GregorianCapacity];
+    std::strcpy(gregorian, locale);
+    UErrorCode status = U_ZERO_ERROR;
+    uloc_setKeywordValue("calendar", "gregorian", gregorian, sizeof(gregorian), &status);
+    if (U_SUCCESS(status)) IcuBackend::LocaleData(nullptr, gregorian);
+}
+
 void DateFormat(const void* format) {
     IcuBackend::RequireObject(format);
     IcuBackend::CheckTracked(format);
@@ -65,8 +83,7 @@ void* APS5_VABI ucal_open_nid_postfix(const char16_t* zoneID, std::int32_t len, 
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
     IcuBackend::Zone(zoneID, len);
-    IcuBackend::Locale(locale);
-    IcuBackend::LocaleData(nullptr, locale);
+    CalendarLocale(locale, type);
     return ucal_open(zoneID, len, locale, static_cast<UCalendarType>(type), error);
 }
 

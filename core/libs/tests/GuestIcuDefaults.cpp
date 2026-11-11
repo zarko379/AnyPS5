@@ -48,6 +48,32 @@ void CheckLocale() {
     Require(Throws<std::invalid_argument>([] { uloc_setDefault_nid_postfix("en", nullptr); }), "a null status throws");
 }
 
+void CheckIDefault() {
+    for (const char* locale : {"i-default@x=y", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8", "I-DEFAULT@x=y", "i_default@x=y", "I-default_US"}) {
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; uloc_setDefault_nid_postfix(locale, &ok); }), "a new default that ICU canonicalizes through the old default throws without a guest default");
+        Require(Throws<std::runtime_error>([] { uloc_getDefault_nid_postfix(); }), "the failed default sets nothing");
+        std::int32_t status = Ok;
+        uloc_setDefault_nid_postfix("fr_CA", &status);
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; uloc_setDefault_nid_postfix(locale, &ok); }), "a new default that ICU canonicalizes through the old default throws with a guest default too");
+        Require(std::strcmp(uloc_getDefault_nid_postfix(), "fr_CA") == 0, "the guest default stays");
+        status = IllegalArgument;
+        uloc_setDefault_nid_postfix(locale, &status);
+        Require(status == IllegalArgument && std::strcmp(uloc_getDefault_nid_postfix(), "fr_CA") == 0, "a failed status returns before the locale");
+        status = Ok;
+        uloc_setDefault_nid_postfix(nullptr, &status);
+    }
+    std::int32_t status = Ok;
+    uloc_setDefault_nid_postfix("i-default", &status);
+    Require(status == Ok && std::strcmp(uloc_getDefault_nid_postfix(), "en@x=i-default") == 0, "a plain i-default converts as a language tag");
+    uloc_setDefault_nid_postfix("I-DEFAULT", &status);
+    Require(status == Ok && std::strcmp(uloc_getDefault_nid_postfix(), "en@x=i-default") == 0, "a plain i-default in capitals converts as a language tag too");
+    uloc_setDefault_nid_postfix("i-defaults@x=y", &status);
+    Require(status == Ok && std::strcmp(uloc_getDefault_nid_postfix(), "i-defaults@x=y") == 0, "a longer language is not i-default");
+    uloc_setDefault_nid_postfix("de_AT@collation=phonebook", &status);
+    Require(status == Ok && std::strcmp(uloc_getDefault_nid_postfix(), "de_AT@collation=phonebook") == 0, "an ordinary locale with keywords is unaffected");
+    uloc_setDefault_nid_postfix(nullptr, &status);
+}
+
 void CheckConverter() {
     Require(Throws<std::runtime_error>([] { ucnv_getDefaultName_nid_postfix(); }), "the default converter throws before the guest sets one");
     ucnv_setDefaultName_nid_postfix("no-such-converter");
@@ -78,6 +104,7 @@ void CheckCleanup() {
 
 int main() {
     CheckLocale();
+    CheckIDefault();
     CheckConverter();
     CheckCleanup();
     return 0;

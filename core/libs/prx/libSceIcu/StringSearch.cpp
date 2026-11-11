@@ -16,6 +16,7 @@ extern "C" {
 UStringSearch* APS5_VABI usearch_open_nid_postfix(const char16_t* pattern, std::int32_t patternLength, const char16_t* text, std::int32_t textLength, const char* locale, UBreakIterator* breakIterator, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
+    if (locale) IcuBackend::LocaleObject(locale);
     return usearch_open(pattern, patternLength, text, textLength, locale, breakIterator, error);
 }
 

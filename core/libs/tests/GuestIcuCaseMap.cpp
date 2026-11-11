@@ -4,6 +4,7 @@
 #include <unicode/ubrk.h>
 #include <unicode/uchar.h>
 #include <unicode/udata.h>
+#include <unicode/uloc.h>
 #include <unicode/ustring.h>
 #include "ucasemap_imp.h"
 #include <algorithm>
@@ -292,6 +293,50 @@ void CheckTitleIterators() {
     ubrk_close_nid_postfix(sentences);
 }
 
+void CheckIDefault() {
+    const char16_t* source = u"ijssel ijs. hello wORLD";
+    for (const char* locale : {"i-default@x=y", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8"}) {
+        std::int32_t status = Ok;
+        Require(Throws<std::runtime_error>([&] { GuestTitle(source, nullptr, locale, status); }), "a title break iterator for an i-default locale that ICU canonicalizes to the default throws");
+        for (const Mapping mapping : {Mapping::Upper, Mapping::Lower}) {
+            char16_t guest[64]{};
+            char16_t host[64]{};
+            status = Ok;
+            UErrorCode hostStatus = U_ZERO_ERROR;
+            const std::int32_t guestLength = Guest(mapping, guest, 64, source, -1, locale, 0, &status);
+            const std::int32_t hostLength = mapping == Mapping::Upper ? u_strToUpper(host, 64, source, -1, locale, &hostStatus) : u_strToLower(host, 64, source, -1, locale, &hostStatus);
+            Require(guestLength == hostLength && status == hostStatus && std::u16string(guest) == host, "upper and lower case never canonicalize the locale");
+        }
+        status = Ok;
+        UBreakIterator* words = ubrk_open_nid_postfix(UBRK_WORD, "en", nullptr, 0, &status);
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UBreakIterator* hostWords = ubrk_open(UBRK_WORD, "en", nullptr, 0, &hostStatus);
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        Require(GuestTitle(source, words, locale, status) == HostTitle(source, hostWords, locale, hostStatus) && status == hostStatus, "title case with a caller's iterator never canonicalizes the locale");
+        ubrk_close_nid_postfix(words);
+        ubrk_close(hostWords);
+        char16_t buffer[8]{};
+        status = Ok;
+        Require(u_strToTitle_nid_postfix(buffer, -1, source, -1, nullptr, locale, &status) == 0 && status == IllegalArgument, "an illegal argument does not depend on the default");
+    }
+    for (const char* locale : {"i-default", "nl", "tr@x=y"}) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        Require(GuestTitle(source, nullptr, locale, status) == HostTitle(source, nullptr, locale, hostStatus) && status == hostStatus, "title case for a locale ICU canonicalizes without the default matches ICU");
+    }
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    uloc_setDefault_nid_postfix("nl", &status);
+    uloc_setDefault("nl", &hostStatus);
+    for (const char* locale : {"i-default@x=y", "i-default_US@x=y", "i-default.utf8"}) {
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        Require(GuestTitle(source, nullptr, locale, status) == HostTitle(source, nullptr, locale, hostStatus) && status == hostStatus, "title case for an i-default locale uses the guest default's word breaks");
+    }
+    uloc_setDefault_nid_postfix(nullptr, &status);
+}
+
 }
 
 int main() {
@@ -302,5 +347,6 @@ int main() {
     CheckMappingSweep();
     CheckComparisons();
     CheckTitleIterators();
+    CheckIDefault();
     return 0;
 }

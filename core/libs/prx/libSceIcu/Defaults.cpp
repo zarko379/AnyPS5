@@ -8,6 +8,7 @@ extern "C" {
 void APS5_VABI uloc_setDefault_nid_postfix(const char* locale, std::int32_t* status) {
     UErrorCode* error = reinterpret_cast<UErrorCode*>(IcuBackend::RequireStatus(status));
     if (U_FAILURE(*error)) return;
+    IcuBackend::NewDefaultLocale(locale);
     uloc_setDefault(locale, error);
     IcuBackend::SetGuestDefaultLocale(locale != nullptr);
 }

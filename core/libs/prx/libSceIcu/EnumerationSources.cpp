@@ -26,6 +26,16 @@ void RequireTerminatedKeywords(const char* keywordList, std::int32_t keywordList
     }
 }
 
+const char* RegionLocale(const char* locale) {
+    IcuBackend::Locale(locale);
+    if (!locale) return locale;
+    char region[ULOC_COUNTRY_CAPACITY];
+    UErrorCode probe = U_ZERO_ERROR;
+    const std::int32_t length = ulocimp_getRegionForSupplementalData(locale, false, region, sizeof(region), &probe);
+    if (U_SUCCESS(probe) && length == 0) IcuBackend::CanonicalLocale(locale);
+    return locale;
+}
+
 UEnumeration* Guest(UEnumeration* host, std::int32_t* status) {
     return IcuBackend::GuestEnumeration(host, status);
 }
@@ -60,7 +70,7 @@ UEnumeration* APS5_VABI ucurr_openISOCurrencies_nid_postfix(std::uint32_t currTy
 UEnumeration* APS5_VABI ucurr_getKeywordValuesForLocale_nid_postfix(const char* key, const char* locale, std::int8_t commonlyUsed, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
-    return Guest(ucurr_getKeywordValuesForLocale(key, IcuBackend::Locale(locale), commonlyUsed, error), status);
+    return Guest(ucurr_getKeywordValuesForLocale(key, RegionLocale(locale), commonlyUsed, error), status);
 }
 
 UEnumeration* APS5_VABI ucnv_openAllNames_nid_postfix(std::int32_t* status) {
@@ -82,7 +92,7 @@ UEnumeration* APS5_VABI ucal_openTimeZoneIDEnumeration_nid_postfix(std::int32_t 
 UEnumeration* APS5_VABI ucal_getKeywordValuesForLocale_nid_postfix(const char* key, const char* locale, std::int8_t commonlyUsed, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
-    return Guest(ucal_getKeywordValuesForLocale(key, IcuBackend::Locale(locale), commonlyUsed, error), status);
+    return Guest(ucal_getKeywordValuesForLocale(key, RegionLocale(locale), commonlyUsed, error), status);
 }
 
 UEnumeration* APS5_VABI unumsys_openAvailableNames_nid_postfix(std::int32_t* status) {

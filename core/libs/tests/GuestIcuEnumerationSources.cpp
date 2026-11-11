@@ -359,6 +359,61 @@ void CheckCollationKeywords() {
     uloc_setDefault_nid_postfix(nullptr, &status);
 }
 
+void CheckIDefault() {
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    for (const char* locale : {"i-default@collation=phonebook", "i-default-x@a=b", "i-default.utf8", "i-default_US@x=y", "i-default@rg=dezzzz", "I-DEFAULT@collation=phonebook", "xx"}) {
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ucol_getKeywordValuesForLocale_nid_postfix("collation", locale, 0, &ok); }), "a collation locale that ICU canonicalizes or opens through the default throws");
+    }
+    for (const char* locale : {"i-default@collation=phonebook", "i-default-x@a=b", "i-default.utf8"}) {
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ucurr_getKeywordValuesForLocale_nid_postfix("currency", locale, 1, &ok); }), "an i-default currency locale whose region ICU infers through the default throws");
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ucal_getKeywordValuesForLocale_nid_postfix("calendar", locale, 1, &ok); }), "an i-default calendar locale whose region ICU infers through the default throws");
+    }
+    for (const char* locale : {"i-default_US@x=y", "i-default@rg=dezzzz", "i-default", "de_CH"}) {
+        for (std::int8_t commonlyUsed : {std::int8_t{1}, std::int8_t{0}}) {
+            status = Ok;
+            hostStatus = U_ZERO_ERROR;
+            CheckSame(ucurr_getKeywordValuesForLocale_nid_postfix("currency", locale, commonlyUsed, &status), ucurr_getKeywordValuesForLocale("currency", locale, commonlyUsed, &hostStatus), "a currency locale with a region never infers it through the default");
+            status = Ok;
+            hostStatus = U_ZERO_ERROR;
+            CheckSame(ucal_getKeywordValuesForLocale_nid_postfix("calendar", locale, commonlyUsed, &status), ucal_getKeywordValuesForLocale("calendar", locale, commonlyUsed, &hostStatus), "a calendar locale with a region never infers it through the default");
+        }
+    }
+    for (const char* locale : {"i-default", "en", "en_US", "de@collation=phonebook"}) {
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        CheckSame(ucol_getKeywordValuesForLocale_nid_postfix("collation", locale, 0, &status), ucol_getKeywordValuesForLocale("collation", locale, 0, &hostStatus), "a collation locale ICU canonicalizes without the default matches ICU");
+        Require(status == hostStatus, "the collation lookup status matches ICU");
+    }
+    for (const char* locale : {"i-default@collation=phonebook", "i-default-x@a=b;b=c"}) {
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        CheckSame(uloc_openKeywords_nid_postfix(locale, &status), uloc_openKeywords(locale, &hostStatus), "uloc_openKeywords never canonicalizes the locale");
+    }
+    status = Ok;
+    uloc_setDefault_nid_postfix("de_CH", &status);
+    uloc_setDefault("de_CH", &hostStatus);
+    for (const char* locale : {"i-default@collation=phonebook", "i-default-x@a=b", "i-default.utf8"}) {
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        CheckSame(ucol_getKeywordValuesForLocale_nid_postfix("collation", locale, 0, &status), ucol_getKeywordValuesForLocale("collation", locale, 0, &hostStatus), "an i-default collation locale uses the guest default");
+        Require(status == hostStatus, "the defaulted collation lookup status matches ICU");
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        CheckSame(ucurr_getKeywordValuesForLocale_nid_postfix("currency", locale, 1, &status), ucurr_getKeywordValuesForLocale("currency", locale, 1, &hostStatus), "an i-default currency locale uses the guest default's region");
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        CheckSame(ucal_getKeywordValuesForLocale_nid_postfix("calendar", locale, 1, &status), ucal_getKeywordValuesForLocale("calendar", locale, 1, &hostStatus), "an i-default calendar locale uses the guest default's region");
+    }
+    status = Ok;
+    UEnumeration* swiss = ucurr_getKeywordValuesForLocale_nid_postfix("currency", "i-default@x=y", 1, &status);
+    std::int32_t length = 0;
+    const char* first = GuestEnumerationNext(swiss, &length, &status);
+    Require(first && std::strcmp(first, "CHF") == 0, "the guest default's region decides the preferred currency");
+    GuestEnumerationClose(swiss);
+    uloc_setDefault_nid_postfix(nullptr, &status);
+}
+
 }
 
 int main() {
@@ -375,6 +430,7 @@ int main() {
     CheckConverters();
     CheckCalendars();
     CheckCollationKeywords();
+    CheckIDefault();
     Require(live == 0, "every guest enumeration is freed");
     std::puts("guest_icu_enumeration_sources passed");
     return 0;

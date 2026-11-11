@@ -4,6 +4,7 @@
 #include <unicode/ucol.h>
 #include <unicode/udata.h>
 #include <unicode/uiter.h>
+#include <unicode/uloc.h>
 #include <unicode/uniset.h>
 #include <unicode/uset.h>
 #include <cstdint>
@@ -140,6 +141,53 @@ void CheckOpen() {
     ucol_close_nid_postfix(swedish);
     uloc_setDefault_nid_postfix(nullptr, &setStatus);
     Require(Throws<std::runtime_error>([] { std::int32_t ok = Ok; ucol_open_nid_postfix(nullptr, &ok); }), "the default is unknown again");
+}
+
+void CheckIDefault() {
+    char tag[32];
+    UErrorCode tagStatus = U_ZERO_ERROR;
+    Require(uloc_forLanguageTag("i-default", tag, sizeof(tag), nullptr, &tagStatus) > 0 && std::strcmp(tag, "en@x=i-default") == 0, "ICU converts a plain i-default as a grandfathered language tag");
+    for (const char* locale : {"i-default@collation=phonebook", "i-default_US@x=y", "i-default-x@a=b", "i-default.utf8", "I-DEFAULT@collation=phonebook", "i_default@collation=phonebook"}) {
+        Require(Throws<std::runtime_error>([&] { std::int32_t ok = Ok; ucol_open_nid_postfix(locale, &ok); }), "an i-default locale that ICU canonicalizes to the default throws");
+        std::int32_t status = IllegalArgument;
+        Require(!ucol_open_nid_postfix(locale, &status) && status == IllegalArgument, "a failed status returns before the locale");
+    }
+    for (const char* locale : {"i-default", "I-DEFAULT", "i-defaults@collation=phonebook", "de@collation=phonebook"}) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UCollator* guest = ucol_open_nid_postfix(locale, &status);
+        UCollator* host = ucol_open(locale, &hostStatus);
+        Require(guest && host && status == hostStatus, "a locale ICU canonicalizes without the default opens as in ICU");
+        UErrorCode first = U_ZERO_ERROR;
+        UErrorCode second = U_ZERO_ERROR;
+        Require(std::strcmp(ucol_getLocaleByType(guest, ULOC_ACTUAL_LOCALE, &first), ucol_getLocaleByType(host, ULOC_ACTUAL_LOCALE, &second)) == 0, "the same tailoring opens without the default");
+        Require(Compare(guest, u"\u00E4", u"ad") == ucol_strcoll(host, u"\u00E4", -1, u"ad", -1), "the collator orders as ICU's");
+        ucol_close_nid_postfix(guest);
+        ucol_close(host);
+    }
+    std::int32_t setStatus = Ok;
+    UErrorCode hostSetStatus = U_ZERO_ERROR;
+    uloc_setDefault_nid_postfix("de", &setStatus);
+    uloc_setDefault("de", &hostSetStatus);
+    for (const char* locale : {"i-default@collation=phonebook", "i-default_US@x=y", "i-default.utf8", "I-DEFAULT@collation=phonebook"}) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UCollator* guest = ucol_open_nid_postfix(locale, &status);
+        UCollator* host = ucol_open(locale, &hostStatus);
+        Require(guest && host && status == hostStatus, "an i-default locale opens with a guest default");
+        UErrorCode first = U_ZERO_ERROR;
+        UErrorCode second = U_ZERO_ERROR;
+        Require(std::strcmp(ucol_getLocaleByType(guest, ULOC_ACTUAL_LOCALE, &first), ucol_getLocaleByType(host, ULOC_ACTUAL_LOCALE, &second)) == 0, "the guest default's tailoring opens");
+        Require(Compare(guest, u"\u00E4", u"ad") == ucol_strcoll(host, u"\u00E4", -1, u"ad", -1), "the guest default orders as ICU's");
+        ucol_close_nid_postfix(guest);
+        ucol_close(host);
+    }
+    std::int32_t status = Ok;
+    UCollator* phonebook = ucol_open_nid_postfix("i-default@collation=phonebook", &status);
+    Require(phonebook && Compare(phonebook, u"\u00E4", u"ad") == Greater, "the guest default with the phonebook keyword sorts a umlaut as ae");
+    ucol_close_nid_postfix(phonebook);
+    uloc_setDefault_nid_postfix(nullptr, &setStatus);
+    Require(Throws<std::runtime_error>([] { std::int32_t ok = Ok; ucol_open_nid_postfix("i-default@collation=phonebook", &ok); }), "the i-default locale throws again without a guest default");
 }
 
 void CheckKnownOrder() {
@@ -452,6 +500,7 @@ int main() {
     UErrorCode access = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &access);
     CheckOpen();
+    CheckIDefault();
     CheckKnownOrder();
     CheckUtf8();
     CheckSweep();

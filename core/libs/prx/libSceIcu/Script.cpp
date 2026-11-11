@@ -24,6 +24,7 @@ extern "C" {
 
 std::int32_t APS5_VABI uscript_getCode_nid_postfix(const char* nameOrAbbrOrLocale, std::int32_t* fillIn, std::int32_t capacity, std::int32_t* status) {
     UErrorCode* error = RequiredStatus(status);
+    if (U_SUCCESS(*error) && nameOrAbbrOrLocale && (fillIn == nullptr ? capacity == 0 : capacity >= 0)) IcuBackend::CanonicalLocale(nameOrAbbrOrLocale);
     return uscript_getCode(nameOrAbbrOrLocale, reinterpret_cast<UScriptCode*>(fillIn), capacity, error);
 }
 
