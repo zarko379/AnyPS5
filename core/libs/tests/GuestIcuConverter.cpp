@@ -7,7 +7,9 @@
 #include <unicode/ucnv_cb.h>
 #include <unicode/ucnv_err.h>
 #include <unicode/udata.h>
+#include <unicode/uenum.h>
 #include <unicode/ustring.h>
+#include "ucnv_io.h"
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -1118,6 +1120,159 @@ void CheckThreads() {
 
 }
 
+namespace {
+
+std::string Text(const char* text) {
+    return text ? text : "(null)";
+}
+
+void CheckAvailable() {
+    SetDefault(nullptr);
+    Require(NotImplemented([] { ucnv_countAvailable_nid_postfix(); }), "the first converter list opens the default converter");
+    Require(NotImplemented([] { ucnv_getAvailableName_nid_postfix(0); }), "the first available name opens the default converter");
+    Require(ucnv_getAvailableName_nid_postfix(-1) == nullptr && ucnv_getAvailableName_nid_postfix(0x10000) == nullptr, "out-of-range names need no list");
+    SetDefault("ISO-8859-1");
+    const std::int32_t count = ucnv_countAvailable_nid_postfix();
+    Require(count == ucnv_countAvailable(), "countAvailable");
+    for (std::int32_t index = 0; index <= count; ++index)
+        Require(Text(ucnv_getAvailableName_nid_postfix(index)) == Text(ucnv_getAvailableName(index)), "available name " + std::to_string(index));
+    ucnv_setDefaultName_nid_postfix(nullptr);
+    Require(ucnv_countAvailable_nid_postfix() == count && ucnv_getAvailableName_nid_postfix(0) != nullptr, "a built list needs no default");
+    SetDefault(nullptr);
+    Require(NotImplemented([] { ucnv_countAvailable_nid_postfix(); }), "u_cleanup drops the list");
+    SetDefault("UTF-8");
+    Require(ucnv_getAvailableName_nid_postfix(0) != nullptr, "the list builds from getAvailableName");
+    ucnv_setDefaultName_nid_postfix(nullptr);
+    Require(ucnv_countAvailable_nid_postfix() == count, "getAvailableName built the list");
+    SetDefault("US-ASCII");
+    Require(ucnv_countAvailable_nid_postfix() == count, "the list builds from countAvailable");
+    ucnv_setDefaultName_nid_postfix(nullptr);
+    Require(Text(ucnv_getAvailableName_nid_postfix(count - 1)) == Text(ucnv_getAvailableName(count - 1)), "countAvailable built the list");
+    SetDefault(nullptr);
+}
+
+void CheckAliases() {
+    for (const char* alias : {"UTF-8", "utf8", "Shift_JIS", "ibm-943", "windows-1252", "ISO-2022-JP", "x-sjis", "GB18030", "", "no-such-name", "ibm-1047_P100-1995,swaplfnl"}) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        const std::uint16_t count = ucnv_countAliases_nid_postfix(alias, &status);
+        Require(count == ucnv_countAliases(alias, &hostStatus) && status == hostStatus, std::string("countAliases ") + alias);
+        for (std::uint16_t index = 0; index <= count; ++index) {
+            status = Ok;
+            hostStatus = U_ZERO_ERROR;
+            Require(Text(ucnv_getAlias_nid_postfix(alias, index, &status)) == Text(ucnv_getAlias(alias, index, &hostStatus)) && status == hostStatus, std::string("getAlias ") + alias);
+        }
+        std::vector<const char*> guest(count + 2u, reinterpret_cast<const char*>(1));
+        std::vector<const char*> host(count + 2u, reinterpret_cast<const char*>(1));
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        ucnv_getAliases_nid_postfix(alias, guest.data(), &status);
+        ucnv_getAliases(alias, host.data(), &hostStatus);
+        Require(status == hostStatus && guest[count] == reinterpret_cast<const char*>(1) && guest[count + 1u] == reinterpret_cast<const char*>(1), std::string("getAliases ") + alias);
+        for (std::size_t index = 0; index < count; ++index) Require(guest[index] && host[index] && std::strcmp(guest[index], host[index]) == 0, std::string("getAliases entry ") + alias);
+        for (std::size_t index = 0; index < count; ++index) Require(guest[index] && std::strcmp(guest[index], ucnv_getAlias_nid_postfix(alias, static_cast<std::uint16_t>(index), &status)) == 0, "getAliases matches getAlias");
+        if (count > 0) Require(Invalid([&] { std::int32_t error = Ok; ucnv_getAliases_nid_postfix(alias, nullptr, &error); }), std::string("getAliases null array ") + alias);
+        else ucnv_getAliases_nid_postfix(alias, nullptr, &status);
+    }
+    std::int32_t status = Ok;
+    Require(ucnv_countAliases_nid_postfix("UTF-8", &status) > 3, "UTF-8 aliases");
+    Require(ucnv_getAlias_nid_postfix("UTF-8", 60000, &status) == nullptr && status == U_INDEX_OUTOFBOUNDS_ERROR, "getAlias out of range");
+    status = Ok;
+    Require(ucnv_countAliases_nid_postfix(nullptr, &status) == 0 && status == U_ILLEGAL_ARGUMENT_ERROR, "countAliases null alias");
+    std::int32_t failed = U_INVALID_CHAR_FOUND;
+    ucnv_getAliases_nid_postfix("UTF-8", nullptr, &failed);
+    Require(failed == U_INVALID_CHAR_FOUND, "getAliases with a failed status");
+    Require(Invalid([] { ucnv_countAliases_nid_postfix("UTF-8", nullptr); }) && Invalid([] { ucnv_getAlias_nid_postfix("UTF-8", 0, nullptr); }) && Invalid([] { const char* list[64]; ucnv_getAliases_nid_postfix("UTF-8", list, nullptr); }), "alias functions need a status");
+}
+
+void CheckStandards() {
+    const std::uint16_t count = ucnv_countStandards_nid_postfix();
+    Require(count == ucnv_countStandards() && count > 5, "countStandards");
+    std::vector<std::string> standards;
+    for (std::uint16_t index = 0; index <= count; ++index) {
+        std::int32_t status = Ok;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        const char* name = ucnv_getStandard_nid_postfix(index, &status);
+        Require(Text(name) == Text(ucnv_getStandard(index, &hostStatus)) && status == hostStatus, "getStandard " + std::to_string(index));
+        if (name) standards.push_back(name);
+    }
+    Require(standards.size() == count, "every standard has a name");
+    standards.push_back("NONE");
+    std::int32_t status = Ok;
+    Require(ucnv_getStandard_nid_postfix(count, &status) == nullptr && status == U_INDEX_OUTOFBOUNDS_ERROR, "getStandard past the end");
+    status = Ok;
+    Require(Text(ucnv_getStandardName_nid_postfix("UTF-8", "MIME", &status)) == "UTF-8", "MIME name of UTF-8");
+    Require(Text(ucnv_getStandardName_nid_postfix("ibm-943_P15A-2003", "IANA", &status)) == "Shift_JIS", "IANA name of ibm-943");
+    Require(Text(ucnv_getCanonicalName_nid_postfix("Shift_JIS", "MIME", &status)) == "ibm-943_P15A-2003", "canonical name of Shift_JIS");
+    Require(Text(ucnv_getCanonicalName_nid_postfix("windows-1252", "WINDOWS", &status)) == "ibm-5348_P100-1997", "canonical name of windows-1252");
+    for (const char* alias : {"Shift_JIS", "UTF-8", "ibm-943_P15A-2003"}) {
+        status = Ok;
+        UErrorCode expected = U_ZERO_ERROR;
+        Require(ucnv_getCanonicalName_nid_postfix(alias, nullptr, &status) == nullptr && ucnv_getCanonicalName(alias, nullptr, &expected) == nullptr && status == expected, std::string("a NULL standard for the canonical name of ") + alias);
+        status = Ok;
+        expected = U_ZERO_ERROR;
+        Require(ucnv_getStandardName_nid_postfix(alias, nullptr, &status) == nullptr && ucnv_getStandardName(alias, nullptr, &expected) == nullptr && status == expected, std::string("a NULL standard for the standard name of ") + alias);
+    }
+    status = Ok;
+    Require(Invalid([] { ucnv_getStandardName_nid_postfix("UTF-8", "MIME", nullptr); }) && Invalid([] { ucnv_getCanonicalName_nid_postfix("UTF-8", "MIME", nullptr); }) && Invalid([] { ucnv_getStandard_nid_postfix(0, nullptr); }), "standard functions need a status");
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    const std::uint16_t known = ucnv_io_countKnownConverters_nid_postfix(&status);
+    Require(known == ucnv_io_countKnownConverters(&hostStatus) && known > 100, "countKnownConverters");
+    Require(Invalid([] { ucnv_io_countKnownConverters_nid_postfix(nullptr); }), "countKnownConverters needs a status");
+    hostStatus = U_ZERO_ERROR;
+    UEnumeration* names = ucnv_openAllNames(&hostStatus);
+    const char* converter = nullptr;
+    while ((converter = uenum_next(names, nullptr, &hostStatus)) != nullptr) {
+        for (const std::string& standard : standards) {
+            status = Ok;
+            UErrorCode expected = U_ZERO_ERROR;
+            Require(Text(ucnv_getStandardName_nid_postfix(converter, standard.c_str(), &status)) == Text(ucnv_getStandardName(converter, standard.c_str(), &expected)) && status == expected, std::string("getStandardName ") + converter + " " + standard);
+            const char* preferred = ucnv_getStandardName(converter, standard.c_str(), &expected);
+            if (!preferred) continue;
+            status = Ok;
+            expected = U_ZERO_ERROR;
+            Require(Text(ucnv_getCanonicalName_nid_postfix(preferred, standard.c_str(), &status)) == Text(ucnv_getCanonicalName(preferred, standard.c_str(), &expected)) && status == expected, std::string("getCanonicalName ") + preferred + " " + standard);
+        }
+    }
+    uenum_close(names);
+    for (const char* alias : {"UTF-8", "ISO-2022-JP", "x-sjis", "x-UTF-8", "x-", "", "no-such", "ibm-1047,swaplfnl", "Shift_JIS"}) {
+        std::int8_t contains = 7;
+        UBool hostContains = 7;
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        Require(Text(ucnv_io_getConverterName_nid_postfix(alias, &contains, &status)) == Text(ucnv_io_getConverterName(alias, &hostContains, &hostStatus)) && contains == hostContains && status == hostStatus, std::string("getConverterName ") + alias);
+        status = Ok;
+        ucnv_io_getConverterName_nid_postfix(alias, nullptr, &status);
+    }
+    std::int8_t contains = 0;
+    status = Ok;
+    Require(Text(ucnv_io_getConverterName_nid_postfix("ISO-2022-JP", &contains, &status)) == "ISO_2022,locale=ja,version=0" && contains == 1, "ISO-2022-JP carries options");
+    status = Ok;
+    Require(ucnv_io_getConverterName_nid_postfix(nullptr, &contains, &status) == nullptr && status == U_ILLEGAL_ARGUMENT_ERROR, "getConverterName null alias");
+    Require(Invalid([] { ucnv_io_getConverterName_nid_postfix("UTF-8", nullptr, nullptr); }), "getConverterName needs a status");
+}
+
+void CheckCache() {
+    ucnv_enableCleanup_nid_postfix();
+    std::int32_t status = Ok;
+    UConverter* kept = ucnv_open_nid_postfix("ibm-1047", &status);
+    UConverter* dropped = ucnv_open_nid_postfix("ibm-943_P15A-2003", &status);
+    ucnv_close_nid_postfix(dropped);
+    Require(ucnv_flushCache_nid_postfix() >= 1, "flushCache frees an unused table");
+    Require(ucnv_flushCache_nid_postfix() == 0, "nothing left to free");
+    ucnv_close_nid_postfix(kept);
+    Require(ucnv_flushCache_nid_postfix() == 1, "flushCache frees a table after its last converter closes");
+    UConverter* algorithmic = ucnv_open_nid_postfix("UTF-16", &status);
+    ucnv_close_nid_postfix(algorithmic);
+    Require(ucnv_flushCache_nid_postfix() == 0, "algorithmic converters are not cached");
+    status = Ok;
+    UConverter* reopened = ucnv_open_nid_postfix("ibm-1047", &status);
+    Require(reopened && status == Ok && Convert(reopened, Units({0x41}), &status) == Bytes({0xc1}), "a flushed table loads again");
+    ucnv_close_nid_postfix(reopened);
+}
+
+}
+
 int main() {
     UErrorCode status = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &status);
@@ -1138,6 +1293,10 @@ int main() {
     CheckEscapeExports();
     CheckWriteExports();
     CheckThreads();
+    CheckAvailable();
+    CheckAliases();
+    CheckStandards();
+    CheckCache();
     SetDefault(nullptr);
     std::puts("guest_icu_converter passed");
     return 0;

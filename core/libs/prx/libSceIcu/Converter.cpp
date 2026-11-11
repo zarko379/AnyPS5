@@ -8,6 +8,7 @@
 #include <unicode/ustring.h>
 #include "ucnv_bld.h"
 #include "ucnv_imp.h"
+#include "ucnv_io.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -680,6 +681,74 @@ void APS5_VABI ucnv_cbToUWriteUChars_nid_postfix(Icu::ConverterToUnicodeArgs* ar
 void APS5_VABI ucnv_cbToUWriteSub_nid_postfix(Icu::ConverterToUnicodeArgs* arguments, std::int32_t offsetIndex, std::int32_t* status) {
     UErrorCode* error = Status(status);
     ucnv_cbToUWriteSub(WithConverter(ToArgs(arguments)), offsetIndex, error);
+}
+
+std::int32_t APS5_VABI ucnv_flushCache_nid_postfix() {
+    IcuBackend::Ensure();
+    return ucnv_flushCache();
+}
+
+void APS5_VABI ucnv_enableCleanup_nid_postfix() {
+    IcuBackend::Ensure();
+    ucnv_enableCleanup();
+}
+
+std::int32_t APS5_VABI ucnv_countAvailable_nid_postfix() {
+    IcuBackend::ConverterList();
+    const std::int32_t count = ucnv_countAvailable();
+    IcuBackend::ConverterListBuilt();
+    return count;
+}
+
+const char* APS5_VABI ucnv_getAvailableName_nid_postfix(std::int32_t index) {
+    IcuBackend::Ensure();
+    if (index < 0 || index > 0xffff) return nullptr;
+    IcuBackend::ConverterList();
+    const char* name = ucnv_getAvailableName(index);
+    IcuBackend::ConverterListBuilt();
+    return name;
+}
+
+std::uint16_t APS5_VABI ucnv_countAliases_nid_postfix(const char* alias, std::int32_t* status) {
+    return ucnv_countAliases(alias, Status(status));
+}
+
+const char* APS5_VABI ucnv_getAlias_nid_postfix(const char* alias, std::uint16_t index, std::int32_t* status) {
+    return ucnv_getAlias(alias, index, Status(status));
+}
+
+void APS5_VABI ucnv_getAliases_nid_postfix(const char* alias, const char** aliases, std::int32_t* status) {
+    UErrorCode* error = Status(status);
+    if (!aliases) {
+        UErrorCode probe = *error;
+        if (ucnv_countAliases(alias, &probe) > 0) APS5_INVALID_ARG_EX;
+    }
+    ucnv_getAliases(alias, aliases, error);
+}
+
+std::uint16_t APS5_VABI ucnv_countStandards_nid_postfix() {
+    IcuBackend::Ensure();
+    return ucnv_countStandards();
+}
+
+const char* APS5_VABI ucnv_getStandard_nid_postfix(std::uint16_t index, std::int32_t* status) {
+    return ucnv_getStandard(index, Status(status));
+}
+
+const char* APS5_VABI ucnv_getStandardName_nid_postfix(const char* name, const char* standard, std::int32_t* status) {
+    return ucnv_getStandardName(name, standard, Status(status));
+}
+
+const char* APS5_VABI ucnv_getCanonicalName_nid_postfix(const char* alias, const char* standard, std::int32_t* status) {
+    return ucnv_getCanonicalName(alias, standard, Status(status));
+}
+
+std::uint16_t APS5_VABI ucnv_io_countKnownConverters_nid_postfix(std::int32_t* status) {
+    return ucnv_io_countKnownConverters(Status(status));
+}
+
+const char* APS5_VABI ucnv_io_getConverterName_nid_postfix(const char* alias, std::int8_t* containsOption, std::int32_t* status) {
+    return ucnv_io_getConverterName(alias, Flag(containsOption), Status(status));
 }
 
 }

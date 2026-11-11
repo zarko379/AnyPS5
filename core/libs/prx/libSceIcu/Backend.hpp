@@ -34,6 +34,8 @@ void CheckTracked(const void* handle);
 bool Tracked(const void* handle);
 void Untrack(const void* handle);
 void PatternGenerator();
+void ConverterList();
+void ConverterListBuilt();
 void Cleanup();
 USet* GuestSet(const USet* host);
 UEnumeration* GuestEnumeration(UEnumeration* host, std::int32_t* status);

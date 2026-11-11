@@ -29,6 +29,7 @@ std::atomic<bool> guestDefaultLocale{false};
 std::atomic<bool> guestDefaultConverter{false};
 std::atomic<bool> patternGeneratorUsed{false};
 std::atomic<bool> patternGeneratorFreed{false};
+std::atomic<bool> converterListBuilt{false};
 
 std::mutex& TrackedMutex() {
     static std::mutex mutex;
@@ -284,6 +285,15 @@ void PatternGenerator() {
     patternGeneratorUsed.store(true);
 }
 
+void ConverterList() {
+    Ensure();
+    if (!converterListBuilt.load() && !guestDefaultConverter.load()) NotImplemented_nid_no_patch("libSceIcu: the first converter list (ICU 68.2 opens the default converter, which it takes from the host's code page without a guest default)");
+}
+
+void ConverterListBuilt() {
+    converterListBuilt.store(true);
+}
+
 void Cleanup() {
     static std::mutex cleanupMutex;
     const std::lock_guard lock(cleanupMutex);
@@ -292,6 +302,7 @@ void Cleanup() {
     if (patternGeneratorUsed.load()) patternGeneratorFreed.store(true);
     guestDefaultLocale.store(false);
     guestDefaultConverter.store(false);
+    converterListBuilt.store(false);
     ApplyFileAccess();
 }
 

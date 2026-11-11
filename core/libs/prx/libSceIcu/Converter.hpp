@@ -63,4 +63,17 @@ void APS5_VABI ucnv_cbFromUWriteSub_nid_postfix(Icu::ConverterFromUnicodeArgs* a
 void APS5_VABI ucnv_cbFromUWriteUChars_nid_postfix(Icu::ConverterFromUnicodeArgs* arguments, const char16_t** source, const char16_t* sourceLimit, std::int32_t offsetIndex, std::int32_t* status);
 void APS5_VABI ucnv_cbToUWriteUChars_nid_postfix(Icu::ConverterToUnicodeArgs* arguments, const char16_t* source, std::int32_t length, std::int32_t offsetIndex, std::int32_t* status);
 void APS5_VABI ucnv_cbToUWriteSub_nid_postfix(Icu::ConverterToUnicodeArgs* arguments, std::int32_t offsetIndex, std::int32_t* status);
+std::int32_t APS5_VABI ucnv_flushCache_nid_postfix();
+void APS5_VABI ucnv_enableCleanup_nid_postfix();
+std::int32_t APS5_VABI ucnv_countAvailable_nid_postfix();
+const char* APS5_VABI ucnv_getAvailableName_nid_postfix(std::int32_t index);
+std::uint16_t APS5_VABI ucnv_countAliases_nid_postfix(const char* alias, std::int32_t* status);
+const char* APS5_VABI ucnv_getAlias_nid_postfix(const char* alias, std::uint16_t index, std::int32_t* status);
+void APS5_VABI ucnv_getAliases_nid_postfix(const char* alias, const char** aliases, std::int32_t* status);
+std::uint16_t APS5_VABI ucnv_countStandards_nid_postfix();
+const char* APS5_VABI ucnv_getStandard_nid_postfix(std::uint16_t index, std::int32_t* status);
+const char* APS5_VABI ucnv_getStandardName_nid_postfix(const char* name, const char* standard, std::int32_t* status);
+const char* APS5_VABI ucnv_getCanonicalName_nid_postfix(const char* alias, const char* standard, std::int32_t* status);
+std::uint16_t APS5_VABI ucnv_io_countKnownConverters_nid_postfix(std::int32_t* status);
+const char* APS5_VABI ucnv_io_getConverterName_nid_postfix(const char* alias, std::int8_t* containsOption, std::int32_t* status);
 }
