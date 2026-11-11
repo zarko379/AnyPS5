@@ -197,6 +197,10 @@ void CheckLocaleKeywords() {
     const char doubled[] = {'a', 0, 0, 'b', 0};
     CheckSame(uloc_openKeywordList_nid_postfix(doubled, 5, &status), uloc_openKeywordList(doubled, 5, &hostStatus), "a list stops at an empty keyword");
     CheckSame(uloc_openKeywordList_nid_postfix(nullptr, 0, &status), uloc_openKeywordList("", 0, &hostStatus), "an empty keyword list");
+    const char tail[] = {'a', 0, 0, 'b'};
+    CheckSame(uloc_openKeywordList_nid_postfix(tail, 4, &status), uloc_openKeywordList(tail, 4, &hostStatus), "an unterminated tail after an empty keyword is never read");
+    const char leading[] = {0, 'x'};
+    CheckSame(uloc_openKeywordList_nid_postfix(leading, 2, &status), uloc_openKeywordList(leading, 2, &hostStatus), "a leading empty keyword ends the list");
     Require(Throws<std::invalid_argument>([&] { std::int32_t ok = Ok; uloc_openKeywordList_nid_postfix(list, 4, &ok); }), "a list whose last keyword is not terminated throws");
     Require(Throws<std::invalid_argument>([&] { std::int32_t ok = Ok; uloc_openKeywordList_nid_postfix(list, -1, &ok); }), "a negative size throws");
     Require(Throws<std::invalid_argument>([&] { std::int32_t ok = Ok; uloc_openKeywordList_nid_postfix(nullptr, 3, &ok); }), "a NULL list with a size throws");

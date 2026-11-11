@@ -8,11 +8,22 @@
 #include <unicode/uloc.h>
 #include <unicode/unumsys.h>
 #include "ulocimp.h"
+#include <cstring>
 
 namespace {
 
 UErrorCode* Status(std::int32_t* status) {
     return reinterpret_cast<UErrorCode*>(IcuBackend::RequireStatus(status));
+}
+
+void RequireTerminatedKeywords(const char* keywordList, std::int32_t keywordListSize) {
+    if (keywordListSize < 0 || (keywordListSize > 0 && !keywordList)) APS5_INVALID_ARG_EX;
+    std::int32_t position = 0;
+    while (position < keywordListSize && keywordList[position] != '\0') {
+        const void* end = std::memchr(keywordList + position, 0, static_cast<std::size_t>(keywordListSize - position));
+        if (!end) APS5_INVALID_ARG_EX;
+        position = static_cast<std::int32_t>(static_cast<const char*>(end) - keywordList) + 1;
+    }
 }
 
 UEnumeration* Guest(UEnumeration* host, std::int32_t* status) {
@@ -33,7 +44,7 @@ UEnumeration* APS5_VABI uloc_openKeywords_nid_postfix(const char* localeID, std:
 UEnumeration* APS5_VABI uloc_openKeywordList_nid_postfix(const char* keywordList, std::int32_t keywordListSize, std::int32_t* status) {
     UErrorCode* error = Status(status);
     if (U_FAILURE(*error)) return nullptr;
-    if (keywordListSize < 0 || (keywordListSize > 0 && (!keywordList || keywordList[keywordListSize - 1] != '\0'))) APS5_INVALID_ARG_EX;
+    RequireTerminatedKeywords(keywordList, keywordListSize);
     return Guest(uloc_openKeywordList(keywordList, keywordListSize, error), status);
 }
 
