@@ -1,5 +1,5 @@
 #pragma once
-#include "prx/libSceIcu/Properties.hpp"
+#include "prx/libSceIcu/CharacterProperties.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <cstdint>
 

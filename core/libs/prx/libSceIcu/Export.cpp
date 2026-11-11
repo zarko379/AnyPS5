@@ -78,7 +78,6 @@ int APS5_VABI u_releaseDefaultConverter_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-
 int APS5_VABI ubrk_setUText() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -88,6 +87,14 @@ int APS5_VABI udata_setCommonData() {
 }
 
 int APS5_VABI udata_setFileAccess() {
+    NotImplemented_nid_no_patch(__func__);
+}
+
+int APS5_VABI unorm2_getNFKCInstance() {
+    NotImplemented_nid_no_patch(__func__);
+}
+
+int APS5_VABI unorm2_getNFKDInstance() {
     NotImplemented_nid_no_patch(__func__);
 }
 

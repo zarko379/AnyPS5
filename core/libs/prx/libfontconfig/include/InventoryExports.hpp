@@ -4,6 +4,7 @@
 #include "prx/libfontconfig/include/Types.hpp"
 
 struct FcObjectSet;
+namespace FreeType { struct GuestFaceRec; }
 
 extern "C" {
 
@@ -40,7 +41,7 @@ FcBool APS5_VABI FcPatternAddString(FcPattern* pattern, const char* object, cons
 FcLangResult APS5_VABI FcLangSetHasLang(const FcLangSet* set, const FcChar8* language);
 FcCharSet* APS5_VABI FcCharSetCreate();
 FcLangSet* APS5_VABI FcLangSetCreate();
-int APS5_VABI FcFreeTypeCharIndex();
+std::uint32_t APS5_VABI FcFreeTypeCharIndex(FreeType::GuestFaceRec* face, std::uint32_t character);
 void APS5_VABI FcPatternDestroy(FcPattern* pattern);
 int APS5_VABI FcCharSetAddChar(FcCharSet* set, uint32_t character);
 void APS5_VABI FcMatrixMultiply(FcMatrix* result, const FcMatrix* first, const FcMatrix* second);

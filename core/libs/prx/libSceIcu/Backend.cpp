@@ -22,6 +22,7 @@
 namespace IcuBackend {
 
 static_assert(UCONFIG_NO_FILE_IO, "the backend must never map ICU data files from disk");
+static_assert(U_ICU_VERSION_MAJOR_NUM == 68, "the backend sources must compile against the bundled ICU 68.2 headers");
 
 namespace {
 

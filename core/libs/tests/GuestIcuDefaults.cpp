@@ -1,6 +1,6 @@
 #include "prx/libSceIcu/Defaults.hpp"
 #include "prx/libSceIcu/Configuration.hpp"
-#include "prx/libSceIcu/Normalization.hpp"
+#include "prx/libSceIcu/CharacterProperties.hpp"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -95,9 +95,9 @@ void CheckCleanup() {
     u_cleanup_nid_postfix();
     Require(Throws<std::runtime_error>([] { uloc_getDefault_nid_postfix(); }), "u_cleanup forgets the guest's default locale");
     Require(Throws<std::runtime_error>([] { ucnv_getDefaultName_nid_postfix(); }), "u_cleanup forgets the guest's default converter");
-    const UNormalizer2* nfc = unorm2_getNFCInstance_nid_postfix(&status);
-    char16_t buffer[4]{};
-    Require(nfc && status == Ok && unorm2_normalize_nid_postfix(nfc, u"Å", 2, buffer, 4, &status) == 1 && buffer[0] == u'Å', "the embedded data loads again after u_cleanup");
+    status = Ok;
+    char buffer[48]{};
+    Require(u_charFromName_nid_postfix(0, "LATIN CAPITAL LETTER A WITH RING ABOVE", &status) == 0xC5 && status == Ok && u_charName_nid_postfix(0xC5, 0, buffer, 48, &status) == 38 && status == Ok && std::strcmp(buffer, "LATIN CAPITAL LETTER A WITH RING ABOVE") == 0, "the embedded data loads again after u_cleanup");
 }
 
 }
