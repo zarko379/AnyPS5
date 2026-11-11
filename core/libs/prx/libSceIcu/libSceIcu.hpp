@@ -42,3 +42,4 @@
 #include "BreakIterator.hpp"
 #include "NumberFormat.hpp"
 #include "TextFormat.hpp"
+#include "NumberFormatter.hpp"

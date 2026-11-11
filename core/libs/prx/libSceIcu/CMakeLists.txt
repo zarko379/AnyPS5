@@ -12,7 +12,7 @@ target_sources(libSceIcu PRIVATE Resource.cpp)
 target_sources(libSceIcu PRIVATE Locale.cpp)
 
 include(Backend.cmake)
-target_sources(libSceIcu PRIVATE Backend.cpp Normalization.cpp Defaults.cpp Properties.cpp Script.cpp Bidi.cpp CaseMap.cpp Collation.cpp StringSearch.cpp Idna.cpp EnumerationSources.cpp BreakIterator.cpp NumberFormat.cpp TextFormat.cpp IcuData.cpp)
+target_sources(libSceIcu PRIVATE Backend.cpp Normalization.cpp Defaults.cpp Properties.cpp Script.cpp Bidi.cpp CaseMap.cpp Collation.cpp StringSearch.cpp Idna.cpp EnumerationSources.cpp BreakIterator.cpp NumberFormat.cpp TextFormat.cpp NumberFormatter.cpp IcuData.cpp)
 target_link_libraries(libSceIcu PRIVATE icu_i18n_backend icu_common_backend)
 add_dependencies(libSceIcu icu_backend_data)
 set_source_files_properties(IcuData.cpp PROPERTIES
@@ -164,6 +164,18 @@ if(BUILD_TESTING)
     set_tests_properties(guest_icu_text_format PROPERTIES TIMEOUT 60)
     if(WIN32)
         set_tests_properties(guest_icu_text_format PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
+    endif()
+
+    add_test_executable(guest_icu_number_formatter_tests ${LIBS_INCLUDE_DIR}/tests/GuestIcuNumberFormatter.cpp IcuData.cpp)
+    target_include_directories(guest_icu_number_formatter_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(guest_icu_number_formatter_tests PRIVATE libSceIcu icu_i18n_backend icu_common_backend)
+    add_dependencies(guest_icu_number_formatter_tests icu_backend_data)
+    configure_windows_unwind(guest_icu_number_formatter_tests)
+    add_test(NAME guest_icu_number_formatter COMMAND guest_icu_number_formatter_tests)
+    set_tests_properties(guest_icu_number_formatter PROPERTIES TIMEOUT 60)
+    if(WIN32)
+        set_tests_properties(guest_icu_number_formatter PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
     endif()
 
