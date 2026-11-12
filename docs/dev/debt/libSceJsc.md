@@ -16,6 +16,8 @@
 
 - [WTF Unicode conversion](../../../core/libs/prx/libSceJsc/src/WtfUnicode.cpp) - not measured on a console; the console WTF version is unverified. `convertUTF8ToUTF16`, `convertUTF8ToUTF16ReplacingInvalidSequences`, `convertLatin1ToUTF8` and `convertUTF16ToUTF8` follow pinned WebKit [UTF8Conversion.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/unicode/UTF8Conversion.cpp#L37-L128), whose non-const end pointers match the mangled names, and the `U8_NEXT`, `U8_APPEND`, `U16_NEXT` and `U16_APPEND` macros of its bundled ICU 62.2 headers, unchanged in ICU 68. Where WebKit would write a code unit past the target end, these throw instead. Null pointers WebKit dereferences, lengths its `RELEASE_ASSERT`s reject and output past `INT_MAX` bytes also throw.
 
+- [WTF six-character hash](../../../core/libs/prx/libSceJsc/src/WtfSixCharacterHash.cpp) - not measured on a console; the console WTF version is unverified. `integerToSixCharacterHashString` returns a 7-byte `std::array<char, 7>` by value holding the six base-62 digits of its argument, most significant first, from the table `A`-`Z`, `a`-`z`, `0`-`9`, and a terminating zero, as pinned WebKit [SixCharacterHash.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/SixCharacterHash.cpp#L58-L68) and the PS5 11.x copy define it.
+
 ### Known export names; ABI prototypes unverified
 
 - The 139 throwing JavaScriptCore, Inspector, WTF and bmalloc exports in [Export.cpp](../../../core/libs/prx/libSceJsc/Export.cpp) are present in the PS5 3.20 `libSceJsc` export inventory from [PS5-3.20_Libs](https://github.com/DNNDHH/PS5-3.20_Libs). Each is named after the symbol the [verified NID name database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) gives for its NID, and the NID of that name matches. Prototypes and behavior are unverified; each uses the no-parameter import-resolution convention and throws through `NotImplemented_nid_no_patch`. These declarations make no ABI or behavior claim.
@@ -48,7 +50,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 333 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 332 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -286,7 +288,6 @@
 | `_ZN3WTF24releaseLineBreakIteratorEP14UBreakIterator` | `mqVRQv4SBS4` |
 | `_ZN3WTF25createCanonicalUUIDStringEv` | `i1pLagnFZ5M` |
 | `_ZN3WTF29cryptographicallyRandomNumberEv` | `wMu+dIbw7c0` |
-| `_ZN3WTF31integerToSixCharacterHashStringEj` | `bhNTXZsyzkE` |
 | `_ZN3WTF4SHA111computeHashERSt5arrayIhLm20EE` | `ALtdQuwSy0A` |
 | `_ZN3WTF4SHA19hexDigestERKSt5arrayIhLm20EE` | `pF6MaJY4tLM` |
 | `_ZN3WTF6Logger9observersEv` | `aQHUuJt0YS8` |
