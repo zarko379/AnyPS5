@@ -11,6 +11,7 @@
 #include "prx/libSceFreeTypeOt/include/Raccess.hpp"
 #include "prx/libSceFreeTypeOt/include/SizeMetrics.hpp"
 #include "prx/libSceFreeTypeOt/include/System.hpp"
+#include "prx/libSceFreeTypeOt/include/Trigonometry.hpp"
 
 extern "C" {
 int APS5_VABI FT_Glyph_Stroke_nid_postfix();
