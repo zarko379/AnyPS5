@@ -14,6 +14,8 @@
 
 - [WTF string search](../../../core/libs/prx/libSceJsc/src/WtfStringSearch.cpp) - the console WTF version and string layout are unverified. The 18 `StringImpl` queries, `StringView::contains(const char*)` and `protocolIs` read a 24-byte `StringImpl` (8-bit flag `1 << 2`) and a 16-byte `StringView` as in pinned [StringImpl.h](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/text/StringImpl.h), whose declarations match the mangled names, and follow its [StringImpl.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/text/StringImpl.cpp), [StringCommon.h](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/text/StringCommon.h) and [URL.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/URL.cpp). Null `this`, reference, match function or C string arguments throw where WebKit faults.
 
+- [WTF Unicode conversion](../../../core/libs/prx/libSceJsc/src/WtfUnicode.cpp) - not measured on a console; the console WTF version is unverified. `convertUTF8ToUTF16`, `convertUTF8ToUTF16ReplacingInvalidSequences`, `convertLatin1ToUTF8` and `convertUTF16ToUTF8` follow pinned WebKit [UTF8Conversion.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/unicode/UTF8Conversion.cpp#L37-L128), whose non-const end pointers match the mangled names, and the `U8_NEXT`, `U8_APPEND`, `U16_NEXT` and `U16_APPEND` macros of its bundled ICU 62.2 headers, unchanged in ICU 68. Where WebKit would write a code unit past the target end, these throw instead. Null pointers WebKit dereferences, lengths its `RELEASE_ASSERT`s reject and output past `INT_MAX` bytes also throw.
+
 ### Known export names; ABI prototypes unverified
 
 - The 139 throwing JavaScriptCore, Inspector, WTF and bmalloc exports in [Export.cpp](../../../core/libs/prx/libSceJsc/Export.cpp) are present in the PS5 3.20 `libSceJsc` export inventory from [PS5-3.20_Libs](https://github.com/DNNDHH/PS5-3.20_Libs). Each is named after the symbol the [verified NID name database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) gives for its NID, and the NID of that name matches. Prototypes and behavior are unverified; each uses the no-parameter import-resolution convention and throws through `NotImplemented_nid_no_patch`. These declarations make no ABI or behavior claim.
@@ -46,7 +48,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 337 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 333 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -306,10 +308,6 @@
 | `_ZN3WTF7CPUTime3getEv` | `jgHh6iq6MwI` |
 | `_ZN3WTF7RunLoop6isMainEv` | `4znIAFaCTDE` |
 | `_ZN3WTF7RunLoop7iterateEv` | `2TTHEYSAN-M` |
-| `_ZN3WTF7Unicode18convertUTF16ToUTF8EPPKDsS2_PPcS4_b` | `HblNi06Y6UI` |
-| `_ZN3WTF7Unicode18convertUTF8ToUTF16EPKcS2_PPDsS3_Pb` | `UjTDE3AQCRg` |
-| `_ZN3WTF7Unicode19convertLatin1ToUTF8EPPKhS2_PPcS4_` | `AJ7+0UjKEww` |
-| `_ZN3WTF7Unicode43convertUTF8ToUTF16ReplacingInvalidSequencesEPKcS2_PPDsS3_Pb` | `PqZUVw-1dv0` |
 | `_ZN3WTF8Internal9appendHexEPhjmjNS_17HexConversionModeE` | `J9Fo8pqmVZ4` |
 | `_ZN3WTF8JSONImpl5Value12escapeStringERNS_13StringBuilderENS_10StringViewE` | `ewZNP1Jwrx8` |
 | `_ZN3WTF8pageMaskEv` | `rIKEui9oRJg` |
