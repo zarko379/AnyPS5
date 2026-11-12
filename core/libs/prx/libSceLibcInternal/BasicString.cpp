@@ -201,6 +201,14 @@ extern "C" {
     _ZSt14_Xlength_errorPKc_nid_postfix("string too long");
 }
 
+[[noreturn]] void APS5_VABI _ZNKSbIwSt11char_traitsIwESaIwEE5_XranEv_nid_postfix(const String*) {
+    _ZSt14_Xout_of_rangePKc_nid_postfix("invalid string position");
+}
+
+[[noreturn]] void APS5_VABI _ZNKSbIwSt11char_traitsIwESaIwEE5_XlenEv_nid_postfix(const String*) {
+    _ZSt14_Xlength_errorPKc_nid_postfix("string too long");
+}
+
 String* APS5_VABI _ZNSs5eraseEmm_nid_postfix(String* self, std::size_t position, std::size_t count) {
     EraseRange(self, position, Clamp(self, position, count));
     return self;

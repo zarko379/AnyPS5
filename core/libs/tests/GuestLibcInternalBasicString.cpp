@@ -149,6 +149,12 @@ void CheckReporters() {
     String string = Empty();
     RequireOutOfRange([&] { _ZNKSs5_XranEv_nid_postfix(&string); }, "_Xran throws out_of_range");
     RequireLengthError([&] { _ZNKSs5_XlenEv_nid_postfix(&string); }, "_Xlen throws length_error");
+    String wide = Empty();
+    wide.capacity = 7;
+    RequireOutOfRange([&] { _ZNKSbIwSt11char_traitsIwESaIwEE5_XranEv_nid_postfix(&wide); }, "wide _Xran throws out_of_range");
+    RequireLengthError([&] { _ZNKSbIwSt11char_traitsIwESaIwEE5_XlenEv_nid_postfix(&wide); }, "wide _Xlen throws length_error");
+    RequireOutOfRange([&] { _ZNKSbIwSt11char_traitsIwESaIwEE5_XranEv_nid_postfix(nullptr); }, "wide _Xran ignores the string");
+    RequireLengthError([&] { _ZNKSbIwSt11char_traitsIwESaIwEE5_XlenEv_nid_postfix(nullptr); }, "wide _Xlen ignores the string");
 }
 
 void CheckAssignCharacters() {
