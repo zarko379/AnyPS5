@@ -26,6 +26,7 @@ namespace {
 constexpr int GuestEnoent = 2;
 constexpr int GuestEbadf = 9;
 constexpr int GuestEfault = 14;
+constexpr int GuestEbusy = 16;
 constexpr int GuestEexist = 17;
 constexpr int GuestEinval = 22;
 constexpr int GuestEnfile = 23;
@@ -47,6 +48,11 @@ constexpr std::int64_t DefaultMessages = 10;
 constexpr std::int64_t DefaultMessageSize = 1024;
 constexpr unsigned PriorityMax = 64;
 constexpr std::size_t NameBytes = 256;
+constexpr int SigevNone = 0;
+constexpr int SigevSignal = 1;
+constexpr int SigevThreadId = 4;
+constexpr int SignalMax = 128;
+constexpr int NoNotifier = -1;
 
 struct Message {
     unsigned priority;
@@ -60,6 +66,8 @@ struct Queue {
     std::int64_t maxmsg = DefaultMessages;
     std::int64_t msgsize = DefaultMessageSize;
     std::vector<Message> messages;
+    int receivers = 0;
+    int notifier = NoNotifier;
 };
 
 struct Open {
@@ -93,7 +101,14 @@ int ReserveDescriptor() {
 
 void DescriptorClosed(int descriptor) {
     std::lock_guard lock(g_mqueueLock);
-    g_opens.erase(descriptor);
+    const auto found = g_opens.find(descriptor);
+    if (found == g_opens.end()) return;
+    {
+        auto& queue = *found->second->queue;
+        std::lock_guard queueLock(queue.lock);
+        if (queue.notifier == descriptor) queue.notifier = NoNotifier;
+    }
+    g_opens.erase(found);
 }
 
 const bool g_observerRegistered = [] {
@@ -170,6 +185,28 @@ int APS5_VABI kmq_open_nid_postfix(const char* path, int flags, unsigned int mod
     return descriptor;
 }
 
+int APS5_VABI kmq_notify_nid_postfix(int descriptor, const GuestSigevent* event) {
+    GuestSigevent request{};
+    if (event != nullptr) {
+        if (!GuestCopyIn_nid_no_patch(&request, event, sizeof(request))) return Fail(GuestEfault);
+        if (request.notify != SigevSignal && request.notify != SigevThreadId && request.notify != SigevNone) return Fail(GuestEinval);
+        if (request.notify != SigevNone && (request.signo <= 0 || request.signo > SignalMax)) return Fail(GuestEinval);
+    }
+    std::lock_guard lock(g_mqueueLock);
+    const auto found = g_opens.find(descriptor);
+    if (found == g_opens.end()) return Fail(GuestEbadf);
+    auto& queue = *found->second->queue;
+    std::lock_guard queueLock(queue.lock);
+    if (event == nullptr) {
+        if (queue.notifier == descriptor) queue.notifier = NoNotifier;
+        return 0;
+    }
+    if (queue.notifier != NoNotifier) return Fail(GuestEbusy);
+    if (request.notify != SigevNone) NotImplemented_nid_no_patch("kmq_notify delivering a signal");
+    if (queue.receivers != 0 || queue.messages.empty()) queue.notifier = descriptor;
+    return 0;
+}
+
 int APS5_VABI kmq_unlink_nid_postfix(const char* path) {
     std::string name;
     if (const int error = CheckName(path, name)) return Fail(error);
@@ -205,7 +242,8 @@ int APS5_VABI kmq_timedsend_nid_postfix(int descriptor, const char* message, std
     auto position = queue.messages.begin();
     while (position != queue.messages.end() && position->priority >= priority) ++position;
     queue.messages.insert(position, std::move(entry));
-    queue.readable.notify_one();
+    if (queue.receivers != 0) queue.readable.notify_one();
+    else queue.notifier = NoNotifier;
     return 0;
 }
 
@@ -217,10 +255,14 @@ std::int64_t APS5_VABI kmq_timedreceive_nid_postfix(int descriptor, char* buffer
     if (buffer == nullptr) return Fail(GuestEfault);
     std::unique_lock lock(queue.lock);
     const auto available = [&] { return !queue.messages.empty(); };
-    if (const int error = WaitFor(*open, lock, queue.readable, abstime, available)) return Fail(error);
+    ++queue.receivers;
+    const int error = WaitFor(*open, lock, queue.readable, abstime, available);
+    --queue.receivers;
+    if (error) return Fail(error);
     Message entry = std::move(queue.messages.front());
     queue.messages.erase(queue.messages.begin());
     queue.writable.notify_one();
+    if (queue.receivers == 0 && !queue.messages.empty()) queue.notifier = NoNotifier;
     lock.unlock();
     if (!entry.bytes.empty()) std::memcpy(buffer, entry.bytes.data(), entry.bytes.size());
     if (priority != nullptr) *priority = entry.priority;

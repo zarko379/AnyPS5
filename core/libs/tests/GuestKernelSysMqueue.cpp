@@ -19,6 +19,7 @@ namespace {
 constexpr int Enoent = 2;
 constexpr int Ebadf = 9;
 constexpr int Efault = 14;
+constexpr int Ebusy = 16;
 constexpr int Eexist = 17;
 constexpr int Einval = 22;
 constexpr int Eagain = 35;
@@ -231,6 +232,86 @@ void ConcurrentSetattr() {
     Require(close_nid_postfix(queue) == 0 && kmq_unlink_nid_postfix(name.c_str()) == 0);
 }
 
+void Notify() {
+    const GuestSigevent none{0, 0, 0, {}};
+    const GuestSigevent invalid[] = {{2, 5, 0, {}}, {3, 5, 0, {}}, {99, 5, 0, {}}, {1, 0, 0, {}}, {1, 129, 0, {}}, {4, -1, 0, {}}, {4, 129, 0, {}}};
+    *__error_nid_postfix() = 0;
+    Require(kmq_notify_nid_postfix(-1, reinterpret_cast<const GuestSigevent*>(0x10)) == -1 && Error() == Efault);
+    for (const auto& event : invalid) {
+        *__error_nid_postfix() = 0;
+        Require(kmq_notify_nid_postfix(-1, &event) == -1 && Error() == Einval);
+    }
+    Require(kmq_notify_nid_postfix(-1, &none) == -1 && Error() == Ebadf);
+    Require(kmq_notify_nid_postfix(-1, nullptr) == -1 && Error() == Ebadf);
+    const auto path = "anyps5-mq-notify-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    { std::ofstream stream(path); stream << "x"; }
+    const int plain = open_nid_postfix(path.c_str(), 0, 0);
+    Require(plain >= 0);
+    Require(kmq_notify_nid_postfix(plain, &none) == -1 && Error() == Ebadf);
+    Require(kmq_notify_nid_postfix(plain, nullptr) == -1 && Error() == Ebadf);
+    Require(close_nid_postfix(plain) == 0);
+    std::filesystem::remove(path);
+
+    const auto name = Name("notify");
+    const GuestMqAttr small{0, 3, 16, 0, {}};
+    const int queue = kmq_open_nid_postfix(name.c_str(), ORdwr | OCreat, 0600, &small);
+    const int other = kmq_open_nid_postfix(name.c_str(), ORdonly, 0600, nullptr);
+    Require(queue >= 0 && other >= 0);
+    Require(kmq_notify_nid_postfix(queue, nullptr) == 0);
+    Require(kmq_notify_nid_postfix(queue, &none) == 0);
+    Require(kmq_notify_nid_postfix(queue, &none) == -1 && Error() == Ebusy);
+    Require(kmq_notify_nid_postfix(other, &none) == -1 && Error() == Ebusy);
+    Require(kmq_notify_nid_postfix(other, nullptr) == 0);
+    Require(kmq_notify_nid_postfix(other, &none) == -1 && Error() == Ebusy);
+    Require(kmq_notify_nid_postfix(queue, nullptr) == 0);
+    Require(kmq_notify_nid_postfix(other, &none) == 0);
+    Require(kmq_notify_nid_postfix(queue, &none) == -1 && Error() == Ebusy);
+    Require(kmq_timedsend_nid_postfix(queue, "a", 1, 0, nullptr) == 0);
+    Require(kmq_notify_nid_postfix(queue, &none) == 0);
+    Require(kmq_notify_nid_postfix(other, &none) == 0);
+    Require(Receive(queue) == "a");
+    Require(kmq_notify_nid_postfix(queue, &none) == 0);
+    Require(kmq_notify_nid_postfix(other, &none) == -1 && Error() == Ebusy);
+    Require(close_nid_postfix(queue) == 0);
+    Require(kmq_notify_nid_postfix(other, &none) == 0);
+
+    const int writer = kmq_open_nid_postfix(name.c_str(), ORdwr, 0600, nullptr);
+    Require(writer >= 0);
+    Require(kmq_notify_nid_postfix(writer, &none) == -1 && Error() == Ebusy);
+    Require(kmq_notify_nid_postfix(other, nullptr) == 0);
+    std::atomic<std::int64_t> received{-2};
+    std::thread reader([&] {
+        char local[16]{};
+        received = kmq_timedreceive_nid_postfix(other, local, sizeof(local), nullptr, nullptr);
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    Require(received == -2);
+    Require(kmq_notify_nid_postfix(writer, &none) == 0);
+    Require(kmq_timedsend_nid_postfix(writer, "w", 1, 0, nullptr) == 0);
+    reader.join();
+    Require(received == 1);
+    Require(kmq_notify_nid_postfix(other, &none) == -1 && Error() == Ebusy);
+
+    received = -2;
+    std::thread second([&] {
+        char local[16]{};
+        received = kmq_timedreceive_nid_postfix(other, local, sizeof(local), nullptr, nullptr);
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    Require(received == -2);
+    Require(kmq_timedsend_nid_postfix(writer, "x", 1, 1, nullptr) == 0);
+    Require(kmq_timedsend_nid_postfix(writer, "y", 1, 0, nullptr) == 0);
+    second.join();
+    Require(received == 1);
+    Require(kmq_notify_nid_postfix(other, &none) == 0);
+    Require(kmq_notify_nid_postfix(writer, &none) == 0);
+    Require(Receive(writer) == "y");
+    Require(kmq_notify_nid_postfix(writer, &none) == 0);
+    Require(close_nid_postfix(writer) == 0);
+    Require(kmq_notify_nid_postfix(other, &none) == 0);
+    Require(close_nid_postfix(other) == 0 && kmq_unlink_nid_postfix(name.c_str()) == 0);
+}
+
 }
 
 int main() {
@@ -241,6 +322,7 @@ int main() {
     NullBuffer();
     FarDeadline();
     ConcurrentSetattr();
+    Notify();
     std::puts("message queues passed");
     return 0;
 }

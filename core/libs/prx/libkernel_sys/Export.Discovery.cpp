@@ -137,11 +137,6 @@ int APS5_VABI ipmimgr_call_nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI kmq_notify_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI ksem_close_nid_postfix(std::intptr_t id) {
     return KsemClose_nid_no_patch(id);
 }
