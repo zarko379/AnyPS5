@@ -7,4 +7,5 @@
 #include "prx/libSceJsc/include/PlacementNewExports.hpp"
 #include "prx/libSceJsc/include/WtfSixCharacterHashExports.hpp"
 #include "prx/libSceJsc/include/WtfStringSearchExports.hpp"
+#include "prx/libSceJsc/include/WtfTimeExports.hpp"
 #include "prx/libSceJsc/include/WtfUnicodeExports.hpp"

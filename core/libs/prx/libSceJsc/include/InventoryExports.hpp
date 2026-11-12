@@ -331,7 +331,6 @@ int APS5_VABI _ZNK3WTF6String33stripLeadingAndTrailingCharactersEPFbDsE();
 int APS5_VABI _ZNK3WTF6String4utf8Ev();
 int APS5_VABI _ZNK3WTF6String5splitERKS0_();
 int APS5_VABI _ZNK3WTF6String9substringEjj();
-int APS5_VABI _ZNK3WTF9MediaTimeneERKS0_();
 int APS5_VABI _ZNK9Inspector15RemoteInspector18clientCapabilitiesEv();
 int APS5_VABI _ZNK9Inspector18InjectedScriptBase27callFunctionWithEvalEnabledERN10Deprecated18ScriptFunctionCallE();
 int APS5_VABI _ZNK9Inspector18InjectedScriptHost16savedResultAliasEv();

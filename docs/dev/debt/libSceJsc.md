@@ -18,9 +18,11 @@
 
 - [WTF six-character hash](../../../core/libs/prx/libSceJsc/src/WtfSixCharacterHash.cpp) - not measured on a console; the console WTF version is unverified. `integerToSixCharacterHashString` returns a 7-byte `std::array<char, 7>` by value holding the six base-62 digits of its argument, most significant first, from the table `A`-`Z`, `a`-`z`, `0`-`9`, and a terminating zero, as pinned WebKit [SixCharacterHash.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/SixCharacterHash.cpp#L58-L68) and the PS5 11.x copy define it.
 
+- [WTF time comparisons](../../../core/libs/prx/libSceJsc/src/WtfTime.cpp) - not measured on a console; the console WTF version and object layouts are unverified. `TimeWithDynamicClockType::operator<`, `Seconds::operator+(const TimeWithDynamicClockType&)` and `MediaTime::operator!=` read a 16-byte `{double, ClockType}` and a 16-byte `MediaTime` (value at 0, scale at 8, flags at 12) and follow pinned WebKit [TimeWithDynamicClockType.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/TimeWithDynamicClockType.cpp#L95-L99), [Seconds.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/Seconds.cpp#L49-L52) and [MediaTime.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f971f63a709976f168d932d558b8909/Source/WTF/wtf/MediaTime.cpp#L337-L429). Null references, mismatched clock types, a zero time scale WebKit divides by and an overflowing remainder product throw.
+
 ### Known export names; ABI prototypes unverified
 
-- The 139 throwing JavaScriptCore, Inspector, WTF and bmalloc exports in [Export.cpp](../../../core/libs/prx/libSceJsc/Export.cpp) are present in the PS5 3.20 `libSceJsc` export inventory from [PS5-3.20_Libs](https://github.com/DNNDHH/PS5-3.20_Libs). Each is named after the symbol the [verified NID name database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) gives for its NID, and the NID of that name matches. Prototypes and behavior are unverified; each uses the no-parameter import-resolution convention and throws through `NotImplemented_nid_no_patch`. These declarations make no ABI or behavior claim.
+- The 137 throwing JavaScriptCore, Inspector, WTF and bmalloc exports in [Export.cpp](../../../core/libs/prx/libSceJsc/Export.cpp) are present in the PS5 3.20 `libSceJsc` export inventory from [PS5-3.20_Libs](https://github.com/DNNDHH/PS5-3.20_Libs). Each is named after the symbol the [verified NID name database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) gives for its NID, and the NID of that name matches. Prototypes and behavior are unverified; each uses the no-parameter import-resolution convention and throws through `NotImplemented_nid_no_patch`. These declarations make no ABI or behavior claim.
 
 - [Empty bodies](../../../core/libs/prx/libSceJsc/Export.cpp) (libSceJsc) - the console JavaScriptCore version is unverified; the parameters of five exports come from their mangled names. In firmware 13.42 the `JSC::VM::ClientData` `D1`, `bmalloc::FreeList` `D2`, `Inspector::DebuggerBackendDispatcherHandler` `D2` and `Inspector::TimelineBackendDispatcherHandler` `D1` destructors and `Inspector::InspectorDebuggerAgent::didCreateFrontendAndBackend` return at once without reading an argument, and so do these. Read from disassembly, not measured on a console.
 
@@ -50,7 +52,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 332 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 331 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -381,7 +383,6 @@
 | `_ZNK3WTF6String4utf8Ev` | `s+42ELWxjCI` |
 | `_ZNK3WTF6String5splitERKS0_` | `i1zdtddvwdE` |
 | `_ZNK3WTF6String9substringEjj` | `aTSGWfAX47k` |
-| `_ZNK3WTF9MediaTimeneERKS0_` | `oJV+0NA8pss` |
 | `_ZNK9Inspector15RemoteInspector18clientCapabilitiesEv` | `7HwcP1R63Eo` |
 | `_ZNK9Inspector18InjectedScriptBase27callFunctionWithEvalEnabledERN10Deprecated18ScriptFunctionCallE` | `69Ng45oazLY` |
 | `_ZNK9Inspector18InjectedScriptHost16savedResultAliasEv` | `1EYcTwBoE4w` |
