@@ -10,6 +10,7 @@ using CairoDestroyFunc = void (APS5_VABI *)(void*);
 
 // Internal C++ accessor for the immutable, shared Cairo error surfaces.
 CairoSurface* CairoSurfaceError(int status);
+bool CairoSurfacePixelExtents(CairoSurface* surface, int& width, int& height);
 
 extern "C" {
 

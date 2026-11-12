@@ -57,4 +57,6 @@ void APS5_VABI cairo_set_source_surface(CairoContext* context, CairoSurface* sur
                                         double x, double y);
 void APS5_VABI cairo_set_font_size(CairoContext* context, double size);
 void APS5_VABI cairo_set_font_options(CairoContext* context, const cairo_font_options_t* options);
+void APS5_VABI cairo_clip_extents(CairoContext* context, double* x1, double* y1,
+                                  double* x2, double* y2);
 }

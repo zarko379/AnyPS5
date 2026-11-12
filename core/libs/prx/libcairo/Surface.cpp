@@ -88,6 +88,9 @@ struct CairoSurfaceState {
     double extentHeight{};
     double scaleX{1};
     double scaleY{1};
+    int pixelWidth{};
+    int pixelHeight{};
+    bool pixelExtentsDefined{true};
 
     CairoSurfaceState() = default;
     explicit CairoSurfaceState(int failure) : status(failure) {}
@@ -171,6 +174,8 @@ CairoSurface* MakeImage(int format, int width, int height,
     result->stride = stride;
     result->extentWidth = width;
     result->extentHeight = height;
+    result->pixelWidth = width;
+    result->pixelHeight = height;
     if (!ownsPixels) {
         result->data = externalData;
     } else {
@@ -186,6 +191,34 @@ CairoSurface* MakeImage(int format, int width, int height,
         }
     }
     return Handle(result);
+}
+
+bool FitsInt(double value) {
+    return value >= -2147483648.0 && value <= 2147483647.0;
+}
+
+void SetSubsurfacePixelExtents(CairoSurfaceState* surface, const CairoSurfaceState* target,
+                               double x, double y, double width, double height) {
+    x *= target->scaleX;
+    y *= target->scaleY;
+    width *= target->scaleX;
+    height *= target->scaleY;
+    const double left = std::ceil(x);
+    const double top = std::ceil(y);
+    if (!FitsInt(left) || !FitsInt(top)) {
+        surface->pixelExtentsDefined = false;
+        return;
+    }
+    const double pixelWidth = std::floor(x + width) - static_cast<int>(left);
+    const double pixelHeight = std::floor(y + height) - static_cast<int>(top);
+    if (!FitsInt(pixelWidth) || !FitsInt(pixelHeight)) {
+        surface->pixelExtentsDefined = false;
+        return;
+    }
+    surface->pixelWidth = static_cast<int>(pixelWidth);
+    surface->pixelHeight = static_cast<int>(pixelHeight);
+    if ((surface->pixelWidth | surface->pixelHeight) < 0)
+        surface->pixelWidth = surface->pixelHeight = 0;
 }
 
 }
@@ -339,6 +372,7 @@ CairoSurface* APS5_VABI cairo_surface_create_for_rectangle(CairoSurface* target,
     result->extentHeight = height;
     result->scaleX = State(target)->scaleX;
     result->scaleY = State(target)->scaleY;
+    SetSubsurfacePixelExtents(result, State(target), x, y, width, height);
     return Handle(result);
 }
 
@@ -346,4 +380,14 @@ CairoSurface* APS5_VABI cairo_surface_create_for_rectangle(CairoSurface* target,
 
 CairoSurface* CairoSurfaceError(int status) {
     return ErrorSurface(status);
+}
+
+bool CairoSurfacePixelExtents(CairoSurface* surface, int& width, int& height) {
+    const auto* state = State(surface);
+    width = height = 0;
+    if (state->status != kSuccess) return true;
+    if (!state->pixelExtentsDefined) return false;
+    width = state->pixelWidth;
+    height = state->pixelHeight;
+    return true;
 }

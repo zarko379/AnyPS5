@@ -44,4 +44,5 @@ void APS5_VABI cairo_arc(CairoContext* context, double xc, double yc, double rad
                          double angle1, double angle2);
 void APS5_VABI cairo_arc_negative(CairoContext* context, double xc, double yc, double radius,
                                   double angle1, double angle2);
+int APS5_VABI cairo_in_fill(CairoContext* context, double x, double y);
 }

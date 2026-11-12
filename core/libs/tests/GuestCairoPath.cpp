@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -454,6 +455,177 @@ void CheckBackendTransforms() {
     cairo_destroy(context);
 }
 
+void CheckInFill() {
+    static_assert(std::is_same_v<decltype(&cairo_in_fill),
+                                 int (APS5_VABI*)(CairoContext*, double, double)>);
+    assert(cairo_in_fill(nullptr, 0, 0) == 0);
+    CairoContext* context = PathContext();
+    assert(cairo_in_fill(context, 0, 0) == 0);
+    cairo_move_to(context, 5, 5);
+    assert(cairo_in_fill(context, 5, 5) == 0);
+    cairo_line_to(context, 5, 5);
+    assert(cairo_in_fill(context, 5, 5) == 0);
+    cairo_close_path(context);
+    assert(cairo_in_fill(context, 5, 5) == 0);
+    cairo_line_to(context, 5, 6);
+    assert(cairo_in_fill(context, 5, 5) == 1);
+    assert(cairo_in_fill(context, 5, 5.5) == 1);
+    assert(cairo_in_fill(context, 6, 5.5) == 0);
+    cairo_new_path(context);
+    assert(cairo_in_fill(context, 5, 5.5) == 0);
+
+    cairo_rectangle(context, 10, 10, 20, 20);
+    assert(cairo_in_fill(context, 20, 20) == 1);
+    assert(cairo_in_fill(context, 5, 20) == 0);
+    assert(cairo_in_fill(context, 35, 20) == 0);
+    assert(cairo_in_fill(context, 20, 35) == 0);
+    assert(cairo_in_fill(context, 10, 20) == 1);
+    assert(cairo_in_fill(context, 20, 10) == 1);
+    assert(cairo_in_fill(context, 30, 30) == 1);
+    assert(cairo_in_fill(context, 5, 10) == 0);
+    cairo_move_to(context, 50, 50);
+    assert(cairo_in_fill(context, 50, 50) == 1);
+    assert(cairo_in_fill(context, 50.5, 50) == 0);
+    assert(cairo_in_fill(context, 20, 20) == 1);
+    cairo_new_sub_path(context);
+    assert(cairo_in_fill(context, 50, 50) == 0);
+
+    cairo_new_path(context);
+    cairo_rectangle(context, 0, 0, 40, 40);
+    cairo_rectangle(context, 10, 10, 20, 20);
+    assert(cairo_get_fill_rule(context) == 0);
+    assert(cairo_in_fill(context, 20, 20) == 1);
+    assert(cairo_in_fill(context, 5, 5) == 1);
+    cairo_set_fill_rule(context, 1);
+    assert(cairo_in_fill(context, 20, 20) == 0);
+    assert(cairo_in_fill(context, 5, 5) == 1);
+    cairo_set_fill_rule(context, 0);
+    cairo_new_path(context);
+    cairo_rectangle(context, 0, 0, 40, 40);
+    cairo_move_to(context, 10, 10);
+    cairo_line_to(context, 10, 30);
+    cairo_line_to(context, 30, 30);
+    cairo_line_to(context, 30, 10);
+    cairo_close_path(context);
+    assert(cairo_in_fill(context, 20, 20) == 0);
+    assert(cairo_in_fill(context, 5, 20) == 1);
+    cairo_set_fill_rule(context, 1);
+    assert(cairo_in_fill(context, 20, 20) == 0);
+    assert(cairo_in_fill(context, 5, 20) == 1);
+    cairo_set_fill_rule(context, 0);
+
+    cairo_new_path(context);
+    cairo_move_to(context, 0, 0);
+    cairo_line_to(context, 10, 0);
+    cairo_line_to(context, 0, 10);
+    assert(cairo_in_fill(context, 2, 2) == 1);
+    assert(cairo_in_fill(context, 8, 8) == 0);
+    assert(cairo_in_fill(context, 0, 5) == 1);
+    assert(cairo_in_fill(context, 5, 5) == 1);
+
+    cairo_new_path(context);
+    cairo_move_to(context, 0, 0);
+    cairo_line_to(context, 10, 10);
+    cairo_line_to(context, 0, 20);
+    cairo_close_path(context);
+    assert(cairo_in_fill(context, 20, 10) == 0);
+    assert(cairo_in_fill(context, 5, 10) == 1);
+    assert(cairo_in_fill(context, -1, 10) == 0);
+
+    cairo_new_path(context);
+    cairo_arc(context, 50, 50, 20, 0, 2 * 3.14159265358979323846);
+    assert(cairo_in_fill(context, 50, 50) == 1);
+    assert(cairo_in_fill(context, 50, 31) == 1);
+    assert(cairo_in_fill(context, 50, 69) == 1);
+    assert(cairo_in_fill(context, 31, 50) == 1);
+    assert(cairo_in_fill(context, 63, 63) == 1);
+    assert(cairo_in_fill(context, 50, 29) == 0);
+    assert(cairo_in_fill(context, 50, 71) == 0);
+    assert(cairo_in_fill(context, 29, 50) == 0);
+    assert(cairo_in_fill(context, 65, 65) == 0);
+    assert(cairo_in_fill(context, 70, 50) == 1);
+    assert(cairo_in_fill(context, 70.5, 50) == 0);
+
+    cairo_new_path(context);
+    cairo_move_to(context, 0, 0);
+    cairo_curve_to(context, 0, 20, 20, 20, 20, 0);
+    cairo_close_path(context);
+    assert(cairo_in_fill(context, 10, 14) == 1);
+    assert(cairo_in_fill(context, 10, 16) == 0);
+    assert(cairo_in_fill(context, 10, 0) == 1);
+    assert(cairo_in_fill(context, 10, -1) == 0);
+
+    cairo_new_path(context);
+    cairo_move_to(context, 0, 0);
+    cairo_line_to(context, 10, 0);
+    cairo_curve_to(context, 20, 0, 20, 20, 10, 20);
+    cairo_line_to(context, 0, 20);
+    cairo_close_path(context);
+    assert(cairo_in_fill(context, 8, 15) == 1);
+    assert(cairo_in_fill(context, 3, 10) == 1);
+    assert(cairo_in_fill(context, 14, 10) == 1);
+    assert(cairo_in_fill(context, 19, 2) == 0);
+    assert(cairo_in_fill(context, 8, 25) == 0);
+
+    cairo_new_path(context);
+    cairo_move_to(context, 0, 0);
+    cairo_curve_to(context, 0, 0, 10, 10, 10, 10);
+    cairo_line_to(context, 0, 10);
+    cairo_close_path(context);
+    assert(cairo_in_fill(context, 2, 5) == 0);
+    assert(cairo_in_fill(context, 0, 5) == 1);
+    cairo_new_path(context);
+    cairo_move_to(context, 0, 0);
+    cairo_curve_to(context, 10, 10, 10, 10, 10, 10);
+    cairo_line_to(context, 0, 10);
+    cairo_close_path(context);
+    assert(cairo_in_fill(context, 2, 5) == 0);
+    cairo_new_path(context);
+    cairo_move_to(context, 0, 0);
+    cairo_curve_to(context, 0, 0, 10, 10, 10, 10.5);
+    cairo_line_to(context, 0, 10);
+    cairo_close_path(context);
+    assert(cairo_in_fill(context, 2, 5) == 1);
+
+    cairo_new_path(context);
+    cairo_rectangle(context, 0, 0, 10, 10);
+    cairo_set_fill_rule(context, 7);
+    assert(cairo_in_fill(context, 0, 5) == 1);
+    bool threw = false;
+    try {
+        cairo_in_fill(context, 5, 5);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+    cairo_new_path(context);
+    assert(cairo_in_fill(context, 5, 5) == 0);
+    cairo_set_fill_rule(context, 0);
+    cairo_restore(context);
+    cairo_rectangle(context, 0, 0, 10, 10);
+    assert(cairo_in_fill(context, 5, 5) == 0);
+    cairo_destroy(context);
+
+    for (int deviceScale = 1; deviceScale <= 2; ++deviceScale) {
+        context = PathContext(deviceScale);
+        if (deviceScale == 1) cairo_scale(context, 2, 2);
+        cairo_rectangle(context, 0, 0, 10, 10);
+        assert(cairo_in_fill(context, 5, 5) == 1);
+        assert(cairo_in_fill(context, 15, 5) == 0);
+        assert(cairo_in_fill(context, 10, 5) == 1);
+        assert(cairo_in_fill(context, 10.25, 5) == 0);
+        cairo_destroy(context);
+    }
+    context = PathContext();
+    cairo_translate(context, 100, 0);
+    cairo_rotate(context, 3.14159265358979323846 / 2);
+    cairo_rectangle(context, 0, 0, 10, 20);
+    assert(cairo_in_fill(context, 5, 10) == 1);
+    assert(cairo_in_fill(context, 5, 25) == 0);
+    assert(cairo_in_fill(context, -5, 10) == 0);
+    cairo_destroy(context);
+}
+
 } // namespace
 
 int main() {
@@ -465,5 +637,6 @@ int main() {
     CheckCurveDegeneracy();
     CheckArcs();
     CheckBackendTransforms();
+    CheckInFill();
     std::puts("guest Cairo path-data tests passed");
 }

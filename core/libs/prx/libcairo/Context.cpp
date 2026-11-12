@@ -1,5 +1,6 @@
 #include "prx/libcairo/include/Context.hpp"
 #include "prx/libcairo/include/Path.hpp"
+#include "prx/libc/include/General.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -70,6 +71,7 @@ struct ContextStorage {
     GraphicsStyle style{};
     SavedState* saved{};
     std::vector<PathEntry>* path{};
+    bool fillIsEmpty{true};
     bool hasCurrent{};
     double currentX{}, currentY{};
     double startX{}, startY{};
@@ -343,6 +345,7 @@ void AppendLine(ContextStorage* state, double x, double y) {
             if (dy1 * dx2 == dy2 * dx1 && !backwards) path.pop_back();
         }
     }
+    if (x != state->currentX || y != state->currentY) state->fillIsEmpty = false;
     state->currentX = x;
     state->currentY = y;
     PathEntry command{};
@@ -375,6 +378,7 @@ void AppendCurve(ContextStorage* state, double x1, double y1, double x2, double 
     command.points[5] = y3;
     state->currentX = x3;
     state->currentY = y3;
+    state->fillIsEmpty = false;
     Record(state, command);
 }
 
@@ -503,6 +507,229 @@ void Arc(CairoContext* context, double xc, double yc, double radius,
         ArcInDirection(context, xc, yc, radius, angle1, angle2, true);
     else
         ArcInDirection(context, xc, yc, radius, angle2, angle1, false);
+}
+
+std::int32_t WrapSub(std::int32_t a, std::int32_t b) {
+    return static_cast<std::int32_t>(static_cast<std::uint32_t>(a) - static_cast<std::uint32_t>(b));
+}
+
+std::int32_t WrapAdd(std::int32_t a, std::int32_t b) {
+    return static_cast<std::int32_t>(static_cast<std::uint32_t>(a) + static_cast<std::uint32_t>(b));
+}
+
+struct FixedPoint {
+    std::int32_t x{};
+    std::int32_t y{};
+};
+
+bool SamePoint(const FixedPoint& a, const FixedPoint& b) {
+    return a.x == b.x && a.y == b.y;
+}
+
+FixedPoint StoredPoint(const PathEntry& entry, int index) {
+    return {ToFixed(entry.points[index * 2]), ToFixed(entry.points[index * 2 + 1])};
+}
+
+int CompareEdgeForYAgainstX(const FixedPoint& p1, const FixedPoint& p2,
+                            std::int32_t y, std::int32_t x) {
+    const std::int32_t adx = WrapSub(p2.x, p1.x);
+    const std::int32_t dx = WrapSub(x, p1.x);
+    if (adx == 0) return WrapSub(0, dx);
+    if ((adx ^ dx) < 0) return adx;
+    const std::int32_t dy = WrapSub(y, p1.y);
+    const std::int32_t ady = WrapSub(p2.y, p1.y);
+    const std::int64_t left = static_cast<std::int64_t>(dy) * adx;
+    const std::int64_t right = static_cast<std::int64_t>(dx) * ady;
+    return left == right ? 0 : left < right ? -1 : 1;
+}
+
+struct SplineKnots {
+    FixedPoint a, b, c, d;
+};
+
+FixedPoint LerpHalf(const FixedPoint& a, const FixedPoint& b) {
+    return {WrapAdd(a.x, WrapSub(b.x, a.x) >> 1), WrapAdd(a.y, WrapSub(b.y, a.y) >> 1)};
+}
+
+void DeCasteljau(SplineKnots& s1, SplineKnots& s2) {
+    const FixedPoint ab = LerpHalf(s1.a, s1.b);
+    const FixedPoint bc = LerpHalf(s1.b, s1.c);
+    const FixedPoint cd = LerpHalf(s1.c, s1.d);
+    const FixedPoint abbc = LerpHalf(ab, bc);
+    const FixedPoint bccd = LerpHalf(bc, cd);
+    const FixedPoint middle = LerpHalf(abbc, bccd);
+    s2 = {middle, bccd, cd, s1.d};
+    s1.b = ab;
+    s1.c = abbc;
+    s1.d = middle;
+}
+
+double SplineErrorSquared(const SplineKnots& knots) {
+    double bdx = FixedToDouble(WrapSub(knots.b.x, knots.a.x));
+    double bdy = FixedToDouble(WrapSub(knots.b.y, knots.a.y));
+    double cdx = FixedToDouble(WrapSub(knots.c.x, knots.a.x));
+    double cdy = FixedToDouble(WrapSub(knots.c.y, knots.a.y));
+    if (!SamePoint(knots.a, knots.d)) {
+        const double dx = FixedToDouble(WrapSub(knots.d.x, knots.a.x));
+        const double dy = FixedToDouble(WrapSub(knots.d.y, knots.a.y));
+        const double v = dx * dx + dy * dy;
+        double u = bdx * dx + bdy * dy;
+        if (u <= 0) {
+        } else if (u >= v) {
+            bdx -= dx;
+            bdy -= dy;
+        } else {
+            bdx -= u / v * dx;
+            bdy -= u / v * dy;
+        }
+        u = cdx * dx + cdy * dy;
+        if (u <= 0) {
+        } else if (u >= v) {
+            cdx -= dx;
+            cdy -= dy;
+        } else {
+            cdx -= u / v * dx;
+            cdy -= u / v * dy;
+        }
+    }
+    const double berr = bdx * bdx + bdy * bdy;
+    const double cerr = cdx * cdx + cdy * cdy;
+    return berr > cerr ? berr : cerr;
+}
+
+struct InFill {
+    std::int32_t x{};
+    std::int32_t y{};
+    bool onEdge{};
+    int winding{};
+    bool hasCurrent{};
+    FixedPoint current{};
+    FixedPoint first{};
+    FixedPoint splineLast{};
+
+    void AddEdge(FixedPoint p1, FixedPoint p2) {
+        if (onEdge) return;
+        int direction = 1;
+        if (p2.y < p1.y) {
+            std::swap(p1, p2);
+            direction = -1;
+        }
+        const FixedPoint query{x, y};
+        if (SamePoint(p1, query) || SamePoint(p2, query) ||
+            (!(p2.y < y || p1.y > y || (p1.x > x && p2.x > x) || (p1.x < x && p2.x < x)) &&
+             CompareEdgeForYAgainstX(p1, p2, y, x) == 0)) {
+            onEdge = true;
+            return;
+        }
+        if (p2.y <= y || p1.y > y) return;
+        if (p1.x >= x && p2.x >= x) return;
+        if ((p1.x <= x && p2.x <= x) || CompareEdgeForYAgainstX(p1, p2, y, x) < 0)
+            winding += direction;
+    }
+
+    void MoveTo(const FixedPoint& point) {
+        if (hasCurrent) AddEdge(current, first);
+        first = point;
+        current = point;
+        hasCurrent = true;
+    }
+
+    void LineTo(const FixedPoint& point) {
+        if (hasCurrent) AddEdge(current, point);
+        current = point;
+        hasCurrent = true;
+    }
+
+    void SplinePoint(const FixedPoint& point) {
+        if (SamePoint(splineLast, point)) return;
+        splineLast = point;
+        LineTo(point);
+    }
+
+    void Decompose(SplineKnots s1, double toleranceSquared) {
+        if (SplineErrorSquared(s1) < toleranceSquared) {
+            SplinePoint(s1.a);
+            return;
+        }
+        SplineKnots s2{};
+        DeCasteljau(s1, s2);
+        Decompose(s1, toleranceSquared);
+        Decompose(s2, toleranceSquared);
+    }
+
+    void CurveTo(const FixedPoint& b, const FixedPoint& c, const FixedPoint& d) {
+        std::int32_t top = current.y;
+        std::int32_t bottom = current.y;
+        for (const FixedPoint* point : {&b, &c, &d}) {
+            if (point->y < top) top = point->y;
+            if (point->y > bottom) bottom = point->y;
+        }
+        if (bottom < y || top > y) {
+            current = d;
+            return;
+        }
+        std::int32_t left = current.x;
+        for (const FixedPoint* point : {&b, &c, &d})
+            if (point->x < left) left = point->x;
+        if (left > x) {
+            current = d;
+            return;
+        }
+        const FixedPoint a = current;
+        if (SamePoint(a, b) && SamePoint(c, d)) return;
+        if (SamePoint(c, d) && SamePoint(b, d)) return;
+        splineLast = a;
+        Decompose({a, b, c, d}, kTolerance * kTolerance);
+        LineTo(d);
+    }
+
+    void ClosePath() {
+        if (!hasCurrent) return;
+        AddEdge(current, first);
+        hasCurrent = false;
+    }
+};
+
+void TransformBoundingBox(const CairoMatrix& matrix, double& x1, double& y1,
+                          double& x2, double& y2) {
+    if (matrix.xy == 0. && matrix.yx == 0.) {
+        if (matrix.xx != 1.) {
+            const double first = x1 * matrix.xx;
+            const double second = x2 * matrix.xx;
+            x1 = first < second ? first : second;
+            x2 = first < second ? second : first;
+        }
+        if (matrix.x0 != 0.) {
+            x1 += matrix.x0;
+            x2 += matrix.x0;
+        }
+        if (matrix.yy != 1.) {
+            const double first = y1 * matrix.yy;
+            const double second = y2 * matrix.yy;
+            y1 = first < second ? first : second;
+            y2 = first < second ? second : first;
+        }
+        if (matrix.y0 != 0.) {
+            y1 += matrix.y0;
+            y2 += matrix.y0;
+        }
+        return;
+    }
+    double quadX[4] = {x1, x2, x1, x2};
+    double quadY[4] = {y1, y1, y2, y2};
+    for (int i = 0; i < 4; ++i) cairo_matrix_transform_point(&matrix, &quadX[i], &quadY[i]);
+    double minX = quadX[0], maxX = quadX[0];
+    double minY = quadY[0], maxY = quadY[0];
+    for (int i = 1; i < 4; ++i) {
+        if (quadX[i] < minX) minX = quadX[i];
+        if (quadX[i] > maxX) maxX = quadX[i];
+        if (quadY[i] < minY) minY = quadY[i];
+        if (quadY[i] > maxY) maxY = quadY[i];
+    }
+    x1 = minX;
+    y1 = minY;
+    x2 = maxX;
+    y2 = maxY;
 }
 
 } // namespace
@@ -937,6 +1164,7 @@ void APS5_VABI cairo_new_path(CairoContext* context) {
     auto* state = Valid(context);
     if (!state) return;
     if (state->path) state->path->clear();
+    state->fillIsEmpty = true;
     state->hasCurrent = false;
     state->currentX = state->currentY = 0;
     state->startX = state->startY = 0;
@@ -1156,6 +1384,60 @@ void APS5_VABI cairo_arc_negative(CairoContext* context, double xc, double yc, d
         angle2 += angle1;
     }
     Arc(context, xc, yc, radius, angle1, angle2, false);
+}
+
+
+int APS5_VABI cairo_in_fill(CairoContext* context, double x, double y) {
+    auto* state = Valid(context);
+    if (!state || state->fillIsEmpty) return 0;
+    UserToBackend(state, x, y);
+    InFill fill{};
+    fill.x = FixedFromDouble(x);
+    fill.y = FixedFromDouble(y);
+    for (const auto& entry : *state->path) {
+        if (entry.type == 0)
+            fill.MoveTo(StoredPoint(entry, 0));
+        else if (entry.type == 1)
+            fill.LineTo(StoredPoint(entry, 0));
+        else if (entry.type == 2)
+            fill.CurveTo(StoredPoint(entry, 0), StoredPoint(entry, 1), StoredPoint(entry, 2));
+        else
+            fill.ClosePath();
+    }
+    fill.ClosePath();
+    if (fill.onEdge) return 1;
+    if (state->style.fillRule == 0) return fill.winding != 0;
+    if (state->style.fillRule == 1) return fill.winding & 1;
+    NotImplemented_nid_no_patch(__func__);
+}
+
+void APS5_VABI cairo_clip_extents(CairoContext* context, double* x1, double* y1,
+                                  double* x2, double* y2) {
+    if (x1) *x1 = 0.0;
+    if (y1) *y1 = 0.0;
+    if (x2) *x2 = 0.0;
+    if (y2) *y2 = 0.0;
+    auto* state = Valid(context);
+    if (!state) return;
+    int width = 0;
+    int height = 0;
+    if (!CairoSurfacePixelExtents(state->target, width, height))
+        NotImplemented_nid_no_patch(__func__);
+    CairoMatrix device = DeviceTransform(state);
+    if (cairo_matrix_invert(&device) != kSuccess) NotImplemented_nid_no_patch(__func__);
+    double px1 = 0;
+    double py1 = 0;
+    double px2 = width;
+    double py2 = height;
+    if (!IsIdentity(device) || !IsIdentity(state->style.inverse)) {
+        CairoMatrix inverse{};
+        cairo_matrix_multiply(&inverse, &device, &state->style.inverse);
+        TransformBoundingBox(inverse, px1, py1, px2, py2);
+    }
+    if (x1) *x1 = px1;
+    if (y1) *y1 = py1;
+    if (x2) *x2 = px2;
+    if (y2) *y2 = py2;
 }
 
 }

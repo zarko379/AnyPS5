@@ -94,10 +94,6 @@ int APS5_VABI cairo_scaled_font_text_extents() {
 
 
 
-int APS5_VABI cairo_clip_extents() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI cairo_set_scaled_font() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -133,10 +129,6 @@ int APS5_VABI cairo_paint_with_alpha() {
 
 
 int APS5_VABI cairo_scaled_font_status() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI cairo_in_fill() {
     NotImplemented_nid_no_patch(__func__);
 }
 

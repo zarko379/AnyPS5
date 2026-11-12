@@ -20,11 +20,15 @@
 
 ### Functional context and coordinate transforms
 
-- [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements seventeen Cairo context lifecycle, nested matrix save/restore, and user/device coordinate transform exports, with an owned surface reference, a sticky invalid-matrix/invalid-restore state and System V guest ABI. Drawing, clipping and rasterization remain pending. The context code depends on the image/surface lifecycles above and shares the affine matrix primitives.
+- [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements seventeen Cairo context lifecycle, nested matrix save/restore, and user/device coordinate transform exports, with an owned surface reference, a sticky invalid-matrix/invalid-restore state and System V guest ABI. Drawing, clip-setting and rasterization remain pending. The context code depends on the image/surface lifecycles above and shares the affine matrix primitives.
 
 - [Path data in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) builds the eleven path lifecycle and current-point exports and the arcs in Cairo 24.8 fixed point as Cairo 1.18.0 `cairo-path-fixed.c`, `cairo-arc.c` and `cairo-gstate.c` do, with the incremental inverse CTM and the line-width clamp, and deep-copies public cairo_path_t arrays; not measured on a console. Rectangles use quantized device displacements and close-path canonicalization. Path extents bound line segments and quantized cubic extrema in device space, then convert to user coordinates. Cairo recomputes its identity-transform shortcut when the target device scale changes; here a later device-scale change back to 1 does not restore the shortcut for a CTM that was modified to identity, which only changes results for non-finite coordinates. Tolerance is fixed at 0.1 because `cairo_set_tolerance` is not exported.
 
 - [Operator state in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) has no rendering consumer. The default is OVER, and save/restore preserves the stored operator. Native Cairo 1.18.0 is the comparison target; console behavior is unmeasured.
+
+- [Fill hit testing in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements `cairo_in_fill` as Cairo 1.18.0 `cairo-path-in-fill.c` and `cairo-spline.c` do: an empty-fill flag kept as `cairo-path-fixed.c` keeps `fill_is_empty`, edge crossings in 24.8 fixed point, on-edge points inside, and curves flattened at tolerance 0.1. As in Cairo, a curve whose control points coincide with its ends adds no edge and leaves the current point unchanged. A fill rule other than winding or even-odd reaches `ASSERT_NOT_REACHED` in Cairo, whose result depends on the build, so it throws through `NotImplemented_nid_no_patch`. Not measured on a console.
+
+- [Clip extents in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implement `cairo_clip_extents` as the target extents mapped to user space by `_cairo_gstate_clip_extents` and `_cairo_matrix_transform_bounding_box`. This is complete only while no export sets a clip or pushes a group; `cairo_clip` and `cairo_push_group` must update it. Subsurface extents are rounded at creation as `cairo-surface-subsurface.c` does; values whose conversion to int is undefined in Cairo, and a non-invertible device scale, throw. Not measured on a console.
 
 ### Functional patterns
 
@@ -61,7 +65,6 @@
 | `cairo_scaled_font_get_font_matrix` | `HKjYBSCx3mY` |
 | `cairo_font_face_destroy` | `IgBFcd4cF28` |
 | `cairo_scaled_font_text_extents` | `Jk9paxbMQsk` |
-| `cairo_clip_extents` | `LJNqwiDWTm0` |
 | `cairo_set_scaled_font` | `LUh-6rZhniA` |
 | `cairo_fill` | `Ndvm8s28Gyc` |
 | `cairo_pop_group_to_source` | `Oyzf6kDk6Ns` |
@@ -70,7 +73,6 @@
 | `cairo_ft_scaled_font_unlock_face` | `SJMLSxaYvWU` |
 | `cairo_paint_with_alpha` | `TAIhaLjmAlg` |
 | `cairo_scaled_font_status` | `a5WkqZXnG2w` |
-| `cairo_in_fill` | `akimK5gpdho` |
 | `cairo_font_face_get_user_data` | `bXupa3+NYIs` |
 | `cairo_stroke` | `cdr2T4SoIyU` |
 | `cairo_fill_preserve` | `dewyjTlk+u8` |
