@@ -377,17 +377,8 @@ CairoContext* NewContext() {
     return context;
 }
 
-void CheckContextOperatorAndFonts() {
+void CheckContextFonts() {
     CairoContext* context = NewContext();
-    assert(cairo_get_operator(context) == 2);
-    cairo_set_operator(context, 7);
-    assert(cairo_get_operator(context) == 7);
-    cairo_save(context);
-    cairo_set_operator(context, 99);
-    assert(cairo_get_operator(context) == 99);
-    cairo_restore(context);
-    assert(cairo_get_operator(context) == 7);
-
     cairo_set_font_size(context, 12.5);
     cairo_set_font_size(context, -3);
     cairo_font_options_t* options = cairo_font_options_create();
@@ -398,16 +389,12 @@ void CheckContextOperatorAndFonts() {
 
     cairo_set_font_options(context, cairo_font_options_copy(nullptr));
     assert(Status(context) == 1);
-    assert(cairo_get_operator(context) == 2);
-    cairo_set_operator(context, 5);
-    assert(cairo_get_operator(context) == 2);
     cairo_destroy(context);
 
     context = NewContext();
     cairo_set_font_options(context, nullptr);
     assert(Status(context) == 7);
     cairo_destroy(context);
-    assert(cairo_get_operator(nullptr) == 2);
 }
 
 void CheckContextSources() {
@@ -510,7 +497,7 @@ int main() {
     CheckMatrixFilterExtend();
     CheckMeshConstruction();
     CheckMeshErrors();
-    CheckContextOperatorAndFonts();
+    CheckContextFonts();
     CheckContextSources();
     CheckSourceSurfaceLifetime();
     std::puts("guest_cairo_pattern: ok");

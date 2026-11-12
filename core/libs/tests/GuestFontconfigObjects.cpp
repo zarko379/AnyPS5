@@ -245,6 +245,23 @@ static void FontSets() {
     FcFontSetDestroy(set);
 }
 
+static void FreeTypeFaceGetter() {
+    int sentinel = 0;
+    void* face = &sentinel;
+    CHECK(FcPatternGetFTFace(nullptr, "ftface", 0, &face) == FcResultNoMatch && face == &sentinel);
+    auto* pattern = FcPatternCreate();
+    CHECK(pattern);
+    CHECK(FcPatternGetFTFace(pattern, "ftface", 0, &face) == FcResultNoMatch && face == &sentinel);
+    CHECK(FcPatternAddString(pattern, "family", Text("Sans")) == 1);
+    CHECK(FcPatternAddInteger(pattern, "weight", 80) == 1);
+    CHECK(FcPatternGetFTFace(pattern, "family", 0, &face) == FcResultTypeMismatch && face == &sentinel);
+    CHECK(FcPatternGetFTFace(pattern, "weight", 0, &face) == FcResultTypeMismatch && face == &sentinel);
+    CHECK(FcPatternGetFTFace(pattern, "family", 0, nullptr) == FcResultTypeMismatch);
+    CHECK(FcPatternGetFTFace(pattern, "family", 1, &face) == FcResultNoId && face == &sentinel);
+    CHECK(FcPatternGetFTFace(pattern, "family", -1, &face) == FcResultNoId && face == &sentinel);
+    FcPatternDestroy(pattern);
+}
+
 static void CharSetValues() {
     auto* pattern = FcPatternCreate();
     auto* other = FcPatternCreate();
@@ -376,29 +393,14 @@ static void PatternFiltering() {
     FcPatternDestroy(filtered);
 }
 
-static void FreeTypeFaces() {
-    auto* pattern = FcPatternCreate();
-    CHECK(pattern);
-    void* face = &face;
-    CHECK(FcPatternGetFTFace(pattern, "ftface", 0, &face) == FcResultNoMatch && face == &face);
-    CHECK(FcPatternGetFTFace(nullptr, "ftface", 0, &face) == FcResultNoMatch && face == &face);
-    CHECK(FcPatternAddInteger(pattern, "ftface", 1));
-    CHECK(FcPatternAddString(pattern, "ftface", Text("face")));
-    CHECK(FcPatternGetFTFace(pattern, "ftface", 0, &face) == FcResultTypeMismatch && face == &face);
-    CHECK(FcPatternGetFTFace(pattern, "ftface", 1, &face) == FcResultTypeMismatch && face == &face);
-    CHECK(FcPatternGetFTFace(pattern, "ftface", 2, &face) == FcResultNoId && face == &face);
-    CHECK(FcPatternGetFTFace(pattern, "ftface", -1, &face) == FcResultNoId && face == &face);
-    FcPatternDestroy(pattern);
-}
-
 int main() {
     CharSetValues();
     LangSetValues();
     PatternFiltering();
-    FreeTypeFaces();
     Languages();
     Patterns();
     IntegerGetters();
     Equality();
     FontSets();
+    FreeTypeFaceGetter();
 }

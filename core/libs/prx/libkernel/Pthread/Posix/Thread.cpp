@@ -40,7 +40,7 @@ static bool AcceptsSchedParam(int policy, int priority) {
     if (policy != GUEST_SCHED_FIFO && policy != GUEST_SCHED_RR) return false;
     return (priority >= 256 && priority <= 767) || (priority >= 896 && priority <= 959);
 }
-static constexpr std::size_t GUEST_AFFINITY_ERANGE_BYTES = 24;
+static constexpr std::size_t GUEST_CPUSET_BYTES = 32;
 static constexpr int GUEST_ERANGE = 34;
 
 extern "C" {
@@ -112,8 +112,7 @@ int APS5_VABI cpuset_setaffinity_nid_postfix(int level, int which, std::int64_t 
         *__error_nid_postfix() = error;
         return -1;
     };
-    if (size < sizeof(KernelCpumask) || size >= 24) return fail(GuestErange);
-    if (size > 16) NotImplemented_nid_no_patch("cpuset_setaffinity with a size of 17 to 23 bytes");
+    if (size < sizeof(KernelCpumask) || size > 16) return fail(GuestErange);
     if (!mask) return fail(GuestEfault);
     std::array<std::uint8_t, MaximumSize> buffer{};
     if (!GuestCopyIn_nid_no_patch(buffer.data(), mask, size)) return fail(GuestEfault);
@@ -189,14 +188,14 @@ int APS5_VABI cpuset_setaffinity_nid_postfix(int level, int which, std::int64_t 
 
 int APS5_VABI rtprio_thread_nid_postfix(int function, int lwpid, GuestRtPrio* priority) {
     constexpr int Lookup = 0, Set = 1;
-    constexpr int GuestEperm = 1, GuestEsrch = 3, GuestEfault = 14;
+    constexpr int GuestEperm = 1, GuestEsrch = 3, GuestEfault = 14, GuestEinval = 22;
     constexpr int GuestSchedFifo = 1, GuestSchedRr = 3;
     constexpr std::uint16_t Realtime = 2, Normal = 3, Idle = 4, Fifo = 10, FifoBit = 8;
     const auto fail = [](int error) {
         *__error_nid_postfix() = error;
         return -1;
     };
-    if (function != Lookup && function != Set) return fail(GuestEsrch);
+    if (function != Lookup && function != Set) return fail(function == 2 ? GuestEsrch : GuestEinval);
     if (priority == nullptr) return fail(GuestEfault);
     auto* self = scePthreadSelf();
     int policy = self->schedPolicy.load(std::memory_order_relaxed);
@@ -215,9 +214,9 @@ int APS5_VABI rtprio_thread_nid_postfix(int function, int lwpid, GuestRtPrio* pr
     }
     const auto requestedClass = static_cast<std::uint16_t>(requested.type & ~FifoBit);
     if (requestedClass == Realtime || requestedClass == Idle) return fail(GuestEperm);
+    if (requested.type == Normal && !other) return fail(GuestEinval);
     if (other) NotImplemented_nid_no_patch("rtprio_thread: a thread other than the calling one");
     if (realTime) NotImplemented_nid_no_patch("rtprio_thread: a guest thread's real-time class");
-    if (requested.type == Normal && requested.prio == 0) return 0;
     NotImplemented_nid_no_patch("rtprio_thread: a real-time priority change");
 }
 
@@ -351,8 +350,7 @@ int APS5_VABI pthread_getprio_nid_postfix(Pthread thread) {
 
 int APS5_VABI pthread_getaffinity_np_nid_postfix(Pthread thread, std::size_t cpusetSize, void* cpuset) {
     if (!thread) return PosixThread::GUEST_EINVAL;
-    if (cpusetSize < sizeof(KernelCpumask) || cpusetSize >= GUEST_AFFINITY_ERANGE_BYTES) return GUEST_ERANGE;
-    if (cpusetSize > 16) NotImplemented_nid_no_patch("pthread_getaffinity_np with a set of 17 to 23 bytes");
+    if (cpusetSize < sizeof(KernelCpumask) || cpusetSize > 16) return GUEST_ERANGE;
     if (!cpuset) return PosixThread::GUEST_EFAULT;
     KernelCpumask mask = 0;
     const int result = scePthreadGetaffinity(thread, &mask);
@@ -369,8 +367,7 @@ int APS5_VABI pthread_setaffinity_np_nid_postfix(Pthread thread, std::size_t cpu
         if (!thread) return PosixThread::GUEST_EINVAL;
         if (!GuestThreadIsLive(thread)) return PosixThread::GUEST_ESRCH;
     }
-    if (cpusetSize < sizeof(KernelCpumask) || cpusetSize >= GUEST_AFFINITY_ERANGE_BYTES) return GUEST_ERANGE;
-    if (cpusetSize > 16) NotImplemented_nid_no_patch("pthread_setaffinity_np with a set of 17 to 23 bytes");
+    if (cpusetSize < sizeof(KernelCpumask) || cpusetSize > 16) return GUEST_ERANGE;
     if (!cpuset) return PosixThread::GUEST_EFAULT;
     std::array<std::uint8_t, 16> buffer{};
     if (!GuestCopyIn_nid_no_patch(buffer.data(), cpuset, cpusetSize)) return PosixThread::GUEST_EFAULT;
@@ -461,8 +458,8 @@ int APS5_VABI pthread_getname_np_nid_postfix(Pthread thread, char* name) {
 }
 
 void APS5_VABI pthread_set_name_np_nid_postfix(Pthread thread, const char* name) {
-    scePthreadRename(thread, name != nullptr ? name : "");
-
+    const int result = scePthreadRename(thread, name != nullptr ? name : "");
+    if (result != 0) *__error_nid_postfix() = PosixThread::ToErrno(result);
 }
 
 Pthread APS5_VABI pthread_self_nid_postfix(void) {

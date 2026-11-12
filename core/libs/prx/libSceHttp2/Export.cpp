@@ -49,7 +49,6 @@ struct Http2Handle {
     std::shared_ptr<Http2::Request> transport;
     std::shared_ptr<Http2::Capacity> capacity;
     bool webSocket = false;
-    bool aborted = false;
 };
 
 static std::atomic<int> g_nextHandle{1};
@@ -95,9 +94,7 @@ static int CompleteAsync(const char* function, int req_id, const Http2AsyncOptio
         return 0;
     }
     std::lock_guard handlesLock(g_handlesMutex);
-    const auto* handle = FindHandle(req_id, Http2Kind::Request);
-    if (handle == nullptr) return ERROR_INVALID_ID;
-    if (handle->aborted) NotImplemented_nid_no_patch(function);
+    if (FindHandle(req_id, Http2Kind::Request) == nullptr) return ERROR_INVALID_ID;
     std::lock_guard completionsLock(g_completionsMutex);
     if (kqueue_option != nullptr) {
         if (sceKernelTriggerUserEvent(kqueue_option->equeue, kqueue_option->user_event_id, kqueue_option->user_data) != 0) {
@@ -141,7 +138,7 @@ static int Update(int id, const char* function, TUpdate update, bool otherKindsA
         if (otherKindsAreInvalid) return ERROR_INVALID_ID;
         NotImplemented_nid_no_patch(function);
     }
-    if (handle->transport || handle->aborted) NotImplemented_nid_no_patch(function);
+    if (handle->transport) NotImplemented_nid_no_patch(function);
     if constexpr (std::is_void_v<std::invoke_result_t<TUpdate, Http2::Settings&>>) {
         update(handle->settings);
         return 0;
@@ -171,7 +168,6 @@ static std::shared_ptr<Http2::Request> Transport(int id, bool create) {
     std::lock_guard lock(g_handlesMutex);
     auto* handle = FindHandle(id, Http2Kind::Request);
     if (!handle) return nullptr;
-    if (handle->aborted && !handle->transport) NotImplemented_nid_no_patch("sceHttp2: request was aborted before it was sent; console error mapping is unknown");
     if (create && !handle->transport) {
         handle->transport = Http2::CreateRequest_nid_no_patch(id, handle->version, handle->sslContext, handle->capacity, handle->settings, handle->method, handle->url);
     }
@@ -290,10 +286,7 @@ int APS5_VABI sceHttp2ReadDataAsync(int req_id, void* data, size_t size, void* k
 int APS5_VABI sceHttp2SendRequest(int req_id, const void* post_data, size_t size) {
     if (std::getenv("APS5_NET_DISCONNECTED") != nullptr) {
         std::lock_guard lock(g_handlesMutex);
-        const auto* handle = FindHandle(req_id, Http2Kind::Request);
-        if (handle == nullptr) return ERROR_INVALID_ID;
-        if (handle->aborted) NotImplemented_nid_no_patch(__func__);
-        return ERROR_NETWORK;
+        return FindHandle(req_id, Http2Kind::Request) != nullptr ? ERROR_NETWORK : ERROR_INVALID_ID;
     }
     const auto request = Transport(req_id, true);
     return request ? request->Send(post_data, size) : ERROR_INVALID_ID;
@@ -422,11 +415,9 @@ int APS5_VABI sceHttp2WaitAsync(int req_id, Http2AsyncResult* result, uint32_t* 
 }
 
 int APS5_VABI sceHttp2AbortRequest(int req_id) {
-    std::lock_guard lock(g_handlesMutex);
-    auto* handle = FindHandle(req_id, Http2Kind::Request);
-    if (!handle) return ERROR_INVALID_ID;
-    handle->aborted = true;
-    if (handle->transport) handle->transport->Cancel();
+    const auto request = Transport(req_id, !IsWebSocket(req_id));
+    if (!request) return ERROR_INVALID_ID;
+    request->Cancel();
     return 0;
 }
 
@@ -632,10 +623,21 @@ int APS5_VABI sceHttp2SetPreSendCallback(int id, void* cb_func, void* user_arg) 
     }, true);
 }
 
-int APS5_VABI sceHttp2Unknown_001_nid_no_patch() {
+int APS5_VABI _Z5dummyv_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
-APS5_EXPORT("AS45QoYHjc4", sceHttp2Unknown_001_nid_no_patch);
 
+}
+
+extern "C" void Http2SetConnectHook_nid_no_patch(Http2::ConnectHook hook) {
+    Http2::ConnectHookSlot().store(hook, std::memory_order_release);
+}
+
+extern "C" void Http2SetPollHook_nid_no_patch(Http2::PollHook hook) {
+    Http2::PollHookSlot().store(hook, std::memory_order_release);
+}
+
+extern "C" void Http2SetWriteHook_nid_no_patch(Http2::WriteHook hook) {
+    Http2::WriteHookSlot().store(hook, std::memory_order_release);
 }

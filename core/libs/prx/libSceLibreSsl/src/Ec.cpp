@@ -251,6 +251,7 @@
 
 #include "prx/libSceLibreSsl/include/Api.hpp"
 #include <atomic>
+#include <bit>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -562,15 +563,6 @@ bool ReducedPrivateKey(const EcGroup& group, const Bignum& number, mbedtls_mpi& 
     return mbedtls_mpi_cmp_int(&out, 0) != 0;
 }
 
-bool ScaledTerm(mbedtls_ecp_group& group, const Bignum& scalar, const mbedtls_ecp_point& base, mbedtls_ecp_point& out, const char* function) {
-    Mpi reduced;
-    LoadBignum(scalar, reduced.value, function);
-    Check(mbedtls_mpi_mod_mpi(&reduced.value, &reduced.value, &group.N), function);
-    if (mbedtls_mpi_cmp_int(&reduced.value, 0) == 0) return false;
-    Check(mbedtls_ecp_mul(&group, &out, &reduced.value, &base, HostRandom, nullptr), function);
-    return true;
-}
-
 bool StorePrivateKey(const mbedtls_mpi& value, Bignum*& target) {
     std::vector<unsigned char> bytes(mbedtls_mpi_size(&value));
     Check(mbedtls_mpi_write_binary(&value, bytes.data(), bytes.size()), "EC_KEY_generate_key");
@@ -579,6 +571,14 @@ bool StorePrivateKey(const mbedtls_mpi& value, Bignum*& target) {
     if (!stored) return false;
     target = stored;
     return true;
+}
+
+void ReadScalar(const Bignum& scalar, const mbedtls_mpi& order, mbedtls_mpi& out) {
+    static_assert(std::endian::native == std::endian::little);
+    const std::size_t size = scalar.top > 0 ? static_cast<std::size_t>(scalar.top) * sizeof(*scalar.d) : 0;
+    Check(mbedtls_mpi_read_binary_le(&out, reinterpret_cast<const unsigned char*>(scalar.d), size), "EC_POINT_mul");
+    Check(mbedtls_mpi_mod_mpi(&out, &out, &order), "EC_POINT_mul");
+    if (scalar.neg && mbedtls_mpi_cmp_int(&out, 0) != 0) Check(mbedtls_mpi_sub_mpi(&out, &order, &out), "EC_POINT_mul");
 }
 
 }
@@ -666,34 +666,30 @@ int APS5_VABI EC_POINT_oct2point_nid_postfix(const EcGroup* group, EcPoint* poin
     return mbedtls_ecp_check_pubkey(&curve, &point->point) == 0 ? 1 : 0;
 }
 
-int APS5_VABI EC_POINT_mul_nid_postfix(const EcGroup* group, EcPoint* result, const Bignum* generatorScalar, const EcPoint* point, const Bignum* pointScalar, void*) {
+int APS5_VABI EC_POINT_mul_nid_postfix(const EcGroup* group, EcPoint* result, const Bignum* generatorScalar, const EcPoint* point, const Bignum* pointScalar, BignumContext*) {
     if (group == nullptr || result == nullptr) APS5_INVALID_ARG_EX;
     RequireSameCurve(*group, result->curve, "EC_POINT_mul: a result point of another curve");
-    const bool withPoint = point != nullptr && pointScalar != nullptr;
-    if (generatorScalar == nullptr && !withPoint) {
-        Check(mbedtls_ecp_set_zero(&result->point), __func__);
-        return 1;
-    }
-    if (withPoint) {
+    EcGroup local(group->curve);
+    mbedtls_ecp_group& curve = local.group;
+    Mpi generatorFactor;
+    Mpi pointFactor;
+    if (generatorScalar != nullptr) ReadScalar(*generatorScalar, curve.N, generatorFactor.value);
+    if (point != nullptr && pointScalar != nullptr) {
         RequireSameCurve(*group, point->curve, "EC_POINT_mul: a point of another curve");
-        if (!AtInfinity(point->point) && mbedtls_ecp_check_pubkey(&group->group, &point->point) != 0) NotImplemented_nid_no_patch("EC_POINT_mul: a point off the curve");
+        if (!AtInfinity(point->point)) {
+            if (mbedtls_ecp_check_pubkey(&curve, &point->point) != 0) NotImplemented_nid_no_patch("EC_POINT_mul: a point off the curve");
+            ReadScalar(*pointScalar, curve.N, pointFactor.value);
+        }
     }
-    auto& curve = const_cast<mbedtls_ecp_group&>(group->group);
-    Point generatorTerm;
-    Point pointTerm;
-    const bool hasGeneratorTerm = generatorScalar != nullptr && ScaledTerm(curve, *generatorScalar, curve.G, generatorTerm.value, __func__);
-    const bool hasPointTerm = withPoint && !AtInfinity(point->point) && ScaledTerm(curve, *pointScalar, point->point, pointTerm.value, __func__);
+    const bool withGenerator = mbedtls_mpi_cmp_int(&generatorFactor.value, 0) != 0;
+    const bool withPoint = mbedtls_mpi_cmp_int(&pointFactor.value, 0) != 0;
     Point sum;
-    if (hasGeneratorTerm && hasPointTerm) {
-        Mpi one;
-        Check(mbedtls_mpi_lset(&one.value, 1), __func__);
-        Check(mbedtls_ecp_muladd(&curve, &sum.value, &one.value, &generatorTerm.value, &one.value, &pointTerm.value), __func__);
-    } else if (hasGeneratorTerm) {
-        Check(mbedtls_ecp_copy(&sum.value, &generatorTerm.value), __func__);
-    } else if (hasPointTerm) {
-        Check(mbedtls_ecp_copy(&sum.value, &pointTerm.value), __func__);
-    } else {
-        Check(mbedtls_ecp_set_zero(&sum.value), __func__);
+    if (withGenerator && withPoint) {
+        Check(mbedtls_ecp_muladd(&curve, &sum.value, &generatorFactor.value, &curve.G, &pointFactor.value, &point->point), __func__);
+    } else if (withGenerator) {
+        Check(mbedtls_ecp_mul(&curve, &sum.value, &generatorFactor.value, &curve.G, HostRandom, nullptr), __func__);
+    } else if (withPoint) {
+        Check(mbedtls_ecp_mul(&curve, &sum.value, &pointFactor.value, &point->point, HostRandom, nullptr), __func__);
     }
     Check(mbedtls_ecp_copy(&result->point, &sum.value), __func__);
     return 1;
@@ -728,6 +724,7 @@ int APS5_VABI EC_KEY_set_group_nid_postfix(EcKey* key, const EcGroup* group) {
         if (key->publicKey) RequireSameCurve(*group, key->publicKey->curve, "EC_KEY_set_group: a curve other than the one of the key's public key");
     }
     EcGroup* copy = group ? new EcGroup(group->curve) : nullptr;
+    if (copy) copy->asn1Flag = group->asn1Flag;
     delete key->group;
     key->group = copy;
     return copy ? 1 : 0;

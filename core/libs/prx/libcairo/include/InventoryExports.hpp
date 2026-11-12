@@ -1,8 +1,15 @@
 #pragma once
 
 #include "SceTypes.hpp"
+#include <cstdint>
 
 struct cairo_font_options_t;
+
+struct cairo_glyph_t {
+    std::uint64_t index;
+    double x;
+    double y;
+};
 
 enum cairo_antialias_t : int {
     CAIRO_ANTIALIAS_DEFAULT,
@@ -92,7 +99,7 @@ int APS5_VABI cairo_fill_preserve();
 int APS5_VABI cairo_fill_extents();
 int APS5_VABI cairo_ft_font_face_create_for_ft_face();
 int APS5_VABI cairo_push_group();
-int APS5_VABI cairo_glyph_free();
+int APS5_VABI cairo_ft_font_options_substitute();
 int APS5_VABI cairo_select_font_face();
 int APS5_VABI cairo_scaled_font_reference();
 int APS5_VABI cairo_font_face_reference();
@@ -102,6 +109,8 @@ int APS5_VABI cairo_show_text();
 int APS5_VABI cairo_set_font_face();
 int APS5_VABI cairo_scaled_font_create();
 int APS5_VABI cairo_device_destroy();
+
+void APS5_VABI cairo_glyph_free(cairo_glyph_t* glyphs);
 
 cairo_font_options_t* APS5_VABI cairo_font_options_create();
 cairo_font_options_t* APS5_VABI cairo_font_options_copy(const cairo_font_options_t* original);

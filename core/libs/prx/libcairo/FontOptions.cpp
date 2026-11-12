@@ -1,5 +1,4 @@
 #include "prx/libcairo/include/InventoryExports.hpp"
-#include "prx/libcairo/include/FontOptions.hpp"
 #include <cstdlib>
 
 namespace {
@@ -33,13 +32,6 @@ int CairoFontOptionsStatus(const cairo_font_options_t* options) {
 
 const CairoFontOptionsState* CairoFontOptionsRead(const cairo_font_options_t* options) {
     return Storage(options);
-}
-
-bool CairoFontOptionsRead(const cairo_font_options_t* options, CairoFontOptionsValues& values) {
-    if (Invalid(options)) return false;
-    const auto* storage = Storage(options);
-    values = {storage->antialias, storage->subpixel_order, storage->hint_style, storage->hint_metrics};
-    return true;
 }
 
 extern "C" {

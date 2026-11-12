@@ -44,6 +44,10 @@ void APS5_VABI cairo_set_dash(CairoContext* context, const double* dashes,
                              int numDashes, double offset);
 void APS5_VABI cairo_get_dash(CairoContext* context, double* dashes, double* offset);
 int APS5_VABI cairo_get_dash_count(CairoContext* context);
+void APS5_VABI cairo_set_operator(CairoContext* context, int operation);
+int APS5_VABI cairo_get_operator(CairoContext* context);
+void APS5_VABI cairo_rectangle(CairoContext* context, double x, double y,
+                               double width, double height);
 
 void APS5_VABI cairo_set_source(CairoContext* context, CairoPattern* source);
 void APS5_VABI cairo_set_source_rgb(CairoContext* context, double red, double green, double blue);
@@ -51,8 +55,6 @@ void APS5_VABI cairo_set_source_rgba(CairoContext* context, double red, double g
                                      double alpha);
 void APS5_VABI cairo_set_source_surface(CairoContext* context, CairoSurface* surface,
                                         double x, double y);
-void APS5_VABI cairo_set_operator(CairoContext* context, int op);
-int APS5_VABI cairo_get_operator(CairoContext* context);
 void APS5_VABI cairo_set_font_size(CairoContext* context, double size);
 void APS5_VABI cairo_set_font_options(CairoContext* context, const cairo_font_options_t* options);
 }

@@ -209,8 +209,12 @@ int APS5_VABI ksem_trywait_nid_postfix(std::intptr_t id) {
 }
 
 int APS5_VABI ksem_timedwait_nid_postfix(std::intptr_t id, const KernelTimespec* abstime) {
-    if (abstime != nullptr && (abstime->tv_nsec < 0 || abstime->tv_nsec >= 1000000000)) return Fail(GuestEinval);
-    return Wait(id, false, abstime);
+    KernelTimespec deadline{};
+    if (abstime != nullptr) {
+        if (!GuestCopyIn_nid_no_patch(&deadline, abstime, sizeof(deadline))) return Fail(GuestEfault);
+        if (deadline.tv_nsec < 0 || deadline.tv_nsec >= 1000000000) return Fail(GuestEinval);
+    }
+    return Wait(id, false, abstime != nullptr ? &deadline : nullptr);
 }
 
 int APS5_VABI ksem_getvalue_nid_postfix(std::intptr_t id, int* value) {

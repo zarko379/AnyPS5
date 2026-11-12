@@ -1,5 +1,6 @@
 #include "prx/libc/include/GuestGs.hpp"
 #include "prx/libkernel/include/Api.hpp"
+#include "prx/libkernel/System/include/ProcessWait.hpp"
 #include "prx/libc/include/Api.hpp"
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -20,15 +21,12 @@
 #endif
 #if defined(__linux__) && defined(__x86_64__)
 #include <asm/prctl.h>
-#endif
-#ifdef __linux__
 #include <sys/syscall.h>
 #endif
 
 #ifdef _WIN32
 #include "prx/libc/include/ChildProcesses.hpp"
 #else
-#include <signal.h>
 #include <sys/wait.h>
 #endif
 #include "SceTypes.hpp"
@@ -686,26 +684,8 @@ int APS5_VABI system_nid_postfix(const char* command) {
     return command == nullptr ? 1 : shellNotExecuted;
 }
 
-namespace {
-constexpr unsigned waitNoHang = 1u;
-constexpr unsigned waitUntraced = 2u;
-constexpr unsigned waitContinued = 4u;
-constexpr unsigned waitNoWait = 8u;
-constexpr unsigned waitLinuxClone = 0x80000000u;
-
-#ifdef _WIN32
-GuestResourceUsage GuestUsageFromTimes(std::uint64_t userTicks, std::uint64_t kernelTicks) {
-    GuestResourceUsage result{};
-    const auto userMicros = userTicks / 10ULL;
-    const auto kernelMicros = kernelTicks / 10ULL;
-    result.ru_utime.tv_sec = static_cast<std::int64_t>(userMicros / 1000000ULL);
-    result.ru_utime.tv_usec = static_cast<std::int64_t>(userMicros % 1000000ULL);
-    result.ru_stime.tv_sec = static_cast<std::int64_t>(kernelMicros / 1000000ULL);
-    result.ru_stime.tv_usec = static_cast<std::int64_t>(kernelMicros % 1000000ULL);
-    return result;
-}
-#else
-GuestResourceUsage GuestUsageFromHost(const struct rusage& native) {
+#ifndef _WIN32
+static GuestResourceUsage ResourceUsage(const struct rusage& native) {
     GuestResourceUsage result{};
     result.ru_utime.tv_sec = static_cast<std::int64_t>(native.ru_utime.tv_sec);
     result.ru_utime.tv_usec = static_cast<std::int64_t>(native.ru_utime.tv_usec);
@@ -727,124 +707,81 @@ GuestResourceUsage GuestUsageFromHost(const struct rusage& native) {
     result.ru_nivcsw = static_cast<std::int64_t>(native.ru_nivcsw);
     return result;
 }
+#endif
 
-int GuestSignalFromHost(int hostSignal) {
-#ifndef __APPLE__
-    switch (hostSignal) {
-    case 7: return 10;
-    case 10: return 30;
-    case 12: return 31;
-    case 17: return 20;
-    case 18: return 19;
-    case 19: return 17;
-    case 20: return 18;
-    case 23: return 16;
-    case 29: return 23;
-    case 31: return 12;
-    case 16:
-    case 30: return -1;
-    default: return hostSignal < 32 ? hostSignal : -1;
+int APS5_VABI waitpid_nid_postfix(int pid, int* status, int options) {
+    return WaitProcess_nid_no_patch(pid, status, options, nullptr);
+}
+
+int WaitProcess_nid_no_patch(int pid, int* status, int options, GuestResourceUsage* usage) {
+    if ((static_cast<unsigned>(options) & ~freebsdWaitOptions) != 0) {
+        *__error_nid_postfix() = errnoInvalidArgument;
+        return -1;
     }
-#else
-    return hostSignal;
-#endif
-}
-#endif
-}
-
-int APS5_VABI WaitChild_nid_no_patch(int pid, int* status, int options, GuestResourceUsage* usage, bool* unmappedSignal) {
-    *unmappedSignal = false;
-    const auto fail = [](int error) { *__error_nid_postfix() = error; return -1; };
-    const auto bits = static_cast<unsigned>(options);
-    if ((bits & ~freebsdWaitOptions) != 0) return fail(errnoInvalidArgument);
-    if ((bits & waitLinuxClone) != 0) return fail(errnoNoChild);
-    const bool ownGroup = pid == 0 || (pid < -1 && -static_cast<std::int64_t>(pid) == getpid_nid_postfix());
-    GuestResourceUsage result{};
-    int encoded = 0;
 #ifdef _WIN32
-    if (pid < -1 && !ownGroup) return fail(errnoNoChild);
-    std::uint64_t userTicks = 0;
-    std::uint64_t kernelTicks = 0;
-    const std::int64_t reaped = WaitChildProcess_nid_no_patch(pid > 0 ? pid : -1, bits, &encoded,
-        usage != nullptr ? &userTicks : nullptr, usage != nullptr ? &kernelTicks : nullptr);
-    if (reaped == -2) return fail(errnoNoChild);
+    int encoded = 0;
+    const std::int64_t reaped = WaitChildProcess_nid_no_patch(pid, static_cast<unsigned>(options), &encoded, usage != nullptr);
+    if (reaped == -2) {
+        *__error_nid_postfix() = errnoNoChild;
+        return -1;
+    }
     if (reaped == -1) return -1;
     if (reaped == 0) return 0;
-    result = GuestUsageFromTimes(userTicks, kernelTicks);
-    const int child = static_cast<int>(reaped);
-#elif defined(__linux__)
-    idtype_t type = P_PID;
-    std::int64_t id = pid;
-    if (pid == -1) {
-        type = P_ALL;
-        id = 0;
-    } else if (ownGroup) {
-        type = P_PGID;
-        id = ::getpgrp();
-    } else if (pid < 0) {
-        type = P_PGID;
-        id = -static_cast<std::int64_t>(pid);
-        if (id > std::numeric_limits<int>::max()) return fail(errnoNoChild);
+    if (status != nullptr && !WriteGuest(status, &encoded, sizeof(encoded))) {
+        *__error_nid_postfix() = guestFault;
+        return -1;
     }
-    int hostOptions = WEXITED;
-    if ((bits & waitNoHang) != 0) hostOptions |= WNOHANG;
-    if ((bits & waitUntraced) != 0) hostOptions |= WSTOPPED;
-    if ((bits & waitContinued) != 0) hostOptions |= WCONTINUED;
-    if ((bits & waitNoWait) != 0) hostOptions |= WNOWAIT;
-    siginfo_t info{};
-    struct rusage native{};
-    if (::syscall(SYS_waitid, static_cast<long>(type), static_cast<long>(id), &info, static_cast<long>(hostOptions), usage != nullptr ? &native : nullptr) != 0)
-        return fail(errno);
-    if (info.si_pid == 0) return 0;
-    switch (info.si_code) {
-    case CLD_EXITED: encoded = (info.si_status & 0xff) << 8; break;
-    case CLD_CONTINUED: encoded = 0x13; break;
-    case CLD_KILLED:
-    case CLD_DUMPED:
-    case CLD_STOPPED:
-    case CLD_TRAPPED: {
-        const int guestSignal = GuestSignalFromHost(info.si_status);
-        if (guestSignal < 0) {
-            *unmappedSignal = true;
-            return -1;
-        }
-        encoded = info.si_code == CLD_KILLED ? guestSignal : info.si_code == CLD_DUMPED ? (guestSignal | 0x80) : ((guestSignal << 8) | 0x7f);
-        break;
-    }
-    default: throw std::runtime_error("wait: waitid reported the unknown child state " + std::to_string(info.si_code));
-    }
-    if (usage != nullptr) result = GuestUsageFromHost(native);
-    const int child = static_cast<int>(info.si_pid);
+    return static_cast<int>(reaped);
 #else
-    if ((bits & waitNoWait) != 0) NotImplemented_nid_no_patch("wait: WNOWAIT on this host");
-    int hostOptions = static_cast<int>(bits & (waitNoHang | waitUntraced));
-    if ((bits & waitContinued) != 0) hostOptions |= WCONTINUED;
+    unsigned hostOptions = static_cast<unsigned>(options) & 3u;
+    if ((static_cast<unsigned>(options) & 4u) != 0) hostOptions |= static_cast<unsigned>(WCONTINUED);
+    int encoded = 0;
     struct rusage native{};
-    const int child = ::wait4(ownGroup ? 0 : pid, &encoded, hostOptions, usage != nullptr ? &native : nullptr);
-    if (child < 0) return fail(errno);
-    if (child == 0) return 0;
+    const int result = ::wait4(pid, &encoded, static_cast<int>(hostOptions), usage == nullptr ? nullptr : &native);
+    if (result < 0) {
+        *__error_nid_postfix() = errno;
+        return -1;
+    }
+    if (result == 0) return 0;
     if (WIFCONTINUED(encoded)) {
         encoded = 0x13;
     } else if (WIFSIGNALED(encoded) || WIFSTOPPED(encoded)) {
-        const int guestSignal = GuestSignalFromHost(WIFSIGNALED(encoded) ? WTERMSIG(encoded) : WSTOPSIG(encoded));
-        if (guestSignal < 0) {
-            *unmappedSignal = true;
+        const int hostSignal = WIFSIGNALED(encoded) ? WTERMSIG(encoded) : WSTOPSIG(encoded);
+        int guestSignal = hostSignal;
+#ifndef __APPLE__
+        switch (hostSignal) {
+        case 7: guestSignal = 10; break;
+        case 10: guestSignal = 30; break;
+        case 12: guestSignal = 31; break;
+        case 17: guestSignal = 20; break;
+        case 18: guestSignal = 19; break;
+        case 19: guestSignal = 17; break;
+        case 20: guestSignal = 18; break;
+        case 23: guestSignal = 16; break;
+        case 29: guestSignal = 23; break;
+        case 31: guestSignal = 12; break;
+        case 16:
+        case 30:
+            NotImplemented_nid_no_patch("waitpid: a child stopped or died with a signal without a guest equivalent");
             return -1;
+        default: break;
         }
+#endif
         encoded = WIFSTOPPED(encoded) ? ((encoded & ~0xff00) | (guestSignal << 8)) : ((encoded & ~0x7f) | guestSignal);
     }
-    if (usage != nullptr) result = GuestUsageFromHost(native);
-#endif
-    if (status != nullptr && !WriteGuest(status, &encoded, sizeof(encoded))) return fail(errnoBadAddress);
-    if (usage != nullptr && !WriteGuest(usage, &result, sizeof(result))) return fail(errnoBadAddress);
-    return child;
-}
-
-int APS5_VABI waitpid_nid_postfix(int pid, int* status, int options) {
-    bool unmappedSignal = false;
-    const int result = WaitChild_nid_no_patch(pid, status, options, nullptr, &unmappedSignal);
-    if (unmappedSignal) NotImplemented_nid_no_patch("waitpid: a child stopped or died with a signal without a guest equivalent");
+    if (status != nullptr && !WriteGuest(status, &encoded, sizeof(encoded))) {
+        *__error_nid_postfix() = guestFault;
+        return -1;
+    }
+    if (usage != nullptr) {
+        const auto resources = ResourceUsage(native);
+        if (!WriteGuest(usage, &resources, sizeof(resources))) {
+            *__error_nid_postfix() = guestFault;
+            return -1;
+        }
+    }
     return result;
+#endif
 }
 
 int APS5_VABI setrlimit_nid_postfix(int resource, const GuestResourceLimit* limit) {
@@ -1168,10 +1105,15 @@ int APS5_VABI getrusage_nid_postfix(int who, GuestResourceUsage* usage) {
         if (!GetThreadTimes(GetCurrentThread(), &creation, &exitTime, &kernel, &user))
             throw std::system_error(GetLastError(), std::system_category(), "getrusage: GetThreadTimes failed");
     }
-    const auto ticks = [](const FILETIME& time) {
-        return (static_cast<std::uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
+    const auto toMicros = [](const FILETIME& time) {
+        return ((static_cast<std::uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime) / 10ULL;
     };
-    result = GuestUsageFromTimes(ticks(user), ticks(kernel));
+    const auto userMicros = toMicros(user);
+    const auto kernelMicros = toMicros(kernel);
+    result.ru_utime.tv_sec = static_cast<std::int64_t>(userMicros / 1000000ULL);
+    result.ru_utime.tv_usec = static_cast<std::int64_t>(userMicros % 1000000ULL);
+    result.ru_stime.tv_sec = static_cast<std::int64_t>(kernelMicros / 1000000ULL);
+    result.ru_stime.tv_usec = static_cast<std::int64_t>(kernelMicros % 1000000ULL);
 #else
     struct rusage native{};
 #ifdef __APPLE__
@@ -1195,7 +1137,7 @@ int APS5_VABI getrusage_nid_postfix(int who, GuestResourceUsage* usage) {
     if (::getrusage(who == 0 ? RUSAGE_SELF : RUSAGE_THREAD, &native) != 0)
         throw std::system_error(errno, std::generic_category(), "getrusage: getrusage failed");
 #endif
-    result = GuestUsageFromHost(native);
+    result = ResourceUsage(native);
 #endif
     if (!WriteGuest(usage, &result, sizeof(result))) {
         *__error_nid_postfix() = guestFault;

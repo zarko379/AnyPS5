@@ -15,6 +15,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 #ifndef _WIN32
 #include <pthread.h>
 #endif
@@ -96,7 +97,6 @@ struct PthreadSemPrivate {
 };
 
 static constexpr KernelCpumask DEFAULT_THREAD_AFFINITY = 0x1FFF;
-static constexpr std::size_t GUEST_CPUSET_BYTES = 32;
 static constexpr int DEFAULT_THREAD_PRIORITY = 700;
 static constexpr std::uint32_t CPU_CLOCK_BIT = 0x80000000u;
 static constexpr std::uint32_t CPU_CLOCK_PROCESS_BIT = 0x40000000u;
@@ -207,6 +207,11 @@ extern "C" void DeliverPendingException_nid_no_patch(PthreadPrivate* thread);
 #endif
 extern "C" void ResumeAllGuestThreads_nid_no_patch();
 bool LiveGuestThreadExists(std::int64_t tid);
+struct LiveGuestThreadName {
+    std::int64_t tid;
+    std::string name;
+};
+std::vector<LiveGuestThreadName> LiveGuestThreadNames();
 bool GetLiveGuestThreadAffinity_nid_no_patch(std::int64_t tid, KernelCpumask& mask);
 bool GetLiveGuestThreadSched_nid_no_patch(std::int64_t tid, int& policy, int& priority);
 bool SetLiveGuestThreadAffinity_nid_no_patch(std::int64_t tid, KernelCpumask mask);

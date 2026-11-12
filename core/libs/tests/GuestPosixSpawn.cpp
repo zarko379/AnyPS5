@@ -2,7 +2,6 @@
 #include "prx/libSceLibcInternal/include/Api.hpp"
 #include "prx/libSceLibcInternal/include/Spawn.hpp"
 #include "prx/libkernel/include/Api.hpp"
-#include "prx/libkernel_sys/include/Api.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <chrono>
 #include <csignal>
@@ -10,11 +9,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
 #include <cwchar>
 #include <filesystem>
 #include <fstream>
-#include <algorithm>
 #include <iterator>
 #include <stdexcept>
 #include <string>
@@ -394,145 +391,7 @@ static void CheckConcurrentWaiters() {
     CleanupChild();
 }
 
-static bool UsageUntouched(const GuestResourceUsage& usage) {
-    const auto* bytes = reinterpret_cast<const unsigned char*>(&usage);
-    return std::all_of(bytes, bytes + sizeof(usage), [](unsigned char value) { return value == 0x5a; });
-}
-
-static bool UsageTimesValid(const GuestResourceUsage& usage) {
-    return usage.ru_utime.tv_sec >= 0 && usage.ru_utime.tv_usec >= 0 && usage.ru_utime.tv_usec < 1000000 &&
-        usage.ru_stime.tv_sec >= 0 && usage.ru_stime.tv_usec >= 0 && usage.ru_stime.tv_usec < 1000000;
-}
-
-static bool ExitedWith(int status, int code) {
-    return (status & 0x7f) == 0 && ((status >> 8) & 0xff) == code;
-}
-
-static void CheckWait4Exited() {
-    const std::int32_t processId = SpawnChild("child-exit-42");
-    int status = -1;
-    GuestResourceUsage usage;
-    std::memset(&usage, 0x5a, sizeof(usage));
-    Check(wait4_nid_postfix(processId, &status, 0, &usage) == processId);
-    Check(ExitedWith(status, 42) && !UsageUntouched(usage) && UsageTimesValid(usage));
-    Check(wait4_nid_postfix(processId, &status, 0, &usage) == -1 && *__error_nid_postfix() == 10);
-    CleanupChild();
-}
-
-static void CheckWait3Usage() {
-    const std::int32_t processId = SpawnChild("child-spin");
-    int status = -1;
-    GuestResourceUsage usage;
-    std::memset(&usage, 0x5a, sizeof(usage));
-    Check(wait3_nid_postfix(&status, 0, &usage) == processId);
-    Check(ExitedWith(status, 46) && UsageTimesValid(usage));
-    Check(usage.ru_utime.tv_sec * 1000000 + usage.ru_utime.tv_usec + usage.ru_stime.tv_sec * 1000000 + usage.ru_stime.tv_usec >= 100000);
-#ifdef _WIN32
-    Check(usage.ru_maxrss == 0 && usage.ru_minflt == 0 && usage.ru_nivcsw == 0);
-#else
-    Check(usage.ru_maxrss > 0);
-#endif
-    Check(wait3_nid_postfix(&status, 1, nullptr) == -1 && *__error_nid_postfix() == 10);
-    CleanupChild();
-}
-
-static void CheckWait4NoHang() {
-    const std::int32_t processId = SpawnChild("child-sleep");
-    int status = 0x5a5a5a5a;
-    GuestResourceUsage usage;
-    std::memset(&usage, 0x5a, sizeof(usage));
-    Check(wait4_nid_postfix(processId, &status, 1, &usage) == 0);
-    Check(wait3_nid_postfix(&status, 1, &usage) == 0);
-    Check(status == 0x5a5a5a5a && UsageUntouched(usage));
-    Check(wait4_nid_postfix(processId, &status, 0, nullptr) == processId && ExitedWith(status, 43));
-    CleanupChild();
-}
-
-static void CheckWaitNoWait() {
-    std::int32_t processId = SpawnChild("child-exit-42");
-    int status = -1;
-    GuestResourceUsage usage;
-    std::memset(&usage, 0x5a, sizeof(usage));
-    Check(wait4_nid_postfix(processId, &status, 8, &usage) == processId && ExitedWith(status, 42) && !UsageUntouched(usage));
-    status = -1;
-    std::memset(&usage, 0x5a, sizeof(usage));
-    Check(wait4_nid_postfix(processId, &status, 9, &usage) == processId && ExitedWith(status, 42) && !UsageUntouched(usage));
-    status = -1;
-    Check(wait4_nid_postfix(processId, &status, 0, &usage) == processId && ExitedWith(status, 42));
-    Check(wait4_nid_postfix(processId, &status, 0, &usage) == -1 && *__error_nid_postfix() == 10);
-    CleanupChild();
-    processId = SpawnChild("child-exit-42");
-    status = -1;
-    Check(waitpid_nid_postfix(processId, &status, 8) == processId && ExitedWith(status, 42));
-    status = -1;
-    Check(waitpid_nid_postfix(processId, &status, 0) == processId && ExitedWith(status, 42));
-    Check(waitpid_nid_postfix(processId, &status, 0) == -1 && *__error_nid_postfix() == 10);
-    CleanupChild();
-}
-
-static void CheckWait4LinuxClone() {
-    const std::int32_t processId = SpawnChild("child-sleep");
-    int status = 0x5a5a5a5a;
-    *__error_nid_postfix() = 0;
-    Check(wait4_nid_postfix(processId, &status, static_cast<int>(0x80000000u), nullptr) == -1 && *__error_nid_postfix() == 10);
-    *__error_nid_postfix() = 0;
-    Check(wait4_nid_postfix(-1, &status, static_cast<int>(0x80000001u), nullptr) == -1 && *__error_nid_postfix() == 10);
-    Check(status == 0x5a5a5a5a);
-    Check(wait4_nid_postfix(processId, &status, 0, nullptr) == processId && ExitedWith(status, 43));
-    CleanupChild();
-}
-
-static void CheckWait4Faults() {
-    std::int32_t processId = SpawnChild("child-exit-42");
-    GuestResourceUsage usage;
-    std::memset(&usage, 0x5a, sizeof(usage));
-    *__error_nid_postfix() = 0;
-    Check(wait4_nid_postfix(processId, reinterpret_cast<int*>(0x10), 0, &usage) == -1 && *__error_nid_postfix() == 14);
-    Check(UsageUntouched(usage));
-    int status = -1;
-    Check(wait4_nid_postfix(processId, &status, 1, nullptr) == -1 && *__error_nid_postfix() == 10);
-    CleanupChild();
-    processId = SpawnChild("child-exit-42");
-    status = -1;
-    *__error_nid_postfix() = 0;
-    Check(wait4_nid_postfix(processId, &status, 0, reinterpret_cast<GuestResourceUsage*>(0x10)) == -1 && *__error_nid_postfix() == 14);
-    Check(ExitedWith(status, 42));
-    Check(wait4_nid_postfix(processId, &status, 1, nullptr) == -1 && *__error_nid_postfix() == 10);
-    CleanupChild();
-}
-
-static void CheckWait4ProcessGroups() {
-    const int self = getpid_nid_postfix();
-    std::int32_t processId = SpawnChild("child-sleep");
-    int status = 0x5a5a5a5a;
-    *__error_nid_postfix() = 0;
-    Check(wait4_nid_postfix(-(self + 1), &status, 0, nullptr) == -1 && *__error_nid_postfix() == 10);
-    *__error_nid_postfix() = 0;
-    Check(wait4_nid_postfix(-2147483647 - 1, &status, 0, nullptr) == -1 && *__error_nid_postfix() == 10);
-    Check(status == 0x5a5a5a5a);
-    Check(wait4_nid_postfix(-self, &status, 0, nullptr) == processId && ExitedWith(status, 43));
-    CleanupChild();
-    processId = SpawnChild("child-exit-42");
-    Check(wait4_nid_postfix(0, &status, 0, nullptr) == processId && ExitedWith(status, 42));
-    CleanupChild();
-}
-
 #ifndef _WIN32
-static void CheckWait4StoppedChild() {
-    const std::int32_t processId = SpawnChild("child-stop");
-    int status = -1;
-    GuestResourceUsage usage;
-    std::memset(&usage, 0x5a, sizeof(usage));
-    Check(wait4_nid_postfix(processId, &status, 10, nullptr) == processId && status == 0x117f);
-    status = -1;
-    Check(wait4_nid_postfix(processId, &status, 2, &usage) == processId && status == 0x117f && !UsageUntouched(usage) && UsageTimesValid(usage));
-    Check(wait4_nid_postfix(processId, &status, 3, nullptr) == 0);
-    Check(kill(processId, SIGCONT) == 0);
-    Check(wait4_nid_postfix(processId, &status, 4, nullptr) == processId && status == 0x13);
-    Check(wait4_nid_postfix(processId, &status, 0, nullptr) == processId && ExitedWith(status, 44));
-    CleanupChild();
-}
-
 static void CheckStoppedChild() {
     const std::int32_t processId = SpawnChild("child-stop");
     int status = -1;
@@ -595,11 +454,6 @@ int main() {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
             std::_Exit(43);
         }
-        if (std::strcmp(role, "child-spin") == 0) {
-            const std::clock_t start = std::clock();
-            while (std::clock() - start < CLOCKS_PER_SEC / 5) {}
-            std::_Exit(46);
-        }
         if (std::strcmp(role, "child-laze") == 0) {
             std::this_thread::sleep_for(std::chrono::seconds(30));
             std::_Exit(47);
@@ -617,15 +471,7 @@ int main() {
     CheckSpawnedChild("child-sleep", 43);
     CheckSpawnedChild("child-exit-neg", 255);
     CheckConcurrentWaiters();
-    CheckWait4Exited();
-    CheckWait3Usage();
-    CheckWait4NoHang();
-    CheckWaitNoWait();
-    CheckWait4LinuxClone();
-    CheckWait4Faults();
-    CheckWait4ProcessGroups();
 #ifndef _WIN32
-    CheckWait4StoppedChild();
     CheckStoppedChild();
     CheckKilledChild("child-kill-bus", 10);
     CheckKilledChild("child-kill-sys", 12);

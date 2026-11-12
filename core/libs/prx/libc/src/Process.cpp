@@ -14,8 +14,6 @@
 #include <vector>
 #ifdef _WIN32
 #include <windows.h>
-#include <system_error>
-#include "prx/libc/include/ChildProcesses.hpp"
 #endif
 #include <atomic>
 #include <stdexcept>
@@ -319,9 +317,8 @@ extern "C" void RegisterChildProcess_nid_no_patch(std::int32_t processId, std::i
     childProcesses.push_back({processId, processHandle});
 }
 
-extern "C" std::int64_t WaitChildProcess_nid_no_patch(std::int32_t processId, unsigned options, int* status, std::uint64_t* userTicks, std::uint64_t* kernelTicks) {
+extern "C" std::int64_t WaitChildProcess_nid_no_patch(std::int32_t processId, unsigned options, int* status, bool requireUsage) {
     const bool noWait = (options & 1u) != 0;
-    const bool keep = (options & 8u) != 0;
     const auto matches = [&](const ChildProcess& child) { return processId <= 0 || child.processId == processId; };
     {
         std::lock_guard lock(childProcessMutex);
@@ -342,25 +339,11 @@ extern "C" std::int64_t WaitChildProcess_nid_no_patch(std::int32_t processId, un
                     *__error_nid_postfix() = 14;
                     return -1;
                 }
+                if (requireUsage) NotImplemented_nid_no_patch("wait4: child resource accounting on Windows");
                 encoded = ChildProcessWaitStatus(code);
-                if (userTicks != nullptr || kernelTicks != nullptr) {
-                    FILETIME creation{};
-                    FILETIME exitTime{};
-                    FILETIME kernel{};
-                    FILETIME user{};
-                    if (!GetProcessTimes(handle, &creation, &exitTime, &kernel, &user))
-                        throw std::system_error(GetLastError(), std::system_category(), "wait: GetProcessTimes failed");
-                    const auto ticks = [](const FILETIME& time) {
-                        return (static_cast<std::uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
-                    };
-                    if (userTicks != nullptr) *userTicks = ticks(user);
-                    if (kernelTicks != nullptr) *kernelTicks = ticks(kernel);
-                }
+                CloseHandle(handle);
                 reaped = child.processId;
-                if (!keep) {
-                    CloseHandle(handle);
-                    childProcesses.erase(childProcesses.begin() + static_cast<std::ptrdiff_t>(index));
-                }
+                childProcesses.erase(childProcesses.begin() + static_cast<std::ptrdiff_t>(index));
                 break;
             }
         }

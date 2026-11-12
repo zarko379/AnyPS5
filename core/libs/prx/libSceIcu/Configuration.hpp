@@ -27,4 +27,8 @@ void APS5_VABI utrace_getFunctions_nid_postfix(const void**, Icu::TraceEntry*, I
 void APS5_VABI utrace_setLevel_nid_postfix(std::int32_t);
 std::int32_t APS5_VABI utrace_getLevel_nid_postfix();
 const char* APS5_VABI utrace_functionName_nid_postfix(std::int32_t);
+void* APS5_VABI uprv_malloc_nid_postfix(std::size_t);
+void* APS5_VABI uprv_realloc_nid_postfix(void*, std::size_t);
+char* APS5_VABI uprv_strdup_nid_postfix(const char*);
+char* APS5_VABI uprv_strndup_nid_postfix(const char*, std::int32_t);
 }

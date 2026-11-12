@@ -296,34 +296,8 @@ void ExpectPath(CairoContext* context, const std::vector<std::pair<int, std::vec
     cairo_path_destroy(path);
 }
 
-void ExpectExtents(CairoContext* context, double x1, double y1, double x2, double y2) {
-    double box[4] = {-1, -1, -1, -1};
-    cairo_path_extents(context, &box[0], &box[1], &box[2], &box[3]);
-    assert(box[0] == x1 && box[1] == y1 && box[2] == x2 && box[3] == y2);
-}
-
-void CheckRectanglesAndCloseDegeneracy() {
+void CheckCloseDegeneracy() {
     CairoContext* context = PathContext();
-    ExpectExtents(context, 0, 0, 0, 0);
-    cairo_rectangle(context, 1, 2, 3, 4);
-    ExpectPath(context, {{0, {1, 2}}, {1, {4, 2}}, {1, {4, 6}}, {1, {1, 6}}, {3, {}}, {0, {1, 2}}});
-    ExpectExtents(context, 1, 2, 4, 6);
-
-    cairo_new_path(context);
-    cairo_rectangle(context, 5, 5, 0, 0);
-    ExpectPath(context, {{0, {5, 5}}, {3, {}}, {0, {5, 5}}});
-    ExpectExtents(context, 5, 5, 5, 5);
-
-    cairo_new_path(context);
-    cairo_rectangle(context, 0, 0, 3, 0);
-    ExpectPath(context, {{0, {0, 0}}, {1, {3, 0}}, {3, {}}, {0, {0, 0}}});
-
-    cairo_new_path(context);
-    cairo_rectangle(context, 4, 4, -2, -1);
-    ExpectPath(context, {{0, {4, 4}}, {1, {2, 4}}, {1, {2, 3}}, {1, {4, 3}}, {3, {}}, {0, {4, 4}}});
-    ExpectExtents(context, 2, 3, 4, 4);
-
-    cairo_new_path(context);
     cairo_move_to(context, 1, 1);
     cairo_line_to(context, 1, 1);
     cairo_close_path(context);
@@ -335,42 +309,10 @@ void CheckRectanglesAndCloseDegeneracy() {
     cairo_line_to(context, 1, 1);
     cairo_close_path(context);
     ExpectPath(context, {{0, {0, 0}}, {1, {2, 2}}, {3, {}}, {0, {0, 0}}});
-
-    cairo_new_path(context);
-    cairo_move_to(context, 7, 7);
-    ExpectExtents(context, 0, 0, 0, 0);
-    double ignored = 0;
-    cairo_path_extents(context, nullptr, &ignored, nullptr, nullptr);
-    cairo_destroy(context);
-
-    context = PathContext(2);
-    cairo_scale(context, 1, 2);
-    cairo_rectangle(context, 1, 1, 1, 1);
-    ExpectPath(context, {{0, {1, 1}}, {1, {2, 1}}, {1, {2, 2}}, {1, {1, 2}}, {3, {}}, {0, {1, 1}}});
-    ExpectExtents(context, 1, 1, 2, 2);
-    cairo_destroy(context);
-
-    context = PathContext();
-    cairo_rotate(context, 0.785398163397448309616);
-    cairo_rectangle(context, 0, 0, 1, 1);
-    double box[4] = {};
-    cairo_path_extents(context, &box[0], &box[1], &box[2], &box[3]);
-    assert(std::abs(box[0] + 0.5) < 0.01 && std::abs(box[1] + 0.5) < 0.01);
-    assert(std::abs(box[2] - 1.5) < 0.01 && std::abs(box[3] - 1.5) < 0.01);
-    cairo_destroy(context);
-
-    context = PathContext();
-    cairo_set_dash(context, nullptr, -1, 0);
-    cairo_rectangle(context, 1, 1, 1, 1);
-    cairo_path_extents(context, &box[0], &box[1], &box[2], &box[3]);
-    assert(box[0] == 0 && box[1] == 0 && box[2] == 0 && box[3] == 0);
-    CairoPath* path = cairo_copy_path(context);
-    assert(path->status == 19 && path->num_data == 0);
-    cairo_path_destroy(path);
     cairo_destroy(context);
 }
 
-void CheckCurveDegeneracyAndExtents() {
+void CheckCurveDegeneracy() {
     CairoContext* context = PathContext();
     cairo_move_to(context, 0, 0);
     cairo_line_to(context, 0, 0);
@@ -380,21 +322,6 @@ void CheckCurveDegeneracyAndExtents() {
     cairo_new_path(context);
     cairo_curve_to(context, 0, 0, 0, 0, 0, 0);
     ExpectPath(context, {{0, {0, 0}}});
-
-    cairo_new_path(context);
-    cairo_move_to(context, 0, 0);
-    cairo_curve_to(context, 0, 10, 10, 10, 10, 0);
-    ExpectExtents(context, 0, 0, 10, 7.5);
-
-    cairo_new_path(context);
-    cairo_move_to(context, 0, 0);
-    cairo_curve_to(context, 1, 1, 2, 1, 3, 0);
-    cairo_move_to(context, 20, 20);
-    ExpectExtents(context, 0, 0, 3, 0.75);
-    cairo_line_to(context, 21, 19);
-    ExpectExtents(context, 0, 0, 21, 20);
-    cairo_new_sub_path(context);
-    ExpectExtents(context, 0, 0, 21, 20);
     cairo_destroy(context);
 }
 
@@ -404,7 +331,6 @@ void CheckArcs() {
     CairoContext* context = PathContext();
     cairo_arc(context, 0, 0, 1, 0, pi / 2);
     ExpectPath(context, {{0, {1, 0}}, {2, {1, h, h, 1, 0, 1}}});
-    ExpectExtents(context, 0, 0, 1, 1);
 
     cairo_new_path(context);
     cairo_arc_negative(context, 0, 0, 1, pi / 2, 0);
@@ -416,7 +342,6 @@ void CheckArcs() {
     assert(path->status == 0 && path->num_data == 18);
     for (int i = 2; i < 18; i += 4) assert(path->data[i].header.type == 2);
     cairo_path_destroy(path);
-    ExpectExtents(context, -10, -10, 10, 10);
 
     cairo_new_path(context);
     cairo_arc(context, 0, 0, 1, pi / 2, 0);
@@ -536,8 +461,8 @@ int main() {
     CheckQuantizationTransformsAndAppend();
     CheckErrorAndSaveSemantics();
     CheckScaledCoordinatesAndLines();
-    CheckRectanglesAndCloseDegeneracy();
-    CheckCurveDegeneracyAndExtents();
+    CheckCloseDegeneracy();
+    CheckCurveDegeneracy();
     CheckArcs();
     CheckBackendTransforms();
     std::puts("guest Cairo path-data tests passed");

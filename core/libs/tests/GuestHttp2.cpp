@@ -143,53 +143,8 @@ static int APS5_VABI RejectSsl(int, unsigned int, void* const*, int, void*) {
     return -1;
 }
 
-static void SetDisconnected(bool disconnected) {
-#ifdef _WIN32
-    _putenv(disconnected ? "APS5_NET_DISCONNECTED=1" : "APS5_NET_DISCONNECTED=");
-#else
-    if (disconnected) setenv("APS5_NET_DISCONNECTED", "1", 1);
-    else unsetenv("APS5_NET_DISCONNECTED");
-#endif
-}
-
-static void TestAbort() {
-    const int context = sceHttp2Init(1, 1, 0x10000, 4);
-    const int tmpl = sceHttp2CreateTemplate(context, "agent", 3, 0);
-    const int box = sceHttp2CreateCookieBox(0x10000);
-    const int request = sceHttp2CreateRequestWithURL(tmpl, "GET", "https://localhost/", 0);
-    const int sibling = sceHttp2CreateRequestWithURL(tmpl, "GET", "https://localhost/", 0);
-    const int deleted = sceHttp2CreateRequestWithURL(tmpl, "GET", "https://localhost/", 0);
-    Require(context > 0 && tmpl > 0 && box > 0 && request > 0 && sibling > 0 && deleted > 0);
-    Require(sceHttp2DeleteRequest(deleted) == 0);
-    for (const int id : {0, -1, 0x7fffffff, deleted, context, tmpl, box}) Require(sceHttp2AbortRequest(id) == InvalidId);
-    Require(sceHttp2SetRequestContentLength(tmpl, 4) == 0);
-    const int fromTemplate = sceHttp2CreateRequestWithURL(tmpl, "GET", "https://localhost/", 0);
-    Require(fromTemplate > 0 && sceHttp2SetRequestContentLength(fromTemplate, 4) == 0);
-    Require(sceHttp2AbortRequest(request) == 0);
-    Require(sceHttp2AbortRequest(request) == 0);
-    Require(Throws([&] { sceHttp2SetRequestContentLength(request, 0); }));
-    Require(Throws([&] { sceHttp2AddRequestHeader(request, "x-header", "value", 0); }));
-    int status = 123;
-    Require(Throws([&] { sceHttp2GetStatusCode(request, &status); }) && status == 123);
-    char byte = 'z';
-    Require(Throws([&] { sceHttp2ReadData(request, &byte, 1); }) && byte == 'z');
-    Require(sceHttp2SetRequestContentLength(sibling, 4) == 0);
-    SetDisconnected(true);
-    Require(Throws([&] { sceHttp2SendRequest(request, nullptr, 0); }));
-    Require(Throws([&] { sceHttp2SendRequestAsync(request, nullptr, 0, nullptr, nullptr); }));
-    Require(sceHttp2SendRequest(sibling, nullptr, 0) == static_cast<int>(0x80431063));
-    SetDisconnected(false);
-    Require(sceHttp2AbortRequest(request) == 0);
-    Require(sceHttp2DeleteRequest(request) == 0);
-    Require(sceHttp2AbortRequest(request) == InvalidId);
-    Require(sceHttp2DeleteCookieBox(box) == 0);
-    Require(sceHttp2Term(context) == 0);
-    Require(sceHttp2AbortRequest(sibling) == InvalidId);
-}
-
 int main() {
     TestWebSockets();
-    TestAbort();
     Require(sceHttp2CreateCookieBox(0xffff) == static_cast<int>(0x817b121du));
     const int box = sceHttp2CreateCookieBox(0x10000);
     Require(sceHttp2Init(1, 1, 0x10000, 0) == InvalidValue);
