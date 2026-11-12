@@ -333,9 +333,11 @@ int APS5_VABI ptrace_nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI reboot_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI reboot_nid_postfix(int howto) {
+    (void)howto;
+    constexpr int GuestEperm = 1;
+    *__error_nid_postfix() = GuestEperm;
+    return -1;
 }
 
 int APS5_VABI revoke_nid_postfix(const char* path) {
@@ -2107,9 +2109,12 @@ int APS5_VABI sysc_s00_nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI unmount_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI unmount_nid_postfix(const char* path, int flags) {
+    (void)path;
+    (void)flags;
+    constexpr int GuestEperm = 1;
+    *__error_nid_postfix() = GuestEperm;
+    return -1;
 }
 
 int APS5_VABI vfork_nid_postfix(void) {

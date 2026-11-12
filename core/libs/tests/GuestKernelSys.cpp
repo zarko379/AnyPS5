@@ -1888,6 +1888,21 @@ int main() {
     Require(kldunload_nid_postfix(-1) == -1 && Error() == 1);
     Require(kldunload_nid_postfix(0) == -1 && Error() == 1);
     Require(kldunload_nid_postfix(1) == -1 && Error() == 1);
+    for (const int howto : {0, 0x4, 0x8, 0x4000, 0x200000, -1}) {
+        *__error_nid_postfix() = 0;
+        Require(reboot_nid_postfix(howto) == -1 && Error() == 1);
+    }
+    const auto unmountDenied = [](const char* path, int flags) {
+        *__error_nid_postfix() = 0;
+        return unmount_nid_postfix(path, flags) == -1 && Error() == 1;
+    };
+    Require(unmountDenied(nullptr, 0));
+    Require(unmountDenied(reinterpret_cast<const char*>(0x10), 0));
+    Require(unmountDenied(("/" + std::string(1024, 'p')).c_str(), 0));
+    Require(unmountDenied("/", 0));
+    Require(unmountDenied(kldDirectory.c_str(), 0x80000));
+    Require(unmountDenied((kldDirectory + "/missing").c_str(), 0));
+    Require(unmountDenied("FSID:bad", 0x08000000));
     std::array<unsigned char, 2080> fileStatus{};
     const auto kldstatFails = [&](int fileid, std::int32_t version, int error) {
         fileStatus.fill(0xA5);
