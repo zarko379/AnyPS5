@@ -57,6 +57,43 @@ struct GuardedStream {
     std::uint64_t after = 0x87654321;
 };
 
+struct FlagCase {
+    const char* label;
+    std::int32_t mask;
+    std::uint32_t flags;
+    std::uint64_t argument;
+    std::uint32_t result;
+};
+
+const FlagCase FlagCases[] = {
+    {"setiosflags sets the low bits", 0xa00, 0x1u, 0xa00u, 0xa01u},
+    {"setiosflags clears high bits it does not set", 0x30004, 0xffff0000u, 0x30004u, 0xfffc0004u},
+    {"setiosflags with every bit", -1, 0x12345678u, 0xffffffffu, 0xffffu},
+    {"setiosflags with no bits", 0, 0x9abcdef0u, 0x0u, 0x9abcdef0u},
+    {"setiosflags keeps bits outside the mask", 0x4000, 0x80000201u, 0x4000u, 0x80004201u},
+    {"setiosflags with only high bits clears them", static_cast<std::int32_t>(0x80010000u), 0xffffffffu, 0x80010000u, 0x7ffeffffu},
+};
+
+void CheckSetiosflags() {
+    const auto first = _ZSt11setiosflagsNSt5_IosbIiE9_FmtflagsE_nid_postfix(0);
+    Require(first.function != nullptr, "setiosflags returns a function");
+    for (const auto& entry : FlagCases) {
+        const LibcInternalFormatManipulator manipulator = _ZSt11setiosflagsNSt5_IosbIiE9_FmtflagsE_nid_postfix(entry.mask);
+        Require(manipulator.function == first.function, entry.label);
+        Require(manipulator.argument == entry.argument, entry.label);
+        GuardedStream object;
+        object.stream.flags = static_cast<std::int32_t>(entry.flags);
+        object.stream.precision = 6;
+        object.stream.width = 9;
+        object.stream.state = 2;
+        manipulator.function(&object.stream, static_cast<std::int32_t>(manipulator.argument));
+        Require(static_cast<std::uint32_t>(object.stream.flags) == entry.result, entry.label);
+        Require(object.stream.precision == 6 && object.stream.width == 9 && object.stream.state == 2, "setiosflags writes only the format flags");
+        Require(object.before == 0x12345678 && object.after == 0x87654321, "setiosflags writes only the stream");
+    }
+    Require(Throws([&] { first.function(nullptr, 1); }), "setiosflags rejects a null stream");
+}
+
 }
 
 int main() {
@@ -92,6 +129,8 @@ int main() {
     sceLibcInternalIosBaseDeletingDestructor_nid_no_patch(heapStream);
     Require(releases == 1 && lastReleased == heapStream, "the deleting destructor frees the stream through operator delete");
     Require(Throws([] { sceLibcInternalIosBaseDeletingDestructor_nid_no_patch(nullptr); }), "a null stream is rejected by the deleting destructor");
+
+    CheckSetiosflags();
 
     std::puts("libc internal ios_base destructor checks passed");
     return 0;

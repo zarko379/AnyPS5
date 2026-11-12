@@ -1,3 +1,4 @@
+#include "prx/libSceLibcInternal/include/Api.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/GuestLocale.hpp"
 #include "prx/libc/include/General.hpp"
@@ -46,6 +47,13 @@ const GuestLocale::NumPutVtable& BaseNumPut() {
 const WideNumPutVtable& WideNumPut(const GuestLocale::Facet* self) {
     return *reinterpret_cast<const WideNumPutVtable*>(self->vtable);
 }
+
+struct WideTimePutVtable {
+    GuestLocale::FacetVtable facet;
+    GuestLocale::OutputIterator (APS5_VABI *put)(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier);
+};
+
+static_assert(offsetof(WideTimePutVtable, put) == 0x20);
 
 }
 
@@ -180,5 +188,9 @@ GuestLocale::OutputIterator APS5_VABI sceLibcInternalTimePut_nid_no_patch(const 
     return reinterpret_cast<const GuestLocale::TimePutVtable*>(self->vtable)->put(self, out, stream, fill, time, format, modifier);
 }
 APS5_EXPORT("qkuA-unH7PU", sceLibcInternalTimePut_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI _ZNKSt8time_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE3putES3_RSt8ios_basewPK2tmcc_nid_postfix(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier) {
+    return reinterpret_cast<const WideTimePutVtable*>(self->vtable)->put(self, out, stream, fill, time, format, modifier);
+}
 
 }

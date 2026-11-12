@@ -1,3 +1,4 @@
+#include "prx/libSceLibcInternal/include/Api.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
 #include "prx/libc/include/GuestLocale.hpp"
@@ -441,6 +442,52 @@ void CheckTimePutForwarding() {
     Require(stream.accepted == "<EY><_F>" && out.failed, "time_put::put(spec, mod) returns what do_put returns");
 }
 
+struct WideTimeCall {
+    const GuestLocale::Facet* self;
+    GuestLocale::Streambuf* buffer;
+    bool failed;
+    GuestLocale::IosBase* stream;
+    std::uint16_t fill;
+    const GuestTm* time;
+    char format;
+    char modifier;
+};
+
+WideTimeCall g_wideTimeCall{};
+int g_wideTimeCalls = 0;
+
+GuestLocale::OutputIterator APS5_VABI RecordWideTimePut(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier) {
+    ++g_wideTimeCalls;
+    g_wideTimeCall = WideTimeCall{self, out.buffer, out.failed, stream, fill, time, format, modifier};
+    return GuestLocale::OutputIterator{!out.failed, out.buffer};
+}
+
+struct RecordingWideTimePutVtable {
+    GuestLocale::FacetVtable facet;
+    GuestLocale::OutputIterator (APS5_VABI *put)(const GuestLocale::Facet*, GuestLocale::OutputIterator, GuestLocale::IosBase*, std::uint16_t, const GuestTm*, char, char);
+};
+
+const RecordingWideTimePutVtable g_recordingWideTimePut{g_testFacet, RecordWideTimePut};
+
+void CheckWideTimePutForwarding() {
+    GuestLocale::Facet facet{&g_recordingWideTimePut.facet, 1, 0};
+    GuestLocale::IosBase ios{};
+    GuestTm time{};
+    auto stream = MakeStream(0);
+    g_wideTimeCalls = 0;
+    GuestLocale::OutputIterator out = _ZNKSt8time_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE3putES3_RSt8ios_basewPK2tmcc_nid_postfix(
+        &facet, GuestLocale::OutputIterator{false, &stream.buffer}, &ios, 0x20ac, &time, 'Y', 'E');
+    Require(g_wideTimeCalls == 1, "time_put<wchar_t>::put(spec, mod) calls do_put once");
+    Require(g_wideTimeCall.self == &facet && g_wideTimeCall.stream == &ios && g_wideTimeCall.time == &time, "time_put<wchar_t>::put passes the facet, stream and time");
+    Require(g_wideTimeCall.fill == 0x20ac, "time_put<wchar_t>::put passes the 16-bit fill");
+    Require(g_wideTimeCall.format == 'Y' && g_wideTimeCall.modifier == 'E', "time_put<wchar_t>::put passes the specifier and modifier");
+    Require(g_wideTimeCall.buffer == &stream.buffer && !g_wideTimeCall.failed, "time_put<wchar_t>::put passes the output iterator");
+    Require(out.failed && out.buffer == &stream.buffer, "time_put<wchar_t>::put returns what do_put returns");
+    out = _ZNKSt8time_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE3putES3_RSt8ios_basewPK2tmcc_nid_postfix(&facet, out, &ios, 0xffff, nullptr, '\0', '\0');
+    Require(g_wideTimeCalls == 2 && g_wideTimeCall.failed && g_wideTimeCall.fill == 0xffff && g_wideTimeCall.time == nullptr, "time_put<wchar_t>::put passes a failed iterator, the top fill and a null time");
+    Require(g_wideTimeCall.format == '\0' && g_wideTimeCall.modifier == '\0' && !out.failed, "time_put<wchar_t>::put passes empty specifiers");
+}
+
 void CheckPatternWalk() {
     GuestLocale::Facet facet{&g_recordingTimePut.facet, 1, 0};
     GuestLocale::Implementation** classic = &_ZSt21_sceLibcClassicLocale_nid_postfix;
@@ -549,6 +596,7 @@ int main(int argc, char** argv) {
     CheckLibcNumPut();
     CheckBaseDoPut();
     CheckTimePutForwarding();
+    CheckWideTimePutForwarding();
     CheckPatternWalk();
     CheckStreamCtype();
     CheckLibcTimePut();
