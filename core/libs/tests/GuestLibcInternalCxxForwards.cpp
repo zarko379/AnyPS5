@@ -3,6 +3,7 @@
 #include "prx/libc/include/ApplicationHeap.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -42,6 +43,29 @@ void Reset() {
     lastReleased = nullptr;
 }
 
+template<typename TFloat>
+bool Same(TFloat left, TFloat right) {
+    return std::isnan(left) ? std::isnan(right) : left == right && std::signbit(left) == std::signbit(right);
+}
+
+void CheckLogGamma() {
+    const double inputs[] = {1e-6, 0.001, 0.25, 0.5, 1.0, 1.5, 2.0, 3.5, 7.0, 10.0, 33.25, 100.0, 1e5, 1e30, -0.5, -2.5, 0.0, -0.0,
+        INFINITY, -INFINITY, NAN};
+    for (const double input : inputs) {
+        const auto single = static_cast<float>(input);
+        const auto extended = static_cast<long double>(input);
+        Require(Same(_ZSt8_XLgammaf_nid_postfix(single), _ZNSt8__sce_v28_XLgammaEf_nid_postfix(single)), "_XLgamma(float) matches the __sce_v2 overload");
+        Require(Same(_ZSt8_XLgammad_nid_postfix(input), _ZNSt8__sce_v28_XLgammaEd_nid_postfix(input)), "_XLgamma(double) matches the __sce_v2 overload");
+        Require(Same(_ZSt8_XLgammae_nid_postfix(extended), _ZNSt8__sce_v28_XLgammaEe_nid_postfix(extended)), "_XLgamma(long double) matches the __sce_v2 overload");
+    }
+    Require(std::fabs(_ZSt8_XLgammaf_nid_postfix(1.0f)) < 1e-5f, "_XLgamma(float) of one is zero");
+    Require(std::fabs(_ZSt8_XLgammaf_nid_postfix(4.0f) - std::log(6.0f)) < 1e-5f, "_XLgamma(float) of four is log 6");
+    Require(std::fabs(_ZSt8_XLgammad_nid_postfix(5.0) - std::log(24.0)) < 1e-7, "_XLgamma(double) of five is log 24");
+    Require(std::fabs(_ZSt8_XLgammad_nid_postfix(0.5) - 0.5 * std::log(std::acos(-1.0))) < 1e-7, "_XLgamma(double) of one half is log sqrt pi");
+    Require(std::fabs(_ZSt8_XLgammae_nid_postfix(10.0L) - std::log(362880.0L)) < 1e-7L, "_XLgamma(long double) of ten is log 9!");
+    Require(std::isnan(_ZSt8_XLgammaf_nid_postfix(NAN)) && std::isnan(_ZSt8_XLgammad_nid_postfix(NAN)) && std::isnan(_ZSt8_XLgammae_nid_postfix(NAN)), "_XLgamma propagates NaN");
+}
+
 }
 
 int main() {
@@ -75,6 +99,8 @@ int main() {
     Require(category == IostreamCategory_nid_no_patch(), "the forward and the libc export share one body");
     Require(category == sceLibcInternalIostreamCategory_nid_no_patch(), "the iostream category is a singleton");
     Require(std::strcmp(category->name(), "iostream") == 0, "the category is named iostream");
+
+    CheckLogGamma();
 
     std::puts("libc internal C++ runtime forward checks passed");
     return 0;
