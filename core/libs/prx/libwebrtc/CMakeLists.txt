@@ -329,7 +329,7 @@ if(BUILD_TESTING)
     set_tests_properties(guest_webrtc_smoothing_filter PROPERTIES TIMEOUT 20)
     if(WIN32)
         set_tests_properties(guest_webrtc_smoothing_filter PROPERTIES ENVIRONMENT_MODIFICATION
-            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libwebrtc>")
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libwebrtc>;PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
     add_test_executable(guest_webrtc_crypto_options_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/CryptoOptions.cpp)
     target_include_directories(guest_webrtc_crypto_options_tests PRIVATE ${LIBS_INCLUDE_DIR})
