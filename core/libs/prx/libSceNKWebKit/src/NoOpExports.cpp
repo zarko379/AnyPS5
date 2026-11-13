@@ -467,4 +467,79 @@ void APS5_VABI _ZN9Inspector40ApplicationCacheBackendDispatcherHandlerD1Ev() {
 void APS5_VABI _ZN9Inspector40ApplicationCacheBackendDispatcherHandlerD2Ev() {
 }
 
+void APS5_VABI WKBundleBackForwardListClear() {
+}
+
+void APS5_VABI WKBundlePageCopyRenderLayerTree() {
+}
+
+void APS5_VABI WKBundlePageCopyRenderTree() {
+}
+
+void APS5_VABI WKBundlePageSetDefersLoading() {
+}
+
+void APS5_VABI WKBundlePageSetPolicyClient() {
+}
+
+void APS5_VABI WKContextAllowSpecificHTTPSCertificateForHost() {
+}
+
+void APS5_VABI WKContextPreconnectToServer() {
+}
+
+void APS5_VABI WKContextSetCanHandleHTTPSServerTrustEvaluation() {
+}
+
+void APS5_VABI WKContextSetCustomWebContentServiceBundleIdentifier() {
+}
+
+void APS5_VABI WKContextSetDiskCacheSpeculativeValidationEnabled() {
+}
+
+void APS5_VABI WKContextSetMaximumNumberOfProcesses() {
+}
+
+void APS5_VABI WKCookieManagerDeleteAllCookiesModifiedAfterDate() {
+}
+
+void APS5_VABI WKCookieManagerDeleteCookiesForHostname() {
+}
+
+void APS5_VABI WKCookieManagerGetHTTPCookieAcceptPolicy() {
+}
+
+void APS5_VABI WKCookieManagerGetHostnamesWithCookies() {
+}
+
+void APS5_VABI WKCookieManagerSetClient() {
+}
+
+void APS5_VABI WKCookieManagerStartObservingCookieChanges() {
+}
+
+void APS5_VABI WKCookieManagerStopObservingCookieChanges() {
+}
+
+void APS5_VABI WKFrameStopLoading() {
+}
+
+void APS5_VABI WKPageLoadWebArchiveData() {
+}
+
+void APS5_VABI WKPageLoadWebArchiveDataWithUserData() {
+}
+
+void APS5_VABI WKPageSetPaginationLineGridEnabled() {
+}
+
+void APS5_VABI WKResourceCacheManagerClearCacheForAllOrigins() {
+}
+
+void APS5_VABI WKResourceCacheManagerClearCacheForOrigin() {
+}
+
+void APS5_VABI WKResourceCacheManagerGetCacheOrigins() {
+}
+
 }

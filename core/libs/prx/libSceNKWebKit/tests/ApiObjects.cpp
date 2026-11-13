@@ -5,6 +5,7 @@
 
 #include <climits>
 #include <cstdint>
+#include <initializer_list>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -260,7 +261,147 @@ static void TestWebsiteDataStores() {
     WKRelease(ephemeral);
 }
 
+static void TestScriptWorlds() {
+    const void* first = WKBundleScriptWorldCreateWorld();
+    const void* second = WKBundleScriptWorldCreateWorld();
+    Require(first != nullptr && second != nullptr && first != second);
+    Require(first != WKBundleScriptWorldNormalWorld());
+    Require(WKGetTypeID(first) == WKBundleScriptWorldGetTypeID());
+    const void* firstName = WKBundleScriptWorldCopyName(first);
+    const void* secondName = WKBundleScriptWorldCopyName(second);
+    char firstText[64] = {};
+    char secondText[64] = {};
+    WKStringGetUTF8CString(firstName, firstText, sizeof(firstText));
+    WKStringGetUTF8CString(secondName, secondText, sizeof(secondText));
+    WKRelease(firstName);
+    WKRelease(secondName);
+    Require(std::strncmp(firstText, "UniqueWorld_", 12) == 0);
+    Require(std::strncmp(secondText, "UniqueWorld_", 12) == 0);
+    char* end = nullptr;
+    const auto firstNumber = std::strtoull(firstText + 12, &end, 10);
+    Require(end != firstText + 12 && *end == 0);
+    const auto secondNumber = std::strtoull(secondText + 12, &end, 10);
+    Require(end != secondText + 12 && *end == 0);
+    Require(secondNumber == firstNumber + 1);
+    WKRelease(first);
+    WKRelease(second);
+}
+
+static NKWebKit::JSValueRef Evaluate(NKWebKit::JSContextRef context, const char* code) {
+    NKWebKit::JSStringRef script = JSStringCreateWithUTF8CString_nid_postfix(code);
+    NKWebKit::JSValueRef value = JSEvaluateScript(context, script, nullptr, nullptr, 1, nullptr);
+    JSStringRelease_nid_postfix(script);
+    return value;
+}
+
+static bool DataIs(const void* data, std::initializer_list<std::uint8_t> expected) {
+    const bool matches = WKGetTypeID(data) == WKDataGetTypeID() && WKDataGetSize(data) == expected.size() &&
+        (expected.size() == 0 || std::memcmp(WKDataGetBytes(data), expected.begin(), expected.size()) == 0);
+    WKRelease(data);
+    return matches;
+}
+
+static void TestDataFromUint8Array() {
+    NKWebKit::JSGlobalContextRef context = JSGlobalContextCreate(nullptr);
+    Require(DataIs(WKBundleCreateWKDataFromUInt8Array(nullptr, context, Evaluate(context, "new Uint8Array([1, 2, 3, 250])")), {1, 2, 3, 250}));
+    Require(DataIs(WKBundleCreateWKDataFromUInt8Array(nullptr, context, Evaluate(context, "new Uint8Array([9, 8, 7, 6, 5]).subarray(1, 4)")), {8, 7, 6}));
+    Require(DataIs(WKBundleCreateWKDataFromUInt8Array(nullptr, context, Evaluate(context, "new Uint8Array(new ArrayBuffer(8), 8)")), {}));
+    Require(DataIs(WKBundleCreateWKDataFromUInt8Array(nullptr, context, Evaluate(context, "new Uint8Array(0)")), {}));
+
+    NKWebKit::JSValueRef array = Evaluate(context, "var shared = new Uint8Array([4, 5]); shared");
+    const void* copy = WKBundleCreateWKDataFromUInt8Array(nullptr, context, array);
+    Evaluate(context, "shared[0] = 99");
+    Require(DataIs(copy, {4, 5}));
+
+    NKWebKit::JSValueRef clamped = Evaluate(context, "new Uint8ClampedArray([1])");
+    NKWebKit::JSValueRef wide = Evaluate(context, "new Uint16Array([1])");
+    NKWebKit::JSValueRef buffer = Evaluate(context, "new ArrayBuffer(4)");
+    NKWebKit::JSValueRef plain = Evaluate(context, "[1, 2]");
+    NKWebKit::JSValueRef number = JSValueMakeNumber(context, 1);
+    NKWebKit::JSValueRef shared = Evaluate(context, "new Uint8Array(new SharedArrayBuffer(4))");
+    Require(JSValueGetTypedArrayType(context, shared, nullptr) == NKWebKit::kJSTypedArrayTypeUint8Array);
+    Require(Throws([&] { WKBundleCreateWKDataFromUInt8Array(nullptr, context, shared); }));
+    Require(Throws([&] { WKBundleCreateWKDataFromUInt8Array(nullptr, context, clamped); }));
+    Require(Throws([&] { WKBundleCreateWKDataFromUInt8Array(nullptr, context, wide); }));
+    Require(Throws([&] { WKBundleCreateWKDataFromUInt8Array(nullptr, context, buffer); }));
+    Require(Throws([&] { WKBundleCreateWKDataFromUInt8Array(nullptr, context, plain); }));
+    Require(Throws([&] { WKBundleCreateWKDataFromUInt8Array(nullptr, context, number); }));
+    Require(Throws([&] { WKBundleCreateWKDataFromUInt8Array(nullptr, context, nullptr); }));
+    Require(Throws([&] { WKBundleCreateWKDataFromUInt8Array(nullptr, nullptr, array); }));
+    JSGlobalContextRelease(context);
+}
+
+static void TestSessionValueTypes() {
+    const void* url = WKPageGetSessionHistoryURLValueType();
+    const void* item = WKPageGetSessionBackForwardListItemValueType();
+    Require(url != nullptr && item != nullptr && url != item);
+    Require(WKPageGetSessionHistoryURLValueType() == url);
+    Require(WKPageGetSessionBackForwardListItemValueType() == item);
+    Require(WKGetTypeID(url) == WKStringGetTypeID());
+    Require(WKStringIsEqualToUTF8CString(url, "SessionHistoryURL"));
+    Require(WKStringIsEqualToUTF8CString(item, "SessionBackForwardListItem"));
+}
+
+static void TestEnhancedAccessibility() {
+    auto enable = reinterpret_cast<void (APS5_VABI*)(bool)>(&WKAccessibilityEnableEnhancedAccessibility);
+    Require(!WKAccessibilityEnhancedAccessibilityEnabled());
+    enable(true);
+    Require(WKAccessibilityEnhancedAccessibilityEnabled());
+    _ZN7WebCore13AXObjectCache37setEnhancedUserInterfaceAccessibilityEb(false);
+    Require(!WKAccessibilityEnhancedAccessibilityEnabled());
+    _ZN7WebCore13AXObjectCache37setEnhancedUserInterfaceAccessibilityEb(true);
+    Require(WKAccessibilityEnhancedAccessibilityEnabled());
+    enable(false);
+    Require(!WKAccessibilityEnhancedAccessibilityEnabled());
+}
+
+static int callbackCalls = 0;
+
+static void APS5_VABI CountCallback() {
+    ++callbackCalls;
+}
+
+static void TestEmptyExports() {
+    const auto before = NotImplementedCalls_nid_no_patch();
+    using Callback = void (APS5_VABI*)();
+    using CallbackExport = void (APS5_VABI*)(const void*, void*, Callback);
+    using OriginCallbackExport = void (APS5_VABI*)(const void*, const void*, std::uint32_t);
+    const void* store = WKWebsiteDataStoreGetDefaultDataStore();
+    reinterpret_cast<CallbackExport>(&WKCookieManagerGetHostnamesWithCookies)(store, nullptr, &CountCallback);
+    reinterpret_cast<CallbackExport>(&WKCookieManagerGetHTTPCookieAcceptPolicy)(store, nullptr, &CountCallback);
+    reinterpret_cast<CallbackExport>(&WKResourceCacheManagerGetCacheOrigins)(store, nullptr, &CountCallback);
+    reinterpret_cast<OriginCallbackExport>(&WKResourceCacheManagerClearCacheForOrigin)(store, nullptr, 0);
+    Require(callbackCalls == 0);
+    WKCookieManagerSetClient();
+    WKCookieManagerDeleteCookiesForHostname();
+    WKCookieManagerDeleteAllCookiesModifiedAfterDate();
+    WKCookieManagerStartObservingCookieChanges();
+    WKCookieManagerStopObservingCookieChanges();
+    WKResourceCacheManagerClearCacheForAllOrigins();
+    WKContextAllowSpecificHTTPSCertificateForHost();
+    WKContextPreconnectToServer();
+    WKContextSetCanHandleHTTPSServerTrustEvaluation();
+    WKContextSetCustomWebContentServiceBundleIdentifier();
+    WKContextSetDiskCacheSpeculativeValidationEnabled();
+    WKContextSetMaximumNumberOfProcesses();
+    WKFrameStopLoading();
+    WKPageLoadWebArchiveData();
+    WKPageLoadWebArchiveDataWithUserData();
+    WKPageSetPaginationLineGridEnabled();
+    WKBundleBackForwardListClear();
+    WKBundlePageCopyRenderLayerTree();
+    WKBundlePageCopyRenderTree();
+    WKBundlePageSetDefersLoading();
+    WKBundlePageSetPolicyClient();
+    Require(NotImplementedCalls_nid_no_patch() == before);
+}
+
 int main() {
+    TestScriptWorlds();
+    TestDataFromUint8Array();
+    TestSessionValueTypes();
+    TestEnhancedAccessibility();
+    TestEmptyExports();
     TestKeyboardEvents();
     TestMouseAndWheelEvents();
     TestSecurityOriginDatabaseIdentifiers();

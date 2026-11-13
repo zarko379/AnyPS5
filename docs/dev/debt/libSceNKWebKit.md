@@ -101,7 +101,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 
 - [WKSessionStateCreateFromData and WKSessionStateCopyData](../../../core/libs/prx/libSceNKWebKit/src/SessionState.cpp) (libSceNKWebKit) - wrap and expose raw session state byte buffers without decoding or encoding legacy session state; arbitrary bytes return a valid session state where WebKit's legacy decoder returns null on non-decodable data. Console execution and ABI are unverified.
 
-- [WebKit URLRequest API](../../../core/libs/prx/libSceNKWebKit/src/URLRequest.cpp) (libSceNKWebKit) - `WKURLRequest*` functions follow WebKit's C API behavior: `WKURLRequestCreateWithWKURL` wraps the URL in an API object, `WKURLRequestCopyURL` returns a retained URL copy, `WKURLRequestCopyFirstPartyForCookies` returns null for initial requests per WebKit's default `ResourceRequest` state, `WKURLRequestCopyHTTPMethod` returns an immutable string (defaulting to `"GET"`), and `WKURLRequestCopySettingHTTPBody` creates a new request copy with updated body data. `WKURLRequestSetDefaultTimeoutInterval` stores the interval through `ResourceRequestBase::setDefaultTimeoutInterval` as [APIURLRequest.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/Shared/API/APIURLRequest.cpp#L46-L52) does; the `SetDefaultRequestTimeoutInterval` message each pool sends its web processes has no receiver because no web process is modelled. Not measured on a console.
+- [WebKit URLRequest API](../../../core/libs/prx/libSceNKWebKit/src/URLRequest.cpp) (libSceNKWebKit) - `WKURLRequest*` functions follow WebKit's C API behavior: `WKURLRequestCreateWithWKURL` wraps the URL in an API object, `WKURLRequestCopyURL` returns a retained URL copy, `WKURLRequestCopyFirstPartyForCookies` returns null for initial requests per WebKit's default `ResourceRequest` state, `WKURLRequestCopyHTTPMethod` returns an immutable string (defaulting to `"GET"`), and `WKURLRequestCopySettingHTTPBody` creates a new request copy with updated body data. `WKURLRequestSetDefaultTimeoutInterval` sets `ResourceRequestBase::setDefaultTimeoutInterval` ([APIURLRequest.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/Shared/API/APIURLRequest.cpp#L46-L52)); no web process receives the pools' message. Not measured on a console.
 - [EmptyFrameLoaderClient::revertToProvisionalState](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - no-op export based on upstream WebKit 11.x [EmptyClients.cpp:827-829](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L827-L829) and [EmptyFrameLoaderClient.h:106](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyFrameLoaderClient.h#L106). The upstream method returns void and performs no operation; console ABI is unverified.
 - [EmptyFrameLoaderClient::setMainDocumentError](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - no-op export based on upstream WebKit 11.x [EmptyClients.cpp:831-833](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L831-L833) and [EmptyFrameLoaderClient.h:107](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyFrameLoaderClient.h#L107). The upstream method returns void and performs no operation; console ABI is unverified.
 - [EmptyFrameLoaderClient::willChangeTitle](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - no-op export based on upstream WebKit 11.x [EmptyClients.cpp:843-845](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L843-L845) and [EmptyFrameLoaderClient.h:113](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyFrameLoaderClient.h#L113). The upstream method returns void and performs no operation; console ABI is unverified.
@@ -184,7 +184,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKAXObjectButtonState` | `Dp64o6lCLkM` |
 | `WKAXObjectPage` | `KrVXrd3WyfM` |
 | `WKAXObjectRole` | `pt0Eyg26hqw` |
-| `WKAccessibilityEnhancedAccessibilityEnabled` | `b5bQfU9tUKo` |
 | `WKAccessibilityFocusedObject` | `WqnB6ITORdg` |
 | `WKAccessibilityRootObject` | `LGfu3uVGjDY` |
 | `WKAuthenticationChallengCopyRequestURL` | `A49tCnZlNyw` |
@@ -197,10 +196,8 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKAuthenticationDecisionListenerRejectProtectionSpaceAndContinue` | `BwzMDOLhDYI` |
 | `WKAuthenticationDecisionListenerUseCredential` | `opFenFdq3F4` |
 | `WKBundleAddOriginAccessAllowListEntry` | `Ec6dqG56Kog` |
-| `WKBundleBackForwardListClear` | `uDz2mwaGQxc` |
 | `WKBundleClearHistoryForTesting` | `4XbhuyqB6pA` |
 | `WKBundleClearResourceLoadStatistics` | `zm7AblpGSLk` |
-| `WKBundleCreateWKDataFromUInt8Array` | `IOaozfGUAFI` |
 | `WKBundleFrameAllowsFollowingLink` | `pmZi4yM8pxM` |
 | `WKBundleFrameCallShouldCloseOnWebView` | `N+icA-jvTHs` |
 | `WKBundleFrameClearOpener` | `5XkPh73uOas` |
@@ -286,8 +283,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKBundlePageConfirmCompositionWithText` | `4eheJycBxI0` |
 | `WKBundlePageCopyGroupIdentifier` | `R9X0jHsH64E` |
 | `WKBundlePageCopyOriginsWithApplicationCache` | `cN8iJ612c0k` |
-| `WKBundlePageCopyRenderLayerTree` | `dCVd7TqyhYA` |
-| `WKBundlePageCopyRenderTree` | `8Wcn9B8z17M` |
 | `WKBundlePageCopyRenderTreeExternalRepresentationForPrinting` | `63tAnrWmYsQ` |
 | `WKBundlePageCopyRenderTreeExternalRepresentation` | `TNbQMd1lZxU` |
 | `WKBundlePageCopyTrackedRepaintRects` | `GEUAFDNuhBc` |
@@ -338,7 +333,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKBundlePageSetAppCacheMaximumSize` | `sSb3te485KU` |
 | `WKBundlePageSetApplicationCacheOriginQuota` | `d1bcQFkjzUE` |
 | `WKBundlePageSetComposition` | `xFnlhQw0Zfc` |
-| `WKBundlePageSetDefersLoading` | `Rm6Y9lnzm3c` |
 | `WKBundlePageSetEditorClient` | `TLWK+2sKnf8` |
 | `WKBundlePageSetEventThrottlingBehaviorOverride` | `e2FFaTvxUkI` |
 | `WKBundlePageSetFooterBanner` | `QGKXBRNQtXw` |
@@ -347,7 +341,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKBundlePageSetHeaderBanner` | `dzrr2-LTKnA` |
 | `WKBundlePageSetPageLoaderClient` | `fE-UQfy62Jk` |
 | `WKBundlePageSetPageZoomFactor` | `ijPJrSMtqIY` |
-| `WKBundlePageSetPolicyClient` | `kl9cnbrBzrA` |
 | `WKBundlePageSetResourceLoadClient` | `o1r9YJZRP+Y` |
 | `WKBundlePageSetScaleAtOrigin` | `wnMuJEY0ZwE` |
 | `WKBundlePageSetTextZoomFactor` | `2YvlXyxJyaE` |
@@ -377,7 +370,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKBundleResetOriginAccessAllowLists` | `8wD6Sq3WBcA` |
 | `WKBundleResourceLoadStatisticsNotifyObserver` | `HWRP4l2b7pE` |
 | `WKBundleScriptWorldClearWrappers` | `MzpjLnMjdwE` |
-| `WKBundleScriptWorldCreateWorld` | `f2hz+NhGpbw` |
 | `WKBundleScriptWorldDisableOverrideBuiltinsBehavior` | `arhBKRy2grc` |
 | `WKBundleScriptWorldMakeAllShadowRootsOpen` | `MddMup7PwZk` |
 | `WKBundleSetClient` | `6Sajlv-clVQ` |
@@ -385,7 +377,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKBundleSetServiceWorkerProxyCreationCallback` | `tow2sT8FF3c` |
 | `WKBundleSetTabKeyCyclesThroughElements` | `t7K3DznwwOU` |
 | `WKBundleSetWebNotificationPermission` | `-67rxYq1qZo` |
-| `WKContextAllowSpecificHTTPSCertificateForHost` | `Wb5DMLak0yg` |
 | `WKContextClearCurrentModifierStateForTesting` | `Yk2qJg3VRBY` |
 | `WKContextGarbageCollectJavaScriptObjects` | `MBIrQeS3ILw` |
 | `WKContextGetGeolocationManager` | `GJsL9usTdig` |
@@ -393,18 +384,14 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKContextGetNotificationManager` | `ZGEEHCN2FvE` |
 | `WKContextJavaScriptConfigurationFileEnabled` | `efD5N1zaabU` |
 | `WKContextPostMessageToInjectedBundle` | `N93Nb5-YJsw` |
-| `WKContextPreconnectToServer` | `MQI+nL6CJkU` |
 | `WKContextRegisterURLSchemeAsBypassingContentSecurityPolicy` | `FTDt5KHGsco` |
 | `WKContextRegisterURLSchemeAsCachePartitioned` | `DHbAda1fa1k` |
 | `WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequest` | `rAU9SRsnG3E` |
 | `WKContextRegisterURLSchemeAsEmptyDocument` | `ad1-t6xKVtA` |
 | `WKContextRegisterURLSchemeAsSecure` | `6P04fQkPVec` |
 | `WKContextSetAlwaysUsesComplexTextCodePath` | `Y3Z2695WJ8E` |
-| `WKContextSetCanHandleHTTPSServerTrustEvaluation` | `L205EzJvP-Q` |
 | `WKContextSetClient` | `s19dG0nY-dE` |
 | `WKContextSetConnectionClient` | `S4qCVFS2p1Y` |
-| `WKContextSetCustomWebContentServiceBundleIdentifier` | `HS0m+kyKMKc` |
-| `WKContextSetDiskCacheSpeculativeValidationEnabled` | `ukKiCHfFJVQ` |
 | `WKContextSetDomainRelaxationForbiddenForURLScheme` | `WxgH0vvD708` |
 | `WKContextSetFontAllowList` | `MhG9BMS7pSQ` |
 | `WKContextSetHTTPPipeliningEnabled` | `JephqDWR6Pc` |
@@ -414,7 +401,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKContextSetInvalidMessageFunction` | `v+TCMUBUWog` |
 | `WKContextSetJavaScriptConfigurationFileEnabled` | `NkDv+zQRTXw` |
 | `WKContextSetJavaScriptGarbageCollectorTimerEnabled` | `CDa5R6cq2+M` |
-| `WKContextSetMaximumNumberOfProcesses` | `zgt5jBUZjPw` |
 | `WKContextSetMemoryCacheDisabled` | `Gy--AnYjtr8` |
 | `WKContextSetPrewarmsProcessesAutomatically` | `9LzZhiXxOL8` |
 | `WKContextSetUseSeparateServiceWorkerProcess` | `nd01aT+29+Y` |
@@ -422,13 +408,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKContextStopMemorySampler` | `4k3e7qWpRcU` |
 | `WKContextTerminateServiceWorkers` | `i8HHFDiCd4U` |
 | `WKContextWarmInitialProcess` | `MmCFL5GXGL8` |
-| `WKCookieManagerDeleteAllCookiesModifiedAfterDate` | `iEypYwTA7F0` |
-| `WKCookieManagerDeleteCookiesForHostname` | `4gJ2MFHUsvY` |
-| `WKCookieManagerGetHTTPCookieAcceptPolicy` | `d9tCx7OTo00` |
-| `WKCookieManagerGetHostnamesWithCookies` | `FNCVZgUSgfw` |
-| `WKCookieManagerSetClient` | `q-Hwxr4yls0` |
-| `WKCookieManagerStartObservingCookieChanges` | `vyOiJyvWOik` |
-| `WKCookieManagerStopObservingCookieChanges` | `ebPeu+4eyj8` |
 | `WKErrorCopyDomain` | `CbWxMDgV5WQ` |
 | `WKErrorCopyFailingURL` | `Rcz4V01xRBo` |
 | `WKErrorGetErrorCode` | `Jx+jaw-BVuE` |
@@ -451,7 +430,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKFramePolicyListenerUseInNewProcessWithPolicies` | `vDrj6vV4d60` |
 | `WKFramePolicyListenerUse` | `K-2wOp7OEL8` |
 | `WKFramePolicyListenerUseWithPolicies` | `82bVw8qSCFc` |
-| `WKFrameStopLoading` | `R8pxYSQQqcY` |
 | `WKGeolocationManagerProviderDidChangePosition` | `NB5lJxGW9Ro` |
 | `WKGeolocationManagerProviderDidFailToDeterminePosition` | `0jIcJu0tb+o` |
 | `WKGeolocationManagerProviderDidFailToDeterminePositionWithErrorMessage` | `NTLwhm+Wfk8` |
@@ -527,8 +505,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKPageGetScaleFactor` | `is2FV8Y-bMc` |
 | `WKPageGetScrollPinningBehavior` | `L6HDX5ZnQps` |
 | `WKPageGetSelectionAsWebArchiveData` | `Ck7bElZaJ-4` |
-| `WKPageGetSessionBackForwardListItemValueType` | `Xadpbt8wQXo` |
-| `WKPageGetSessionHistoryURLValueType` | `lfWRbhGF-vQ` |
 | `WKPageGetSourceForFrame` | `plbxmi4Te84` |
 | `WKPageGetTextZoomFactor` | `pNy9E8Now3M` |
 | `WKPageGoBack` | `o2fPZBklfHg` |
@@ -565,8 +541,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKPageLoadURLRequestWithUserData` | `WlFOMTjIwrc` |
 | `WKPageLoadURLWithShouldOpenExternalURLsPolicy` | `Kw7arNPVPak` |
 | `WKPageLoadURLWithUserData` | `0xQypcNgVg0` |
-| `WKPageLoadWebArchiveData` | `L8K+i+0CWw8` |
-| `WKPageLoadWebArchiveDataWithUserData` | `CqvGTLhOV70` |
 | `WKPageLoadedSubresourceDomains` | `444+v4xOtlA` |
 | `WKPageLookUpFrameFromHandle` | `OS2EuVvqy6g` |
 | `WKPagePostMessageToInjectedBundle` | `iHPXwHi7Qwk` |
@@ -624,7 +598,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKPageSetPageUIClient` | `6RXuTZIVqIg` |
 | `WKPageSetPageZoomFactor` | `pCJUJOonjAM` |
 | `WKPageSetPaginationBehavesLikeColumns` | `iUarLNk0Dkg` |
-| `WKPageSetPaginationLineGridEnabled` | `uqcmh9mV7sI` |
 | `WKPageSetPaginationMode` | `JjOoUWau3hA` |
 | `WKPageSetRubberBandsAtBottom` | `078ew7gQLwA` |
 | `WKPageSetRubberBandsAtLeft` | `E6OA1UUy8+4` |
@@ -648,9 +621,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKPageVerticalRubberBandingIsEnabled` | `p-jMGxCpEF4` |
 | `WKPageWillHandleHorizontalScrollEvents` | `pYHt5lL67G8` |
 | `WKRegistrableDomainCreate` | `BjwTHxBa4gc` |
-| `WKResourceCacheManagerClearCacheForAllOrigins` | `g-SjvruXQtc` |
-| `WKResourceCacheManagerClearCacheForOrigin` | `Sq7E7Dwlq0w` |
-| `WKResourceCacheManagerGetCacheOrigins` | `v+SAyXDkOCI` |
 | `WKSecurityOriginCreateFromString` | `SfMLraLeAvo` |
 | `WKSendDisplayConfigurationChangedMessageForTesting` | `CQsllLq8d7I` |
 | `WKTextCheckerSetTestingMode` | `uhbwdrVWKnk` |
@@ -2063,7 +2033,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore13AXObjectCache11getOrCreateEPNS_4NodeE` | `NZemRl2yal4` |
 | `_ZN7WebCore13AXObjectCache19enableAccessibilityEv` | `T4UaFjUdbCo` |
 | `_ZN7WebCore13AXObjectCache20disableAccessibilityEv` | `1Cw1MMnI89Y` |
-| `_ZN7WebCore13AXObjectCache37setEnhancedUserInterfaceAccessibilityEb` | `KOxWYkiprIY` |
 | `_ZN7WebCore13CSSStyleSheet10deleteRuleEj` | `lC5PrZi8XSE` |
 | `_ZN7WebCore13CSSStyleSheet10insertRuleERKN3WTF6StringEj` | `8G392ayhCbI` |
 | `_ZN7WebCore13CSSStyleSheet8cssRulesEv` | `pWbsmM0vKvI` |
@@ -6056,6 +6025,8 @@ Inventory prose retains historical counts; use the [generated progress report](h
 
 ### Functional
 
+- [Empty C API exports](../../../core/libs/prx/libSceNKWebKit/src/NoOpExports.cpp) (libSceNKWebKit) - not measured on a console; the 11.00 bodies were not checked. 25 exports return without effect because their pinned bodies are empty, outside any `#if`: the `WKCookieManager*` and `WKResourceCacheManager*` ones ([UIProcess/API/C](https://github.com/neonmodder123/PS5-WebKit-11.x/tree/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/UIProcess/API/C) WKCookieManager.cpp L39-L73, WKResourceCacheManager.cpp L34-L44; callbacks are never called), six `WKContext*` exports (WKContext.cpp L314-L459), `WKFrameStopLoading` (WKFrame.cpp L79), `WKPageLoadWebArchiveData*` and `WKPageSetPaginationLineGridEnabled` (WKPage.cpp L318-L324, L900), `WKBundleBackForwardListClear` (WKBundleBackForwardList.cpp L51) and four `WKBundlePage*` exports (WKBundlePage.cpp L112, L362, L598-L606). Their declarations take no parameters, like the other no-op exports.
+- [Injected bundle helpers](../../../core/libs/prx/libSceNKWebKit/src/InjectedBundleApi.cpp) (libSceNKWebKit) - not measured on a console. `WKBundleScriptWorldCreateWorld` names worlds `UniqueWorld_<n>` from a process-wide counter starting at 0 ([InjectedBundleScriptWorld.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/WebProcess/InjectedBundle/InjectedBundleScriptWorld.cpp#L47-L56)); no DOM wrapper world exists. `WKBundleCreateWKDataFromUInt8Array` copies a Uint8Array view ([InjectedBundle.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/WebProcess/InjectedBundle/InjectedBundle.cpp#L327-L333)) and throws where WebKit dereferences null: other values and shared buffers. The two `WKPageGetSession*ValueType` strings and the enhanced accessibility flag (ENABLE_ACCESSIBILITY is on downstream) follow WKPage.cpp L543-L553 and AXObjectCache.cpp L222-L229.
 - [PlayStation input events](../../../core/libs/prx/libSceNKWebKit/src/EventPlayStation.cpp) (libSceNKWebKit) - not measured on a console. `WKKeyboardEventMake`, `WKMouseEventMake` and `WKWheelEventMake` follow [WKEventPlayStation.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/Shared/API/c/playstation/WKEventPlayStation.cpp#L29-L78); the 48, 32 and 64-byte structs follow [WKEventPlayStation.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/Shared/API/c/playstation/WKEventPlayStation.h#L56-L90) and are returned through the System V hidden result pointer, which is assumed, not checked against the module. Padding bytes are zeroed where the upstream build leaves them unspecified.
 - [Website data stores](../../../core/libs/prx/libSceNKWebKit/src/WebsiteDataStore.cpp) (libSceNKWebKit) - not measured on a console. Session IDs, persistence, the copied configuration and every network process message are not modelled. Follows [WKWebsiteDataStoreRef.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/UIProcess/API/C/WKWebsiteDataStoreRef.cpp#L57-L162): one unretained process-wide default store, new stores from both create functions, one lazily created cookie store per data store, and the tracking prevention flag (PlayStation builds `ENABLE_TRACKING_PREVENTION`), off by default.
 - [EmptyFrameLoaderClient load lifecycle callbacks](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - six wrappers follow the empty `void` bodies in pinned [EmptyClients.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L679-L727) for `dispatchWillSendRequest`, `dispatchDidReceiveAuthenticationChallenge`, `dispatchDidReceiveResponse`, `dispatchDidReceiveContentLength`, `dispatchDidFinishLoading` and `dispatchDidFailLoading`. Their console ABI has not been measured; the wrappers ignore arguments, and this source-derived behavior is not console parity evidence.
