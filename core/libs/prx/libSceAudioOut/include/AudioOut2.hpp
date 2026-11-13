@@ -40,6 +40,7 @@ int APS5_VABI sceAudioOut2GetSpeakerArrayAmbisonicsCoefficients(AudioOut2Speaker
 int APS5_VABI sceAudioOut2GetSpeakerArrayCoefficients(AudioOut2SpeakerArrayHandle handle, AudioOut2Position pos, float spread, float* coefficients, uint32_t numCoefficients, uint8_t heightAware, float downmixSpreadRadius);
 size_t APS5_VABI sceAudioOut2GetSpeakerArrayMemorySize(uint32_t numSpeakers, uint8_t is3d, uint8_t isAmbisonics);
 int APS5_VABI sceAudioOut2GetSpeakerInfo(AudioOut2SpeakerInfo* info, uint32_t flags);
+int APS5_VABI sceAudioOut2SetSpeakerInfo(const AudioOut2SpeakerInfo* info);
 int APS5_VABI sceAudioOut2Initialize(void);
 int APS5_VABI sceAudioOut2InitializeEx(std::uint32_t param);
 int APS5_VABI sceAudioOut2Set3DLatency(int userId, std::uint32_t output);

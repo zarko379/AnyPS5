@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -32,6 +33,14 @@ struct SpeakerArray {
     AudioOut2Position directions[MaxSpeakers];
 };
 constexpr std::uint32_t SpeakerArrayMagic = 0x53504b41;
+
+constexpr int SpeakerInfoErrorInvalidParam = static_cast<int>(0x80268001);
+constexpr int SpeakerInfoErrorNotInitialized = static_cast<int>(0x80268006);
+constexpr int SpeakerInfoErrorInvalidPointer = static_cast<int>(0x8026800C);
+
+std::mutex g_speakerInfoLock;
+bool g_speakerInfoSet = false;
+AudioOut2SpeakerInfo g_speakerInfo{};
 
 SpeakerArray& Array(AudioOut2SpeakerArrayHandle handle) {
     auto* array = static_cast<SpeakerArray*>(handle);
@@ -123,13 +132,10 @@ size_t APS5_VABI sceAudioOut2GetSpeakerArrayMemorySize(uint32_t num_speakers, ui
 }
 
 int APS5_VABI sceAudioOut2GetSpeakerInfo(AudioOut2SpeakerInfo* info, uint32_t flags) {
-    constexpr int ErrorInvalidParam = static_cast<int>(0x80268001);
-    constexpr int ErrorNotInitialized = static_cast<int>(0x80268006);
-    constexpr int ErrorInvalidPointer = static_cast<int>(0x8026800C);
     constexpr std::uint32_t MaxFlags = 1;
-    if (!AudioOut2IsInitialized_nid_no_patch()) return ErrorNotInitialized;
-    if (!info) return ErrorInvalidPointer;
-    if (flags > MaxFlags) return ErrorInvalidParam;
+    if (!AudioOut2IsInitialized_nid_no_patch()) return SpeakerInfoErrorNotInitialized;
+    if (!info) return SpeakerInfoErrorInvalidPointer;
+    if (flags > MaxFlags) return SpeakerInfoErrorInvalidParam;
     constexpr std::uint8_t SpeakerTypeTelevision = 0;
     constexpr std::uint32_t FrontLeftAndRight = 0x3;
     constexpr AudioOut2SpeakerAngle NoSpeaker = {-360, -360};
@@ -139,10 +145,28 @@ int APS5_VABI sceAudioOut2GetSpeakerInfo(AudioOut2SpeakerInfo* info, uint32_t fl
     for (auto& angle : result.speaker_angle) angle = NoSpeaker;
     result.speaker_angle[0] = {30, 0};
     result.speaker_angle[1] = {-30, 0};
+    {
+        std::lock_guard lock(g_speakerInfoLock);
+        if (g_speakerInfoSet) result = g_speakerInfo;
+    }
     const int savedErrno = errno;
     const bool copied = GuestCopyOut_nid_no_patch(info, &result, sizeof(result));
     errno = savedErrno;
-    return copied ? 0 : ErrorInvalidPointer;
+    return copied ? 0 : SpeakerInfoErrorInvalidPointer;
+}
+
+int APS5_VABI sceAudioOut2SetSpeakerInfo(const AudioOut2SpeakerInfo* info) {
+    if (!AudioOut2IsInitialized_nid_no_patch()) return SpeakerInfoErrorNotInitialized;
+    if (!info) return SpeakerInfoErrorInvalidPointer;
+    AudioOut2SpeakerInfo value{};
+    const int savedErrno = errno;
+    const bool copied = GuestCopyIn_nid_no_patch(&value, info, sizeof(value));
+    errno = savedErrno;
+    if (!copied) return SpeakerInfoErrorInvalidPointer;
+    std::lock_guard lock(g_speakerInfoLock);
+    g_speakerInfo = value;
+    g_speakerInfoSet = true;
+    return 0;
 }
 
 }

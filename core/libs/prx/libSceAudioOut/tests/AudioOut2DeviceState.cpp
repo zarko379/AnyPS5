@@ -130,6 +130,8 @@ void SpeakerInfoRequiresInitialization() {
     Require(sceAudioOut2GetSpeakerInfo(nullptr, 0) == errorNotInitialized);
     Require(sceAudioOut2GetSpeakerInfo(&info, 2) == errorNotInitialized);
     Require(std::memcmp(&info, &untouched, sizeof(info)) == 0);
+    Require(sceAudioOut2SetSpeakerInfo(&info) == errorNotInitialized);
+    Require(sceAudioOut2SetSpeakerInfo(nullptr) == errorNotInitialized);
 }
 
 void SpeakerInfoAfterAudioOutInit() {
@@ -158,6 +160,43 @@ void SpeakerInfoRejectsBadFlags() {
     Require(info.type == 0);
     Require(info.available_bits == 0x3);
     Require(info.speaker_angle[0].azimuth == 30 && info.speaker_angle[1].azimuth == -30);
+}
+
+void SpeakerInfoSetIsReadBack() {
+    AudioOut2SpeakerInfo wanted;
+    std::memset(&wanted, 0, sizeof(wanted));
+    wanted.type = 1;
+    wanted.available_bits = 0x3F;
+    wanted.flags = 5;
+    for (auto& angle : wanted.speaker_angle) angle = {-360, -360};
+    wanted.speaker_angle[0] = {30, 0};
+    wanted.speaker_angle[1] = {-30, 0};
+    wanted.speaker_angle[2] = {0, 0};
+    wanted.speaker_angle[4] = {110, 0};
+    wanted.speaker_angle[5] = {-110, 0};
+    Require(sceAudioOut2SetSpeakerInfo(nullptr) == errorInvalidPointer);
+    errno = 73;
+    Require(sceAudioOut2SetSpeakerInfo(reinterpret_cast<const AudioOut2SpeakerInfo*>(0x10)) == errorInvalidPointer);
+    Require(errno == 73);
+    AudioOut2SpeakerInfo info;
+    std::memset(&info, 0xAB, sizeof(info));
+    Require(sceAudioOut2GetSpeakerInfo(&info, 0) == 0);
+    Require(info.type == 0 && info.available_bits == 0x3);
+    Require(sceAudioOut2SetSpeakerInfo(&wanted) == 0);
+    std::memset(&info, 0xAB, sizeof(info));
+    Require(sceAudioOut2GetSpeakerInfo(&info, 0) == 0);
+    Require(std::memcmp(&info, &wanted, sizeof(info)) == 0);
+    std::memset(&info, 0xAB, sizeof(info));
+    Require(sceAudioOut2GetSpeakerInfo(&info, 1) == 0);
+    Require(std::memcmp(&info, &wanted, sizeof(info)) == 0);
+    const AudioOut2SpeakerInfo untouched = info;
+    Require(sceAudioOut2GetSpeakerInfo(&info, 2) == errorInvalidParam);
+    Require(std::memcmp(&info, &untouched, sizeof(info)) == 0);
+    wanted.type = 2;
+    wanted.available_bits = 0x3;
+    Require(sceAudioOut2SetSpeakerInfo(&wanted) == 0);
+    Require(sceAudioOut2GetSpeakerInfo(&info, 0) == 0);
+    Require(std::memcmp(&info, &wanted, sizeof(info)) == 0);
 }
 
 void SystemStateIsSilentAndRejectsNull() {
@@ -197,6 +236,7 @@ int main() {
     ContextSetAttributesChecksArguments(context);
     SpeakerInfoReportsTheFrontPair();
     SpeakerInfoRejectsBadFlags();
+    SpeakerInfoSetIsReadBack();
     SystemStateIsSilentAndRejectsNull();
 
     Require(sceAudioOut2ContextDestroy(context) == 0);
