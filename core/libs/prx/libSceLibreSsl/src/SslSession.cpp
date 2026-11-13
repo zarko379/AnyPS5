@@ -14,11 +14,27 @@ static_assert(offsetof(LibreSslSession, verifyResult) == 136);
 static_assert(offsetof(LibreSslSession, references) == 160);
 static_assert(offsetof(LibreSslSession, cipher) == 168);
 static_assert(offsetof(LibreSslSession, tlsextHostname) == 192);
+static_assert(offsetof(LibreSslSession, internal) == 224);
 static_assert(offsetof(LibreSslX509, references) == 28);
 static_assert(offsetof(LibreSslSsl, param) == 64);
 static_assert(offsetof(LibreSslSsl, tlsextHostname) == 184);
 
 namespace {
+
+struct SessionInternal {
+    void* exData;
+    void* previous;
+    void* next;
+    int notResumable;
+    void* sessionCertificates;
+};
+
+struct SessionCertificates {
+    LibreSslStack* chain;
+};
+
+static_assert(offsetof(SessionInternal, sessionCertificates) == 32);
+static_assert(offsetof(SessionCertificates, chain) == 0);
 
 const LibreSslSsl& Connection(const LibreSslSsl* ssl, const char* function) {
     if (!ssl) throw std::invalid_argument(std::string(function) + ": null connection");
@@ -78,6 +94,14 @@ const char* APS5_VABI SSL_get_servername_nid_postfix(const LibreSslSsl* ssl, int
     const LibreSslSsl& connection = Connection(ssl, __func__);
     const auto* session = static_cast<const LibreSslSession*>(connection.session);
     return session && !connection.tlsextHostname ? session->tlsextHostname : connection.tlsextHostname;
+}
+
+LibreSslStack* APS5_VABI SSL_get_peer_cert_chain_nid_postfix(const LibreSslSsl* ssl) {
+    if (!ssl || !ssl->session) return nullptr;
+    const auto* internal = static_cast<const SessionInternal*>(static_cast<const LibreSslSession*>(ssl->session)->internal);
+    if (!internal) throw std::invalid_argument(std::string(__func__) + ": null session internal state");
+    const auto* certificates = static_cast<const SessionCertificates*>(internal->sessionCertificates);
+    return certificates ? certificates->chain : nullptr;
 }
 
 void* APS5_VABI SSL_get0_param_nid_postfix(LibreSslSsl* ssl) {

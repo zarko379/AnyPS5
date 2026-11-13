@@ -369,11 +369,6 @@ int APS5_VABI SSL_CTX_set1_groups_list_nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI SSL_CTX_set_alpn_protos_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 
 
 int APS5_VABI SSL_CTX_use_PrivateKey_nid_postfix(LibreSslCtx*, void* pkey) {
@@ -520,11 +515,6 @@ int APS5_VABI SSL_free_nid_postfix(void) {
 
 
 
-
-LibreSslStack* APS5_VABI SSL_get_peer_cert_chain_nid_postfix(const LibreSslSsl* ssl) {
-    if (!ssl || !ssl->session) return nullptr;
-    NotImplemented_nid_no_patch(__func__);
-}
 
 
 

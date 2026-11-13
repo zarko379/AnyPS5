@@ -2,6 +2,8 @@
 #include "prx/libSceLibreSsl/include/Error.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/General.hpp"
+#include <stdexcept>
+#include <string>
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -98,7 +100,7 @@ char* Fail(Buffer* buffer) {
 
 NameEntry* EntryAt(const Stack* entries, int index, const char* function) {
     if (!entries || index < 0 || index >= entries->num) return nullptr;
-    if (!entries->data) NotImplemented_nid_no_patch(function);
+    if (!entries->data) throw std::invalid_argument(std::string(function) + ": null entry array");
     return reinterpret_cast<NameEntry*>(entries->data[index]);
 }
 
@@ -140,7 +142,7 @@ char* APS5_VABI X509_NAME_oneline_nid_postfix(const void* name, char* buffer, in
     const int count = entries ? entries->num : -1;
     for (; index < count; ++index) {
         const NameEntry* entry = EntryAt(entries, index, __func__);
-        if (!entry || !entry->value) NotImplemented_nid_no_patch(__func__);
+        if (!entry || !entry->value) throw std::invalid_argument(std::string(__func__) + ": null entry or value");
         const int nid = LibreSslObjectNid_nid_no_patch(entry->object);
         const char* shortName = nullptr;
         char text[80];
@@ -152,7 +154,7 @@ char* APS5_VABI X509_NAME_oneline_nid_postfix(const void* name, char* buffer, in
         const int type = entry->value->type;
         const int bytes = entry->value->length;
         const unsigned char* data = entry->value->data;
-        if (bytes > 0 && !data) NotImplemented_nid_no_patch(__func__);
+        if (bytes > 0 && !data) throw std::invalid_argument(std::string(__func__) + ": null value data");
         bool keep[4] = {true, true, true, true};
         if (type == GeneralString && bytes % 4 == 0) {
             bool nonzero[4] = {false, false, false, false};

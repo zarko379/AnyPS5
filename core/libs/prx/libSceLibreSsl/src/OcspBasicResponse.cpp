@@ -1,3 +1,5 @@
+#include <stdexcept>
+#include <string>
 #include <cstddef>
 #include <cstdint>
 #include <algorithm>
@@ -72,7 +74,7 @@ bool PushCertificate(LibreSslStack* stack, LibreSslX509* certificate) {
 
 const Stack* Responses(const void* basicResponse, const char* function) {
     const ResponseData* data = static_cast<const ResponseData*>(static_cast<const void*>(static_cast<const LibreSslOcspBasicResponse*>(basicResponse)->tbsResponseData));
-    if (!data) NotImplemented_nid_no_patch(function);
+    if (!data) throw std::invalid_argument(std::string(function) + ": null response data");
     return data->responses;
 }
 
@@ -102,7 +104,7 @@ void* APS5_VABI OCSP_resp_get0_nid_postfix(const void* basicResponse, std::int32
     if (!basicResponse) return nullptr;
     const Stack* responses = Responses(basicResponse, __func__);
     if (!responses || index < 0 || index >= responses->num) return nullptr;
-    if (!responses->data) NotImplemented_nid_no_patch(__func__);
+    if (!responses->data) throw std::invalid_argument(std::string(__func__) + ": null response array");
     return responses->data[index];
 }
 

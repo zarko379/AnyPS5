@@ -55,6 +55,8 @@ static_assert(offsetof(LibreSslCtxInternal, maxSendFragment) == 296);
 static_assert(offsetof(LibreSslCtxInternal, tlsextTickKeyName) == 312);
 static_assert(offsetof(LibreSslCtxInternal, tlsextTickHmacKey) == 328);
 static_assert(offsetof(LibreSslCtxInternal, tlsextTickAesKey) == 344);
+static_assert(offsetof(LibreSslCtxInternal, alpnClientProtoList) == 416);
+static_assert(offsetof(LibreSslCtxInternal, alpnClientProtoListLen) == 424);
 
 namespace {
 
@@ -240,6 +242,17 @@ void APS5_VABI SSL_CTX_set_default_passwd_cb_userdata_nid_postfix(LibreSslCtx* c
 
 int APS5_VABI SSL_CTX_set_ex_data_nid_postfix(LibreSslCtx* ctx, int index, void* value) {
     return SetCtxExData_nid_no_patch(Internal(ctx, __func__), index, value);
+}
+
+int APS5_VABI SSL_CTX_set_alpn_protos_nid_postfix(LibreSslCtx* ctx, const unsigned char* protos, unsigned int length) {
+    LibreSslCtxInternal& internal = Internal(ctx, __func__);
+    free_nid_postfix(internal.alpnClientProtoList);
+    internal.alpnClientProtoList = static_cast<unsigned char*>(malloc_nid_postfix(length));
+    if (!internal.alpnClientProtoList) return 1;
+    if (length != 0 && !protos) throw std::invalid_argument(std::string(__func__) + ": null protocol list");
+    if (length != 0) std::memcpy(internal.alpnClientProtoList, protos, length);
+    internal.alpnClientProtoListLen = length;
+    return 0;
 }
 
 void* APS5_VABI SSL_CTX_get_ex_data_nid_postfix(const LibreSslCtx* ctx, int index) {

@@ -113,8 +113,27 @@ struct TestSession {
     std::uint64_t cipherId;
     void* ciphers;
     const char* tlsextHostname;
+    unsigned char* tlsextTick;
+    std::uint64_t tlsextTicklen;
+    std::int64_t tlsextTickLifetimeHint;
+    void* internal;
+};
+
+struct TestSessionInternal {
+    void* exData;
+    void* previous;
+    void* next;
+    int notResumable;
+    void* sessionCertificates;
     unsigned char rest[32];
 };
+
+struct TestSessionCertificates {
+    LibreSslStack* chain;
+    unsigned char rest[64];
+};
+
+static_assert(offsetof(TestSession, internal) == 224 && offsetof(TestSessionInternal, sessionCertificates) == 32);
 
 static_assert(sizeof(TestConnectionInternal) == 432 && offsetof(TestConnectionInternal, handshakeFunc) == 56 && offsetof(TestConnectionInternal, rwstate) == 156);
 static_assert(offsetof(TestConnectionInternal, shutdown) == 168 && offsetof(TestConnectionInternal, exData) == 272 && offsetof(TestConnectionInternal, state) == 412);
@@ -367,15 +386,94 @@ static void TestGetPeerCertChain() {
     Require(SSL_get_peer_cert_chain_nid_postfix(Ssl(&ssl)) == nullptr);
     Require(std::memcmp(&ssl, before, sizeof(ssl)) == 0);
     Require(ERR_peek_error_nid_postfix() == firstError);
-    int session = 0;
+    TestSession session {};
     ssl.session = &session;
     std::memcpy(before, &ssl, sizeof(ssl));
     RequireThrows([&] { SSL_get_peer_cert_chain_nid_postfix(Ssl(&ssl)); });
     Require(std::memcmp(&ssl, before, sizeof(ssl)) == 0);
     Require(ERR_peek_error_nid_postfix() == firstError);
+    TestSessionInternal sessionInternal {};
+    session.internal = &sessionInternal;
+    Require(SSL_get_peer_cert_chain_nid_postfix(Ssl(&ssl)) == nullptr);
+    TestSessionCertificates certificates {};
+    sessionInternal.sessionCertificates = &certificates;
+    Require(SSL_get_peer_cert_chain_nid_postfix(Ssl(&ssl)) == nullptr);
+    LibreSslStack chain {};
+    certificates.chain = &chain;
+    Require(SSL_get_peer_cert_chain_nid_postfix(Ssl(&ssl)) == &chain);
+    ssl.session = nullptr;
+    Require(SSL_get_peer_cert_chain_nid_postfix(Ssl(&ssl)) == nullptr);
+    Require(ERR_peek_error_nid_postfix() == firstError);
     Require(ERR_get_error_nid_postfix() == firstError);
     Require(ERR_get_error_nid_postfix() == secondError);
     Require(ERR_get_error_nid_postfix() == 0);
+}
+
+static int heapAllocations = 0;
+static bool failNextAllocation = false;
+static std::size_t lastAllocationSize = 0;
+
+static void* APS5_VABI HeapAllocate(std::size_t size) {
+    if (failNextAllocation) {
+        failNextAllocation = false;
+        return nullptr;
+    }
+    lastAllocationSize = size;
+    void* result = std::malloc(size ? size : 1);
+    if (result) ++heapAllocations;
+    return result;
+}
+
+static void APS5_VABI HeapFree(void* pointer) {
+    if (pointer) --heapAllocations;
+    std::free(pointer);
+}
+
+static void* APS5_VABI HeapCalloc(std::size_t count, std::size_t size) {
+    void* result = std::calloc(count ? count : 1, size ? size : 1);
+    if (result) ++heapAllocations;
+    return result;
+}
+
+static void* APS5_VABI HeapReallocate(void* pointer, std::size_t size) {
+    void* result = std::realloc(pointer, size ? size : 1);
+    if (result && !pointer) ++heapAllocations;
+    return result;
+}
+
+static void* APS5_VABI HeapAlign(std::size_t, std::size_t) { throw std::logic_error("unexpected aligned allocation"); }
+static void* APS5_VABI HeapRealign(void*, std::size_t, std::size_t) { throw std::logic_error("unexpected aligned reallocation"); }
+static int APS5_VABI HeapPosixAlign(void**, std::size_t, std::size_t) { throw std::logic_error("unexpected aligned allocation"); }
+
+static void TestSetAlpnProtos() {
+    static const unsigned char first[] = {2, 'h', '2'};
+    static const unsigned char second[] = {8, 'h', 't', 't', 'p', '/', '1', '.', '1'};
+    ERR_clear_error_nid_postfix();
+    LibreSslCtxInternal internal {};
+    LibreSslCtx context {};
+    RequireThrows([] { SSL_CTX_set_alpn_protos_nid_postfix(nullptr, first, sizeof(first)); });
+    RequireThrows([&] { SSL_CTX_set_alpn_protos_nid_postfix(&context, first, sizeof(first)); });
+    context.internal = &internal;
+    const int baseline = heapAllocations;
+    Require(SSL_CTX_set_alpn_protos_nid_postfix(&context, first, sizeof(first)) == 0);
+    Require(internal.alpnClientProtoList && internal.alpnClientProtoList != first && internal.alpnClientProtoListLen == sizeof(first));
+    Require(std::memcmp(internal.alpnClientProtoList, first, sizeof(first)) == 0 && heapAllocations == baseline + 1);
+    Require(SSL_CTX_set_alpn_protos_nid_postfix(&context, second, sizeof(second)) == 0);
+    Require(internal.alpnClientProtoListLen == sizeof(second) && std::memcmp(internal.alpnClientProtoList, second, sizeof(second)) == 0);
+    Require(heapAllocations == baseline + 1);
+    failNextAllocation = true;
+    Require(SSL_CTX_set_alpn_protos_nid_postfix(&context, first, sizeof(first)) == 1);
+    Require(!internal.alpnClientProtoList && internal.alpnClientProtoListLen == sizeof(second) && heapAllocations == baseline);
+    Require(ERR_peek_error_nid_postfix() == 0);
+    Require(SSL_CTX_set_alpn_protos_nid_postfix(&context, nullptr, 0) == 0);
+    Require(internal.alpnClientProtoList && internal.alpnClientProtoListLen == 0 && heapAllocations == baseline + 1);
+    Require(SSL_CTX_set_alpn_protos_nid_postfix(&context, first, 1) == 0);
+    Require(internal.alpnClientProtoListLen == 1 && internal.alpnClientProtoList[0] == 2 && heapAllocations == baseline + 1);
+    lastAllocationSize = 0;
+    RequireThrows([&] { SSL_CTX_set_alpn_protos_nid_postfix(&context, nullptr, 2); });
+    Require(internal.alpnClientProtoList && internal.alpnClientProtoListLen == 1 && heapAllocations == baseline + 1 && lastAllocationSize == 2);
+    CRYPTO_free_nid_postfix(internal.alpnClientProtoList);
+    Require(heapAllocations == baseline && ERR_peek_error_nid_postfix() == 0);
 }
 
 static std::uint64_t ErrorCode(std::uint64_t library, std::uint64_t function, std::uint64_t reason) {
@@ -665,7 +763,9 @@ static void TestGetError() {
 }
 
 int main() {
-    void* heap[10] {};
+    void* heap[10] {reinterpret_cast<void*>(HeapAllocate), reinterpret_cast<void*>(HeapFree), reinterpret_cast<void*>(HeapCalloc),
+        reinterpret_cast<void*>(HeapReallocate), reinterpret_cast<void*>(HeapAlign), reinterpret_cast<void*>(HeapRealign),
+        reinterpret_cast<void*>(HeapPosixAlign)};
     ApplicationHeapRegister_nid_no_patch(heap);
     TestGet1Session();
     TestCheckPrivateKey();
@@ -684,5 +784,6 @@ int main() {
     TestSessionAccessors();
     TestDispatch();
     TestGetError();
+    TestSetAlpnProtos();
     return 0;
 }
