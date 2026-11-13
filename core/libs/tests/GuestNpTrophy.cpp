@@ -156,6 +156,7 @@ int main() {
     Require(sceNpTrophyShowTrophyList(-1, -1) == InvalidContext, "trophy list checks the context id before the handle id");
     Require(sceNpTrophyShowTrophyList(context + 100, handle + 100) == InvalidContext, "trophy list checks the context before the handle");
     Require(sceNpTrophyShowTrophyList(context, -1) == InvalidHandle, "trophy list for the invalid handle id");
+    Require(sceNpTrophyShowTrophyList(context + 100, -1) == InvalidHandle, "trophy list checks the invalid handle id before an unknown context");
     Require(sceNpTrophyShowTrophyList(context, handle + 100) == InvalidHandle, "trophy list for an unknown handle");
     Require(sceNpTrophyRegisterContext(context, handle, 0) == 0, "register the context");
     bool listThrew = false;
