@@ -298,6 +298,18 @@ static void CheckGlyphImages(FontHandle font, FontRenderer renderer) {
         verticalThrew = true;
     }
     Require(verticalThrew);
+    auto* handleFlags = reinterpret_cast<std::uint16_t*>(font) + 1;
+    const std::uint16_t savedFlags = *handleFlags;
+    *handleFlags = static_cast<std::uint16_t>(savedFlags | 0x8000u);
+    bool writtenThrew = false;
+    try {
+        RenderInto([&](FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput* result) { return sceFontGlyphRenderImage(glyph, nullptr, renderer, surface, 10.0f, 20.0f, metrics, result); });
+    } catch (const std::runtime_error&) {
+        writtenThrew = true;
+    }
+    Require(writtenThrew);
+    Require(SameImage(horizontal, RenderInto([&](FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput* result) { return sceFontGlyphRenderImageHorizontal(glyph, nullptr, renderer, surface, 10.0f, 100.0f, metrics, result); })));
+    *handleFlags = savedFlags;
     Require(SameImage(horizontal, RenderInto([&](FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput* result) { return sceFontGlyphRenderImageHorizontal(glyph, nullptr, renderer, surface, 10.0f, 100.0f, metrics, result); })));
     Require(sceFontDeleteGlyph(nullptr, &glyph) == SCE_FONT_OK && glyph == nullptr);
 }

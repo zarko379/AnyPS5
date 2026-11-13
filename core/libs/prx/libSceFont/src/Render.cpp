@@ -122,9 +122,10 @@ int RenderDirectional(FontHandle fontHandle, std::uint32_t code, FontRenderSurfa
     return rc;
 }
 
-int CheckGlyphRender(FontGlyph glyph, FontRenderer renderer, const FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput* result) {
+int CheckGlyphRender(FontGlyph glyph, FontRenderer renderer, const FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput* result, GeneratedGlyph*& generated) {
     int rc = SCE_FONT_OK;
-    if (!TryGetGeneratedGlyph(glyph)) {
+    generated = TryGetGeneratedGlyph(glyph);
+    if (!generated) {
         rc = SCE_FONT_ERROR_INVALID_GLYPH;
     } else if (!renderer || static_cast<const RendererNative*>(renderer)->magic != RENDERER_MAGIC) {
         rc = SCE_FONT_ERROR_INVALID_RENDERER;
@@ -135,9 +136,8 @@ int CheckGlyphRender(FontGlyph glyph, FontRenderer renderer, const FontRenderSur
     return rc;
 }
 
-int RenderCheckedGlyph(FontGlyph glyph, const FontStyleFrame* styleFrame, FontRenderSurface* surface, float x, float y, FontGlyphMetrics* metrics, FontRenderOutput* result, std::uint16_t direction, bool& verticalFont) {
+int RenderCheckedGlyph(const GeneratedGlyph* generated, const FontStyleFrame* styleFrame, FontRenderSurface* surface, float x, float y, FontGlyphMetrics* metrics, FontRenderOutput* result, std::uint16_t direction, bool& verticalFont) {
     verticalFont = false;
-    auto* generated = TryGetGeneratedGlyph(glyph);
     const FontHandle owner = generated->owner;
     auto* font = TryGetState(owner) ? GetNativeFont(owner) : nullptr;
     std::uint32_t fontLock = 0;
@@ -610,23 +610,26 @@ FontGlyphOutline* APS5_VABI sceFontGlyphRefersOutline(FontGlyph glyph) {
 }
 
 int APS5_VABI sceFontGlyphRenderImage(FontGlyph glyph, const FontStyleFrame* styleFrame, FontRenderer renderer, FontRenderSurface* surface, float x, float y, FontGlyphMetrics* metrics, FontRenderOutput* output) {
-    const int checked = CheckGlyphRender(glyph, renderer, surface, metrics, output);
+    GeneratedGlyph* generated = nullptr;
+    const int checked = CheckGlyphRender(glyph, renderer, surface, metrics, output, generated);
     if (checked != SCE_FONT_OK) return checked;
     bool verticalFont = false;
-    const int rc = RenderCheckedGlyph(glyph, styleFrame, surface, x, y, metrics, output, 0, verticalFont);
+    const int rc = RenderCheckedGlyph(generated, styleFrame, surface, x, y, metrics, output, 0, verticalFont);
     if (verticalFont) NotImplemented_nid_no_patch("sceFontGlyphRenderImage: a vertical font");
     return rc;
 }
 
 int APS5_VABI sceFontGlyphRenderImageHorizontal(FontGlyph glyph, const FontStyleFrame* styleFrame, FontRenderer renderer, FontRenderSurface* surface, float x, float y, FontGlyphMetrics* metrics, FontRenderOutput* output) {
-    const int checked = CheckGlyphRender(glyph, renderer, surface, metrics, output);
+    GeneratedGlyph* generated = nullptr;
+    const int checked = CheckGlyphRender(glyph, renderer, surface, metrics, output, generated);
     if (checked != SCE_FONT_OK) return checked;
     bool verticalFont = false;
-    return RenderCheckedGlyph(glyph, styleFrame, surface, x, y, metrics, output, 1, verticalFont);
+    return RenderCheckedGlyph(generated, styleFrame, surface, x, y, metrics, output, 1, verticalFont);
 }
 
 int APS5_VABI sceFontGlyphRenderImageVertical(FontGlyph glyph, const FontStyleFrame* styleFrame, FontRenderer renderer, FontRenderSurface* surface, float x, float y, FontGlyphMetrics* metrics, FontRenderOutput* output) {
-    const int checked = CheckGlyphRender(glyph, renderer, surface, metrics, output);
+    GeneratedGlyph* generated = nullptr;
+    const int checked = CheckGlyphRender(glyph, renderer, surface, metrics, output, generated);
     if (checked != SCE_FONT_OK) return checked;
     NotImplemented_nid_no_patch(__func__);
 }
