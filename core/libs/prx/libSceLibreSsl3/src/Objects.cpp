@@ -171,8 +171,63 @@ constexpr LibreSslAsn1Object LaterObjects[100] = {
 
 static_assert(LibreSslObjectCount + static_cast<int>(std::size(LaterObjects)) == LibreSsl3::ObjectCount);
 
+struct RenamedObject {
+    int nid;
+    const char* shortName;
+    const char* longName;
+};
+
+constexpr RenamedObject Renamed[] = {
+    {802, "id-dsa-with-sha224", "dsa_with_SHA224"},
+    {803, "id-dsa-with-sha256", "dsa_with_SHA256"},
+    {943, "id-tc26-gost-3410-12-512-paramSetA", "GOST R 34.10-2012 (512 bit) ParamSet A"},
+    {944, "id-tc26-gost-3410-12-512-paramSetB", "GOST R 34.10-2012 (512 bit) ParamSet B"},
+};
+
+const std::vector<LibreSslAsn1Object>& RenamedObjects() {
+    static const std::vector<LibreSslAsn1Object> objects = [] {
+        std::vector<LibreSslAsn1Object> renamed;
+        for (const RenamedObject& entry : Renamed) {
+            LibreSslAsn1Object object = LibreSslObjects_nid_no_patch[entry.nid];
+            object.shortName = entry.shortName;
+            object.longName = entry.longName;
+            renamed.push_back(object);
+        }
+        return renamed;
+    }();
+    return objects;
+}
+
 const LibreSslAsn1Object& Entry(int nid) {
+    for (std::size_t index = 0; index < std::size(Renamed); ++index) {
+        if (Renamed[index].nid == nid) return RenamedObjects()[index];
+    }
     return nid < LibreSslObjectCount ? LibreSslObjects_nid_no_patch[nid] : LaterObjects[nid - LibreSslObjectCount];
+}
+
+std::vector<std::uint16_t> NameOrder(const char* LibreSslAsn1Object::*name) {
+    std::vector<std::uint16_t> nids;
+    for (int nid = 0; nid < LibreSsl3::ObjectCount; ++nid) {
+        if (Entry(nid).*name) nids.push_back(static_cast<std::uint16_t>(nid));
+    }
+    std::stable_sort(nids.begin(), nids.end(), [name](std::uint16_t first, std::uint16_t second) {
+        return std::strcmp(Entry(first).*name, Entry(second).*name) < 0;
+    });
+    return nids;
+}
+
+int FindName(const std::vector<std::uint16_t>& order, const char* LibreSslAsn1Object::*name, const char* text) {
+    const std::uint16_t* base = order.data();
+    for (std::size_t limit = order.size(); limit != 0; limit >>= 1) {
+        const std::uint16_t* probe = base + (limit >> 1);
+        const int comparison = std::strcmp(text, Entry(*probe).*name);
+        if (comparison == 0) return *probe;
+        if (comparison > 0) {
+            base = probe + 1;
+            --limit;
+        }
+    }
+    return 0;
 }
 
 const std::vector<std::uint16_t>& Order() {
@@ -237,6 +292,18 @@ int ObjectNid(const LibreSslAsn1Object* object) {
         }
     }
     return 0;
+}
+
+int ShortNameNid(const char* name) {
+    if (!name) throw std::invalid_argument("OBJ_sn2nid: null name");
+    static const std::vector<std::uint16_t> order = NameOrder(&LibreSslAsn1Object::shortName);
+    return FindName(order, &LibreSslAsn1Object::shortName, name);
+}
+
+int LongNameNid(const char* name) {
+    if (!name) throw std::invalid_argument("OBJ_ln2nid: null name");
+    static const std::vector<std::uint16_t> order = NameOrder(&LibreSslAsn1Object::longName);
+    return FindName(order, &LibreSslAsn1Object::longName, name);
 }
 
 } // namespace LibreSsl3
