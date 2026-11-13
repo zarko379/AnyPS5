@@ -4,8 +4,19 @@
 
 struct UResourceBundle;
 struct UEnumeration;
+struct ResourceData;
 
 extern "C" {
+void APS5_VABI res_read_nid_postfix(ResourceData* pResData, const void* pInfo, const void* inBytes, std::int32_t length, std::int32_t* status);
+const char16_t* APS5_VABI res_getStringNoTrace_nid_postfix(const ResourceData* pResData, std::uint32_t res, std::int32_t* pLength);
+const char16_t* APS5_VABI res_getAlias_nid_postfix(const ResourceData* pResData, std::uint32_t res, std::int32_t* pLength);
+const std::uint8_t* APS5_VABI res_getBinaryNoTrace_nid_postfix(const ResourceData* pResData, std::uint32_t res, std::int32_t* pLength);
+const std::int32_t* APS5_VABI res_getIntVectorNoTrace_nid_postfix(const ResourceData* pResData, std::uint32_t res, std::int32_t* pLength);
+std::int32_t APS5_VABI res_countArrayItems_nid_postfix(const ResourceData* pResData, std::uint32_t res);
+std::uint32_t APS5_VABI res_getArrayItem_nid_postfix(const ResourceData* pResData, std::uint32_t array, std::int32_t indexR);
+std::uint32_t APS5_VABI res_getTableItemByIndex_nid_postfix(const ResourceData* pResData, std::uint32_t table, std::int32_t indexR, const char** key);
+std::uint32_t APS5_VABI res_getTableItemByKey_nid_postfix(const ResourceData* pResData, std::uint32_t table, std::int32_t* indexR, const char** key);
+std::uint32_t APS5_VABI res_getResource_nid_postfix(const ResourceData* pResData, const char* key);
 UResourceBundle* APS5_VABI ures_open_nid_postfix(const char* packageName, const char* locale, std::int32_t* status);
 UResourceBundle* APS5_VABI ures_openNoDefault_nid_postfix(const char* path, const char* localeID, std::int32_t* status);
 UResourceBundle* APS5_VABI ures_openDirect_nid_postfix(const char* packageName, const char* locale, std::int32_t* status);

@@ -6,6 +6,7 @@
 #include <unicode/ures.h>
 #include "uresimp.h"
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -104,6 +105,86 @@ void CheckFind(const char* pathToResource) {
 
 UEnumeration* Guest(UEnumeration* host, std::int32_t* status) {
     return IcuBackend::GuestEnumeration(host, status);
+}
+
+
+static_assert(offsetof(ResourceData, data) == 0 && offsetof(ResourceData, pRoot) == 8 && offsetof(ResourceData, p16BitUnits) == 16 && offsetof(ResourceData, poolBundleKeys) == 24);
+static_assert(offsetof(ResourceData, rootRes) == 32 && offsetof(ResourceData, localKeyLimit) == 36 && offsetof(ResourceData, poolBundleStrings) == 40);
+static_assert(offsetof(ResourceData, poolStringIndexLimit) == 48 && offsetof(ResourceData, poolStringIndex16Limit) == 52 && offsetof(ResourceData, noFallback) == 56);
+static_assert(offsetof(ResourceData, useNativeStrcmp) == 59 && sizeof(ResourceData) == 64);
+
+const ResourceData* Data(const ResourceData* data) {
+    if (!data) APS5_INVALID_ARG_EX;
+    return data;
+}
+
+const ResourceData* Rooted(const ResourceData* data) {
+    if (!Data(data)->pRoot) APS5_INVALID_ARG_EX;
+    return data;
+}
+
+const ResourceData* Units(const ResourceData* data) {
+    if (!Data(data)->p16BitUnits) APS5_INVALID_ARG_EX;
+    return data;
+}
+
+void Key16(const ResourceData* data, std::uint16_t key) {
+    if (key < data->localKeyLimit ? !data->pRoot : !data->poolBundleKeys) APS5_INVALID_ARG_EX;
+}
+
+void Key32(const ResourceData* data, std::int32_t key) {
+    if (key >= 0 ? !data->pRoot : !data->poolBundleKeys) APS5_INVALID_ARG_EX;
+}
+
+void Keys16(const ResourceData* data, const std::uint16_t* keys, std::int32_t length) {
+    for (std::int32_t index = 0; index < length; ++index) Key16(data, keys[index]);
+}
+
+void Keys32(const ResourceData* data, const std::int32_t* keys, std::int32_t length) {
+    for (std::int32_t index = 0; index < length; ++index) Key32(data, keys[index]);
+}
+
+void CheckStringV2(const ResourceData* data, std::uint32_t offset) {
+    Data(data);
+    if (static_cast<std::int32_t>(offset) < data->poolStringIndexLimit ? !data->poolBundleStrings : !data->p16BitUnits) APS5_INVALID_ARG_EX;
+}
+
+bool Searched(Resource table) {
+    const std::int32_t type = RES_GET_TYPE(table);
+    return type == URES_TABLE16 || ((type == URES_TABLE || type == URES_TABLE32) && RES_GET_OFFSET(table) != 0);
+}
+
+void CheckTable(const ResourceData* data, Resource table, bool byKey, std::int32_t index) {
+    const std::uint32_t offset = RES_GET_OFFSET(table);
+    switch (RES_GET_TYPE(table)) {
+    case URES_TABLE:
+        if (offset == 0) return;
+        {
+            const auto* keys = reinterpret_cast<const std::uint16_t*>(Rooted(data)->pRoot + offset);
+            const std::int32_t length = *keys++;
+            if (byKey) Keys16(data, keys, length);
+            else if (index >= 0 && index < length) Key16(data, keys[index]);
+        }
+        return;
+    case URES_TABLE16: {
+        const std::uint16_t* keys = Units(data)->p16BitUnits + offset;
+        const std::int32_t length = *keys++;
+        if (byKey) Keys16(data, keys, length);
+        else if (index >= 0 && index < length) Key16(data, keys[index]);
+        return;
+    }
+    case URES_TABLE32:
+        if (offset == 0) return;
+        {
+            const std::int32_t* keys = Rooted(data)->pRoot + offset;
+            const std::int32_t length = *keys++;
+            if (byKey) Keys32(data, keys, length);
+            else if (index >= 0 && index < length) Key32(data, keys[index]);
+        }
+        return;
+    default:
+        return;
+    }
 }
 
 }
@@ -352,6 +433,78 @@ const char16_t* APS5_VABI ures_getStringByKeyWithFallback_nid_postfix(const URes
     UErrorCode* error = Status(status);
     IcuBackend::CheckWithFallback(Bundle(resB), inKey, status);
     return ures_getStringByKeyWithFallback(resB, inKey, len, error);
+}
+
+void APS5_VABI res_read_nid_postfix(ResourceData* pResData, const void* pInfo, const void* inBytes, std::int32_t length, std::int32_t* status) {
+    IcuBackend::Ensure();
+    if (!pResData || !status) APS5_INVALID_ARG_EX;
+    if (*status <= U_ZERO_ERROR) {
+        if (!pInfo) APS5_INVALID_ARG_EX;
+        const auto* info = static_cast<const UDataInfo*>(pInfo);
+        const bool acceptable = info->size >= 20 && info->isBigEndian == U_IS_BIG_ENDIAN && info->charsetFamily == U_CHARSET_FAMILY && info->sizeofUChar == U_SIZEOF_UCHAR &&
+                                std::memcmp(info->dataFormat, "ResB", 4) == 0 && info->formatVersion[0] >= 1 && info->formatVersion[0] <= 3;
+        if (acceptable && (!inBytes || (length >= 0 && length < 4))) APS5_INVALID_ARG_EX;
+    }
+    res_read(pResData, static_cast<const UDataInfo*>(pInfo), inBytes, length, reinterpret_cast<UErrorCode*>(status));
+}
+
+const char16_t* APS5_VABI res_getStringNoTrace_nid_postfix(const ResourceData* pResData, Resource res, std::int32_t* pLength) {
+    const std::uint32_t offset = RES_GET_OFFSET(res);
+    if (RES_GET_TYPE(res) == URES_STRING_V2) CheckStringV2(pResData, offset);
+    else if (res == offset && res != 0) Rooted(pResData);
+    return res_getStringNoTrace(pResData, res, pLength);
+}
+
+const char16_t* APS5_VABI res_getAlias_nid_postfix(const ResourceData* pResData, Resource res, std::int32_t* pLength) {
+    if (RES_GET_TYPE(res) == URES_ALIAS && RES_GET_OFFSET(res) != 0) Rooted(pResData);
+    return res_getAlias(pResData, res, pLength);
+}
+
+const std::uint8_t* APS5_VABI res_getBinaryNoTrace_nid_postfix(const ResourceData* pResData, Resource res, std::int32_t* pLength) {
+    if (RES_GET_TYPE(res) == URES_BINARY && RES_GET_OFFSET(res) != 0) Rooted(pResData);
+    return res_getBinaryNoTrace(pResData, res, pLength);
+}
+
+const std::int32_t* APS5_VABI res_getIntVectorNoTrace_nid_postfix(const ResourceData* pResData, Resource res, std::int32_t* pLength) {
+    if (RES_GET_TYPE(res) == URES_INT_VECTOR && RES_GET_OFFSET(res) != 0) Rooted(pResData);
+    return res_getIntVectorNoTrace(pResData, res, pLength);
+}
+
+std::int32_t APS5_VABI res_countArrayItems_nid_postfix(const ResourceData* pResData, Resource res) {
+    const std::int32_t type = RES_GET_TYPE(res);
+    if ((type == URES_ARRAY || type == URES_TABLE32 || type == URES_TABLE) && RES_GET_OFFSET(res) != 0) Rooted(pResData);
+    if (type == URES_ARRAY16 || type == URES_TABLE16) Units(pResData);
+    return res_countArrayItems(pResData, res);
+}
+
+Resource APS5_VABI res_getArrayItem_nid_postfix(const ResourceData* pResData, Resource array, std::int32_t indexR) {
+    if (indexR >= 0) {
+        if (RES_GET_TYPE(array) == URES_ARRAY && RES_GET_OFFSET(array) != 0) Rooted(pResData);
+        if (RES_GET_TYPE(array) == URES_ARRAY16) Units(pResData);
+    }
+    return res_getArrayItem(pResData, array, indexR);
+}
+
+Resource APS5_VABI res_getTableItemByIndex_nid_postfix(const ResourceData* pResData, Resource table, std::int32_t indexR, const char** key) {
+    if (indexR >= 0) {
+        CheckTable(pResData, table, false, key ? indexR : -1);
+    }
+    return res_getTableItemByIndex(pResData, table, indexR, key);
+}
+
+Resource APS5_VABI res_getTableItemByKey_nid_postfix(const ResourceData* pResData, Resource table, std::int32_t* indexR, const char** key) {
+    if (key && *key) {
+        if (Searched(table)) {
+            CheckTable(pResData, table, true, 0);
+            if (!indexR) APS5_INVALID_ARG_EX;
+        }
+    }
+    return res_getTableItemByKey(pResData, table, indexR, key);
+}
+
+Resource APS5_VABI res_getResource_nid_postfix(const ResourceData* pResData, const char* key) {
+    if (key && Searched(Data(pResData)->rootRes)) CheckTable(pResData, pResData->rootRes, true, 0);
+    return res_getResource(pResData, key);
 }
 
 }

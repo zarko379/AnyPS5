@@ -8,6 +8,8 @@
 #include <unicode/uenum.h>
 #include <unicode/uloc.h>
 #include <unicode/ures.h>
+#include "udatamem.h"
+#include "uresdata.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -16,6 +18,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 U_CAPI UResourceBundle* U_EXPORT2 ures_openNoDefault(const char* path, const char* localeID, UErrorCode* status);
@@ -714,6 +717,174 @@ void CheckFunctionalEquivalent() {
     SetDefaults(nullptr);
 }
 
+struct LoadedBundle {
+    UDataMemory* memory = nullptr;
+    UDataInfo info{};
+    const void* bytes = nullptr;
+    std::int32_t length = 0;
+};
+
+LoadedBundle LoadBundle(const char* path, const char* name) {
+    LoadedBundle bundle;
+    UErrorCode status = U_ZERO_ERROR;
+    bundle.memory = udata_open(path, "res", name, &status);
+    Require(bundle.memory && U_SUCCESS(status), std::string("open ") + name);
+    bundle.info.size = sizeof(UDataInfo);
+    udata_getInfo(bundle.memory, &bundle.info);
+    bundle.bytes = udata_getMemory(bundle.memory);
+    bundle.length = udata_getLength(bundle.memory);
+    return bundle;
+}
+
+void SameData(const ResourceData& guest, const ResourceData& host, const std::string& what) {
+    Require(guest.pRoot == host.pRoot && guest.rootRes == host.rootRes && guest.localKeyLimit == host.localKeyLimit && guest.poolStringIndexLimit == host.poolStringIndexLimit &&
+                guest.poolStringIndex16Limit == host.poolStringIndex16Limit && guest.noFallback == host.noFallback && guest.isPoolBundle == host.isPoolBundle &&
+                guest.usesPoolBundle == host.usesPoolBundle && guest.useNativeStrcmp == host.useNativeStrcmp && guest.poolBundleKeys == host.poolBundleKeys && guest.data == host.data,
+            what + " res_read fields");
+}
+
+bool SamePointer(Resource res, const void* guest, const void* host) {
+    return RES_GET_OFFSET(res) == 0 && RES_GET_TYPE(res) != URES_STRING_V2 ? (guest == nullptr) == (host == nullptr) : guest == host;
+}
+
+void WalkResource(const ResourceData* guest, const ResourceData* host, Resource res, std::int32_t depth, std::int32_t& visited) {
+    ++visited;
+    std::int32_t guestLength = -7;
+    std::int32_t hostLength = -7;
+    Require(SamePointer(res, res_getStringNoTrace_nid_postfix(guest, res, &guestLength), res_getStringNoTrace(host, res, &hostLength)) && guestLength == hostLength, "res_getStringNoTrace");
+    Require(SamePointer(res, res_getAlias_nid_postfix(guest, res, &guestLength), res_getAlias(host, res, &hostLength)) && guestLength == hostLength, "res_getAlias");
+    Require(SamePointer(res, res_getBinaryNoTrace_nid_postfix(guest, res, &guestLength), res_getBinaryNoTrace(host, res, &hostLength)) && guestLength == hostLength, "res_getBinaryNoTrace");
+    Require(SamePointer(res, res_getIntVectorNoTrace_nid_postfix(guest, res, &guestLength), res_getIntVectorNoTrace(host, res, &hostLength)) && guestLength == hostLength, "res_getIntVectorNoTrace");
+    const std::int32_t count = res_countArrayItems_nid_postfix(guest, res);
+    Require(count == res_countArrayItems(host, res), "res_countArrayItems");
+    if (depth > 6) return;
+    const std::int32_t type = RES_GET_TYPE(res);
+    if (URES_IS_ARRAY(type)) {
+        for (std::int32_t index = -1; index <= count; ++index) {
+            const Resource item = res_getArrayItem_nid_postfix(guest, res, index);
+            Require(item == res_getArrayItem(host, res, index), "res_getArrayItem");
+            if (index >= 0 && index < count) WalkResource(guest, host, item, depth + 1, visited);
+        }
+    } else if (URES_IS_TABLE(type)) {
+        for (std::int32_t index = -1; index <= count; ++index) {
+            const char* guestKey = "unset";
+            const char* hostKey = "unset";
+            const Resource item = res_getTableItemByIndex_nid_postfix(guest, res, index, &guestKey);
+            Require(item == res_getTableItemByIndex(host, res, index, &hostKey) && guestKey == hostKey, "res_getTableItemByIndex");
+            Require(res_getTableItemByIndex_nid_postfix(guest, res, index, nullptr) == item, "res_getTableItemByIndex without a key");
+            if (index < 0 || index >= count) continue;
+            std::int32_t guestIndex = -1;
+            std::int32_t hostIndex = -1;
+            const char* guestFound = guestKey;
+            const char* hostFound = hostKey;
+            Require(res_getTableItemByKey_nid_postfix(guest, res, &guestIndex, &guestFound) == item && res_getTableItemByKey(host, res, &hostIndex, &hostFound) == item && guestIndex == hostIndex && guestFound == hostFound, "res_getTableItemByKey");
+            WalkResource(guest, host, item, depth + 1, visited);
+        }
+        std::int32_t guestIndex = -1;
+        std::int32_t hostIndex = -1;
+        const char* guestMissing = "zz-missing";
+        const char* hostMissing = "zz-missing";
+        Require(res_getTableItemByKey_nid_postfix(guest, res, &guestIndex, &guestMissing) == res_getTableItemByKey(host, res, &hostIndex, &hostMissing) && guestIndex == hostIndex, "res_getTableItemByKey missing key");
+    }
+}
+
+void CheckResourceData() {
+    for (const auto& [path, name] : {std::pair<const char*, const char*>{"ICUDATA-coll", "de"}, {"ICUDATA-coll", "root"}, {nullptr, "pool"}, {nullptr, "root"}, {nullptr, "de"}}) {
+        const LoadedBundle bundle = LoadBundle(path, name);
+        ResourceData guest;
+        ResourceData host;
+        std::memset(&guest, 0x5a, sizeof(guest));
+        std::memset(&host, 0x5a, sizeof(host));
+        std::int32_t status = 0;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        res_read_nid_postfix(&guest, &bundle.info, bundle.bytes, bundle.length, &status);
+        res_read(&host, &bundle.info, bundle.bytes, bundle.length, &hostStatus);
+        Require(status == 0 && U_SUCCESS(hostStatus), std::string("res_read ") + name);
+        SameData(guest, host, name);
+        if (guest.usesPoolBundle) {
+            std::int32_t index = 0;
+            const char* key = "Version";
+            Require(Throws<std::invalid_argument>([&] { res_getTableItemByKey_nid_postfix(&guest, guest.rootRes, &index, &key); }), "res_getTableItemByKey pool keys without the pool bundle");
+            Require(Throws<std::invalid_argument>([&] { res_getResource_nid_postfix(&guest, "Version"); }), "res_getResource pool keys without the pool bundle");
+            const LoadedBundle pool = LoadBundle(path, "pool");
+            ResourceData poolData;
+            UErrorCode poolStatus = U_ZERO_ERROR;
+            res_read(&poolData, &pool.info, pool.bytes, pool.length, &poolStatus);
+            Require(U_SUCCESS(poolStatus), "pool bundle");
+            const std::int32_t* indexes = poolData.pRoot + 1;
+            const char* keys = reinterpret_cast<const char*>(indexes + (indexes[URES_INDEX_LENGTH] & 0xff));
+            for (ResourceData* data : {&guest, &host}) {
+                data->poolBundleKeys = keys;
+                data->poolBundleStrings = poolData.p16BitUnits;
+            }
+            udata_close(pool.memory);
+        }
+        std::int32_t visited = 0;
+        WalkResource(&guest, &host, guest.rootRes, 0, visited);
+        Require(visited > (guest.isPoolBundle ? 0 : 5), std::string("walked ") + name);
+        for (const char* key : {"Version", "collations", "zz-missing"}) Require(res_getResource_nid_postfix(&guest, key) == res_getResource(&host, key), "res_getResource");
+        udata_close(bundle.memory);
+    }
+
+    const LoadedBundle bundle = LoadBundle("ICUDATA-coll", "de");
+    ResourceData guest{};
+    ResourceData host{};
+    std::int32_t status = 0;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    res_read_nid_postfix(&guest, &bundle.info, bundle.bytes, -1, &status);
+    res_read(&host, &bundle.info, bundle.bytes, -1, &hostStatus);
+    Require(status == 0 && U_SUCCESS(hostStatus), "res_read without a length");
+    SameData(guest, host, "unbounded");
+    status = 0;
+    hostStatus = U_ZERO_ERROR;
+    res_read_nid_postfix(&guest, &bundle.info, bundle.bytes, 20, &status);
+    res_read(&host, &bundle.info, bundle.bytes, 20, &hostStatus);
+    Require(status == U_INVALID_FORMAT_ERROR && hostStatus == U_INVALID_FORMAT_ERROR, "res_read too short");
+    UDataInfo other = bundle.info;
+    other.dataFormat[0] = 'X';
+    status = 0;
+    res_read_nid_postfix(&guest, &other, nullptr, 2, &status);
+    Require(status == U_INVALID_FORMAT_ERROR, "res_read other data reads no bytes");
+    status = U_ILLEGAL_ARGUMENT_ERROR;
+    std::memset(&guest, 0x5a, sizeof(guest));
+    res_read_nid_postfix(&guest, nullptr, nullptr, 0, &status);
+    Require(status == U_ILLEGAL_ARGUMENT_ERROR && guest.pRoot == nullptr && guest.rootRes == 0, "res_read clears the data with a failed status");
+    status = 0;
+    Require(Throws<std::invalid_argument>([&] { res_read_nid_postfix(nullptr, &bundle.info, bundle.bytes, bundle.length, &status); }), "res_read NULL data");
+    Require(Throws<std::invalid_argument>([&] { res_read_nid_postfix(&guest, &bundle.info, bundle.bytes, bundle.length, nullptr); }), "res_read NULL status");
+    Require(Throws<std::invalid_argument>([&] { res_read_nid_postfix(&guest, nullptr, bundle.bytes, bundle.length, &status); }), "res_read NULL info");
+    Require(Throws<std::invalid_argument>([&] { res_read_nid_postfix(&guest, &bundle.info, nullptr, bundle.length, &status); }), "res_read NULL bytes");
+    Require(Throws<std::invalid_argument>([&] { res_read_nid_postfix(&guest, &bundle.info, bundle.bytes, 3, &status); }), "res_read root past the length");
+
+    std::int32_t length = -1;
+    const char16_t* empty = res_getStringNoTrace_nid_postfix(nullptr, 0, &length);
+    Require(empty && *empty == 0 && length == 0, "res_getStringNoTrace empty string without data");
+    Require(res_getStringNoTrace_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_INT, 5), &length) == nullptr && length == 0, "res_getStringNoTrace other type without data");
+    Require(res_getBinaryNoTrace_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_BINARY, 0), &length) != nullptr && length == 0, "res_getBinaryNoTrace empty binary without data");
+    Require(res_countArrayItems_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_ARRAY, 0)) == 0 && res_countArrayItems_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_INT, 3)) == 1, "res_countArrayItems without data");
+    Require(res_getArrayItem_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_ARRAY16, 4), -1) == RES_BOGUS, "res_getArrayItem negative index without data");
+    Require(res_getTableItemByKey_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_TABLE16, 4), nullptr, nullptr) == RES_BOGUS, "res_getTableItemByKey without a key");
+    Require(res_getTableItemByIndex_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_TABLE, 0), 0, nullptr) == RES_BOGUS, "res_getTableItemByIndex empty table without data");
+    Require(Throws<std::invalid_argument>([] { res_getStringNoTrace_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_STRING, 4), nullptr); }), "res_getStringNoTrace NULL data");
+    Require(Throws<std::invalid_argument>([] { res_getStringNoTrace_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_STRING_V2, 4), nullptr); }), "res_getStringNoTrace v2 NULL data");
+    Require(Throws<std::invalid_argument>([] { res_getAlias_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_ALIAS, 4), nullptr); }), "res_getAlias NULL data");
+    Require(Throws<std::invalid_argument>([] { res_getIntVectorNoTrace_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_INT_VECTOR, 4), nullptr); }), "res_getIntVectorNoTrace NULL data");
+    Require(Throws<std::invalid_argument>([] { res_countArrayItems_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_TABLE16, 0)); }), "res_countArrayItems NULL data");
+    Require(Throws<std::invalid_argument>([] { res_getArrayItem_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_ARRAY, 4), 0); }), "res_getArrayItem NULL data");
+    Require(Throws<std::invalid_argument>([] { res_getTableItemByIndex_nid_postfix(nullptr, URES_MAKE_RESOURCE(URES_TABLE32, 4), 0, nullptr); }), "res_getTableItemByIndex NULL data");
+    Require(Throws<std::invalid_argument>([] { res_getResource_nid_postfix(nullptr, "Version"); }), "res_getResource NULL data");
+    status = 0;
+    res_read_nid_postfix(&guest, &bundle.info, bundle.bytes, bundle.length, &status);
+    const char* key = "Version";
+    Require(Throws<std::invalid_argument>([&] { res_getTableItemByKey_nid_postfix(&guest, guest.rootRes, nullptr, &key); }), "res_getTableItemByKey NULL index");
+    ResourceData noUnits = guest;
+    noUnits.p16BitUnits = nullptr;
+    Require(Throws<std::invalid_argument>([&] { res_countArrayItems_nid_postfix(&noUnits, URES_MAKE_RESOURCE(URES_ARRAY16, 0)); }), "res_countArrayItems NULL 16-bit units");
+    noUnits.poolStringIndexLimit = 10;
+    Require(Throws<std::invalid_argument>([&] { res_getStringNoTrace_nid_postfix(&noUnits, URES_MAKE_RESOURCE(URES_STRING_V2, 3), nullptr); }), "res_getStringNoTrace pool string without the pool bundle");
+    udata_close(bundle.memory);
+}
+
 }
 
 int main() {
@@ -732,6 +903,7 @@ int main() {
     CheckPaths();
     CheckEnumerations();
     CheckFunctionalEquivalent();
+    CheckResourceData();
     std::puts("guest_icu_resource_bundle passed");
     return 0;
 }
