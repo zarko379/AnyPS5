@@ -26,6 +26,7 @@
 
 ### Functional
 
+- [EC_POINT_get_affine_coordinates_GFp, EC_POINT_set_affine_coordinates_GFp, EC_POINT_dup and EC_GROUP_cmp](../../../core/libs/prx/libSceLibreSsl3/src/EcPoint.cpp) (libSceLibreSsl3) - not measured on a console. They follow [LibreSSL 4.0.0](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto/ec/ec_lib.c) `ec_lib.c` and `ecp_smpl.c` on libSceLibreSsl's named-curve groups and points: a point at infinity queues `EC_R_POINT_AT_INFINITY`, set reduces both coordinates modulo p, stores them and then queues `EC_R_POINT_IS_NOT_ON_CURVE` for an off-curve point, a null coordinate or a null group in dup queues `ERR_R_PASSED_NULL_PARAMETER`, and two groups compare by curve NID and then by parameters. A point of another curve throws through `NotImplemented_nid_no_patch`, where 4.0.0 would mix Montgomery coordinates of two curves; null groups and points throw. `BN_CTX` allocation failures are not reproduced. Closes when: compared with the console.
 - [OBJ_obj2txt and OBJ_txt2obj](../../../core/libs/prx/libSceLibreSsl3/src/ObjectText.cpp) (libSceLibreSsl3) - not measured on a console. They follow [LibreSSL 4.0.0](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto/asn1/a_object.c) `a_object.c` and `obj_dat.c`. Names come from [Objects.cpp](../../../core/libs/prx/libSceLibreSsl3/src/Objects.cpp), which uses the 4.0.0 names of NIDs 802, 803, 943 and 944 and the order of the 4.0.0 release's `sn_objs` and `ln_objs`; the forwarded `OBJ_nid2sn` and `OBJ_sn2nid` keep the 2.5.4 names. `OBJ_create` numbers objects from 956, so an added object is named from its own record when it is the object passed or its encoding matches. New objects and their data come from the guest heap, not LibreSSL's `CBB` chain, whose failures are not reproduced. A null text, a null buffer with a positive length and a negative length on the OID path throw. Closes when: compared with the console.
 - [ASN.1 value mutation and octet-string lifetime](../../../core/libs/prx/libSceLibreSsl3/src/Asn1Values.cpp) - `ASN1_STRING_set`, `ASN1_INTEGER_set`, `ASN1_OCTET_STRING_cmp` and `ASN1_OCTET_STRING_free` follow the LP64 contracts of [LibreSSL 4.0.0](https://github.com/libressl/openbsd/tree/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto/asn1), using the existing 24-byte `Asn1String` and application heap. Console layouts, validation order and allocator/error equivalence are unverified. Integer allocation uses one eight-byte application-heap allocation rather than LibreSSL's CBB allocation chain. A null object that upstream dereferences, negative owned-data lengths, comparison arithmetic overflow and string input overlapping the owned data or its terminator byte that replacement releases throw instead of invoking undefined behavior. Closes when: compared with the console.
 - [ASN.1 integer decoding](../../../core/libs/prx/libSceLibreSsl3/src/IntegerDecoder.cpp) - nothing is checked on a console, and the console's application-heap ABI is unverified. Rejections, allocation failures, their error codes and the old output follow [13.42 native-PC evidence](https://github.com/boykopovar/AnyPS5/pull/10948#issuecomment-6412137728) from a recording allocator. Nonnegative null input faults natively and throws here. A negative length in the old output throws rather than erasing out of bounds, as the parent library does. Error combinations the evidence does not cover and content over `INT_MAX` bytes follow [LibreSSL 4.0.0](https://github.com/libressl/openbsd/tree/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto/asn1). Closes when: compared with the console.
@@ -101,11 +102,10 @@
 
 ### Additional callable export inventory
 
-- [Additional exports](../../../core/libs/prx/libSceLibreSsl3/AdditionalExports.cpp) declare 77 still-unimplemented callable exports: 73 named and 4 known only by NID. These entries throw. Parameterless `int` declarations are unknown-signature placeholders, not verified ABI contracts. Names/NIDs match the 13.60 export table. The fourteen libtls lifecycle/config exports are implemented in `LibTls.cpp`; title compatibility beyond preconnection behavior remains unverified.
+- [Additional exports](../../../core/libs/prx/libSceLibreSsl3/AdditionalExports.cpp) declare 73 still-unimplemented callable exports: 69 named and 4 known only by NID. These entries throw. Parameterless `int` declarations are unknown-signature placeholders, not verified ABI contracts. Names/NIDs match the 13.60 export table. The fourteen libtls lifecycle/config exports are implemented in `LibTls.cpp`; title compatibility beyond preconnection behavior remains unverified.
 
 | Name | NID |
 | --- | --- |
-| `EC_POINT_get_affine_coordinates_GFp` | `+Tu0gXSas9s` |
 | `X509_NAME_add_entry_by_txt` | `0IxWzLyU8PI` |
 | `tls_handshake` | `27Fuliv3Om8` |
 | `AUTHORITY_KEYID_free` | `2bIZM-OfE8Y` |
@@ -117,7 +117,6 @@
 | `X509_CRL_free` | `5PWK0cYOpHs` |
 | `i2d_SSL_SESSION` | `5aSlVeVSKVc` |
 | `tls_read` | `7RvDjfy4gUA` |
-| `EC_POINT_set_affine_coordinates_GFp` | `8AGfaSvdDq4` |
 | `unknown` | `A-Hs-8mau+8` |
 | `ERR_load_X509_strings` | `A0lZtFjhcTw` |
 | `X509_check_akid` | `C7eFtWPfLdk` |
@@ -170,10 +169,8 @@
 | `unknown` | `qGsc6uT6p1E` |
 | `EVP_PKEY_verify_init` | `qseLIVbdvMQ` |
 | `X509_add1_ext_i2d` | `s8WMaKNjwvE` |
-| `EC_GROUP_cmp` | `sENJFZ7WbLU` |
 | `SSL_do_handshake` | `tJsbVTdWjT4` |
 | `EVP_PKEY_sign_init` | `tZG2VIefbX0` |
-| `EC_POINT_dup` | `uITUdhDDAg8` |
 | `EVP_PKEY_CTX_free` | `ulzAPWCIBkw` |
 | `d2i_ASN1_SEQUENCE_ANY` | `vR0po3nBkBs` |
 | `X509_EXTENSION_free` | `wbJDMMsje6s` |
