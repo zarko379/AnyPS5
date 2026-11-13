@@ -339,14 +339,14 @@ LibreSsl::Bio* APS5_VABI BIO_new_mem_buf_nid_postfix(const void* source, int siz
 }
 
 int APS5_VABI BIO_free_nid_postfix(LibreSsl::Bio* bio) {
+    constexpr int BioExDataClass = 0;
     if (!bio) return 0;
-    if (bio->extraData) NotImplemented_nid_no_patch(__func__);
     if (std::atomic_ref(bio->references).fetch_sub(1) > 1) return 1;
     if (bio->callback) {
         const int result = static_cast<int>(bio->callback(bio, 1, nullptr, 0, 0, 1));
         if (result <= 0) return result;
     }
-    if (bio->extraData) NotImplemented_nid_no_patch(__func__);
+    LibreSslFreeExData_nid_no_patch(BioExDataClass, bio, reinterpret_cast<LibreSslExData*>(&bio->extraData));
     if (bio->method && bio->method->destroy) bio->method->destroy(bio);
     free_nid_postfix(bio);
     return 1;
@@ -362,6 +362,33 @@ std::int64_t APS5_VABI BIO_ctrl_nid_postfix(LibreSsl::Bio* bio, int command, std
     }
     const auto result = bio->method->control(bio, command, argument, pointer);
     return callback ? callback(bio, 0x86, static_cast<const char*>(pointer), command, argument, result) : result;
+}
+
+void LibreSslBioFreeAll_nid_no_patch(LibreSsl::Bio* bio) {
+    while (bio) {
+        LibreSsl::Bio* const current = bio;
+        const int references = current->references;
+        bio = current->next;
+        BIO_free_nid_postfix(current);
+        if (references > 1) break;
+    }
+}
+
+LibreSsl::Bio* LibreSslBioFindType_nid_no_patch(LibreSsl::Bio* bio, int type) {
+    if (!bio) return nullptr;
+    const int mask = type & 0xff;
+    do {
+        if (bio->method) {
+            const int methodType = bio->method->type;
+            if (!mask) {
+                if (methodType & type) return bio;
+            } else if (methodType == type) {
+                return bio;
+            }
+        }
+        bio = bio->next;
+    } while (bio);
+    return nullptr;
 }
 
 int LibreSslBioWrite_nid_no_patch(LibreSsl::Bio* bio, const void* source, int size) {

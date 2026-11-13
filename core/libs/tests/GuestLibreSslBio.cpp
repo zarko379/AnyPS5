@@ -541,10 +541,6 @@ void TestUnsupported() {
     Require(BIO_write_nid_postfix(bio, "a", 1) == -2, "reject uninitialized write");
     RequireError(0x20fff078);
     bio->initialized = 1;
-    bio->extraData = bio;
-    RequireUnsupported([&] { BIO_free_nid_postfix(bio); });
-    Require(bio->references == 1, "unsupported ex-data preserves reference");
-    bio->extraData = nullptr;
     const BioMethod* method = bio->method;
     bio->method = nullptr;
     Require(BIO_ctrl_nid_postfix(bio, 1, 0, nullptr) == -2, "reject control without a method");
@@ -584,7 +580,149 @@ void TestUnsupported() {
     Require(BIO_free_nid_postfix(bio) == 1, "free after method errors");
 }
 
+LibreSslStack* NewExDataStack(int count) {
+    auto* stack = static_cast<LibreSslStack*>(calloc_nid_postfix(1, sizeof(LibreSslStack)));
+    Require(stack != nullptr, "allocate BIO ex-data stack");
+    stack->data = static_cast<char**>(calloc_nid_postfix(4, sizeof(char*)));
+    Require(stack->data != nullptr, "allocate BIO ex-data elements");
+    stack->num = count;
+    stack->numAlloc = 4;
+    return stack;
+}
+
+void TestExDataRelease() {
+    const int baseline = allocations;
+    Bio* bio = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    static int value = 1;
+    LibreSslStack* stack = NewExDataStack(2);
+    stack->data[1] = reinterpret_cast<char*>(&value);
+    bio->extraData = stack;
+    Require(BIO_free_nid_postfix(bio) == 1 && allocations == baseline, "free releases the BIO ex-data stack");
+
+    bio = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    bio->extraData = NewExDataStack(0);
+    bio->references = 2;
+    Require(BIO_free_nid_postfix(bio) == 1 && bio->references == 1 && bio->extraData != nullptr, "shared BIO keeps its ex-data");
+    CallbackState state;
+    state.veto = -3;
+    bio->callback = Callback;
+    bio->callbackArgument = reinterpret_cast<char*>(&state);
+    Require(BIO_free_nid_postfix(bio) == -3 && bio->extraData != nullptr && state.events == std::vector<int>{1}, "vetoed free keeps ex-data");
+    bio->callback = nullptr;
+    Require(BIO_free_nid_postfix(bio) == 1 && allocations == baseline, "free after veto releases ex-data");
+
+    bio = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    auto* empty = static_cast<LibreSslStack*>(calloc_nid_postfix(1, sizeof(LibreSslStack)));
+    bio->extraData = empty;
+    Require(BIO_free_nid_postfix(bio) == 1 && allocations == baseline, "free releases an ex-data stack without elements");
+}
+
 #ifndef ANYPS5_BIO_DYNAMIC
+void TestSslDescriptors() {
+    const int baseline = allocations;
+    LibreSslSslInternal internal{};
+    LibreSslSsl ssl{};
+    ssl.internal = &internal;
+    bool threw = false;
+    try { SSL_get_fd_nid_postfix(nullptr); } catch (const std::invalid_argument&) { threw = true; }
+    Require(threw, "SSL_get_fd rejects a null connection");
+    threw = false;
+    try { SSL_set_bio_nid_postfix(nullptr, nullptr, nullptr); } catch (const std::invalid_argument&) { threw = true; }
+    Require(threw, "SSL_set_bio rejects a null connection");
+    threw = false;
+    try { SSL_set_fd_nid_postfix(nullptr, 3); } catch (const std::invalid_argument&) { threw = true; }
+    Require(threw && allocations == baseline, "SSL_set_fd rejects a null connection before allocating");
+    Require(SSL_get_fd_nid_postfix(&ssl) == -1, "no read BIO has no descriptor");
+
+    Bio* memory = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    ssl.rbio = memory;
+    Require(SSL_get_fd_nid_postfix(&ssl) == -1, "memory BIO is not a descriptor");
+    Bio* socket = BIO_new_socket_nid_postfix(42, 0);
+    memory->next = socket;
+    Require(SSL_get_fd_nid_postfix(&ssl) == 42, "descriptor found further down the read chain");
+    socket->initialized = 0;
+    Require(SSL_get_fd_nid_postfix(&ssl) == -1, "uninitialized socket BIO has no descriptor");
+    int queried = 7;
+    Require(BIO_ctrl_nid_postfix(socket, 105, 0, &queried) == -1 && queried == 7, "uninitialized GET_FD leaves its output");
+    socket->initialized = 1;
+    Require(BIO_ctrl_nid_postfix(socket, 105, 0, nullptr) == 42, "GET_FD without an output");
+    int replacement = 43;
+    Require(BIO_ctrl_nid_postfix(socket, 104, 1, &replacement) == 1 && socket->number == 43 && socket->shutdown == 1 && socket->initialized == 1,
+        "SET_FD stores the descriptor and close flag");
+    socket->shutdown = 0;
+    BioMethod descriptorOnly{0x100, "descriptor", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+    Bio* bare = BIO_new_nid_postfix(&descriptorOnly);
+    memory->next = bare;
+    Require(SSL_get_fd_nid_postfix(&ssl) == -1, "descriptor BIO without a control method");
+    RequireError(0x20fff079);
+    memory->next = nullptr;
+    Require(BIO_free_nid_postfix(bare) == 1 && BIO_free_nid_postfix(socket) == 1, "free descriptor test BIOs");
+
+    Bio* buffer = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    Bio* writer = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    buffer->next = writer;
+    ssl.bbio = buffer;
+    ssl.wbio = buffer;
+    SSL_set_bio_nid_postfix(&ssl, memory, writer);
+    Require(ssl.rbio == memory && ssl.wbio == writer && buffer->next == nullptr, "buffering BIO is unlinked from the write chain");
+    Bio* read2 = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    Bio* write2 = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    const int before = allocations;
+    SSL_set_bio_nid_postfix(&ssl, read2, write2);
+    Require(ssl.rbio == read2 && ssl.wbio == write2 && allocations == before - 4, "replaced read and write BIOs are freed");
+    ssl.bbio = nullptr;
+    Require(BIO_free_nid_postfix(buffer) == 1, "free buffering BIO");
+
+    Bio* chained = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    Bio* tail = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    chained->next = tail;
+    const int beforeChain = allocations;
+    SSL_set_bio_nid_postfix(&ssl, chained, chained);
+    Require(ssl.rbio == chained && ssl.wbio == chained && allocations == beforeChain - 4, "both old BIOs are freed once");
+    tail->references = 2;
+    const int beforeShared = allocations;
+    SSL_set_bio_nid_postfix(&ssl, nullptr, nullptr);
+    Require(!ssl.rbio && !ssl.wbio && allocations == beforeShared - 2 && tail->references == 1, "a whole chain is freed once");
+    SSL_set_bio_nid_postfix(&ssl, nullptr, nullptr);
+
+    Bio* shared = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    Bio* sharedTail = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
+    shared->next = sharedTail;
+    shared->references = 2;
+    ssl.rbio = shared;
+    ssl.wbio = shared;
+    SSL_set_bio_nid_postfix(&ssl, nullptr, nullptr);
+    Require(shared->references == 1 && sharedTail->references == 1, "a shared BIO stops the chain release");
+    shared->next = nullptr;
+    Require(BIO_free_nid_postfix(shared) == 1 && BIO_free_nid_postfix(sharedTail) == 1, "free shared chain");
+    Require(allocations == baseline + 2, "only the shared tail remains");
+    Require(BIO_free_nid_postfix(tail) == 1 && allocations == baseline, "free retained tail");
+
+    Require(SSL_set_fd_nid_postfix(&ssl, 7) == 1, "SSL_set_fd succeeds");
+    Bio* first = static_cast<Bio*>(ssl.rbio);
+    Require(first && ssl.wbio == first && first->method->type == 0x505 && first->number == 7 && first->shutdown == 0 && first->initialized == 1,
+        "SSL_set_fd installs one unowned socket BIO");
+    Require(SSL_get_fd_nid_postfix(&ssl) == 7, "SSL_get_fd reads the installed descriptor");
+    Require(SSL_set_fd_nid_postfix(&ssl, -5) == 1 && SSL_get_fd_nid_postfix(&ssl) == -5 && allocations == baseline + 1, "SSL_set_fd replaces the socket BIO");
+    Require(ERR_get_error_nid_postfix() == 0, "SSL_set_fd queues no error");
+
+    internal.state = 0x5000;
+    const void* previous = ssl.rbio;
+    allocationsUntilFailure = 0;
+    Require(SSL_set_fd_nid_postfix(&ssl, 9) == 0 && ssl.rbio == previous && ssl.wbio == previous, "failed socket BIO allocation keeps the BIOs");
+    Require(ERR_get_error_nid_postfix() == 0x20fff041, "BIO allocation error comes first");
+    RequireError(0x1404e007);
+    allocationsUntilFailure = -1;
+    internal.state = 0x1234;
+    allocationsUntilFailure = 0;
+    Require(SSL_set_fd_nid_postfix(&ssl, 9) == 0, "failed socket BIO allocation in an unknown state");
+    Require(ERR_get_error_nid_postfix() == 0x20fff041, "BIO allocation error in an unknown state");
+    RequireError(0x14fff007);
+    allocationsUntilFailure = -1;
+    SSL_set_bio_nid_postfix(&ssl, nullptr, nullptr);
+    Require(allocations == baseline, "SSL descriptor tests released their BIOs");
+}
+
 void TestSslMethod() {
     const BioMethod* method = BIO_f_ssl_nid_postfix();
     Require(method && method->type == 0x207 && std::strcmp(method->name, "ssl") == 0, "SSL BIO method descriptor");
@@ -794,7 +932,7 @@ void TestFileAndSocket() {
     Require(BIO_new_socket_nid_postfix(-1, 0) == nullptr, "reject negative guest socket");
     Bio* socket = BIO_new_socket_nid_postfix(42, 0);
     Require(socket && socket->initialized && socket->number == 42, "guest socket BIO descriptor");
-    Require(socket->method && socket->method->type == 0x405, "socket BIO method descriptor");
+    Require(socket->method && socket->method->type == 0x505, "socket BIO method descriptor");
     Require(BIO_ctrl_nid_postfix(socket, 8, 0, nullptr) == 0, "socket BIO no-close flag");
     Require(BIO_free_nid_postfix(socket) == 1, "free unowned guest socket BIO");
 }
@@ -1264,7 +1402,9 @@ int main(int argc, char** argv) {
     TestWriteBoundaries();
     TestDispatchAndReferences();
     TestUnsupported();
+    TestExDataRelease();
 #ifndef ANYPS5_BIO_DYNAMIC
+    TestSslDescriptors();
     TestSslMethod();
     TestPkcs12BioReadErrors();
     TestPemReadBioX509NoStartLine();

@@ -68,5 +68,8 @@ static_assert(offsetof(BioBuffer, capacity) == 16);
 }  // namespace LibreSsl
 
 extern "C" int LibreSslBioWrite_nid_no_patch(LibreSsl::Bio* bio, const void* source, int size);
+extern "C" void LibreSslBioFreeAll_nid_no_patch(LibreSsl::Bio* bio);
+extern "C" LibreSsl::Bio* LibreSslBioFindType_nid_no_patch(LibreSsl::Bio* bio, int type);
+extern "C" const LibreSsl::BioMethod* LibreSslSocketMethod_nid_no_patch();
 
 #endif

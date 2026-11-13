@@ -19,6 +19,9 @@ constexpr int BioFileRead = 0x02;
 constexpr int BioFileWrite = 0x04;
 constexpr int BioFileAppend = 0x08;
 constexpr int BioControlSetFilename = 108;
+constexpr int BioControlSetDescriptor = 104;
+constexpr int BioControlGetDescriptor = 105;
+constexpr int SocketShutdownBoth = 2;
 
 int FileFree(Bio* bio) {
     if (bio->shutdown) {
@@ -148,8 +151,31 @@ int APS5_VABI SocketPuts(Bio* bio, const char* data) {
     return SocketWrite(bio, data, static_cast<int>(size));
 }
 
-std::int64_t APS5_VABI SocketControl(Bio* bio, int command, std::int64_t argument, void*) {
+int SocketFree(Bio* bio) {
+    if (bio->shutdown) {
+        if (bio->initialized) {
+            sceNetShutdown(bio->number, SocketShutdownBoth);
+            sceNetSocketClose(bio->number);
+        }
+        bio->initialized = 0;
+        bio->flags = 0;
+    }
+    return 1;
+}
+
+std::int64_t APS5_VABI SocketControl(Bio* bio, int command, std::int64_t argument, void* pointer) {
     switch (command) {
+    case BioControlSetDescriptor:
+        if (!pointer) throw std::invalid_argument("socket BIO: null descriptor");
+        SocketFree(bio);
+        bio->number = *static_cast<const int*>(pointer);
+        bio->shutdown = static_cast<int>(argument);
+        bio->initialized = 1;
+        return 1;
+    case BioControlGetDescriptor:
+        if (!bio->initialized) return -1;
+        if (pointer) *static_cast<int*>(pointer) = bio->number;
+        return bio->number;
     case 1:
         return 0;
     case 2:
@@ -178,11 +204,15 @@ int APS5_VABI SocketDestroy(Bio* bio) {
 }
 
 const BioMethod FileMethod{0x402, "FILE pointer", FileWrite, FileRead, FilePuts, FileGets, FileControl, nullptr, FileDestroy, nullptr};
-const BioMethod SocketMethod{0x405, "socket", SocketWrite, SocketRead, SocketPuts, nullptr, SocketControl, nullptr, SocketDestroy, nullptr};
+const BioMethod SocketMethod{0x505, "socket", SocketWrite, SocketRead, SocketPuts, nullptr, SocketControl, nullptr, SocketDestroy, nullptr};
 
 }  // namespace
 
 extern "C" {
+
+const LibreSsl::BioMethod* LibreSslSocketMethod_nid_no_patch() {
+    return &SocketMethod;
+}
 
 const LibreSsl::BioMethod* APS5_VABI BIO_s_file_nid_postfix() {
     return &FileMethod;

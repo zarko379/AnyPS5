@@ -521,10 +521,6 @@ int APS5_VABI SSL_free_nid_postfix(void) {
 
 
 
-int APS5_VABI SSL_get_fd_nid_postfix(const LibreSslSsl*) {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 LibreSslStack* APS5_VABI SSL_get_peer_cert_chain_nid_postfix(const LibreSslSsl* ssl) {
     if (!ssl || !ssl->session) return nullptr;
     NotImplemented_nid_no_patch(__func__);
@@ -551,14 +547,6 @@ int APS5_VABI SSL_new_nid_postfix(void) {
 int APS5_VABI SSL_set_SSL_CTX_nid_postfix(void) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
-}
-
-void APS5_VABI SSL_set_bio_nid_postfix(LibreSslSsl*, LibreSsl::Bio*, LibreSsl::Bio*) {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI SSL_set_fd_nid_postfix(LibreSslSsl*, int) {
-    NotImplemented_nid_no_patch(__func__);
 }
 
 int APS5_VABI SSL_set_session_nid_postfix(void) {

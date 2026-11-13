@@ -980,6 +980,7 @@ void* APS5_VABI sk_pop_nid_postfix(LibreSslStack* stack);
 void APS5_VABI sk_pop_free_nid_postfix(LibreSslStack* stack, StackElementFree release);
 void* APS5_VABI sk_value_nid_postfix(const LibreSslStack* stack, int index);
 void* LibreSslGetExData_nid_no_patch(const LibreSslExData* data, int index);
+void LibreSslFreeExData_nid_no_patch(int classIndex, void* object, LibreSslExData* data);
 int APS5_VABI AES_set_encrypt_key_nid_postfix(const unsigned char* userKey, int bits, AesKey* key);
 int APS5_VABI AES_set_decrypt_key_nid_postfix(const unsigned char* userKey, int bits, AesKey* key);
 void APS5_VABI AES_encrypt_nid_postfix(const unsigned char* in, unsigned char* out, const AesKey* key);

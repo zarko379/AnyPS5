@@ -1,5 +1,7 @@
 #include "prx/libSceLibreSsl/include/Api.hpp"
 #include "prx/libSceLibreSsl/include/Error.hpp"
+#include "prx/libc/include/Api.hpp"
+#include "prx/libc/include/General.hpp"
 #include <array>
 #include <cstdint>
 #include <mutex>
@@ -67,6 +69,30 @@ void* LibreSslGetExData_nid_no_patch(const LibreSslExData* data, int index) {
     const auto* stack = static_cast<const LibreSslStack*>(data->stack);
     if (!stack || index >= sk_num_nid_postfix(stack)) return nullptr;
     return sk_value_nid_postfix(stack, index);
+}
+
+void LibreSslFreeExData_nid_no_patch(int classIndex, void* object, LibreSslExData* data) {
+    std::vector<ExDataFunctions> registered;
+    {
+        std::lock_guard lock(classesLock);
+        try {
+            registered = classes.at(classIndex);
+        } catch (const std::bad_alloc&) {
+            LibreSslPutError_nid_no_patch(CryptoLibrary, AnyFunction, MallocFailure);
+            return;
+        }
+    }
+    for (std::size_t index = 0; index < registered.size(); ++index) {
+        const ExDataFunctions& functions = registered[index];
+        if (!functions.freeFunction) continue;
+        const int position = static_cast<int>(index);
+        functions.freeFunction(object, LibreSslGetExData_nid_no_patch(data, position), data, position, functions.argl, functions.argp);
+    }
+    auto* stack = static_cast<LibreSslStack*>(data->stack);
+    if (!stack) return;
+    free_nid_postfix(stack->data);
+    free_nid_postfix(stack);
+    data->stack = nullptr;
 }
 
 }
