@@ -827,6 +827,161 @@ void TestCollationBinary() {
     udata_closeSwapper_nid_postfix(ds);
 }
 
+
+Bytes WithDataHeader(const char* format, std::uint8_t major, std::uint8_t minor, const Bytes& body) {
+    Bytes bytes(32 + body.length);
+    std::uint8_t* b = bytes.data();
+    PutU16(b, 0, 32);
+    b[2] = 0xda;
+    b[3] = 0x27;
+    PutU16(b, 4, sizeof(UDataInfo));
+    b[10] = 2;
+    std::memcpy(b + 12, format, 4);
+    b[16] = major;
+    b[17] = minor;
+    std::memcpy(b + 32, body.data(), static_cast<std::size_t>(body.length));
+    return bytes;
+}
+
+constexpr std::uint32_t CollationMapping = 192;
+
+Bytes CollationVersion3() {
+    const Bytes trie = Trie1Bytes();
+    const std::uint32_t endExpansion = CollationMapping + static_cast<std::uint32_t>(trie.length);
+    const std::uint32_t ucaConsts = endExpansion + 8;
+    const std::uint32_t combos = ucaConsts + 8;
+    const std::uint32_t scripts = combos + 4;
+    const std::uint32_t leads = scripts + 12;
+    const std::uint32_t size = leads + 8;
+    Bytes bytes(static_cast<std::int32_t>(size));
+    std::uint8_t* b = bytes.data();
+    for (std::uint32_t i = sizeof(UCATableHeader); i < size; ++i) b[i] = static_cast<std::uint8_t>(i * 7 + 1);
+    std::memcpy(b + CollationMapping, trie.data(), static_cast<std::size_t>(trie.length));
+    PutU32(b, offsetof(UCATableHeader, size), size);
+    PutU32(b, offsetof(UCATableHeader, options), sizeof(UCATableHeader));
+    PutU32(b, offsetof(UCATableHeader, UCAConsts), ucaConsts);
+    PutU32(b, offsetof(UCATableHeader, contractionUCACombos), combos);
+    PutU32(b, offsetof(UCATableHeader, magic), UCOL_HEADER_MAGIC);
+    PutU32(b, offsetof(UCATableHeader, mappingPosition), CollationMapping);
+    PutU32(b, offsetof(UCATableHeader, expansion), sizeof(UCATableHeader) + 4);
+    PutU32(b, offsetof(UCATableHeader, contractionIndex), sizeof(UCATableHeader) + 12);
+    PutU32(b, offsetof(UCATableHeader, contractionCEs), sizeof(UCATableHeader) + 16);
+    PutU32(b, offsetof(UCATableHeader, contractionSize), 2);
+    PutU32(b, offsetof(UCATableHeader, endExpansionCE), endExpansion);
+    PutU32(b, offsetof(UCATableHeader, endExpansionCECount), 2);
+    PutU32(b, offsetof(UCATableHeader, contractionUCACombosSize), 1);
+    b[offsetof(UCATableHeader, contractionUCACombosWidth)] = 2;
+    b[offsetof(UCATableHeader, formatVersion)] = 3;
+    PutU32(b, offsetof(UCATableHeader, scriptToLeadByte), scripts);
+    PutU32(b, offsetof(UCATableHeader, leadByteToScript), leads);
+    PutU16(b, scripts, 1);
+    PutU16(b, scripts + 2, 1);
+    PutU16(b, leads, 1);
+    PutU16(b, leads + 2, 1);
+    return bytes;
+}
+
+void TestCollationSwap() {
+    const Bytes uca = Item("ICUDATA-coll", "icu", "ucadata");
+    const Bytes names = Item(nullptr, "icu", "unames");
+    const Bytes v3 = CollationVersion3();
+    RoundTrip(uca, ucol_swap_nid_postfix, ucol_swap, "ucol_swap UCA");
+    RoundTrip(v3, ucol_swap_nid_postfix, ucol_swap, "ucol_swap format version 3");
+    RoundTrip(WithDataHeader("UCol", 3, 0, v3), ucol_swap_nid_postfix, ucol_swap, "ucol_swap format version 3 with a data header");
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    Bytes out(uca.length);
+    Require(Invalid([&] { ucol_swap_nid_postfix(ds, uca.data(), uca.length, out.data(), nullptr); }), "ucol_swap NULL status");
+    udata_closeSwapper_nid_postfix(ds);
+    FormatMessage(ucol_swap_nid_postfix, ucol_swap, names, "75.6e.61.6d (format version 01.", "ucol_swap");
+    const auto swap = ucol_swap_nid_postfix;
+
+    const std::int32_t header = Header(uca);
+    const auto available = static_cast<std::uint32_t>(uca.length - header);
+    const std::uint8_t* base = uca.data() + header;
+    const std::uint32_t indexesLength = GetU32(base, 0);
+    Require(indexesLength > 5, "UCA data indexes");
+    const std::uint32_t sizeSlot = indexesLength > 19 ? 19 : indexesLength - 1;
+    const auto slot = [](std::uint32_t index) {
+        return static_cast<std::uint64_t>(index) * 4;
+    };
+    Require(Throws(Mutated(uca, [](std::uint8_t* b) { PutU32(b, 0, 0xffffffffu); }), uca.length, false, swap), "ucol_swap negative index count");
+    Require(Throws(Mutated(uca, [](std::uint8_t* b) { PutU32(b, 0, 0xffffffffu); }), uca.length, true, swap), "ucol_swap negative index count in place");
+    Require(Throws(Mutated(uca, [](std::uint8_t* b) { PutU32(b, 0, 0x40000002u); }), header + 16, false, swap), "ucol_swap indexes past the data");
+    Require(AgainstIcu(uca, header + 4, false, swap, ucol_swap, "ucol_swap short") == U_INDEX_OUTOFBOUNDS_ERROR, "ucol_swap short collation data");
+    const Bytes negative = Mutated(uca, [&](std::uint8_t* b) { PutU32(b, slot(sizeSlot), 0xfffffff8u); });
+    Require(Throws(negative, uca.length, false, swap), "ucol_swap negative size");
+    Require(AgainstIcu(negative, uca.length, true, swap, ucol_swap, "ucol_swap negative size in place") == Ok, "ucol_swap in place copies nothing");
+    Require(AgainstIcu(Mutated(uca, [&](std::uint8_t* b) { PutU32(b, slot(sizeSlot), available + 8); }), uca.length, false, swap, ucol_swap, "ucol_swap size") == U_INDEX_OUTOFBOUNDS_ERROR, "ucol_swap size past the data keeps ICU's error");
+    const std::uint32_t ces = GetU32(base, slot(9));
+    Require(Throws(Mutated(uca, [&](std::uint8_t* b) { PutU32(b, slot(10), ces + (((available - ces) | 7) + 9)); }), uca.length, false, swap), "ucol_swap CEs past the data");
+    Require(Throws(Mutated(uca, [&](std::uint8_t* b) {
+        PutU32(b, slot(8), available + 64);
+        PutU32(b, slot(9), available + 64);
+    }), uca.length, false, swap), "ucol_swap trie past the data");
+    Require(AgainstIcu(Mutated(uca, [&](std::uint8_t* b) {
+        PutU32(b, slot(9), GetU32(b, slot(8)) + 8);
+        PutU32(b, slot(13), available + 64);
+    }), uca.length, false, swap, ucol_swap, "ucol_swap unknown data") == U_UNSUPPORTED_ERROR, "ucol_swap unknown data stops before later sections");
+    Require(AgainstIcu(Mutated(uca, [&](std::uint8_t* b) { PutU32(b, slot(14), GetU32(b, slot(13)) + 3); }), uca.length, false, swap, ucol_swap, "ucol_swap odd contexts") == U_ILLEGAL_ARGUMENT_ERROR, "ucol_swap odd contexts keep ICU's error");
+
+    const auto version3 = [&](auto change) {
+        Bytes bytes = v3;
+        change(bytes.data());
+        return bytes;
+    };
+    const auto all = static_cast<std::uint32_t>(v3.length);
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, size), 0xfffffff0u); }), v3.length, false, swap), "ucol_swap format version 3 negative size");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, expansion), all + 4); }), v3.length, false, swap), "ucol_swap format version 3 options past the data");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, contractionIndex), all + 8); }), v3.length, false, swap), "ucol_swap format version 3 expansions past the data");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, contractionCEs), all - 4); }), v3.length, false, swap), "ucol_swap format version 3 contraction CEs past the data");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, mappingPosition), all - 8); }), v3.length, false, swap), "ucol_swap format version 3 trie header past the data");
+    Require(AgainstIcu(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, endExpansionCE), CollationMapping + 8); }), v3.length, false, swap, ucol_swap, "ucol_swap format version 3 short trie") == U_INDEX_OUTOFBOUNDS_ERROR, "ucol_swap format version 3 short trie keeps ICU's error");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, endExpansionCECount), all / 4); }), v3.length, false, swap), "ucol_swap format version 3 expansion ends past the data");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, contractionUCACombos), all + 8); }), v3.length, false, swap), "ucol_swap format version 3 UCA constants past the data");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, contractionUCACombosSize), all); }), v3.length, false, swap), "ucol_swap format version 3 UCA contractions past the data");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, scriptToLeadByte), all - 2); }), v3.length, false, swap), "ucol_swap format version 3 script counts past the data");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU16(b, GetU32(b, offsetof(UCATableHeader, scriptToLeadByte)), 2000); }), v3.length, false, swap), "ucol_swap format version 3 script table past the data");
+    Require(Throws(version3([&](std::uint8_t* b) { PutU16(b, GetU32(b, offsetof(UCATableHeader, leadByteToScript)), 3000); }), v3.length, false, swap), "ucol_swap format version 3 lead byte table past the data");
+    Require(AgainstIcu(version3([&](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, expansion), sizeof(UCATableHeader) + 2); }), v3.length, false, swap, ucol_swap, "ucol_swap format version 3 uneven options") == U_ILLEGAL_ARGUMENT_ERROR, "ucol_swap format version 3 uneven options keep ICU's error");
+    Require(AgainstIcu(version3([](std::uint8_t* b) { b[offsetof(UCATableHeader, isBigEndian)] = 1; }), v3.length, false, swap, ucol_swap, "ucol_swap format version 3 endianness") == U_INVALID_FORMAT_ERROR, "ucol_swap format version 3 endianness");
+    Require(AgainstIcu(version3([](std::uint8_t* b) { PutU32(b, offsetof(UCATableHeader, magic), 1); }), v3.length, false, swap, ucol_swap, "ucol_swap format version 3 magic") == U_UNSUPPORTED_ERROR, "ucol_swap format version 3 magic");
+    Require(AgainstIcu(v3, sizeof(UCATableHeader) - 1, false, swap, ucol_swap, "ucol_swap format version 3 short") == U_INDEX_OUTOFBOUNDS_ERROR, "ucol_swap format version 3 short header");
+}
+
+Bytes InverseBody() {
+    Bytes body(80);
+    std::uint8_t* b = body.data();
+    PutU32(b, offsetof(InverseUCATableHeader, byteSize), 76);
+    PutU32(b, offsetof(InverseUCATableHeader, tableSize), 3);
+    PutU32(b, offsetof(InverseUCATableHeader, contsSize), 4);
+    PutU32(b, offsetof(InverseUCATableHeader, table), sizeof(InverseUCATableHeader));
+    PutU32(b, offsetof(InverseUCATableHeader, conts), sizeof(InverseUCATableHeader) + 36);
+    b[offsetof(InverseUCATableHeader, UCAVersion)] = 13;
+    for (std::uint32_t i = sizeof(InverseUCATableHeader); i < 76; ++i) b[i] = static_cast<std::uint8_t>(i * 5 + 3);
+    return body;
+}
+
+void TestInverseSwap() {
+    const Bytes inverse = WithDataHeader("InvC", 2, 1, InverseBody());
+    const Bytes names = Item(nullptr, "icu", "unames");
+    RoundTrip(inverse, ucol_swapInverseUCA_nid_postfix, ucol_swapInverseUCA, "ucol_swapInverseUCA");
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    Bytes out(inverse.length);
+    Require(ucol_swapInverseUCA_nid_postfix(ds, inverse.data(), inverse.length, out.data(), nullptr) == 0, "ucol_swapInverseUCA NULL status");
+    udata_closeSwapper_nid_postfix(ds);
+    FormatMessage(ucol_swapInverseUCA_nid_postfix, ucol_swapInverseUCA, names, "75.6e.61.6d (format version 01.", "ucol_swapInverseUCA");
+    const auto swap = ucol_swapInverseUCA_nid_postfix;
+    Require(AgainstIcu(WithDataHeader("InvC", 2, 0, InverseBody()), inverse.length, false, swap, ucol_swapInverseUCA, "ucol_swapInverseUCA minor version") == U_UNSUPPORTED_ERROR, "ucol_swapInverseUCA format version 2.0");
+    Require(AgainstIcu(inverse, 32 + 16, false, swap, ucol_swapInverseUCA, "ucol_swapInverseUCA short") == U_INDEX_OUTOFBOUNDS_ERROR, "ucol_swapInverseUCA short header");
+    Require(AgainstIcu(Mutated(inverse, [](std::uint8_t* b) { PutU32(b, offsetof(InverseUCATableHeader, byteSize), 81); }), inverse.length, false, swap, ucol_swapInverseUCA, "ucol_swapInverseUCA size") == U_INDEX_OUTOFBOUNDS_ERROR, "ucol_swapInverseUCA size past the data keeps ICU's error");
+    Require(Throws(Mutated(inverse, [](std::uint8_t* b) { PutU32(b, offsetof(InverseUCATableHeader, tableSize), 100); }), inverse.length, false, swap), "ucol_swapInverseUCA table past the data");
+    Require(Throws(Mutated(inverse, [](std::uint8_t* b) { PutU32(b, offsetof(InverseUCATableHeader, conts), 76); }), inverse.length, false, swap), "ucol_swapInverseUCA continuations past the data");
+    Require(AgainstIcu(Mutated(inverse, [](std::uint8_t* b) {
+        PutU32(b, offsetof(InverseUCATableHeader, tableSize), 0);
+        PutU32(b, offsetof(InverseUCATableHeader, table), 0x7fffff00u);
+    }), inverse.length, false, swap, ucol_swapInverseUCA, "ucol_swapInverseUCA empty table") == Ok, "ucol_swapInverseUCA empty table ignores its offset");
+}
+
 }
 
 int main() {
@@ -842,6 +997,8 @@ int main() {
     TestBreakSwap();
     TestNormalizerSwap();
     TestCollationBinary();
+    TestCollationSwap();
+    TestInverseSwap();
     std::puts("ICU DATA SWAPPER TESTS PASSED");
     return 0;
 }

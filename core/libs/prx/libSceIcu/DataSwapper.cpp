@@ -7,6 +7,7 @@
 #include "normalizer2impl.h"
 #include "rbbidata.h"
 #include "ucmndata.h"
+#include "ucol_data.h"
 #include "ucol_swp.h"
 #include "udataswp.h"
 #include "uprops.h"
@@ -23,6 +24,7 @@
 #include <string>
 #include <type_traits>
 #include <unordered_set>
+#include <utility>
 
 namespace {
 
@@ -560,6 +562,122 @@ void CheckCollationBinary(const UDataSwapper* ds, const void* inData, std::int32
     }
 }
 
+void CheckCollationVersion3(const UDataSwapper* ds, const void* inData, std::int32_t length, const void* outData) {
+    if (!ds || !inData || length < 0 || (length > 0 && !outData)) return;
+    constexpr std::int32_t headerLength = 42 * 4;
+    static_assert(sizeof(UCATableHeader) == headerLength);
+    if (length < headerLength) return;
+    const Reader reader{ds, static_cast<const std::uint8_t*>(inData)};
+    const auto* header = static_cast<const UCATableHeader*>(inData);
+    const auto size = static_cast<std::int32_t>(reader.U32(offsetof(UCATableHeader, size)));
+    if (length < size) return;
+    if (reader.U32(offsetof(UCATableHeader, magic)) != UCOL_HEADER_MAGIC || header->formatVersion[0] != 3) return;
+    if (header->isBigEndian != ds->inIsBigEndian || header->charSetFamily != ds->inCharset) return;
+    if (size < 0 && inData != outData) APS5_INVALID_ARG_EX;
+    const std::int64_t available = length;
+    const auto field = [&](std::size_t offset) {
+        return reader.U32(offset);
+    };
+    const auto words = [&](std::int64_t offset, std::uint32_t count, std::int32_t unit) {
+        const auto bytes = static_cast<std::int32_t>(count);
+        if (bytes > 0 && bytes % unit == 0 && !Inside(offset, bytes, available)) APS5_INVALID_ARG_EX;
+    };
+    const std::uint32_t options = field(offsetof(UCATableHeader, options));
+    const std::uint32_t ucaConsts = field(offsetof(UCATableHeader, UCAConsts));
+    const std::uint32_t combos = field(offsetof(UCATableHeader, contractionUCACombos));
+    const std::uint32_t mapping = field(offsetof(UCATableHeader, mappingPosition));
+    const std::uint32_t expansion = field(offsetof(UCATableHeader, expansion));
+    const std::uint32_t contractionIndex = field(offsetof(UCATableHeader, contractionIndex));
+    const std::uint32_t contractionCEs = field(offsetof(UCATableHeader, contractionCEs));
+    const std::uint32_t contractionSize = field(offsetof(UCATableHeader, contractionSize));
+    const std::uint32_t endExpansion = field(offsetof(UCATableHeader, endExpansionCE));
+    const std::uint32_t endExpansionCount = field(offsetof(UCATableHeader, endExpansionCECount));
+    const std::uint32_t combosSize = field(offsetof(UCATableHeader, contractionUCACombosSize));
+    const std::uint32_t scriptToLead = field(offsetof(UCATableHeader, scriptToLeadByte));
+    const std::uint32_t leadToScript = field(offsetof(UCATableHeader, leadByteToScript));
+    if (options != 0) words(options, expansion - options, 4);
+    if (mapping != 0 && expansion != 0) words(expansion, (contractionIndex != 0 ? contractionIndex : mapping) - expansion, 4);
+    if (contractionSize != 0) {
+        words(contractionIndex, contractionSize * 2, 2);
+        words(contractionCEs, contractionSize * 4, 4);
+    }
+    if (mapping != 0) {
+        const auto trieLength = static_cast<std::int32_t>(endExpansion - mapping);
+        constexpr std::int32_t trieHeader = 16;
+        if ((trieLength < 0 || trieLength >= trieHeader) && !Inside(mapping, std::max(trieLength, trieHeader), available)) APS5_INVALID_ARG_EX;
+    }
+    if (endExpansionCount != 0) words(endExpansion, endExpansionCount * 4, 4);
+    if (ucaConsts != 0) words(ucaConsts, combos - ucaConsts, 4);
+    if (combosSize != 0) words(combos, combosSize * header->contractionUCACombosWidth * 2, 2);
+    for (const auto& [offset, indexUnits] : {std::pair{scriptToLead, 4u}, std::pair{leadToScript, 2u}}) {
+        if (offset == 0) continue;
+        if (!Inside(offset, 4, available)) APS5_INVALID_ARG_EX;
+        const std::uint32_t indexCount = reader.U16(offset);
+        const std::uint32_t dataCount = reader.U16(static_cast<std::uint64_t>(offset) + 2);
+        words(offset, 4 + indexUnits * indexCount + 2 * dataCount, 2);
+    }
+}
+
+void CheckCollationVersion4(const UDataSwapper* ds, const void* inData, std::int32_t length, const void* outData) {
+    if (length < 8) return;
+    const Reader reader{ds, static_cast<const std::uint8_t*>(inData)};
+    constexpr std::int32_t totalSize = 19;
+    const auto indexesLength = static_cast<std::int32_t>(reader.U32(0));
+    if (length < static_cast<std::int32_t>(static_cast<std::uint32_t>(indexesLength) * 4)) return;
+    if (indexesLength < 0) APS5_INVALID_ARG_EX;
+    if (static_cast<std::int64_t>(std::min(indexesLength, totalSize + 1)) * 4 > length) APS5_INVALID_ARG_EX;
+    std::array<std::int32_t, totalSize + 1> indexes{};
+    for (std::int32_t slot = 0; slot <= totalSize; ++slot) indexes[slot] = slot < indexesLength ? static_cast<std::int32_t>(reader.U32(static_cast<std::uint64_t>(slot) * 4)) : -1;
+    const std::int32_t size = indexesLength > totalSize ? indexes[totalSize] : indexesLength > 5 ? indexes[indexesLength - 1] : indexesLength * 4;
+    if (length < size) return;
+    if (size < 0 && inData != outData) APS5_INVALID_ARG_EX;
+    const std::int64_t available = length;
+    enum class Part { Units16, Units32, Units64, Trie, Unknown };
+    constexpr std::array<std::pair<std::int32_t, Part>, 12> parts{{
+        {5, Part::Units32}, {7, Part::Trie}, {8, Part::Unknown}, {9, Part::Units64}, {10, Part::Unknown}, {11, Part::Units32},
+        {12, Part::Units32}, {13, Part::Units16}, {14, Part::Units16}, {15, Part::Units16}, {16, Part::Units16}, {18, Part::Unknown},
+    }};
+    for (const auto& [slot, part] : parts) {
+        const std::int32_t offset = indexes[slot];
+        const std::int32_t bytes = Difference(indexes[slot + 1], offset);
+        if (bytes <= 0) continue;
+        if (part == Part::Unknown) return;
+        const std::int32_t unit = part == Part::Units16 ? 2 : part == Part::Units32 ? 4 : part == Part::Units64 ? 8 : 1;
+        if (part == Part::Trie && bytes < 16) continue;
+        if (bytes % unit == 0 && !Inside(offset, bytes, available)) APS5_INVALID_ARG_EX;
+    }
+}
+
+void CheckCollation(const UDataSwapper* ds, const void* inData, std::int32_t length, const void* outData) {
+    const std::int32_t headerSize = HeaderSize(ds, inData, length, outData);
+    if (headerSize < 0) {
+        CheckCollationVersion3(ds, inData, length, outData);
+        return;
+    }
+    const auto* info = reinterpret_cast<const UDataInfo*>(static_cast<const char*>(inData) + 4);
+    const std::uint8_t version = info->formatVersion[0];
+    if (std::memcmp(info->dataFormat, "UCol", 4) != 0 || version < 3 || version > 5) return;
+    const auto* bytes = static_cast<const std::uint8_t*>(inData) + headerSize;
+    const auto* output = outData ? static_cast<const std::uint8_t*>(outData) + headerSize : nullptr;
+    if (version >= 4) CheckCollationVersion4(ds, bytes, length - headerSize, output);
+    else CheckCollationVersion3(ds, bytes, length - headerSize, output);
+}
+
+void CheckInverse(const UDataSwapper* ds, const void* inData, std::int32_t length, const void* outData) {
+    const std::int32_t headerSize = HeaderSize(ds, inData, length, outData);
+    if (headerSize < 0) return;
+    const auto* info = reinterpret_cast<const UDataInfo*>(static_cast<const char*>(inData) + 4);
+    if (std::memcmp(info->dataFormat, "InvC", 4) != 0 || info->formatVersion[0] != 2 || info->formatVersion[1] < 1) return;
+    const std::int64_t available = static_cast<std::int64_t>(length) - headerSize;
+    if (available < static_cast<std::int64_t>(sizeof(InverseUCATableHeader))) return;
+    const Reader reader{ds, static_cast<const std::uint8_t*>(inData) + headerSize};
+    if (available < reader.U32(offsetof(InverseUCATableHeader, byteSize))) return;
+    const auto table = static_cast<std::int32_t>(reader.U32(offsetof(InverseUCATableHeader, tableSize)) * 3 * 4);
+    if (table > 0 && !Inside(reader.U32(offsetof(InverseUCATableHeader, table)), table, available)) APS5_INVALID_ARG_EX;
+    const auto conts = static_cast<std::int32_t>(reader.U32(offsetof(InverseUCATableHeader, contsSize)) * 2);
+    if (conts > 0 && !Inside(reader.U32(offsetof(InverseUCATableHeader, conts)), conts, available)) APS5_INVALID_ARG_EX;
+}
+
 template<typename TSwap>
 std::int32_t SwapChecked(const GuestDataSwapper* ds, std::int32_t* status, TSwap swap) {
     UErrorCode* error = OptionalStatus(status);
@@ -692,6 +810,20 @@ std::int8_t APS5_VABI ucol_looksLikeCollationBinary_nid_postfix(const GuestDataS
     return WithView(ds, [&](const UDataSwapper* host) {
         if (host && inData && length >= 0) CheckCollationBinary(host, inData, length);
         return ucol_looksLikeCollationBinary(host, inData, length);
+    });
+}
+
+std::int32_t APS5_VABI ucol_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status) {
+    return SwapRequired(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
+        if (host && length >= 0) CheckCollation(host, inData, length, outData);
+        return ucol_swap(host, inData, length, outData, error);
+    });
+}
+
+std::int32_t APS5_VABI ucol_swapInverseUCA_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status) {
+    return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
+        if (host && length >= 0) CheckInverse(host, inData, length, outData);
+        return ucol_swapInverseUCA(host, inData, length, outData, error);
     });
 }
 
