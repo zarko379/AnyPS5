@@ -576,9 +576,13 @@ int APS5_VABI sceNpManagerIntClearGameAccessToken(void) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
-int APS5_VABI sceNpManagerIntClearOnlineIdChangeFlag(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpManagerIntClearAdultToChildConversionFlag(int userId) {
+    if (userId == USER_SERVICE_USER_ID_INVALID) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_SIGNED_OUT;
+}
+int APS5_VABI sceNpManagerIntClearOnlineIdChangeFlag(int userId) {
+    if (userId == USER_SERVICE_USER_ID_INVALID) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_SIGNED_OUT;
 }
 int APS5_VABI sceNpManagerIntClearTicket(void) {
     NotImplemented_nid_no_patch(__func__);
@@ -675,6 +679,10 @@ int APS5_VABI sceNpManagerIntGetActiveSigninState(int userId, void* state) {
     if (userId == USER_SERVICE_USER_ID_INVALID || !state) return SCE_NP_ERROR_INVALID_ARGUMENT;
     return SCE_NP_ERROR_SIGNED_OUT;
 }
+int APS5_VABI sceNpManagerIntGetAdultToChildConversionFlag(int userId, void* flag) {
+    if (userId == USER_SERVICE_USER_ID_INVALID || !flag) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_SIGNED_OUT;
+}
 int APS5_VABI sceNpManagerIntGetAuthServerErrorFlag(int userId, void* flag) {
     if (userId == USER_SERVICE_USER_ID_INVALID || !flag) return SCE_NP_ERROR_INVALID_ARGUMENT;
     return SCE_NP_ERROR_SIGNED_OUT;
@@ -767,6 +775,10 @@ int APS5_VABI sceNpManagerIntGetPlusMemberType(void) {
 }
 int APS5_VABI sceNpManagerIntGetPlusMemberTypeNB(int userId, void* memberType) {
     if (userId == USER_SERVICE_USER_ID_INVALID || !memberType) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_SIGNED_OUT;
+}
+int APS5_VABI sceNpManagerIntSetPlusMemberTypeNB(int userId) {
+    if (userId == USER_SERVICE_USER_ID_INVALID) return SCE_NP_ERROR_INVALID_ARGUMENT;
     return SCE_NP_ERROR_SIGNED_OUT;
 }
 int APS5_VABI sceNpManagerIntGetServerError(int userId, void* error) {

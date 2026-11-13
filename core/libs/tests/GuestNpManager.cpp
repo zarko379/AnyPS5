@@ -544,10 +544,18 @@ void CheckManagerIntProfileGetters() {
     Require(sceNpManagerIntGetAccountIdSdk(-1, &accountId) == InvalidArgument && accountId == 0x5a5a5a5a5a5a5a5a, "sceNpManagerIntGetAccountIdSdk must refuse user id -1");
     Require(sceNpManagerIntGetAccountIdSdk(InitialUserId, nullptr) == InvalidArgument, "sceNpManagerIntGetAccountIdSdk must refuse a null output");
     Require(sceNpManagerIntGetAccountIdSdk(InitialUserId, &accountId) == SignedOut && accountId == 0x5a5a5a5a5a5a5a5a, "sceNpManagerIntGetAccountIdSdk must report NP as signed out and write nothing");
-    for (const auto getter : {sceNpManagerIntGetAccountCountrySdk, sceNpManagerIntGetAccountDateOfBirthSdk, sceNpManagerIntGetAccountNpEnv, sceNpManagerIntGetActiveSigninState, sceNpManagerIntGetAuthServerErrorFlag, sceNpManagerIntGetOnlineIdChangeFlag, sceNpManagerIntGetPlusMemberTypeNB, sceNpManagerIntGetServerError, sceNpManagerIntGetSigninState, sceNpManagerIntGetUserNum}) {
+    for (const auto getter : {sceNpManagerIntGetAccountCountrySdk, sceNpManagerIntGetAccountDateOfBirthSdk, sceNpManagerIntGetAccountNpEnv, sceNpManagerIntGetActiveSigninState, sceNpManagerIntGetAuthServerErrorFlag, sceNpManagerIntGetOnlineIdChangeFlag, sceNpManagerIntGetAdultToChildConversionFlag, sceNpManagerIntGetPlusMemberTypeNB, sceNpManagerIntGetServerError, sceNpManagerIntGetSigninState, sceNpManagerIntGetUserNum}) {
         Require(getter(-1, out.bytes) == InvalidArgument && out.Untouched(), "an NpManagerInt profile getter must refuse user id -1");
         Require(getter(InitialUserId, nullptr) == InvalidArgument, "an NpManagerInt profile getter must refuse a null output");
         Require(getter(InitialUserId, out.bytes) == SignedOut && out.Untouched(), "an NpManagerInt profile getter must report NP as signed out and write nothing");
+    }
+    for (const auto changer : {sceNpManagerIntClearOnlineIdChangeFlag, sceNpManagerIntClearAdultToChildConversionFlag, sceNpManagerIntSetPlusMemberTypeNB}) {
+        Require(changer(-1) == InvalidArgument, "an NpManagerInt flag clear or setter must refuse user id -1");
+        Require(changer(InitialUserId) == SignedOut, "an NpManagerInt flag clear or setter must report NP as signed out");
+        Require(changer(InitialUserId + 1) == SignedOut, "an NpManagerInt flag clear or setter must report NP as signed out for any other user");
+    }
+    for (const auto getter : {sceNpManagerIntGetOnlineIdChangeFlag, sceNpManagerIntGetAdultToChildConversionFlag, sceNpManagerIntGetPlusMemberTypeNB}) {
+        Require(getter(InitialUserId, out.bytes) == SignedOut && out.Untouched(), "a flag clear or setter must leave its getter signed out");
     }
     std::int32_t accountType = 0x5a5a5a5a;
     Require(sceNpManagerIntGetAccountType(-1, &accountType) == InvalidArgument && accountType == 0x5a5a5a5a, "sceNpManagerIntGetAccountType must refuse user id -1");

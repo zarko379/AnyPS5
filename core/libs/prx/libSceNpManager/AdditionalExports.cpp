@@ -736,19 +736,11 @@ int APS5_VABI sceNpManagerIntBindSandbox() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI sceNpManagerIntClearAdultToChildConversionFlag() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI sceNpManagerIntClearBcAccessToken() {
     NotImplemented_nid_no_patch(__func__);
 }
 
 int APS5_VABI sceNpManagerIntCreateLocalSandboxAdminLoginContext() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI sceNpManagerIntGetAdultToChildConversionFlag() {
     NotImplemented_nid_no_patch(__func__);
 }
 

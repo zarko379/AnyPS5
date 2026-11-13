@@ -265,10 +265,6 @@ int APS5_VABI sceNpManagerIntRevalidatePassword(void) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
-int APS5_VABI sceNpManagerIntSetPlusMemberTypeNB(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
 int APS5_VABI sceNpManagerIntSetRequestHeader(void) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
