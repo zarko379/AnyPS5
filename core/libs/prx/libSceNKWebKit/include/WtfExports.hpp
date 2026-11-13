@@ -117,6 +117,10 @@ WTF::TryMallocReturnValue* APS5_VABI _ZN3WTF14tryFastReallocEPvm(WTF::TryMallocR
 void APS5_VABI _ZN3WTF15fastAlignedFreeEPv(void* ptr);
 void* APS5_VABI _ZN3WTF16fastZeroedMallocEm(std::size_t size);
 void* APS5_VABI _ZN3WTF16tryJSValueMallocEm(std::size_t size);
+NKWebKit::WtfAbi::ExpectedCString APS5_VABI _ZN3WTF10StringImpl17utf8ForCharactersEPKhj(const unsigned char* characters, unsigned length);
+NKWebKit::WtfAbi::ExpectedCString APS5_VABI _ZN3WTF10StringImpl17utf8ForCharactersEPKDsjNS_14ConversionModeE(const char16_t* characters, unsigned length, unsigned mode);
+int APS5_VABI _ZN3WTF16codePointCompareENS_10StringViewES0_(NKWebKit::WtfAbi::StringView a, NKWebKit::WtfAbi::StringView b);
+int APS5_VABI _ZN3WTF16codePointCompareERKNS_6StringES2_(const NKWebKit::WtfAbi::String* a, const NKWebKit::WtfAbi::String* b);
 void APS5_VABI _ZN3WTF17GregorianDateTime21setToCurrentLocalTimeEv(WTF::GregorianDateTime* self);
 void* APS5_VABI _ZN3WTF17fastAlignedMallocEmm(std::size_t alignment, std::size_t size);
 void APS5_VABI _ZN3WTF17languageDidChangeEv();

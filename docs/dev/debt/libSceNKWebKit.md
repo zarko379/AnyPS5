@@ -52,6 +52,10 @@ Inventory prose retains historical counts; use the [generated progress report](h
 
 - [WTF URL escaping](../../../core/libs/prx/libSceNKWebKit/src/WtfUrlEscape.cpp) has no console ABI or behavior verification. `encodeWithURLEscapeSequences` follows [URL.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/URL.cpp#L553) and the user-info encode set in URLParser.cpp at the same revision. Lenient UTF-8 conversion follows StringImpl.cpp: interior unpaired surrogates and lone low surrogates become U+FFFD; a trailing unpaired high surrogate retains its three-byte encoding. Unchanged strings share StringImpl through the existing copy helper; encoded strings use the existing guest allocator. Null accessed storage and overflowing output lengths throw. Closes when: compared with a console module.
 
+- [WTF::codePointCompare](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - the `StringView` and `String` overloads follow [StringImpl.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.h#L752-L789), [StringView.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringView.cpp#L426-L438) and [WTFString.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/WTFString.cpp#L65-L68); not measured on a console. A null `String` pointer, or a null view buffer with a nonzero length that must be read, throws.
+
+- [WTF::StringImpl::utf8ForCharacters](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - both overloads follow [StringImpl.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.cpp#L1524-L1600), its x86 Latin-1 path in [StringImpl.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.h#L1491-L1545) and [UTF8Conversion.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/unicode/UTF8Conversion.cpp#L56-L87); `String`, `StringImpl` and `StringView` `utf8` share them and throw where upstream asserts. The 16-byte `Expected` (value or error byte at 0, flag at 8) follows the pinned `Expected.h`. Not measured on a console. Mode 3 yields an empty string as the source's switch does; a higher mode or a null buffer that must be read throws.
+
 ### Functional
 - [WKSerializedScriptValue](../../../core/libs/prx/libSceNKWebKit/src/SerializedScriptValue.cpp) (libSceNKWebKit) - `WKSerializedScriptValueCreate` and `WKSerializedScriptValueDeserialize` serialize and deserialize JavaScript values via JSON representation (`JSValueCreateJSONString` and `JSValueMakeFromJSONString`) rather than WebKit's full structured clone algorithm; non-serializable objects (such as functions, symbols and circular structures) fail serialization and report errors through the exception pointer on create, deserialization failures set exception to an Error object if provided, and `undefined`, `NaN`, `+Infinity` and `-Infinity` are preserved through explicit markers.
 - [FloatSize from IntSize constructors](../../../core/libs/prx/libSceNKWebKit/src/FloatSize.cpp) (libSceNKWebKit) - both constructor ABI entry points convert the source width and height to `float`, following the pinned [`FloatSize.h`](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/platform/graphics/FloatSize.h). This adapter is built and tested on Linux; console ABI and runtime behavior are unverified.
@@ -1343,8 +1347,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN3WTF10ParkingLot21parkConditionallyImplEPKvRKNS_12ScopedLambdaIFbvEEERKNS3_IFvvEEERKNS_24TimeWithDynamicClockTypeE` | `NRUy9MCPBJI` |
 | `_ZN3WTF10ParkingLot9unparkAllEPKv` | `ocD3Wh0yT1E` |
 | `_ZN3WTF10ParkingLot9unparkOneEPKv` | `56Wsrmx3txk` |
-| `_ZN3WTF10StringImpl17utf8ForCharactersEPKDsjNS_14ConversionModeE` | `NvD7vqlu22E` |
-| `_ZN3WTF10StringImpl17utf8ForCharactersEPKhj` | `o5VwYgTgLtU` |
 | `_ZN3WTF10StringImpl28convertToLowercaseWithLocaleERKNS_10AtomStringE` | `5SrekqH5TJQ` |
 | `_ZN3WTF10StringImpl28convertToUppercaseWithLocaleERKNS_10AtomStringE` | `LO6XXCwAPyU` |
 | `_ZN3WTF10StringImpl31convertToLowercaseWithoutLocaleEv` | `ANdfelUexnk` |
@@ -1481,8 +1483,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN3WTF15memoryFootprintEv` | `DLog94EYwFI` |
 | `_ZN3WTF16addSignalHandlerENS_6SignalEONS_8FunctionIFNS_12SignalActionES0_RNS_7SigInfoERNS_17PlatformRegistersEEEE` | `l0Z0NQiqr3M` |
 | `_ZN3WTF16callOnMainThreadEONS_8FunctionIFvvEEE` | `DDIR4QpfiIg` |
-| `_ZN3WTF16codePointCompareENS_10StringViewES0_` | `PAp-xS1m7bI` |
-| `_ZN3WTF16codePointCompareERKNS_6StringES2_` | `qpi9pgZKF5g` |
 | `_ZN3WTF17GregorianDateTimeC1EdNS_15LocalTimeOffsetE` | `9NbKoZNi0Jo` |
 | `_ZN3WTF17GregorianDateTimeC2EdNS_15LocalTimeOffsetE` | `jRKHSzq25WA` |
 | `_ZN3WTF17PrivateSymbolImpl6createERNS_10StringImplE` | `S6NzIicbleU` |

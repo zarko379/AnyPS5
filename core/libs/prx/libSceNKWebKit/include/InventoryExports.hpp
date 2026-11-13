@@ -1303,8 +1303,6 @@ int APS5_VABI _ZN3WTF10ParkingLot13unparkOneImplEPKvRKNS_12ScopedLambdaIFlNS0_12
 int APS5_VABI _ZN3WTF10ParkingLot21parkConditionallyImplEPKvRKNS_12ScopedLambdaIFbvEEERKNS3_IFvvEEERKNS_24TimeWithDynamicClockTypeE();
 int APS5_VABI _ZN3WTF10ParkingLot9unparkAllEPKv();
 int APS5_VABI _ZN3WTF10ParkingLot9unparkOneEPKv();
-int APS5_VABI _ZN3WTF10StringImpl17utf8ForCharactersEPKDsjNS_14ConversionModeE();
-int APS5_VABI _ZN3WTF10StringImpl17utf8ForCharactersEPKhj();
 int APS5_VABI _ZN3WTF10StringImpl28convertToLowercaseWithLocaleERKNS_10AtomStringE();
 int APS5_VABI _ZN3WTF10StringImpl28convertToUppercaseWithLocaleERKNS_10AtomStringE();
 int APS5_VABI _ZN3WTF10StringImpl31convertToLowercaseWithoutLocaleEv();
@@ -1444,8 +1442,6 @@ int APS5_VABI _ZN3WTF15isWordTextBreakEP14UBreakIterator();
 int APS5_VABI _ZN3WTF15memoryFootprintEv();
 int APS5_VABI _ZN3WTF16addSignalHandlerENS_6SignalEONS_8FunctionIFNS_12SignalActionES0_RNS_7SigInfoERNS_17PlatformRegistersEEEE();
 int APS5_VABI _ZN3WTF16callOnMainThreadEONS_8FunctionIFvvEEE();
-int APS5_VABI _ZN3WTF16codePointCompareENS_10StringViewES0_();
-int APS5_VABI _ZN3WTF16codePointCompareERKNS_6StringES2_();
 int APS5_VABI _ZN3WTF17GregorianDateTimeC1EdNS_15LocalTimeOffsetE();
 int APS5_VABI _ZN3WTF17GregorianDateTimeC2EdNS_15LocalTimeOffsetE();
 int APS5_VABI _ZN3WTF17PrivateSymbolImpl6createERNS_10StringImplE();

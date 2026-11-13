@@ -438,7 +438,97 @@ void TestTextStreamGroups() {
 
 }  // namespace
 
+int CompareViews(const void* a, unsigned aLength, bool a8, const void* b, unsigned bLength, bool b8) {
+    return _ZN3WTF16codePointCompareENS_10StringViewES0_({a, aLength, a8}, {b, bLength, b8});
+}
+
+void TestCodePointCompare() {
+    const char16_t pair[] = {0xD800, 0xDC00};
+    const char16_t bmp[] = {0xFFFF};
+    const char16_t accented[] = {u'a', 0x00E9};
+    const unsigned char latin[] = {'a', 0xE9};
+    const unsigned char latinLonger[] = {'a', 0xE9, 'z'};
+    Check(CompareViews(pair, 2, false, bmp, 1, false) == -1);
+    Check(CompareViews(bmp, 1, false, pair, 2, false) == 1);
+    Check(CompareViews(latin, 2, true, accented, 2, false) == 0);
+    Check(CompareViews(accented, 2, false, latin, 2, true) == 0);
+    Check(CompareViews(latin, 2, true, latinLonger, 3, true) == -1);
+    Check(CompareViews(latinLonger, 3, true, accented, 2, false) == 1);
+    Check(CompareViews(U8("abc"), 3, true, U8("abd"), 3, true) == -1);
+    Check(CompareViews(U8("b"), 1, true, U8("abc"), 3, true) == 1);
+    Check(CompareViews(U8("\x80"), 1, true, U8("\x7f"), 1, true) == 1);
+    Check(CompareViews(nullptr, 0, true, nullptr, 0, false) == 0);
+    Check(CompareViews(nullptr, 0, false, U8("a"), 1, true) == -1);
+    Check(CompareViews(U8("a"), 1, true, nullptr, 0, true) == 1);
+    Throws([] { CompareViews(nullptr, 1, true, U8("b"), 1, true); });
+    Throws([] { CompareViews(U8("a"), 1, true, nullptr, 1, false); });
+
+    String null;
+    String empty = Make8("");
+    String a8 = Make8("a\xe9");
+    String a16 = Make16(u"a\u00e9");
+    String b16 = Make16(u"b");
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&null, &null) == 0);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&null, &empty) == 0);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&empty, &null) == 0);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&null, &a8) == -1);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&a16, &null) == 1);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&empty, &a8) == -1);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&a8, &a16) == 0);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&a16, &a8) == 0);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&a8, &b16) == -1);
+    Check(_ZN3WTF16codePointCompareERKNS_6StringES2_(&b16, &a16) == 1);
+    Throws([&] { _ZN3WTF16codePointCompareERKNS_6StringES2_(nullptr, &a8); });
+    Throws([&] { _ZN3WTF16codePointCompareERKNS_6StringES2_(&a8, nullptr); });
+}
+
+std::string ExpectedBytes(const NKWebKit::WtfAbi::ExpectedCString& value) {
+    Check(value.hasValue && value.buffer != nullptr);
+    const char* data = reinterpret_cast<const char*>(value.buffer + 1);
+    Check(data[value.buffer->length] == 0);
+    return std::string(data, value.buffer->length);
+}
+
+void RequireUTF8Error(const NKWebKit::WtfAbi::ExpectedCString& value, NKWebKit::WtfAbi::UTF8ConversionError error, std::source_location location = std::source_location::current()) {
+    Check(!value.hasValue && value.error == error, location);
+}
+
+void TestUTF8ForCharacters() {
+    using NKWebKit::WtfAbi::UTF8ConversionError;
+    static const auto Latin1 = &_ZN3WTF10StringImpl17utf8ForCharactersEPKhj;
+    static const auto Utf16 = &_ZN3WTF10StringImpl17utf8ForCharactersEPKDsjNS_14ConversionModeE;
+    const unsigned char latin[] = {'a', 0xE9, 0x00, 0x7F, 0x80};
+    Check(ExpectedBytes(Latin1(latin, 5)) == std::string("a\xc3\xa9\0\x7f\xc2\x80", 7));
+    Check(ExpectedBytes(Latin1(nullptr, 0)).empty());
+    RequireUTF8Error(Latin1(latin, 0x40000000), UTF8ConversionError::OutOfMemory);
+    Throws([] { Latin1(nullptr, 1); });
+
+    const char16_t malformed[] = {0xD800, 'X', 0xDC00, 0xDFFF};
+    const char16_t finalLead[] = {'Y', 0xD800};
+    const char16_t pair[] = {0xD83D, 0xDE00, 0x00E9, 'z'};
+    for (unsigned mode : {0U, 1U, 2U}) {
+        Check(ExpectedBytes(Utf16(pair, 4, mode)) == "\xf0\x9f\x98\x80\xc3\xa9z");
+        Check(ExpectedBytes(Utf16(nullptr, 0, mode)).empty());
+        Throws([mode] { Utf16(nullptr, 2, mode); });
+    }
+    Check(ExpectedBytes(Utf16(malformed, 4, 0)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
+    Check(ExpectedBytes(Utf16(finalLead, 2, 0)) == "Y\xed\xa0\x80");
+    Check(ExpectedBytes(Utf16(malformed, 4, 2)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
+    Check(ExpectedBytes(Utf16(finalLead, 2, 2)) == "Y\xef\xbf\xbd");
+    RequireUTF8Error(Utf16(malformed, 4, 1), UTF8ConversionError::IllegalSource);
+    RequireUTF8Error(Utf16(malformed + 2, 2, 1), UTF8ConversionError::IllegalSource);
+    RequireUTF8Error(Utf16(finalLead, 2, 1), UTF8ConversionError::SourceExhausted);
+    RequireUTF8Error(Utf16(finalLead + 1, 1, 1), UTF8ConversionError::SourceExhausted);
+    Check(ExpectedBytes(Utf16(pair, 4, 3)).empty());
+    Check(ExpectedBytes(Utf16(nullptr, 0, 9)).empty());
+    Throws([&] { Utf16(pair, 4, 4); });
+    RequireUTF8Error(Utf16(pair, 0x2AAAAAAB, 9), UTF8ConversionError::OutOfMemory);
+    RequireUTF8Error(Utf16(nullptr, 0x2AAAAAAB, 0), UTF8ConversionError::OutOfMemory);
+}
+
 int main() {
+    TestUTF8ForCharacters();
+    TestCodePointCompare();
     TestAppendCharacters();
     TestOverflow();
     TestReserveCapacity();

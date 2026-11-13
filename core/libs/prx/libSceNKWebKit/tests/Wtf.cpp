@@ -812,7 +812,12 @@ void TestUTFConversions() {
     char16_t bad[] = {0xD800, 'X', 0xDC00, 0xDFFF};
     auto malformed = Create16(bad, 4);
     Check(ImplCharacter(malformed.impl, 0) == 0 && ImplCharacter(malformed.impl, 2) == 0);
-    Check(Bytes(UTF8(&malformed, 0)) == "\xed\xa0\x80X\xed\xb0\x80\xed\xbf\xbf");
+    Check(Bytes(UTF8(&malformed, 0)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
+    char16_t finalLead[] = {'Y', 0xD800};
+    auto trailing = Create16(finalLead, 2);
+    Check(Bytes(UTF8(&trailing, 0)) == "Y\xed\xa0\x80");
+    Check(Bytes(UTF8(&trailing, 2)) == "Y\xef\xbf\xbd");
+    Throws([&] { UTF8(&trailing, 1); });
     Check(Bytes(UTF8(&malformed, 2)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
     Throws([&] { UTF8(&malformed, 1); });
     Text(FromCodePoint(0x1F600), "\xf0\x9f\x98\x80");

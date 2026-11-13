@@ -271,6 +271,8 @@ using NKWebKit::WtfAbi::StringView;
 using NKWebKit::WtfAbi::String;
 using NKWebKit::WtfAbi::CString;
 using NKWebKit::WtfAbi::CStringBuffer;
+using NKWebKit::WtfAbi::ExpectedCString;
+using NKWebKit::WtfAbi::UTF8ConversionError;
 
 constexpr unsigned MaxStringLength = 0x7FFFFFFF;
 constexpr std::size_t NotFound = std::numeric_limits<std::size_t>::max();
@@ -388,6 +390,15 @@ bool EqualViews(StringView a, StringView b, bool ignoreCase = false) {
     return true;
 }
 
+int CodePointCompare(StringView a, StringView b) {
+    unsigned common = std::min(a.length, b.length);
+    unsigned position = 0;
+    while (position < common && Unit(a, position) == Unit(b, position)) ++position;
+    if (position < common) return Unit(a, position) > Unit(b, position) ? 1 : -1;
+    if (a.length == b.length) return 0;
+    return a.length > b.length ? 1 : -1;
+}
+
 bool EqualImpls(const StringImpl* a, const StringImpl* b, bool ignoreCase = false) {
     if (a == b) return true;
     return a && b && EqualViews(View(a), View(b), ignoreCase);
@@ -483,34 +494,60 @@ String FromUTF8(const unsigned char* input, std::size_t length, bool replaceInva
     return String(CopyImpl({output.data(), static_cast<unsigned>(output.size()), false}));
 }
 
-CString ToUTF8(StringView view, unsigned mode) {
-    if (mode > 2 && !view.is8Bit) throw std::invalid_argument("invalid WTF UTF-8 conversion mode");
-    std::string bytes;
-    for (unsigned i = 0; i < view.length; ++i) {
-        unsigned cp = Unit(view, i);
-        if (!view.is8Bit && cp >= 0xD800 && cp <= 0xDFFF) {
-            if (cp <= 0xDBFF && i + 1 < view.length && Unit(view, i + 1) >= 0xDC00 && Unit(view, i + 1) <= 0xDFFF) {
-                cp = 0x10000 + ((cp - 0xD800) << 10) + Unit(view, i + 1) - 0xDC00;
-                ++i;
-            } else if (mode == 1) throw std::invalid_argument("unpaired WTF UTF-16 surrogate");
-            else if (mode == 2) cp = 0xFFFD;
-        }
-        if (cp < 0x80) bytes.push_back(static_cast<char>(cp));
-        else if (cp < 0x800) {
-            bytes.push_back(static_cast<char>(0xC0 | (cp >> 6)));
-            bytes.push_back(static_cast<char>(0x80 | (cp & 63)));
-        } else if (cp < 0x10000) {
-            bytes.push_back(static_cast<char>(0xE0 | (cp >> 12)));
-            bytes.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
-            bytes.push_back(static_cast<char>(0x80 | (cp & 63)));
-        } else {
-            bytes.push_back(static_cast<char>(0xF0 | (cp >> 18)));
-            bytes.push_back(static_cast<char>(0x80 | ((cp >> 12) & 63)));
-            bytes.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
-            bytes.push_back(static_cast<char>(0x80 | (cp & 63)));
-        }
+void AppendUTF8(std::string& bytes, std::uint32_t cp) {
+    if (cp < 0x80) bytes.push_back(static_cast<char>(cp));
+    else if (cp < 0x800) {
+        bytes.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+        bytes.push_back(static_cast<char>(0x80 | (cp & 63)));
+    } else if (cp < 0x10000) {
+        bytes.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+        bytes.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
+        bytes.push_back(static_cast<char>(0x80 | (cp & 63)));
+    } else {
+        bytes.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+        bytes.push_back(static_cast<char>(0x80 | ((cp >> 12) & 63)));
+        bytes.push_back(static_cast<char>(0x80 | ((cp >> 6) & 63)));
+        bytes.push_back(static_cast<char>(0x80 | (cp & 63)));
     }
-    return CopyCString(bytes.data(), bytes.size());
+}
+
+ExpectedCString UTF8ForLatin1(const unsigned char* characters, unsigned length) {
+    if (!length) return ExpectedCString(CopyCString("", 0));
+    if (length > MaxStringLength / 2) return ExpectedCString(UTF8ConversionError::OutOfMemory);
+    CheckBuffer(characters, length);
+    std::string bytes;
+    for (unsigned i = 0; i < length; ++i) AppendUTF8(bytes, characters[i]);
+    return ExpectedCString(CopyCString(bytes.data(), bytes.size()));
+}
+
+ExpectedCString UTF8ForUTF16(const char16_t* characters, unsigned length, unsigned mode) {
+    if (!length) return ExpectedCString(CopyCString("", 0));
+    if (length > MaxStringLength / 3) return ExpectedCString(UTF8ConversionError::OutOfMemory);
+    if (mode > 3) throw std::invalid_argument("invalid WTF UTF-8 conversion mode");
+    CheckBuffer(characters, length);
+    std::string bytes;
+    if (mode == 3) return ExpectedCString(CopyCString(bytes.data(), 0));
+    for (unsigned i = 0; i < length;) {
+        std::uint32_t cp = characters[i];
+        unsigned width = 1;
+        if (cp >= 0xD800 && cp <= 0xDBFF && i + 1 < length && characters[i + 1] >= 0xDC00 && characters[i + 1] <= 0xDFFF) {
+            cp = 0x10000 + ((cp - 0xD800) << 10) + characters[i + 1] - 0xDC00;
+            width = 2;
+        } else if (cp >= 0xD800 && cp <= 0xDFFF) {
+            bool finalLead = i + 1 == length && cp <= 0xDBFF;
+            if (mode == 1) return ExpectedCString(finalLead ? UTF8ConversionError::SourceExhausted : UTF8ConversionError::IllegalSource);
+            if (mode == 2 || !finalLead) cp = 0xFFFD;
+        }
+        AppendUTF8(bytes, cp);
+        i += width;
+    }
+    return ExpectedCString(CopyCString(bytes.data(), bytes.size()));
+}
+
+CString ToUTF8(StringView view, unsigned mode) {
+    auto result = view.is8Bit ? UTF8ForLatin1(static_cast<const unsigned char*>(view.data), view.length) : UTF8ForUTF16(static_cast<const char16_t*>(view.data), view.length, mode);
+    if (!result.hasValue) throw std::invalid_argument("WTF UTF-8 conversion failed");
+    return CString(std::exchange(result.buffer, nullptr));
 }
 
 String Substring(const StringImpl* original, unsigned start, unsigned length) {
@@ -925,6 +962,26 @@ bool APS5_VABI _ZN3WTF22equalRespectingNullityENS_10StringViewES0_(StringView a,
     if (a.data == b.data) return a.length == b.length;
     if (!a.length && !b.length) return !a.data == !b.data;
     return EqualViews(a, b);
+}
+
+ExpectedCString APS5_VABI _ZN3WTF10StringImpl17utf8ForCharactersEPKhj(const unsigned char* characters, unsigned length) {
+    return UTF8ForLatin1(characters, length);
+}
+
+ExpectedCString APS5_VABI _ZN3WTF10StringImpl17utf8ForCharactersEPKDsjNS_14ConversionModeE(const char16_t* characters, unsigned length, unsigned mode) {
+    return UTF8ForUTF16(characters, length, mode);
+}
+
+int APS5_VABI _ZN3WTF16codePointCompareENS_10StringViewES0_(StringView a, StringView b) {
+    return CodePointCompare(a, b);
+}
+
+int APS5_VABI _ZN3WTF16codePointCompareERKNS_6StringES2_(const String* a, const String* b) {
+    const auto* x = Checked(a).impl;
+    const auto* y = Checked(b).impl;
+    if (!x) return y && y->length ? -1 : 0;
+    if (!y) return x->length ? 1 : 0;
+    return CodePointCompare(View(x), View(y));
 }
 
 bool APS5_VABI _ZN3WTF5equalEPKNS_10StringImplES2_(const StringImpl* a, const StringImpl* b) {

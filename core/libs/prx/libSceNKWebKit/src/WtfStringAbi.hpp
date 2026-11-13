@@ -111,6 +111,25 @@ struct CString {
     ~CString() { Release(buffer); }
 };
 
+enum class UTF8ConversionError : std::uint8_t { OutOfMemory, IllegalSource, SourceExhausted };
+
+struct ExpectedCString {
+    union {
+        CStringBuffer* buffer;
+        UTF8ConversionError error;
+    };
+    bool hasValue;
+    explicit ExpectedCString(CString&& value) : buffer(std::exchange(value.buffer, nullptr)), hasValue(true) {}
+    explicit ExpectedCString(UTF8ConversionError value) : error(value), hasValue(false) {}
+    ExpectedCString(ExpectedCString&& other) noexcept : buffer(nullptr), hasValue(other.hasValue) {
+        if (hasValue) buffer = std::exchange(other.buffer, nullptr);
+        else error = other.error;
+    }
+    ExpectedCString(const ExpectedCString&) = delete;
+    ExpectedCString& operator=(const ExpectedCString&) = delete;
+    ~ExpectedCString() { if (hasValue) Release(buffer); }
+};
+
 struct ProcessPrivileges {
     unsigned storage;
 };
@@ -141,6 +160,13 @@ static_assert(offsetof(CString, buffer) == 0);
 static_assert(sizeof(CStringBuffer) == 16);
 static_assert(offsetof(CStringBuffer, refCount) == 0);
 static_assert(offsetof(CStringBuffer, length) == 8);
+static_assert(sizeof(UTF8ConversionError) == 1);
+static_assert(sizeof(ExpectedCString) == 16);
+static_assert(alignof(ExpectedCString) == 8);
+static_assert(offsetof(ExpectedCString, buffer) == 0);
+static_assert(offsetof(ExpectedCString, error) == 0);
+static_assert(offsetof(ExpectedCString, hasValue) == 8);
+static_assert(!std::is_trivially_destructible_v<ExpectedCString>);
 static_assert(sizeof(ProcessPrivileges) == 4);
 static_assert(offsetof(ProcessPrivileges, storage) == 0);
 static_assert(sizeof(LogSiteIdentifier) == 24);
