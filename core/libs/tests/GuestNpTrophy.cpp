@@ -115,6 +115,66 @@ void TestPackageBounds() {
     Require(sceNpTrophyDestroyContext(context) == 0 && sceNpTrophyDestroyHandle(handle) == 0, "destroy the package bounds context and handle");
 }
 
+void TestPrefixedVariants() {
+    WritePackage("app0/sce_sys/trophy/trophy03.trp", {{"TROPCONF.ESFM", "conf"}, {"ICON0.PNG", "game-icon"}, {"GR000.PNG", "group-icon"}, {"TROP000.PNG", "first"}, {"TROP001.PNG", "second"}});
+    int intHandle = 0, systemHandle = 0, context = 0, unregistered = 0, other = 0, platinum = 0;
+    Require(sceNpTrophyIntCreateHandle(nullptr) == InvalidArgument, "internal handle creation without an output");
+    Require(sceNpTrophySystemCreateHandle(nullptr) == InvalidArgument, "system handle creation without an output");
+    Require(sceNpTrophySystemCreateContext(nullptr, 4, 3, 0) == InvalidArgument, "system context creation without an output");
+    Require(sceNpTrophySystemCreateContext(&context, 4, 3, 1) == InvalidArgument, "system context options");
+    Require(sceNpTrophyIntCreateHandle(&intHandle) == 0 && sceNpTrophySystemCreateHandle(&systemHandle) == 0 && intHandle != systemHandle, "create the prefixed handles");
+    Require(sceNpTrophySystemCreateContext(&context, 4, 3, 0) == 0, "create a system context");
+    Require(sceNpTrophySystemCreateContext(&other, 4, 3, 0) == ContextAlreadyExists, "a second system context for the same user and label");
+    Require(sceNpTrophyCreateContext(&other, 4, 3, 0) == ContextAlreadyExists, "a public context for the label of a system context");
+    Require(sceNpTrophySystemCreateContext(&unregistered, 4, 4, 0) == 0, "create an unregistered system context");
+    Require(sceNpTrophyRegisterContext(context, intHandle, 0) == 0, "register a system context through an internal handle");
+
+    char icon[16] = {};
+    std::uint64_t size = sizeof(icon);
+    Require(sceNpTrophySystemGetTrophyIcon(context, systemHandle, 0, icon, nullptr) == InvalidArgument, "system trophy icon without a size");
+    Require(sceNpTrophySystemGetGroupIcon(context, systemHandle, 0, icon, nullptr) == InvalidArgument, "system group icon without a size");
+    Require(sceNpTrophySystemGetTrophyIcon(-1, -1, 0, icon, &size) == InvalidContext, "system trophy icon checks the context id first");
+    Require(sceNpTrophySystemGetTrophyIcon(context, -1, 0, icon, &size) == InvalidHandle, "system trophy icon for the invalid handle id");
+    Require(sceNpTrophySystemGetTrophyIcon(context + 100, systemHandle, 0, icon, &size) == InvalidContext, "system trophy icon for an unknown context");
+    Require(sceNpTrophySystemGetTrophyIcon(context, systemHandle + 100, 0, icon, &size) == InvalidHandle, "system trophy icon for an unknown handle");
+    Require(sceNpTrophySystemGetTrophyIcon(unregistered, systemHandle, 0, icon, &size) == NotRegistered, "system trophy icon before registration");
+    Require(sceNpTrophySystemGetGroupIcon(unregistered, systemHandle, 0, icon, &size) == NotRegistered, "system group icon before registration");
+    Require(sceNpTrophySystemGetTrophyIcon(context, systemHandle, -1, icon, &size) == InvalidTrophyId, "system trophy icon for a negative id");
+    Require(sceNpTrophySystemGetTrophyIcon(context, systemHandle, 2, icon, &size) == InvalidTrophyId, "system trophy icon past the trophies");
+    Require(sceNpTrophySystemGetTrophyIcon(context, systemHandle, 0, icon, &size) == TrophyNotUnlocked, "system icon of a locked trophy");
+    Require(sceNpTrophyUnlockTrophy(context, systemHandle, 0, &platinum) == 0, "unlock through a system handle");
+    size = 0;
+    Require(sceNpTrophySystemGetTrophyIcon(context, systemHandle, 0, nullptr, &size) == 0 && size == 5, "system trophy icon size");
+    size = 4;
+    Require(sceNpTrophySystemGetTrophyIcon(context, systemHandle, 0, icon, &size) == InsufficientBuffer, "system trophy icon into a short buffer");
+    size = sizeof(icon);
+    Require(sceNpTrophySystemGetTrophyIcon(context, systemHandle, 0, icon, &size) == 0 && size == 5 && std::memcmp(icon, "first", 5) == 0, "system trophy icon bytes");
+    Require(sceNpTrophySystemGetGroupIcon(context, systemHandle, -1, icon, &size) == InvalidGroupId, "system group icon for a negative id");
+    Require(sceNpTrophySystemGetGroupIcon(context, systemHandle, 1, icon, &size) == IconFileNotFound, "system group icon past the groups");
+    size = sizeof(icon);
+    Require(sceNpTrophySystemGetGroupIcon(context, systemHandle, 0, icon, &size) == 0 && size == 10 && std::memcmp(icon, "group-icon", 10) == 0, "system group icon bytes");
+
+    Require(sceNpTrophyIntAbortHandle(-1) == InvalidHandle && sceNpTrophySystemAbortHandle(999) == InvalidHandle, "abort an unknown prefixed handle");
+    Require(sceNpTrophyIntAbortHandle(intHandle) == 0, "abort an internal handle");
+    Require(sceNpTrophySystemGetTrophyIcon(context, intHandle, 0, icon, &size) == Abort, "system trophy icon through an aborted handle");
+    Require(sceNpTrophyGetGameIcon(context, systemHandle, nullptr, &size) == 0, "a system handle survives an internal abort");
+    Require(sceNpTrophySystemAbortHandle(systemHandle) == 0, "abort a system handle");
+    Require(sceNpTrophyGetGameIcon(context, systemHandle, nullptr, &size) == Abort, "a public call through an aborted system handle");
+    Require(sceNpTrophySystemGetGroupIcon(context + 100, systemHandle, 0, icon, &size) == InvalidContext, "system group icon checks the context before the abort");
+
+    Require(sceNpTrophyDestroyHandle(intHandle) == 0, "destroy an internal handle through the public call");
+    Require(sceNpTrophyIntDestroyHandle(intHandle) == InvalidHandle, "destroy a destroyed internal handle");
+    Require(sceNpTrophySystemDestroyHandle(systemHandle) == 0, "destroy a system handle");
+    Require(sceNpTrophySystemDestroyHandle(systemHandle) == InvalidHandle && sceNpTrophySystemDestroyHandle(-1) == InvalidHandle, "destroy an unknown system handle");
+    int publicHandle = 0;
+    Require(sceNpTrophyCreateHandle(&publicHandle) == 0 && sceNpTrophyIntDestroyHandle(publicHandle) == 0, "destroy a public handle through the internal call");
+    Require(sceNpTrophyDestroyHandle(publicHandle) == InvalidHandle, "the internal destroy removed the public handle");
+    Require(sceNpTrophySystemDestroyContext(context) == 0, "destroy a system context");
+    Require(sceNpTrophySystemDestroyContext(context) == InvalidContext, "destroy a system context twice");
+    Require(sceNpTrophyDestroyContext(unregistered) == 0, "destroy a system context through the public call");
+    Require(sceNpTrophySystemDestroyContext(-1) == InvalidContext, "destroy the invalid context id");
+}
+
 }
 
 int main() {
@@ -272,6 +332,7 @@ int main() {
     Require(sceNpTrophyDestroyContext(context) == InvalidContext, "destroy the context twice");
 
     TestPackageBounds();
+    TestPrefixedVariants();
 
     std::filesystem::current_path(root.parent_path());
     std::error_code error;

@@ -531,9 +531,8 @@ int APS5_VABI sceNpTrophyGroupArrayGetNum(const std::uint32_t* groupArray) {
     return std::popcount(groupArray[0]);
 }
 
-int APS5_VABI sceNpTrophyIntAbortHandle(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophyIntAbortHandle(int handle) {
+    return sceNpTrophyAbortHandle(handle);
 }
 
 int APS5_VABI sceNpTrophyIntCheckNetSyncTitles(void) {
@@ -541,14 +540,12 @@ int APS5_VABI sceNpTrophyIntCheckNetSyncTitles(void) {
     return 0;
 }
 
-int APS5_VABI sceNpTrophyIntCreateHandle(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophyIntCreateHandle(int* handle) {
+    return sceNpTrophyCreateHandle(handle);
 }
 
-int APS5_VABI sceNpTrophyIntDestroyHandle(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophyIntDestroyHandle(int handle) {
+    return sceNpTrophyDestroyHandle(handle);
 }
 
 int APS5_VABI sceNpTrophyIntGetLocalTrophySummary(void) {
@@ -613,9 +610,8 @@ int APS5_VABI sceNpTrophyShowTrophyList(int contextId, int handle) {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI sceNpTrophySystemAbortHandle(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophySystemAbortHandle(int handle) {
+    return sceNpTrophyAbortHandle(handle);
 }
 
 int APS5_VABI sceNpTrophySystemBuildGroupIconUri(void) {
@@ -658,14 +654,12 @@ int APS5_VABI sceNpTrophySystemCloseStorage(void) {
     return 0;
 }
 
-int APS5_VABI sceNpTrophySystemCreateContext(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophySystemCreateContext(int* context, int userId, std::uint32_t serviceLabel, std::uint64_t options) {
+    return sceNpTrophyCreateContext(context, userId, serviceLabel, options);
 }
 
-int APS5_VABI sceNpTrophySystemCreateHandle(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophySystemCreateHandle(int* handle) {
+    return sceNpTrophyCreateHandle(handle);
 }
 
 int APS5_VABI sceNpTrophySystemDbgCtl(void) {
@@ -682,14 +676,12 @@ int APS5_VABI sceNpTrophySystemDebugUnlockTrophy(void) {
     return 0;
 }
 
-int APS5_VABI sceNpTrophySystemDestroyContext(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophySystemDestroyContext(int context) {
+    return sceNpTrophyDestroyContext(context);
 }
 
-int APS5_VABI sceNpTrophySystemDestroyHandle(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophySystemDestroyHandle(int handle) {
+    return sceNpTrophyDestroyHandle(handle);
 }
 
 int APS5_VABI sceNpTrophySystemDestroyTrophyConfig(void) {
@@ -705,9 +697,8 @@ int APS5_VABI sceNpTrophySystemGetDbgParamInt(void) {
     return static_cast<int>(0x80551692);
 }
 
-int APS5_VABI sceNpTrophySystemGetGroupIcon(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophySystemGetGroupIcon(int contextId, int handle, int groupId, void* buffer, std::uint64_t* size) {
+    return sceNpTrophyGetGroupIcon(contextId, handle, groupId, buffer, size);
 }
 
 int APS5_VABI sceNpTrophySystemGetLocalTrophySummary(void) {
@@ -755,9 +746,8 @@ int APS5_VABI sceNpTrophySystemGetTrophyGroupData(void) {
     return 0;
 }
 
-int APS5_VABI sceNpTrophySystemGetTrophyIcon(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpTrophySystemGetTrophyIcon(int contextId, int handle, int trophyId, void* buffer, std::uint64_t* size) {
+    return sceNpTrophyGetTrophyIcon(contextId, handle, trophyId, buffer, size);
 }
 
 int APS5_VABI sceNpTrophySystemGetTrophyTitleData(void) {
