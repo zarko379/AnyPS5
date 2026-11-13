@@ -52,6 +52,19 @@ void TestSuspend() {
     Case("sceSystemServiceDisableSuspendNotification", [] {
         return sceSystemServiceDisableSuspendNotification() == sceLncUtilDisableSuspendNotification();
     });
+    Case("sceLncUtilTryBlockAppSuspend", [] {
+        return sceLncUtilTryBlockAppSuspend("saving") == SYSTEM_SERVICE_OK && sceLncUtilTryBlockAppSuspend("saving") == SYSTEM_SERVICE_OK &&
+            sceLncUtilUnblockAppSuspend("saving") == SYSTEM_SERVICE_OK && sceLncUtilUnblockAppSuspend("saving") == SYSTEM_SERVICE_OK &&
+            sceLncUtilUnblockAppSuspend("saving") == SCE_KERNEL_ERROR_EBUSY;
+    });
+    Case("sceLncUtilTryBlockAppSuspend with a null reason", [] {
+        try {
+            sceLncUtilTryBlockAppSuspend(nullptr);
+        } catch (const std::exception&) {
+            return sceLncUtilUnblockAppSuspend("saving") == SCE_KERNEL_ERROR_EBUSY;
+        }
+        return false;
+    });
 }
 
 template<typename TCall>
@@ -145,6 +158,81 @@ void TestShell() {
     });
 }
 
+template<typename TCall>
+bool ReportsActive(TCall call) {
+    bool active = false;
+    return call(&active) == SYSTEM_SERVICE_OK && active;
+}
+
+template<typename TCall>
+bool Throws(TCall call) {
+    try {
+        call();
+    } catch (const std::exception&) {
+        return true;
+    }
+    return false;
+}
+
+template<typename TSet, typename TGet>
+bool StoresStatus(TSet set, TGet get) {
+    if (!ReportsInactive(get) || set(1) != SYSTEM_SERVICE_OK || !ReportsActive(get) || set(1) != SYSTEM_SERVICE_OK || !ReportsActive(get)) return false;
+    for (const std::int32_t value : {2, -1, 0x100, 0x7fffffff, static_cast<std::int32_t>(0x80000000u)}) {
+        if (!Throws([&] { set(value); }) || !ReportsActive(get)) return false;
+    }
+    if (set(0) != SYSTEM_SERVICE_OK || !ReportsInactive(get)) return false;
+    for (const std::int32_t value : {2, -1, 0x100}) {
+        if (!Throws([&] { set(value); }) || !ReportsInactive(get)) return false;
+    }
+    return set(1) == SYSTEM_SERVICE_OK && ReportsActive(get);
+}
+
+using StatusGetter = decltype(&sceShellCoreUtilGetRemotePlayStatus);
+using StatusSetter = decltype(&sceShellCoreUtilSetRemotePlayStatus);
+
+bool OthersInactive(StatusGetter active) {
+    const StatusGetter statuses[] = {sceShellCoreUtilGetRemotePlayStatus, sceShellCoreUtilGetSharePlayStatus, sceShellCoreUtilGetSocialScreenStatus};
+    for (auto* status : statuses) {
+        if (status != active && !ReportsInactive(status)) return false;
+    }
+    return ReportsInactive(sceShellCoreUtilGetGameLiveStreamingStatus) && !sceShellCoreUtilIsGameLiveStreamingOnAir();
+}
+
+bool ResetStatus(StatusSetter set) {
+    return set(0) == SYSTEM_SERVICE_OK;
+}
+
+void TestStored() {
+    Case("sceShellCoreUtilSetRemotePlayStatus", [] {
+        return StoresStatus(sceShellCoreUtilSetRemotePlayStatus, sceShellCoreUtilGetRemotePlayStatus) && ReportsActive(sceSystemServiceGetRemoteplayStatus) &&
+            OthersInactive(sceShellCoreUtilGetRemotePlayStatus) &&
+            RejectsNullOutput(sceShellCoreUtilGetRemotePlayStatus, SHELL_CORE_UTIL_ERROR_INVALID_ARGUMENT) &&
+            RejectsUnwritableOutput(sceSystemServiceGetRemoteplayStatus, SHELL_CORE_UTIL_ERROR_INVALID_ARGUMENT) &&
+            ResetStatus(sceShellCoreUtilSetRemotePlayStatus) && ReportsInactive(sceSystemServiceGetRemoteplayStatus);
+    });
+    Case("sceShellCoreUtilSetSharePlayStatus", [] {
+        return StoresStatus(sceShellCoreUtilSetSharePlayStatus, sceShellCoreUtilGetSharePlayStatus) && OthersInactive(sceShellCoreUtilGetSharePlayStatus) &&
+            RejectsNullOutput(sceShellCoreUtilGetSharePlayStatus, SHELL_CORE_UTIL_ERROR_INVALID_ARGUMENT) &&
+            ResetStatus(sceShellCoreUtilSetSharePlayStatus);
+    });
+    Case("sceShellCoreUtilSetSocialScreenStatus", [] {
+        return StoresStatus(sceShellCoreUtilSetSocialScreenStatus, sceShellCoreUtilGetSocialScreenStatus) &&
+            OthersInactive(sceShellCoreUtilGetSocialScreenStatus) && Throws([] { sceShellCoreUtilGetSocialScreenStatus(nullptr); }) &&
+            ResetStatus(sceShellCoreUtilSetSocialScreenStatus) && OthersInactive(nullptr);
+    });
+    Case("sceShellCoreUtilSetUserFocus", [] {
+        const int runningAppId = sceSystemServiceGetAppIdOfRunningBigApp();
+        std::int32_t user = 0;
+        if (sceShellCoreUtilSetUserFocus(USER_SERVICE_INITIAL_USER_ID) != SYSTEM_SERVICE_OK) return false;
+        if (sceShellCoreUtilGetUserFocus(runningAppId, &user) != SYSTEM_SERVICE_OK || user != USER_SERVICE_INITIAL_USER_ID) return false;
+        for (const std::int32_t other : {USER_SERVICE_INITIAL_USER_ID + 1, 0, -1, 0x7fffffff}) {
+            if (!Throws([&] { sceShellCoreUtilSetUserFocus(other); })) return false;
+        }
+        user = 0;
+        return sceShellCoreUtilGetUserFocus(runningAppId, &user) == SYSTEM_SERVICE_OK && user == USER_SERVICE_INITIAL_USER_ID;
+    });
+}
+
 void TestDevices() {
     Case("sceSystemStateMgrIsBdDriveReady", [] { return !sceSystemStateMgrIsBdDriveReady(); });
     Case("sceShellCoreUtilIsUsbMassStorageMounted", [] {
@@ -167,6 +255,7 @@ int main(int argc, char** argv) {
     else if (mode == "sessions") TestSessions();
     else if (mode == "shell") TestShell();
     else if (mode == "devices") TestDevices();
+    else if (mode == "stored") TestStored();
     else return 2;
     if (failures == 0) std::printf("all cases passed\n");
     return failures == 0 ? 0 : 1;

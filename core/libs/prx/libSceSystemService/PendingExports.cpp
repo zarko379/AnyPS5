@@ -499,11 +499,6 @@ int APS5_VABI sceLncUtilTerminate() {
     return 0;
 }
 
-int APS5_VABI sceLncUtilTryBlockAppSuspend(const char* reason) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI sceLncUtilUnregisterCdlgSharedMemoryName(const char* name) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
@@ -1344,22 +1339,7 @@ int APS5_VABI sceShellCoreUtilSetPsStoreIconState(std::uint32_t state) {
     return 0;
 }
 
-int APS5_VABI sceShellCoreUtilSetRemotePlayStatus(std::int32_t active) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceShellCoreUtilSetSharePlayStatus(std::int32_t active) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI sceShellCoreUtilSetSkipUpdateCheck(std::uint8_t skip) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceShellCoreUtilSetSocialScreenStatus(std::int32_t active) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
@@ -1385,11 +1365,6 @@ int APS5_VABI sceShellCoreUtilSetSystemBGWaveState(std::uint32_t state) {
 }
 
 int APS5_VABI sceShellCoreUtilSetUIStatus(std::uint64_t status, std::uint64_t mask) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceShellCoreUtilSetUserFocus(std::int32_t userId) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }

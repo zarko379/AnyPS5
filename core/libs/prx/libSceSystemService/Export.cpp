@@ -284,6 +284,16 @@ int GetGpuLoadEmulationModeOfApp(const char* caller, std::int32_t appId) {
 
 std::atomic<bool> SuspendConfirmationDialogEnabled{true};
 
+std::atomic<bool> RemotePlayActive{false};
+std::atomic<bool> SharePlayActive{false};
+std::atomic<bool> SocialScreenActive{false};
+
+int StoreSessionStatus(const char* caller, std::int32_t active, std::atomic<bool>& status) {
+    if (active != 0 && active != 1) NotImplemented_nid_no_patch((std::string(caller) + ": a status other than 0 and 1").c_str());
+    status.store(active == 1, std::memory_order_relaxed);
+    return SYSTEM_SERVICE_OK;
+}
+
 }
 
 extern "C" {
@@ -394,6 +404,10 @@ int APS5_VABI sceLncUtilBlockAppSuspend(const char* reason) {
     return SYSTEM_SERVICE_OK;
 }
 
+int APS5_VABI sceLncUtilTryBlockAppSuspend(const char* reason) {
+    return sceLncUtilBlockAppSuspend(reason);
+}
+
 int APS5_VABI sceLncUtilUnblockAppSuspend(const char* reason) {
     std::lock_guard lock(appSuspendBlockMutex);
     if (appSuspendBlocks == 0) return SCE_KERNEL_ERROR_EBUSY;
@@ -419,7 +433,11 @@ int APS5_VABI sceSystemServiceDisableSuspendNotification() {
 }
 
 int APS5_VABI sceShellCoreUtilGetRemotePlayStatus(bool* active) {
-    return WriteStatusOrRefuse(active, false, SHELL_CORE_UTIL_ERROR_INVALID_ARGUMENT);
+    return WriteStatusOrRefuse(active, RemotePlayActive.load(std::memory_order_relaxed), SHELL_CORE_UTIL_ERROR_INVALID_ARGUMENT);
+}
+
+int APS5_VABI sceShellCoreUtilSetRemotePlayStatus(std::int32_t active) {
+    return StoreSessionStatus("sceShellCoreUtilSetRemotePlayStatus", active, RemotePlayActive);
 }
 
 int APS5_VABI sceSystemServiceGetRemoteplayStatus(bool* active) {
@@ -427,7 +445,11 @@ int APS5_VABI sceSystemServiceGetRemoteplayStatus(bool* active) {
 }
 
 int APS5_VABI sceShellCoreUtilGetSharePlayStatus(bool* active) {
-    return WriteStatusOrRefuse(active, false, SHELL_CORE_UTIL_ERROR_INVALID_ARGUMENT);
+    return WriteStatusOrRefuse(active, SharePlayActive.load(std::memory_order_relaxed), SHELL_CORE_UTIL_ERROR_INVALID_ARGUMENT);
+}
+
+int APS5_VABI sceShellCoreUtilSetSharePlayStatus(std::int32_t active) {
+    return StoreSessionStatus("sceShellCoreUtilSetSharePlayStatus", active, SharePlayActive);
 }
 
 bool APS5_VABI sceShellCoreUtilIsGameLiveStreamingOnAir() {
@@ -467,7 +489,11 @@ bool APS5_VABI sceSystemStateMgrIsShellUIShutdownInProgress() {
 }
 
 int APS5_VABI sceShellCoreUtilGetSocialScreenStatus(bool* active) {
-    return WriteStatus(active, false, __func__);
+    return WriteStatus(active, SocialScreenActive.load(std::memory_order_relaxed), __func__);
+}
+
+int APS5_VABI sceShellCoreUtilSetSocialScreenStatus(std::int32_t active) {
+    return StoreSessionStatus("sceShellCoreUtilSetSocialScreenStatus", active, SocialScreenActive);
 }
 
 int APS5_VABI sceShellCoreUtilIsEyeToEyeDistanceAdjusted(std::uint32_t userId, std::uint8_t* adjusted) {
@@ -698,6 +724,11 @@ int APS5_VABI sceSystemServiceGetAppLaunchedUser(std::int32_t appId, std::int32_
 int APS5_VABI sceShellCoreUtilGetUserFocus(std::int32_t appId, std::int32_t* userId) {
  if (userId == nullptr) return SHELL_CORE_UTIL_ERROR_INVALID_ARGUMENT;
  return sceLncUtilGetAppLaunchedUser(appId, userId);
+}
+
+int APS5_VABI sceShellCoreUtilSetUserFocus(std::int32_t userId) {
+ if (userId != USER_SERVICE_INITIAL_USER_ID) NotImplemented_nid_no_patch("sceShellCoreUtilSetUserFocus: a user other than the logged-in user");
+ return SYSTEM_SERVICE_OK;
 }
 
 int APS5_VABI sceLncUtilIsAppSuspended(std::int32_t appId, bool* suspended) {
