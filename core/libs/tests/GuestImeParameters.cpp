@@ -125,6 +125,8 @@ static void CheckErrors() {
     Require(width == 0x12345678 && height == 0x87654321, "outputs changed on error");
 }
 
+static void APS5_VABI IgnoreEvent(void*, const ImeEvent*) {}
+
 static void CheckClosedPanel() {
     constexpr int notOpened = static_cast<int>(0x80bc0002u);
     Caret caret{};
@@ -138,6 +140,8 @@ static void CheckClosedPanel() {
     Require(sceImeSetTextGeometry(TextAreaMode::Edit, nullptr) == notOpened, "null geometry checks open panel first");
     Require(sceImeClose_nid_postfix() == notOpened, "closing needs an open panel");
     Require(sceImeDisableController() == notOpened, "disabling the controller needs an open panel");
+    Require(sceImeKeyboardUpdate(IgnoreEvent) == notOpened, "keyboard update needs an open keyboard or panel");
+    Require(sceImeKeyboardUpdate(nullptr) == notOpened, "keyboard update checks the open state before the handler");
     PositionAndForm form;
     std::memset(&form, 0xa5, sizeof(form));
     Require(sceImeGetPanelPositionAndForm(&form) == notOpened, "panel position needs an open panel");
@@ -153,8 +157,6 @@ static void CheckClosedPanel() {
         Require(sceImeConfirmCandidate(index) == notOpened, "candidate confirm needs an open panel");
     }
 }
-
-static void APS5_VABI IgnoreEvent(void*, const ImeEvent*) {}
 
 static void CheckOpenPanel() {
     constexpr int InvalidAddress = static_cast<int>(0x80bc0031u);
@@ -174,8 +176,10 @@ static void CheckOpenPanel() {
     Require(sceImeGetPanelPositionAndForm(&form) == 0, "valid panel position and form");
     RequireNotImplemented([] { sceImeDisableController(); }, "sceImeDisableController");
     RequireNotImplemented([] { sceImeDisableController(); }, "sceImeDisableController");
+    RequireNotImplemented([] { sceImeKeyboardUpdate(IgnoreEvent); }, "sceImeKeyboardUpdate");
     Require(sceImeGetPanelPositionAndForm(&form) == 0, "panel still open after the controller release threw");
     Require(sceImeClose_nid_postfix() == 0, "close ime panel");
+    Require(sceImeKeyboardUpdate(IgnoreEvent) == NotOpened, "keyboard update needs an open keyboard or panel after close");
     Require(sceImeDisableController() == NotOpened, "disabling the controller needs an open panel after close");
 }
 
@@ -204,7 +208,10 @@ static void CheckKeyboardResourceIds() {
     Require(ids.user_id == 2, "other user not reported");
     Require(sceImeSetCandidateIndex(0) == NotOpened, "an open keyboard taken as an open panel for the candidate index");
     Require(sceImeConfirmCandidate(0) == NotOpened, "an open keyboard taken as an open panel for the candidate confirm");
+    RequireNotImplemented([] { sceImeKeyboardUpdate(IgnoreEvent); }, "sceImeKeyboardUpdate");
+    RequireNotImplemented([] { sceImeKeyboardUpdate(nullptr); }, "sceImeKeyboardUpdate");
     Require(sceImeKeyboardClose(1) == 0, "keyboard close failed");
+    Require(sceImeKeyboardUpdate(IgnoreEvent) == NotOpened, "keyboard update needs an open keyboard after the keyboard closed");
     Require(sceImeKeyboardGetResourceId(1, &ids) == NotOpened, "closed keyboard reported as opened");
 }
 

@@ -675,8 +675,14 @@ int APS5_VABI sceImeVshOpen(ImeVshContext** context, const ImeVshParameter* para
 }
 
 int APS5_VABI sceImeKeyboardUpdate(EventHandler handler) {
+    (void)handler;
+    bool keyboardOpen;
+    {
+        std::lock_guard lock(g_keyboardMutex);
+        keyboardOpen = !g_openKeyboards.empty();
+    }
+    if (!keyboardOpen && !SessionOpen()) return ErrorNotOpened;
     NotImplemented_nid_no_patch(__func__);
-    return 0;
 }
 
 int APS5_VABI sceImeVshUpdate(ImeVshContext* context) {
