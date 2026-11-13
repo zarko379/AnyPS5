@@ -14,6 +14,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
 #include <source_location>
 #include <stdexcept>
 
@@ -411,6 +412,7 @@ static void TestGetPeerCertChain() {
 
 static int heapAllocations = 0;
 static bool failNextAllocation = false;
+static bool failNextReallocation = false;
 static std::size_t lastAllocationSize = 0;
 
 static void* APS5_VABI HeapAllocate(std::size_t size) {
@@ -436,6 +438,10 @@ static void* APS5_VABI HeapCalloc(std::size_t count, std::size_t size) {
 }
 
 static void* APS5_VABI HeapReallocate(void* pointer, std::size_t size) {
+    if (failNextReallocation) {
+        failNextReallocation = false;
+        return nullptr;
+    }
     void* result = std::realloc(pointer, size ? size : 1);
     if (result && !pointer) ++heapAllocations;
     return result;
@@ -474,6 +480,57 @@ static void TestSetAlpnProtos() {
     Require(internal.alpnClientProtoList && internal.alpnClientProtoListLen == 1 && heapAllocations == baseline + 1 && lastAllocationSize == 2);
     CRYPTO_free_nid_postfix(internal.alpnClientProtoList);
     Require(heapAllocations == baseline && ERR_peek_error_nid_postfix() == 0);
+}
+
+static bool HasGroups(const LibreSslCtxInternal& internal, std::initializer_list<std::uint16_t> expected) {
+    if (internal.tlsextSupportedgroupsLength != expected.size() || !internal.tlsextSupportedgroups) return false;
+    std::size_t index = 0;
+    for (const std::uint16_t id : expected)
+        if (internal.tlsextSupportedgroups[index++] != id) return false;
+    return true;
+}
+
+static void TestSetGroupsList() {
+    ERR_clear_error_nid_postfix();
+    LibreSslCtxInternal internal {};
+    LibreSslCtx context {};
+    RequireThrows([] { SSL_CTX_set1_groups_list_nid_postfix(nullptr, "P-256"); });
+    RequireThrows([&] { SSL_CTX_set1_groups_list_nid_postfix(&context, nullptr); });
+    const int baseline = heapAllocations;
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "P-256:nosuchgroup") == 0 && heapAllocations == baseline);
+    RequireThrows([&] { SSL_CTX_set1_groups_list_nid_postfix(&context, "P-256"); });
+    Require(heapAllocations == baseline);
+    context.internal = &internal;
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "P-256") == 1 && HasGroups(internal, {23}) && heapAllocations == baseline + 1);
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "X25519:prime256v1:secp384r1:P-521:K-163:B-571:brainpoolP512r1:secp160k1") == 1);
+    Require(HasGroups(internal, {29, 23, 24, 25, 1, 14, 28, 15}) && heapAllocations == baseline + 1);
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "secp224k1:P-224:P-192:prime192v1:secp521r1") == 1);
+    Require(HasGroups(internal, {20, 21, 19, 19, 25}));
+    for (const char* rejected : {"", ":", "P-256:", ":P-256", "P-256::P-384", "p-256", "nosuchgroup", "CN", "commonName", "NULL", "UNDEF", "undefined", "secp112r1"}) {
+        Require(SSL_CTX_set1_groups_list_nid_postfix(&context, rejected) == 0);
+        Require(HasGroups(internal, {20, 21, 19, 19, 25}) && heapAllocations == baseline + 1);
+    }
+    failNextReallocation = true;
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "commonName") == 0 && !failNextReallocation);
+    failNextReallocation = true;
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "nosuchgroup") == 0 && failNextReallocation);
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "P-256") == 0 && !failNextReallocation);
+    Require(HasGroups(internal, {20, 21, 19, 19, 25}) && heapAllocations == baseline + 1);
+    failNextAllocation = true;
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "P-256") == 0 && !failNextAllocation);
+    Require(HasGroups(internal, {20, 21, 19, 19, 25}) && heapAllocations == baseline + 1);
+    Require(OBJ_create_nid_postfix("1.2.3.4.5.6.7.8.9", "groupShortName", "group long name") > 0);
+    failNextReallocation = true;
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "group long name") == 0 && !failNextReallocation);
+    failNextReallocation = true;
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "groupShortName") == 0 && !failNextReallocation);
+    failNextReallocation = true;
+    Require(SSL_CTX_set1_groups_list_nid_postfix(&context, "group") == 0 && failNextReallocation);
+    failNextReallocation = false;
+    OBJ_cleanup_nid_postfix();
+    ERR_clear_error_nid_postfix();
+    CRYPTO_free_nid_postfix(internal.tlsextSupportedgroups);
+    Require(heapAllocations == baseline);
 }
 
 static std::uint64_t ErrorCode(std::uint64_t library, std::uint64_t function, std::uint64_t reason) {
@@ -785,5 +842,6 @@ int main() {
     TestDispatch();
     TestGetError();
     TestSetAlpnProtos();
+    TestSetGroupsList();
     return 0;
 }

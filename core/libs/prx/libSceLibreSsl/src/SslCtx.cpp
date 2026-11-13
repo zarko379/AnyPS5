@@ -9,6 +9,8 @@
 #include <string>
 #include <utility>
 #include "prx/libSceLibreSsl/include/Error.hpp"
+#include "prx/libSceLibreSsl/include/ObjectTable.hpp"
+#include <array>
 #include "prx/libc/include/General.hpp"
 
 static_assert(sizeof(LibreSslCtxInternal) == 464);
@@ -57,6 +59,8 @@ static_assert(offsetof(LibreSslCtxInternal, tlsextTickHmacKey) == 328);
 static_assert(offsetof(LibreSslCtxInternal, tlsextTickAesKey) == 344);
 static_assert(offsetof(LibreSslCtxInternal, alpnClientProtoList) == 416);
 static_assert(offsetof(LibreSslCtxInternal, alpnClientProtoListLen) == 424);
+static_assert(offsetof(LibreSslCtxInternal, tlsextSupportedgroupsLength) == 448);
+static_assert(offsetof(LibreSslCtxInternal, tlsextSupportedgroups) == 456);
 
 namespace {
 
@@ -190,6 +194,78 @@ int SetCtxExData_nid_no_patch(LibreSslCtxInternal& internal, int index, void* va
     return 1;
 }
 
+constexpr std::array<std::pair<int, std::uint16_t>, 29> CurveIds{{
+    {409, 19}, {415, 23}, {708, 15}, {709, 16}, {710, 17}, {711, 18}, {712, 20}, {713, 21}, {714, 22}, {715, 24},
+    {716, 25}, {721, 1}, {722, 2}, {723, 3}, {724, 4}, {725, 5}, {726, 6}, {727, 7}, {728, 8}, {729, 9},
+    {730, 10}, {731, 11}, {732, 12}, {733, 13}, {734, 14}, {928, 26}, {932, 27}, {934, 28}, {950, 29},
+}};
+
+constexpr std::array<std::pair<const char*, int>, 15> NistCurves{{
+    {"B-163", 723}, {"B-233", 727}, {"B-283", 730}, {"B-409", 732}, {"B-571", 734},
+    {"K-163", 721}, {"K-233", 726}, {"K-283", 729}, {"K-409", 731}, {"K-571", 733},
+    {"P-192", 409}, {"P-224", 713}, {"P-256", 415}, {"P-384", 715}, {"P-521", 716},
+}};
+
+std::uint16_t CurveId(int nid) {
+    for (const auto& [curveNid, id] : CurveIds)
+        if (curveNid == nid) return id;
+    return 0;
+}
+
+int LongNameNid(const char* name) {
+    if (const int added = LibreSslAddedObjectLongNameNid_nid_no_patch(name)) return added;
+    for (const LibreSslAsn1Object& object : LibreSslObjects_nid_no_patch)
+        if (object.longName && std::strcmp(object.longName, name) == 0) return object.nid;
+    return 0;
+}
+
+int NistCurveNid(const char* name) {
+    for (const auto& [curveName, nid] : NistCurves)
+        if (std::strcmp(curveName, name) == 0) return nid;
+    return 0;
+}
+
+int GroupNid(const char* name) {
+    int nid = OBJ_sn2nid_nid_postfix(name);
+    if (nid == 0) nid = LongNameNid(name);
+    if (nid == 0) nid = NistCurveNid(name);
+    return nid;
+}
+
+std::uint16_t* ParseGroups(char* list, std::size_t& count) {
+    std::uint16_t* ids = nullptr;
+    count = 0;
+    char* rest = list;
+    while (rest) {
+        char* const token = rest;
+        char* const separator = std::strchr(rest, ':');
+        if (separator) {
+            *separator = '\0';
+            rest = separator + 1;
+        } else {
+            rest = nullptr;
+        }
+        const int nid = GroupNid(token);
+        if (nid == 0) {
+            free_nid_postfix(ids);
+            return nullptr;
+        }
+        auto* const grown = static_cast<std::uint16_t*>(reallocarray_nid_postfix(ids, count + 1, sizeof(std::uint16_t)));
+        if (!grown) {
+            free_nid_postfix(ids);
+            return nullptr;
+        }
+        ids = grown;
+        ids[count] = CurveId(nid);
+        if (ids[count] == 0) {
+            free_nid_postfix(ids);
+            return nullptr;
+        }
+        ++count;
+    }
+    return ids;
+}
+
 void PutSslError(int reason) {
     LibreSslPutError_nid_no_patch(ErrLibSsl, ErrFunctionNone, reason);
 }
@@ -253,6 +329,31 @@ int APS5_VABI SSL_CTX_set_alpn_protos_nid_postfix(LibreSslCtx* ctx, const unsign
     if (length != 0) std::memcpy(internal.alpnClientProtoList, protos, length);
     internal.alpnClientProtoListLen = length;
     return 0;
+}
+
+int APS5_VABI SSL_CTX_set1_groups_list_nid_postfix(LibreSslCtx* ctx, const char* groups) {
+    LibreSslCtxInternal* const internal = Context(ctx, __func__).internal;
+    if (!groups) throw std::invalid_argument(std::string(__func__) + ": null group list");
+    char* const list = strdup_nid_postfix(groups);
+    if (!list) return 0;
+    std::size_t count = 0;
+    std::uint16_t* ids = nullptr;
+    try {
+        ids = ParseGroups(list, count);
+    } catch (...) {
+        free_nid_postfix(list);
+        throw;
+    }
+    free_nid_postfix(list);
+    if (!ids) return 0;
+    if (!internal) {
+        free_nid_postfix(ids);
+        throw std::invalid_argument(std::string(__func__) + ": null internal state");
+    }
+    free_nid_postfix(internal->tlsextSupportedgroups);
+    internal->tlsextSupportedgroups = ids;
+    internal->tlsextSupportedgroupsLength = count;
+    return 1;
 }
 
 void* APS5_VABI SSL_CTX_get_ex_data_nid_postfix(const LibreSslCtx* ctx, int index) {
