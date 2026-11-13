@@ -10,6 +10,7 @@
 #include <unicode/uloc.h>
 #include <unicode/ufieldpositer.h>
 #include <unicode/umisc.h>
+#include "putilimp.h"
 #include <cstddef>
 #include <cstring>
 
@@ -284,6 +285,14 @@ void APS5_VABI udtitvfmt_formatCalendarToResult_nid_postfix(const UDateIntervalF
         IcuBackend::RequireObject(toCalendar);
     }
     udtitvfmt_formatCalendarToResult(formatter, static_cast<UCalendar*>(fromCalendar), static_cast<UCalendar*>(toCalendar), result, error);
+}
+
+double APS5_VABI uprv_getUTCtime_nid_postfix() {
+    return uprv_getUTCtime();
+}
+
+double APS5_VABI uprv_getRawUTCtime_nid_postfix() {
+    return uprv_getRawUTCtime();
 }
 
 }

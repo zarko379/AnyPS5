@@ -300,7 +300,6 @@ int APS5_VABI _ZN6icu_6810CharString14appendPathPartENS_11StringPieceER10UErrorC
 int APS5_VABI _ZNK6icu_6813UnicodeString8char32AtEi_nid_postfix();
 int APS5_VABI _ZN6icu_6816ReorderingBuffer12appendZeroCCEPKDsS2_R10UErrorCode_nid_postfix();
 int APS5_VABI _ZN6icu_6814ResourceBundleC2ER10UErrorCode_nid_postfix();
-int APS5_VABI uprv_getRawUTCtime_nid_postfix();
 int APS5_VABI ulist_next_keyword_value_nid_postfix();
 int APS5_VABI _ZNK6icu_6810UnicodeSet9getStringEi_nid_postfix();
 int APS5_VABI _ZN6icu_6810NormalizerC1ERKS0__nid_postfix();
@@ -456,7 +455,6 @@ int APS5_VABI _ZN6icu_6813UnicodeString5setToEaNS_14ConstChar16PtrEi_nid_postfix
 int APS5_VABI _ZNK6icu_6810UnicodeSet8hashCodeEv_nid_postfix();
 int APS5_VABI _ZN6icu_6818Normalizer2Factory14getFCDInstanceER10UErrorCode_nid_postfix();
 int APS5_VABI _ZN6icu_6818CharStringByteSinkD2Ev_nid_postfix();
-int APS5_VABI uprv_getUTCtime_nid_postfix();
 int APS5_VABI _ZN6icu_6811ICUNotifierC2Ev_nid_postfix();
 int APS5_VABI _ZN6icu_6822SimpleLocaleKeyFactoryD2Ev_nid_postfix();
 int APS5_VABI sceIcuLegacyUnknown_Bz2aeA6fU_plus_c_nid_no_patch();

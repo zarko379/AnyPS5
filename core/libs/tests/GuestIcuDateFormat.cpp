@@ -12,6 +12,9 @@
 #include <unicode/ufieldpositer.h>
 #include <unicode/uloc.h>
 #include <unicode/umisc.h>
+#include "putilimp.h"
+#include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -643,6 +646,21 @@ void CheckIDefault() {
 
 }
 
+void CheckUtcTime() {
+    const auto clock = [] {
+        return static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+    };
+    const double start = clock();
+    const double hostBefore = uprv_getRawUTCtime();
+    const double raw = uprv_getRawUTCtime_nid_postfix();
+    const double utc = uprv_getUTCtime_nid_postfix();
+    const double hostAfter = uprv_getUTCtime();
+    const double end = clock();
+    Require(raw == std::floor(raw) && utc == std::floor(utc), "uprv UTC times are whole milliseconds");
+    Require(hostBefore <= raw && raw <= utc && utc <= hostAfter, "uprv UTC times read ICU's clock");
+    Require(start - 100 <= raw && utc <= end + 100, "uprv UTC times are milliseconds since 1970");
+}
+
 void CheckCleanupBefore() {
     u_cleanup_nid_postfix();
     std::int32_t status = Ok;
@@ -667,6 +685,7 @@ void CheckCleanupAfter() {
 int main() {
     UErrorCode status = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &status);
+    CheckUtcTime();
     CheckCleanupBefore();
     CheckCalendarErrors();
     CheckDateFormatErrors();

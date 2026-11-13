@@ -40,4 +40,6 @@ const UFormattedValue* APS5_VABI udtitvfmt_resultAsValue_nid_postfix(const UForm
 void APS5_VABI udtitvfmt_closeResult_nid_postfix(UFormattedDateInterval* uresult);
 void APS5_VABI udtitvfmt_formatToResult_nid_postfix(const UDateIntervalFormat* formatter, double fromDate, double toDate, UFormattedDateInterval* result, std::int32_t* status);
 void APS5_VABI udtitvfmt_formatCalendarToResult_nid_postfix(const UDateIntervalFormat* formatter, void* fromCalendar, void* toCalendar, UFormattedDateInterval* result, std::int32_t* status);
+double APS5_VABI uprv_getUTCtime_nid_postfix();
+double APS5_VABI uprv_getRawUTCtime_nid_postfix();
 }

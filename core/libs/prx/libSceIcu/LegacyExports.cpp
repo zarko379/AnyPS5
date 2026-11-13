@@ -1281,10 +1281,6 @@ int APS5_VABI _ZN6icu_6814ResourceBundleC2ER10UErrorCode_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI uprv_getRawUTCtime_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI ulist_next_keyword_value_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -1945,10 +1941,6 @@ int APS5_VABI _ZN6icu_6818Normalizer2Factory14getFCDInstanceER10UErrorCode_nid_p
 }
 
 int APS5_VABI _ZN6icu_6818CharStringByteSinkD2Ev_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI uprv_getUTCtime_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
