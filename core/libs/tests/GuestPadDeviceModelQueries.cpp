@@ -14,6 +14,10 @@ static void ExpectQueriesReturn(int expected) {
 
 int main() {
     ExpectQueriesReturn(PAD_ERROR_NOT_INITIALIZED);
+    for (const int handle : {-1, 0, PAD_HANDLE, PAD_SPECIAL_HANDLE, 12345}) {
+        Require(scePadSetIsCoPilot(handle, true) == PAD_ERROR_NOT_INITIALIZED);
+        Require(scePadSetIsCoPilot(handle, false) == PAD_ERROR_NOT_INITIALIZED);
+    }
     Require(scePadInit_nid_postfix() == PAD_OK);
     ExpectQueriesReturn(0);
 
@@ -21,6 +25,25 @@ int main() {
     Require(handle > 0);
     Require(scePadIsCoPilot(handle) == 0);
     Require(scePadIsMoveReproductionModel(handle) == 0);
+    Require(scePadSetIsCoPilot(handle, true) == PAD_OK);
+    Require(scePadIsCoPilot(handle) == 1);
+    Require(scePadIsCoPilot(handle + 1) == 0);
+    Require(scePadIsMoveReproductionModel(handle) == 0);
+    Require(scePadSetIsCoPilot(handle, true) == PAD_OK);
+    Require(scePadIsCoPilot(handle) == 1);
+    Require(scePadSetIsCoPilot(handle, false) == PAD_OK);
+    Require(scePadIsCoPilot(handle) == 0);
+    Require(scePadSetIsCoPilot(handle, false) == PAD_OK);
+    Require(scePadIsCoPilot(handle) == 0);
+
+    const int second = scePadOpen_nid_postfix(0x10000001, PAD_PORT_TYPE_STANDARD, 0, nullptr);
+    Require(second > 0 && second != handle);
+    Require(scePadSetIsCoPilot(second, true) == PAD_OK);
+    Require(scePadIsCoPilot(second) == 1);
+    Require(scePadIsCoPilot(handle) == 0);
+    Require(scePadSetIsCoPilot(second, false) == PAD_OK);
+    Require(scePadIsCoPilot(second) == 0);
+    Require(scePadClose_nid_postfix(second) == PAD_OK);
 
     const int special = scePadOpen_nid_postfix(0x10000001, PAD_PORT_TYPE_SPECIAL, 0, nullptr);
     Require(special >= PAD_SPECIAL_HANDLE);

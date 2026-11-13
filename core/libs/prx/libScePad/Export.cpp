@@ -49,6 +49,7 @@ constexpr int PAD_USER_ID_INVALID = -1;
 
 std::array<std::atomic_bool, PAD_MAX_CONTROLLERS> g_opened{};
 std::array<std::atomic_bool, PAD_MAX_CONTROLLERS> g_everOpened{};
+std::array<std::atomic_bool, PAD_MAX_CONTROLLERS> g_coPilot{};
 std::atomic_bool g_remoteOpened{false};
 std::array<std::atomic<int>, PAD_SPECIAL_HANDLE_COUNT> g_specialUsers{};
 std::atomic_bool g_initialized{false};
@@ -1035,13 +1036,16 @@ int APS5_VABI scePadSetProfileIndicatorAnimation(std::int32_t handle, std::uint8
 
 int APS5_VABI scePadIsCoPilot(std::int32_t handle) {
     if (!Pad::IsInitialized()) return PAD_ERROR_NOT_INITIALIZED;
-    (void)handle;
-    return 0;
+    const int port = PortOf(handle);
+    return port >= 0 && g_coPilot[port].load(std::memory_order_acquire) ? 1 : 0;
 }
 
 int APS5_VABI scePadSetIsCoPilot(std::int32_t handle, bool enabled) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+    if (!Pad::IsInitialized()) return PAD_ERROR_NOT_INITIALIZED;
+    const int port = PortOf(handle);
+    if (port < 0) NotImplemented_nid_no_patch("scePadSetIsCoPilot: a handle with no pad port");
+    g_coPilot[port].store(enabled, std::memory_order_release);
+    return PAD_OK;
 }
 
 int APS5_VABI scePadRegisterCollaboInputMgrProcess(void) {
