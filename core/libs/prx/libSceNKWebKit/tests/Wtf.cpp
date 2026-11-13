@@ -562,7 +562,78 @@ static void TestFileHandles() {
     std::filesystem::remove_all(root);
 }
 
+static void RequireGregorian(const GregorianDateTime& value, int year, int month, int yearDay, int monthDay, int weekDay, int hour, int minute, int second, int utcOffsetInMinute, int isDST) {
+    Require(value.m_year == year);
+    Require(value.m_month == month);
+    Require(value.m_yearDay == yearDay);
+    Require(value.m_monthDay == monthDay);
+    Require(value.m_weekDay == weekDay);
+    Require(value.m_hour == hour);
+    Require(value.m_minute == minute);
+    Require(value.m_second == second);
+    Require(value.m_utcOffsetInMinute == utcOffsetInMinute);
+    Require(value.m_isDST == isDST);
+}
+
+static GregorianDateTime MakeGregorian(double ms, LocalTimeOffset offset, bool baseObject = false) {
+    GregorianDateTime value;
+    std::memset(static_cast<void*>(&value), 0x55, sizeof(value));
+    if (baseObject) {
+        _ZN3WTF17GregorianDateTimeC2EdNS_15LocalTimeOffsetE(&value, ms, offset);
+    } else {
+        _ZN3WTF17GregorianDateTimeC1EdNS_15LocalTimeOffsetE(&value, ms, offset);
+    }
+    return value;
+}
+
+static void RequireGregorianThrows(double ms) {
+    GregorianDateTime value;
+    std::memset(static_cast<void*>(&value), 0x55, sizeof(value));
+    bool threw = false;
+    try {
+        _ZN3WTF17GregorianDateTimeC1EdNS_15LocalTimeOffsetE(&value, ms, LocalTimeOffset{});
+    } catch (const std::out_of_range&) {
+        threw = true;
+    }
+    Require(threw);
+    Require(value.m_year == 0x55555555 && value.m_isDST == 0x55555555);
+}
+
+static void TestGregorianDateTimeFromMilliseconds() {
+    RequireGregorian(MakeGregorian(0.0, LocalTimeOffset{}), 1970, 0, 0, 1, 4, 0, 0, 0, 0, 0);
+    RequireGregorian(MakeGregorian(-0.5, LocalTimeOffset{}), 1970, 0, 0, 1, 4, 0, 0, 0, 0, 0);
+    RequireGregorian(MakeGregorian(-1.5, LocalTimeOffset{}), 1969, 11, 364, 31, 3, 23, 59, 59, 0, 0);
+    RequireGregorian(MakeGregorian(951827696000.0, LocalTimeOffset{false, 3600000}), 2000, 1, 59, 29, 2, 12, 34, 56, 60, 0);
+    RequireGregorian(MakeGregorian(951827696999.9, LocalTimeOffset{true, -90000}, true), 2000, 1, 59, 29, 2, 12, 34, 56, -1, 1);
+    RequireGregorian(MakeGregorian(-2203891200000.0, LocalTimeOffset{false, 59999}), 1900, 2, 59, 1, 4, 0, 0, 0, 0, 0);
+    RequireGregorian(MakeGregorian(4107542400000.0, LocalTimeOffset{false, -59999}), 2100, 2, 59, 1, 1, 0, 0, 0, 0, 0);
+    RequireGregorian(MakeGregorian(8.64e15, LocalTimeOffset{}), 275760, 8, 256, 13, 6, 0, 0, 0, 0, 0);
+    RequireGregorian(MakeGregorian(-8.64e15, LocalTimeOffset{}), -271821, 3, 109, 20, 2, 0, 0, 0, 0, 0);
+    RequireGregorian(MakeGregorian(1e17, LocalTimeOffset{}), 3170843, 10, 310, 7, 6, 9, 46, 40, 0, 0);
+    RequireGregorian(MakeGregorian(-1.5e16, LocalTimeOffset{}), -473361, 0, -30, -29, 1, 21, 20, 0, 0, 0);
+    RequireGregorian(MakeGregorian(172857639167999968.0, LocalTimeOffset{}), 5479610, 6, 191, 11, 0, 23, 59, 59, 0, 0);
+    RequireGregorian(MakeGregorian(-185542587187200000.0, LocalTimeOffset{}), -5877640, 0, -192, -191, 2, 0, 0, 0, 0, 0);
+    double nan = std::numeric_limits<double>::quiet_NaN();
+    double inf = std::numeric_limits<double>::infinity();
+    RequireGregorian(MakeGregorian(nan, LocalTimeOffset{true, -90000}), 0, 0, 0, 0, 0, 0, 0, 0, -1, 1);
+    RequireGregorian(MakeGregorian(inf, LocalTimeOffset{false, 3600000}, true), 0, 0, 0, 0, 0, 0, 0, 0, 60, 0);
+    RequireGregorian(MakeGregorian(-inf, LocalTimeOffset{true, std::numeric_limits<int>::min()}), 0, 0, 0, 0, 0, 0, 0, 0, -35791, 1);
+    RequireGregorianThrows(172857639168000000.0);
+    RequireGregorianThrows(-185542587187200032.0);
+    RequireGregorianThrows(-9223372036854775808.0);
+    RequireGregorianThrows(9223372036854775808.0);
+    RequireGregorianThrows(1e300);
+    bool threw = false;
+    try {
+        _ZN3WTF17GregorianDateTimeC1EdNS_15LocalTimeOffsetE(nullptr, 0.0, LocalTimeOffset{});
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+}
+
 int main() {
+    TestGregorianDateTimeFromMilliseconds();
     TestAdditionalWtf();
     TestMemoryAllocations();
     TestAllocationBoundaries();

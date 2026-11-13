@@ -9,6 +9,7 @@
 #include <cstring>
 #include <ctime>
 #include <limits>
+#include <stdexcept>
 #include <thread>
 
 #ifdef _WIN32
@@ -204,6 +205,106 @@ static const char* parseES5TimePortion(const char* currentPosition, long& hours,
     return currentPosition;
 }
 
+namespace {
+
+constexpr std::int64_t GregorianMsPerDay = 86400000;
+constexpr std::int64_t GregorianMsPerMinute = 60000;
+constexpr std::int64_t GregorianDaysIn4Years = 4 * 365 + 1;
+constexpr std::int64_t GregorianDaysIn100Years = 25 * GregorianDaysIn4Years - 1;
+constexpr std::int64_t GregorianDaysIn400Years = 4 * GregorianDaysIn100Years + 1;
+constexpr std::int32_t GregorianDaysOffset = 1000 * GregorianDaysIn400Years + 5 * GregorianDaysIn400Years - (30 * 365 + 7);
+constexpr std::int32_t GregorianYearsOffset = 400000;
+constexpr std::int64_t GregorianMinTime = std::int64_t{std::numeric_limits<std::int32_t>::min()} * GregorianMsPerDay;
+constexpr std::int64_t GregorianMaxTime = (std::int64_t{std::numeric_limits<std::int32_t>::max()} - GregorianDaysOffset + 1) * GregorianMsPerDay - 1;
+constexpr int GregorianFirstDayOfMonth[2][12] = {
+    {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334},
+    {0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335}
+};
+constexpr std::int8_t GregorianDaysInMonths[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+bool GregorianIsLeapYear(int year) {
+    if (year % 4 != 0) {
+        return false;
+    }
+    if (year % 400 == 0) {
+        return true;
+    }
+    return year % 100 != 0;
+}
+
+void GregorianFromMilliseconds(GregorianDateTime& result, double ms) {
+    if (!(ms >= -9223372036854775808.0 && ms < 9223372036854775808.0)) {
+        throw std::out_of_range("GregorianDateTime: time outside the int64 range");
+    }
+    std::int64_t time = static_cast<std::int64_t>(ms);
+    if (time < GregorianMinTime || time > GregorianMaxTime) {
+        throw std::out_of_range("GregorianDateTime: day count overflows int32");
+    }
+    std::int64_t shifted = time < 0 ? time - (GregorianMsPerDay - 1) : time;
+    std::int32_t passedDays = static_cast<std::int32_t>(shifted / GregorianMsPerDay);
+    std::int32_t timeInDayMS = static_cast<std::int32_t>(time - passedDays * GregorianMsPerDay);
+    std::int32_t days = passedDays + GregorianDaysOffset;
+    std::int32_t year = static_cast<std::int32_t>(400 * (days / GregorianDaysIn400Years) - GregorianYearsOffset);
+    days = static_cast<std::int32_t>(days % GregorianDaysIn400Years);
+    days--;
+    std::int32_t yd1 = static_cast<std::int32_t>(days / GregorianDaysIn100Years);
+    days = static_cast<std::int32_t>(days % GregorianDaysIn100Years);
+    year += 100 * yd1;
+    days++;
+    int yd2 = static_cast<int>(days / GregorianDaysIn4Years);
+    days = static_cast<std::int32_t>(days % GregorianDaysIn4Years);
+    year += 4 * yd2;
+    days--;
+    int yd3 = days / 365;
+    days %= 365;
+    year += yd3;
+    bool isLeap = (!yd1 || yd2) && !yd3;
+    days += isLeap;
+    std::int32_t month = 0;
+    std::int32_t day = 0;
+    if (days >= 31 + 28 + (isLeap ? 1 : 0)) {
+        days -= 31 + 28 + (isLeap ? 1 : 0);
+        for (int i = 2; i < 12; i++) {
+            if (days < GregorianDaysInMonths[i]) {
+                month = i;
+                day = days + 1;
+                break;
+            }
+            days -= GregorianDaysInMonths[i];
+        }
+    } else if (days < 31) {
+        month = 0;
+        day = days + 1;
+    } else {
+        month = 1;
+        day = days - 31 + 1;
+    }
+    std::int32_t weekDay = (passedDays + 4) % 7;
+    result.m_second = (timeInDayMS / 1000) % 60;
+    result.m_minute = (timeInDayMS / (60 * 1000)) % 60;
+    result.m_hour = timeInDayMS / (60 * 60 * 1000);
+    result.m_weekDay = weekDay >= 0 ? weekDay : weekDay + 7;
+    result.m_yearDay = GregorianFirstDayOfMonth[GregorianIsLeapYear(year)][month] + day - 1;
+    result.m_monthDay = day;
+    result.m_month = month;
+    result.m_year = year;
+}
+
+void ConstructGregorianDateTime(GregorianDateTime* self, double ms, LocalTimeOffset localTime) {
+    if (!self) {
+        throw std::invalid_argument("GregorianDateTime: null object");
+    }
+    GregorianDateTime result{};
+    if (std::isfinite(ms)) {
+        GregorianFromMilliseconds(result, ms);
+    }
+    result.m_isDST = localTime.isDST;
+    result.m_utcOffsetInMinute = static_cast<int>(localTime.offset / GregorianMsPerMinute);
+    *self = result;
+}
+
+}  // namespace
+
 }  // namespace WTF
 
 extern "C" {
@@ -349,6 +450,14 @@ double APS5_VABI _ZNK3WTF7CPUTime23percentageCPUUsageSinceERKS0_(const WTF::CPUT
         return 0.0;
     }
     return cpuUsageDelta * 100.0 / cpuTimeDelta;
+}
+
+void APS5_VABI _ZN3WTF17GregorianDateTimeC1EdNS_15LocalTimeOffsetE(WTF::GregorianDateTime* self, double ms, WTF::LocalTimeOffset localTime) {
+    WTF::ConstructGregorianDateTime(self, ms, localTime);
+}
+
+void APS5_VABI _ZN3WTF17GregorianDateTimeC2EdNS_15LocalTimeOffsetE(WTF::GregorianDateTime* self, double ms, WTF::LocalTimeOffset localTime) {
+    WTF::ConstructGregorianDateTime(self, ms, localTime);
 }
 
 void APS5_VABI _ZN3WTF17GregorianDateTime21setToCurrentLocalTimeEv(WTF::GregorianDateTime* self) {

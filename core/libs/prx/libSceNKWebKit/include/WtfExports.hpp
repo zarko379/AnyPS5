@@ -121,6 +121,8 @@ NKWebKit::WtfAbi::ExpectedCString APS5_VABI _ZN3WTF10StringImpl17utf8ForCharacte
 NKWebKit::WtfAbi::ExpectedCString APS5_VABI _ZN3WTF10StringImpl17utf8ForCharactersEPKDsjNS_14ConversionModeE(const char16_t* characters, unsigned length, unsigned mode);
 int APS5_VABI _ZN3WTF16codePointCompareENS_10StringViewES0_(NKWebKit::WtfAbi::StringView a, NKWebKit::WtfAbi::StringView b);
 int APS5_VABI _ZN3WTF16codePointCompareERKNS_6StringES2_(const NKWebKit::WtfAbi::String* a, const NKWebKit::WtfAbi::String* b);
+void APS5_VABI _ZN3WTF17GregorianDateTimeC1EdNS_15LocalTimeOffsetE(WTF::GregorianDateTime* self, double ms, WTF::LocalTimeOffset localTime);
+void APS5_VABI _ZN3WTF17GregorianDateTimeC2EdNS_15LocalTimeOffsetE(WTF::GregorianDateTime* self, double ms, WTF::LocalTimeOffset localTime);
 void APS5_VABI _ZN3WTF17GregorianDateTime21setToCurrentLocalTimeEv(WTF::GregorianDateTime* self);
 void* APS5_VABI _ZN3WTF17fastAlignedMallocEmm(std::size_t alignment, std::size_t size);
 void APS5_VABI _ZN3WTF17languageDidChangeEv();

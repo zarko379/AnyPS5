@@ -54,6 +54,8 @@ Inventory prose retains historical counts; use the [generated progress report](h
 
 - [WTF::codePointCompare](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - the `StringView` and `String` overloads follow [StringImpl.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.h#L752-L789), [StringView.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringView.cpp#L426-L438) and [WTFString.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/WTFString.cpp#L65-L68); not measured on a console. A null `String` pointer, or a null view buffer with a nonzero length that must be read, throws.
 
+- [WTF::GregorianDateTime(double, LocalTimeOffset)](../../../core/libs/prx/libSceNKWebKit/src/WtfTime.cpp) (libSceNKWebKit) - follows [GregorianDateTime.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/GregorianDateTime.cpp#L39-L60) and its DateMath.h helpers; not measured on a console. Finite times whose day count leaves `int32_t` (before -185542587187200000 ms) or overflows `days + daysOffset` (after 172857639167999999 ms) throw `std::out_of_range`, where upstream is undefined. A null object throws.
+
 - [WTF::StringImpl::utf8ForCharacters](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - both overloads follow [StringImpl.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.cpp#L1524-L1600), its x86 Latin-1 path in [StringImpl.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.h#L1491-L1545) and [UTF8Conversion.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/unicode/UTF8Conversion.cpp#L56-L87); `String`, `StringImpl` and `StringView` `utf8` share them and throw where upstream asserts. The 16-byte `Expected` (value or error byte at 0, flag at 8) follows the pinned `Expected.h`. Not measured on a console. Mode 3 yields an empty string as the source's switch does; a higher mode or a null buffer that must be read throws.
 
 ### Functional
@@ -1483,8 +1485,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN3WTF15memoryFootprintEv` | `DLog94EYwFI` |
 | `_ZN3WTF16addSignalHandlerENS_6SignalEONS_8FunctionIFNS_12SignalActionES0_RNS_7SigInfoERNS_17PlatformRegistersEEEE` | `l0Z0NQiqr3M` |
 | `_ZN3WTF16callOnMainThreadEONS_8FunctionIFvvEEE` | `DDIR4QpfiIg` |
-| `_ZN3WTF17GregorianDateTimeC1EdNS_15LocalTimeOffsetE` | `9NbKoZNi0Jo` |
-| `_ZN3WTF17GregorianDateTimeC2EdNS_15LocalTimeOffsetE` | `jRKHSzq25WA` |
 | `_ZN3WTF17PrivateSymbolImpl6createERNS_10StringImplE` | `S6NzIicbleU` |
 | `_ZN3WTF17StringPrintStream11tryToStringEv` | `TrwAHMfEpsw` |
 | `_ZN3WTF17StringPrintStream26toStringWithLatin1FallbackEv` | `cE9rGwgKhic` |
