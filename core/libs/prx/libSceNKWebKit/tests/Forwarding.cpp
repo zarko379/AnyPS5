@@ -40,6 +40,21 @@ static void ExpectStub(StubForward forward, int line) {
 
 #define RequireStub(forward) ExpectStub(forward, __LINE__)
 
+using DataStoreForward = const void* (APS5_VABI*)(const void*);
+
+static void ExpectDefaultDataStore(StubForward forward, int line) {
+    const auto before = NotImplementedCalls_nid_no_patch();
+    const void* context = WKContextCreate();
+    const void* dataStore = reinterpret_cast<DataStoreForward>(forward)(context);
+    WKRelease(context);
+    if (dataStore != WKWebsiteDataStoreGetDefaultDataStore() || NotImplementedCalls_nid_no_patch() != before) {
+        std::fprintf(stderr, "libSceNKWebKit forwarding reached no default data store at line %d\n", line);
+        std::abort();
+    }
+}
+
+#define RequireDefaultDataStore(forward) ExpectDefaultDataStore(forward, __LINE__)
+
 enum class AllocationResult {
     ExpectedStub,
     Implemented,
@@ -133,10 +148,10 @@ static int FinishAllocationResults(const AllocationResult* results, std::size_t 
 int main() {
     RequireStub(&JSRemoteInspectorDisableAutoStart);
     RequireStub(&WKAccessibilityEnableEnhancedAccessibility);
-    RequireStub(&WKContextGetApplicationCacheManager);
-    RequireStub(&WKContextGetKeyValueStorageManager);
-    RequireStub(&WKContextGetResourceCacheManager);
-    RequireStub(&WKContextGetWebsiteDataStore);
+    RequireDefaultDataStore(&WKContextGetApplicationCacheManager);
+    RequireDefaultDataStore(&WKContextGetKeyValueStorageManager);
+    RequireDefaultDataStore(&WKContextGetResourceCacheManager);
+    RequireDefaultDataStore(&WKContextGetWebsiteDataStore);
     RequireStub(&_ZN3JSC11createErrorEPNS_14JSGlobalObjectENS_9ErrorTypeERKN3WTF6StringE);
     RequireStub(&_ZN3JSC17DeferredWorkTimerD1Ev);
     RequireStub(&_ZN3JSC18GCActivityCallbackD2Ev);

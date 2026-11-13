@@ -17,7 +17,12 @@ public:
     mutable Retained<Inspector> inspector;
 };
 class Preferences : public ObjectOf<ObjectType::Preferences> {};
-class WebsiteDataStore : public ObjectOf<ObjectType::WebsiteDataStore> {};
+class HTTPCookieStore final : public ObjectOf<ObjectType::HTTPCookieStore> {};
+class WebsiteDataStore : public ObjectOf<ObjectType::WebsiteDataStore> {
+public:
+    bool trackingPreventionEnabled = false;
+    Retained<HTTPCookieStore> cookieStore;
+};
 class ContentRuleList : public ObjectOf<ObjectType::ContentRuleList> {};
 
 inline std::optional<std::u16string> OptionalString(const void* ref, const char* function) {

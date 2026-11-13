@@ -275,6 +275,8 @@ const void* APS5_VABI WKSecurityOriginCopyHost(const void* value);
 std::uint16_t APS5_VABI WKSecurityOriginGetPort(const void* value);
 const void* APS5_VABI WKSecurityOriginCopyToString(const void* value);
 std::uint32_t APS5_VABI WKSecurityOriginGetTypeID();
+const void* APS5_VABI WKSecurityOriginCreateFromDatabaseIdentifier(const void* identifier);
+const void* APS5_VABI WKSecurityOriginCopyDatabaseIdentifier(const void* value);
 std::uint32_t APS5_VABI WKSerializedScriptValueGetTypeID();
 const void* APS5_VABI WKSerializedScriptValueCreate(NKWebKit::JSContextRef context, NKWebKit::JSValueRef value, NKWebKit::JSValueRef* exception);
 NKWebKit::JSValueRef APS5_VABI WKSerializedScriptValueDeserialize(const void* serializedScriptValueRef, NKWebKit::JSContextRef context, NKWebKit::JSValueRef* exception);
@@ -315,6 +317,7 @@ const void* APS5_VABI WKURLRequestCopySettingHTTPBody(const void* requestRef, co
 const void* APS5_VABI WKURLRequestCopyURL(const void* requestRef);
 const void* APS5_VABI WKURLRequestCreateWithWKURL(const void* urlRef);
 std::uint32_t APS5_VABI WKURLRequestGetTypeID();
+void APS5_VABI WKURLRequestSetDefaultTimeoutInterval(double timeoutInterval);
 const void* APS5_VABI WKURLResponseCopyMIMEType(const void* responseRef);
 const void* APS5_VABI WKURLResponseCopySuggestedFilename(const void* responseRef);
 const void* APS5_VABI WKURLResponseCopyURL(const void* responseRef);

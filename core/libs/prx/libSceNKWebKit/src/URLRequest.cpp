@@ -1,5 +1,6 @@
 #include "prx/libSceNKWebKit/src/Types.hpp"
 #include "prx/libSceNKWebKit/include/WebKitValueExports.hpp"
+#include "prx/libSceNKWebKit/include/ResourceRequestExports.hpp"
 
 extern "C" {
 
@@ -38,6 +39,10 @@ const void* APS5_VABI WKURLRequestCopySettingHTTPBody(const void* requestRef, co
         copy->httpBody = NKWebKit::Make<NKWebKit::Data>(body->bytes);
     }
     return NKWebKit::ToRef(std::move(copy));
+}
+
+void APS5_VABI WKURLRequestSetDefaultTimeoutInterval(double timeoutInterval) {
+    _ZN7WebCore19ResourceRequestBase25setDefaultTimeoutIntervalEd(timeoutInterval);
 }
 
 }

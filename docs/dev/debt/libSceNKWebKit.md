@@ -101,7 +101,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 
 - [WKSessionStateCreateFromData and WKSessionStateCopyData](../../../core/libs/prx/libSceNKWebKit/src/SessionState.cpp) (libSceNKWebKit) - wrap and expose raw session state byte buffers without decoding or encoding legacy session state; arbitrary bytes return a valid session state where WebKit's legacy decoder returns null on non-decodable data. Console execution and ABI are unverified.
 
-- [WebKit URLRequest API](../../../core/libs/prx/libSceNKWebKit/src/URLRequest.cpp) (libSceNKWebKit) - `WKURLRequest*` functions follow WebKit's C API behavior: `WKURLRequestCreateWithWKURL` wraps the URL in an API object, `WKURLRequestCopyURL` returns a retained URL copy, `WKURLRequestCopyFirstPartyForCookies` returns null for initial requests per WebKit's default `ResourceRequest` state, `WKURLRequestCopyHTTPMethod` returns an immutable string (defaulting to `"GET"`), and `WKURLRequestCopySettingHTTPBody` creates a new request copy with updated body data. `WKURLRequestSetDefaultTimeoutInterval` remains unimplemented because default timeout intervals require WebKit process pool and network loader integration.
+- [WebKit URLRequest API](../../../core/libs/prx/libSceNKWebKit/src/URLRequest.cpp) (libSceNKWebKit) - `WKURLRequest*` functions follow WebKit's C API behavior: `WKURLRequestCreateWithWKURL` wraps the URL in an API object, `WKURLRequestCopyURL` returns a retained URL copy, `WKURLRequestCopyFirstPartyForCookies` returns null for initial requests per WebKit's default `ResourceRequest` state, `WKURLRequestCopyHTTPMethod` returns an immutable string (defaulting to `"GET"`), and `WKURLRequestCopySettingHTTPBody` creates a new request copy with updated body data. `WKURLRequestSetDefaultTimeoutInterval` stores the interval through `ResourceRequestBase::setDefaultTimeoutInterval` as [APIURLRequest.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/Shared/API/APIURLRequest.cpp#L46-L52) does; the `SetDefaultRequestTimeoutInterval` message each pool sends its web processes has no receiver because no web process is modelled. Not measured on a console.
 - [EmptyFrameLoaderClient::revertToProvisionalState](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - no-op export based on upstream WebKit 11.x [EmptyClients.cpp:827-829](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L827-L829) and [EmptyFrameLoaderClient.h:106](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyFrameLoaderClient.h#L106). The upstream method returns void and performs no operation; console ABI is unverified.
 - [EmptyFrameLoaderClient::setMainDocumentError](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - no-op export based on upstream WebKit 11.x [EmptyClients.cpp:831-833](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L831-L833) and [EmptyFrameLoaderClient.h:107](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyFrameLoaderClient.h#L107). The upstream method returns void and performs no operation; console ABI is unverified.
 - [EmptyFrameLoaderClient::willChangeTitle](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - no-op export based on upstream WebKit 11.x [EmptyClients.cpp:843-845](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L843-L845) and [EmptyFrameLoaderClient.h:113](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyFrameLoaderClient.h#L113). The upstream method returns void and performs no operation; console ABI is unverified.
@@ -112,7 +112,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 - [EmptyFrameLoaderClient::dispatchDidChangeLocationWithinPage](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - no-op export based on upstream WebKit 11.x [EmptyClients.cpp:750-752](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L750-L752) and [EmptyFrameLoaderClient.h:78](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyFrameLoaderClient.h#L78). Returns void and performs no operation.
 - [EmptyFrameLoaderClient::dispatchDidClearWindowObjectInWorld](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - no-op export based on upstream WebKit 11.x [EmptyClients.cpp:1055-1057](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L1055-L1057) and [EmptyFrameLoaderClient.h:178](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyFrameLoaderClient.h#L178). Returns void and performs no operation.
 - [Constant-return exports](../../../core/libs/prx/libSceNKWebKit/src/ConstantExports.cpp) (libSceNKWebKit) - 141 exports answer with a fixed value in the PS5 11.00 module: 115 execute `xor eax,eax; ret`, 13 `mov eax,imm32; ret` and 13 `mov al,1; ret` (addresses and bodies from the 11.00 `libSceNKWebKit.sprx`, SHA-256 `3af992253665387feeb5df90ff27dff683e3aa270cc4d92a0535b46ab18fa20d`; NIDs recomputed from the declared names). The 128 EAX-writing bodies measure the 32-bit return; the 13 `mov al,1` bodies write only the low byte, so for them only AL is measured and the upper bits are unspecified. The declared prototypes stay the no-parameter `int` placeholders, so no other width, pointer or floating-point return is claimed. Only 11.00 was measured.
-- [Security origins](../../../core/libs/prx/libSceNKWebKit/src/URL.cpp) (libSceNKWebKit) - `WKSecurityOriginCopyDatabaseIdentifier` still throws pending `encodeForFileName` (#14858). `WKSecurityOriginCreateFromString` and `WKSecurityOriginCreateFromDatabaseIdentifier` still throw; URL parsing and default-port normalization (#13766) are not wired into origin creation. Value objects follow [the pinned WebKit source](https://github.com/neonmodder123/PS5-WebKit-11.x/tree/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source); console execution and ABI are unverified.
+- [Security origins](../../../core/libs/prx/libSceNKWebKit/src/URL.cpp) (libSceNKWebKit) - not measured on a console. `WKSecurityOriginCreate` stores protocol, host and port unparsed: URL parsing, default-port removal and opaque origins (#13766) are not wired into it, so its origins report the raw values from every getter, the database identifier included, and `WKSecurityOriginCreateFromString` still throws. `WKSecurityOriginCreateFromDatabaseIdentifier` and `WKSecurityOriginCopyDatabaseIdentifier` follow [SecurityOriginData.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/page/SecurityOriginData.cpp#L98-L146), dropping a default port as `SecurityOrigin::initializeShared` does.
 - [Field setters](../../../core/libs/prx/libSceNKWebKit/src/FieldSetters.cpp) (libSceNKWebKit) - 55 exports store an argument into a fixed field of the object in the PS5 11.00 module: 43 store the second argument at offset 0, 9 store it at offsets 8 to 56, and 3 store a 32-bit value at offsets 8, 16 and 32. The bodies, sizes and offsets come from the 11.00 `libSceNKWebKit.sprx`; object layouts, field meanings, wider values and other ABI cases are unverified. Only the measured store width is covered.
 
 - [No-op exports](../../../core/libs/prx/libSceNKWebKit/src/NoOpExports.cpp) (libSceNKWebKit) - 203 exports whose 11.00 body is a bare `ret` still throw (152 C++, 51 C API): no evidence they return `void`. `JSRemoteInspectorServerStart`, `JSRemoteInspectorSetLogToSystemConsole` and `JSRemoteInspectorStart` also throw because upstream behaviour depends on build configuration or global state (JSRemoteInspector.cpp L53-58 and L72-75, JSRemoteInspectorServer.cpp L33-46). The other 154 bare-`ret` exports are empty: 113 destructors, 2 constructors and 39 declared `void`, measured only on 11.00 `libSceNKWebKit.sprx` (SHA-256 `3af992253665387feeb5df90ff27dff683e3aa270cc4d92a0535b46ab18fa20d`). `JSRemoteInspectorSetParentProcessInformation` is `void` by source only ([JSRemoteInspector.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/JavaScriptCore/API/JSRemoteInspector.cpp#L60-L70)); its 11.00 body was not checked.
@@ -465,9 +465,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKImeEventMake` | `E5qbM3aFc2s` |
 | `WKImeEventRelease` | `7Oc5AygU+9Q` |
 | `WKInspectorShowMainResourceForFrame` | `Fa62NGp3wkk` |
-| `WKKeyboardEventMake` | `UJXHm7AkPK8` |
 | `WKMessageListenerSendReply` | `9Rvb-lG-IYI` |
-| `WKMouseEventMake` | `4LPi8JtvxYQ` |
 | `WKNotificationManagerProviderDidClickNotification` | `U3ua0NGm+jE` |
 | `WKNotificationManagerProviderDidCloseNotifications` | `IeQSRVoUfPw` |
 | `WKNotificationManagerProviderDidRemoveNotificationPolicies` | `gjIRPiBLogA` |
@@ -653,8 +651,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKResourceCacheManagerClearCacheForAllOrigins` | `g-SjvruXQtc` |
 | `WKResourceCacheManagerClearCacheForOrigin` | `Sq7E7Dwlq0w` |
 | `WKResourceCacheManagerGetCacheOrigins` | `v+SAyXDkOCI` |
-| `WKSecurityOriginCopyDatabaseIdentifier` | `YE5ube8wC4w` |
-| `WKSecurityOriginCreateFromDatabaseIdentifier` | `50a9aq8a5AQ` |
 | `WKSecurityOriginCreateFromString` | `SfMLraLeAvo` |
 | `WKSendDisplayConfigurationChangedMessageForTesting` | `CQsllLq8d7I` |
 | `WKTextCheckerSetTestingMode` | `uhbwdrVWKnk` |
@@ -663,7 +659,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKURLRequestCopySettingHTTPBody` | `LOgEfXqoLL0` |
 | `WKURLRequestCopyURL` | `n-9+9Xe90t4` |
 | `WKURLRequestCreateWithWKURL` | `TC9965WYLHM` |
-| `WKURLRequestSetDefaultTimeoutInterval` | `YXTIbI-WYtE` |
 | `WKUserContentExtensionStoreCompile` | `6g8aRptom6Y` |
 | `WKUserContentExtensionStoreLookup` | `l8gsEeVfp+s` |
 | `WKUserMediaPermissionCheckSetUserMediaAccessInfo` | `MBwkZncofuk` |
@@ -688,19 +683,14 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKViewWillExitFullScreen` | `6o4itIbqsY8` |
 | `WKWebsiteDataStoreClearAppBoundSession` | `YujMtLJPOok` |
 | `WKWebsiteDataStoreClearBundleIdentifierInNetworkProcess` | `Mrp3OVQ9jI4` |
-| `WKWebsiteDataStoreCreateNonPersistentDataStore` | `hzBAQGt4hMw` |
-| `WKWebsiteDataStoreCreateWithConfiguration` | `gJCqCiXkwDU` |
 | `WKWebsiteDataStoreDisableNetworkProxySettings` | `k2niR5Rxn84` |
 | `WKWebsiteDataStoreDoesStatisticsDomainIDExistInDatabase` | `QYz4VP6wsuQ` |
 | `WKWebsiteDataStoreDumpResourceLoadStatistics` | `9gda3JloLFE` |
 | `WKWebsiteDataStoreEnableCustomNetworkProxySettings` | `rmT-cQv3G4I` |
 | `WKWebsiteDataStoreEnableDefaultNetworkProxySettings` | `iXGeleOV-c8` |
 | `WKWebsiteDataStoreGetAllStorageAccessEntries` | `A4dOumHPyNQ` |
-| `WKWebsiteDataStoreGetDefaultDataStore` | `1Y6ds6X6q+8` |
 | `WKWebsiteDataStoreGetFetchCacheOrigins` | `W2jeMfa3etw` |
 | `WKWebsiteDataStoreGetFetchCacheSizeForOrigin` | `hZS58BxCAV8` |
-| `WKWebsiteDataStoreGetHTTPCookieStore` | `hOXOdd6Lp5g` |
-| `WKWebsiteDataStoreGetResourceLoadStatisticsEnabled` | `2H0q+W0RyYk` |
 | `WKWebsiteDataStoreIsStatisticsEphemeral` | `TzInlmRQcHw` |
 | `WKWebsiteDataStoreIsStatisticsGrandfathered` | `Ud+1jEz8LWc` |
 | `WKWebsiteDataStoreIsStatisticsHasHadUserInteraction` | `7EqOpt3gTIg` |
@@ -722,7 +712,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKWebsiteDataStoreSetClientCertificate` | `9dwA+t5a9BU` |
 | `WKWebsiteDataStoreSetResourceLoadStatisticsDebugModeWithCompletionHandler` | `CRR5HsrCpXA` |
 | `WKWebsiteDataStoreSetResourceLoadStatisticsDebugMode` | `Zdtwqk-44gU` |
-| `WKWebsiteDataStoreSetResourceLoadStatisticsEnabled` | `E3r6Cg7w4XM` |
 | `WKWebsiteDataStoreSetResourceLoadStatisticsFirstPartyHostCNAMEDomainForTesting` | `a5ee7veMD9k` |
 | `WKWebsiteDataStoreSetResourceLoadStatisticsFirstPartyWebsiteDataRemovalModeForTesting` | `ng+jNZCCEJ0` |
 | `WKWebsiteDataStoreSetResourceLoadStatisticsPrevalentResourceForDebugMode` | `KhR7n5Pphnw` |
@@ -6067,6 +6056,8 @@ Inventory prose retains historical counts; use the [generated progress report](h
 
 ### Functional
 
+- [PlayStation input events](../../../core/libs/prx/libSceNKWebKit/src/EventPlayStation.cpp) (libSceNKWebKit) - not measured on a console. `WKKeyboardEventMake`, `WKMouseEventMake` and `WKWheelEventMake` follow [WKEventPlayStation.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/Shared/API/c/playstation/WKEventPlayStation.cpp#L29-L78); the 48, 32 and 64-byte structs follow [WKEventPlayStation.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/Shared/API/c/playstation/WKEventPlayStation.h#L56-L90) and are returned through the System V hidden result pointer, which is assumed, not checked against the module. Padding bytes are zeroed where the upstream build leaves them unspecified.
+- [Website data stores](../../../core/libs/prx/libSceNKWebKit/src/WebsiteDataStore.cpp) (libSceNKWebKit) - not measured on a console. Session IDs, persistence, the copied configuration and every network process message are not modelled. Follows [WKWebsiteDataStoreRef.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/UIProcess/API/C/WKWebsiteDataStoreRef.cpp#L57-L162): one unretained process-wide default store, new stores from both create functions, one lazily created cookie store per data store, and the tracking prevention flag (PlayStation builds `ENABLE_TRACKING_PREVENTION`), off by default.
 - [EmptyFrameLoaderClient load lifecycle callbacks](../../../core/libs/prx/libSceNKWebKit/src/EmptyClients.cpp) (libSceNKWebKit) - six wrappers follow the empty `void` bodies in pinned [EmptyClients.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/loader/EmptyClients.cpp#L679-L727) for `dispatchWillSendRequest`, `dispatchDidReceiveAuthenticationChallenge`, `dispatchDidReceiveResponse`, `dispatchDidReceiveContentLength`, `dispatchDidFinishLoading` and `dispatchDidFailLoading`. Their console ABI has not been measured; the wrappers ignore arguments, and this source-derived behavior is not console parity evidence.
 - [HitTestResult getters](../../../core/libs/prx/libSceNKWebKit/src/HitTestResult.cpp) (libSceNKWebKit) - WKHitTestResult* getters return image/link/media/PDF URLs, link text, bounding box and content editable flag from the host object.
 
