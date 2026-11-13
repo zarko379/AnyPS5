@@ -1,6 +1,7 @@
 #include "prx/libSceLibreSsl/include/Api.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <climits>
+#include <cstdint>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -143,6 +144,8 @@ struct DecodedName {
     DecodedName(const DecodedName&) = delete;
 };
 
+constexpr std::uint64_t UnknownNidError = (std::uint64_t{8} << 24) | (std::uint64_t{0xfff} << 12) | 101;
+
 static void TestIndexByNid() {
     DecodedName decoded;
     const auto* name = &decoded.name;
@@ -230,29 +233,47 @@ static void TestDynamicNid() {
     const int nid = OBJ_create_nid_postfix("1.2.3.4", "testName", "Test Name");
     Require(nid >= 956);
     DecodedName decoded;
-    bool indexAccepted = false;
-    try {
-        const int index = X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, nid, -1);
-        indexAccepted = index == 6;
-        if (!indexAccepted) std::fprintf(stderr, "dynamic X509_NAME index: expected 6 or not implemented, got %d\n", index);
-    } catch (const std::runtime_error& error) {
-        Require(std::strstr(error.what(), "X509_NAME_get_index_by_NID") && std::strstr(error.what(), "not implemented"));
-        indexAccepted = true;
-    }
-    bool textAccepted = false;
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, nid, -1) == 6);
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, nid, 6) == -1);
     char buffer[2] {};
-    try {
-        const int length = X509_NAME_get_text_by_NID_nid_postfix(&decoded.name, nid, buffer, sizeof(buffer));
-        textAccepted = length == 1 && std::strcmp(buffer, "x") == 0;
-        if (!textAccepted) std::fprintf(stderr, "dynamic X509_NAME text: expected x with length 1 or not implemented, got length %d\n", length);
-    } catch (const std::runtime_error& error) {
-        Require(std::strstr(error.what(), "X509_NAME_get_text_by_NID") && std::strstr(error.what(), "not implemented"));
-        textAccepted = true;
-    }
+    Require(X509_NAME_get_text_by_NID_nid_postfix(&decoded.name, nid, buffer, sizeof(buffer)) == 1 && std::strcmp(buffer, "x") == 0);
+    Require(ERR_peek_error_nid_postfix() == 0);
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, nid + 1, -1) == -2);
+    Require(ERR_get_error_nid_postfix() == UnknownNidError);
+    Require(X509_NAME_get_text_by_NID_nid_postfix(&decoded.name, -1, buffer, sizeof(buffer)) == -1);
+    Require(ERR_get_error_nid_postfix() == UnknownNidError);
+    Require(ERR_get_error_nid_postfix() == 0);
     OBJ_cleanup_nid_postfix();
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, nid, -1) == -2);
+    Require(X509_NAME_get_text_by_NID_nid_postfix(&decoded.name, nid, buffer, sizeof(buffer)) == -1);
+    Require(ERR_peek_error_nid_postfix() == 0);
+}
+
+static void TestBuiltinObjects() {
     ERR_clear_error_nid_postfix();
-    Require(indexAccepted);
-    Require(textAccepted);
+    DecodedName decoded;
+    char buffer[8] {};
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, 1, -1) == -1);
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, 49, -1) == -1);
+    Require(X509_NAME_get_text_by_NID_nid_postfix(&decoded.name, 6, buffer, sizeof(buffer)) == -1);
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, 955, -1) == -1);
+    Require(ERR_peek_error_nid_postfix() == 0);
+    for (const int unassigned : {102, 118, 350, 511, 772, 774, 775}) {
+        Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, unassigned, -1) == -2);
+        Require(ERR_get_error_nid_postfix() == UnknownNidError);
+        Require(X509_NAME_get_index_by_NID_nid_postfix(nullptr, unassigned, -1) == -2);
+        Require(ERR_get_error_nid_postfix() == UnknownNidError);
+        Require(X509_NAME_get_text_by_NID_nid_postfix(&decoded.name, unassigned, buffer, sizeof(buffer)) == -1);
+        Require(ERR_get_error_nid_postfix() == UnknownNidError);
+    }
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, 956, -1) == -2);
+    Require(X509_NAME_get_index_by_NID_nid_postfix(nullptr, -5, -1) == -2);
+    Require(X509_NAME_get_text_by_NID_nid_postfix(&decoded.name, 100000, buffer, sizeof(buffer)) == -1);
+    Require(ERR_peek_error_nid_postfix() == 0);
+    decoded.objects[3] = {nullptr, nullptr, 0, 3, nullptr, 0};
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, 17, -1) == 1);
+    RequireThrows([&] { X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, 18, -1); });
+    Require(X509_NAME_get_index_by_NID_nid_postfix(&decoded.name, 1, -1) == -1);
 }
 
 int main() {
@@ -261,5 +282,6 @@ int main() {
     TestIndexByNid();
     TestTextByNid();
     TestDynamicNid();
+    TestBuiltinObjects();
     return 0;
 }
