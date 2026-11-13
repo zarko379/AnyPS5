@@ -214,6 +214,23 @@ void TestMountPs4() {
     Check(result.mount_point.data[0] != '\0', "mount writes mount point");
     Check(sceSaveDataUmount(&result.mount_point) == 0, "umount mounted point succeeds");
     Check(sceSaveDataUmount(&result.mount_point) == SaveDataErrorNotMounted, "umount unmounted point is NOT_MOUNTED");
+    SceSaveDataTitleId title{};
+    std::strcpy(title.data, "PPSA00000");
+    mount.title_id = &title;
+    std::memset(&result, 0xAA, sizeof(result));
+    Check(sceSaveDataMount(&mount, &result) == 0, "mount with the running title's id succeeds");
+    Check(std::string(result.mount_point.data) == "/savedata0", "mount with the running title's id writes the first mount point");
+    Check(result.mount_status == 0, "mount with the running title's id opens the existing save");
+    Check(sceSaveDataMount(&mount, &result) == SaveDataErrorBusy, "mount with the running title's id reaches the same save as a null title id");
+    Check(sceSaveDataUmount(&result.mount_point) == 0, "umount the running title's mount");
+    std::strcpy(title.data, "PPSA17221");
+    bool threw = false;
+    try {
+        sceSaveDataMount(&mount, &result);
+    } catch (const std::runtime_error& error) {
+        threw = std::string(error.what()) == "sceSaveDataMount of another title's save data not implemented";
+    }
+    Check(threw, "mount of another title's save is not implemented");
 }
 
 }
@@ -221,6 +238,8 @@ void TestMountPs4() {
 int main() {
     const auto root = std::filesystem::temp_directory_path() / ("anyps5-savedata-ps4-" + std::to_string(std::random_device{}()));
     std::filesystem::create_directories(root / "_sd" / "kept");
+    std::filesystem::create_directories(root / "app0" / "sce_sys");
+    std::ofstream(root / "app0" / "sce_sys" / "param.json") << "{\"titleId\":\"PPSA00000\",\"localizedParameters\":{\"en-US\":{\"titleName\":\"Example\"}}}";
     const auto previous = std::filesystem::current_path();
     std::filesystem::current_path(root);
 

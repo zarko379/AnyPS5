@@ -2292,7 +2292,7 @@ int APS5_VABI sceSaveDataInitialize(const void* init) {
 
 int APS5_VABI sceSaveDataMount(const SaveDataMountPs4* mount, SaveDataMountResult* mount_result) {
     if (mount == nullptr || mount_result == nullptr || mount->dir_name == nullptr) return SAVE_DATA_ERROR_PARAMETER;
-    if (mount->title_id != nullptr) NotImplemented_nid_no_patch("sceSaveDataMount of another title's save data");
+    if (!running_title(static_cast<const SceSaveDataTitleId*>(mount->title_id))) NotImplemented_nid_no_patch("sceSaveDataMount of another title's save data");
     SaveDataMount3 converted{};
     converted.user_id = mount->user_id;
     converted.dir_name = mount->dir_name;
