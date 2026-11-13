@@ -45,4 +45,7 @@ std::int32_t APS5_VABI ucptrie_swap_nid_postfix(const GuestDataSwapper* ds, cons
 std::int32_t APS5_VABI utrie_swapAnyVersion_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
 std::int32_t APS5_VABI uchar_swapNames_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
 std::int32_t APS5_VABI udict_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
+std::int32_t APS5_VABI ubrk_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
+std::int32_t APS5_VABI unorm2_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
+std::int8_t APS5_VABI ucol_looksLikeCollationBinary_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length);
 }

@@ -4,9 +4,13 @@
 #include "SceTypes.hpp"
 #include <unicode/udata.h>
 #include "dictionarydata.h"
+#include "normalizer2impl.h"
+#include "rbbidata.h"
 #include "ucmndata.h"
+#include "ucol_swp.h"
 #include "udataswp.h"
 #include "uprops.h"
+#include <algorithm>
 #include <array>
 #include <cstdarg>
 #include <cstddef>
@@ -453,6 +457,109 @@ void CheckDictionary(const UDataSwapper* ds, const void* inData, std::int32_t le
     if (trieType == icu::DictionaryData::TRIE_TYPE_UCHARS && nextOffset > available) APS5_INVALID_ARG_EX;
 }
 
+bool Inside(std::int64_t offset, std::int64_t size, std::int64_t available) {
+    return offset >= 0 && size >= 0 && offset + size <= available;
+}
+
+std::int32_t Difference(std::int32_t next, std::int32_t offset) {
+    return static_cast<std::int32_t>(static_cast<std::uint32_t>(next) - static_cast<std::uint32_t>(offset));
+}
+
+void CheckBreak(const UDataSwapper* ds, const void* inData, std::int32_t length, const void* outData) {
+    if (!inData || (length > 0 && !outData)) return;
+    if (length < 17) APS5_INVALID_ARG_EX;
+    const auto* info = reinterpret_cast<const UDataInfo*>(static_cast<const char*>(inData) + 4);
+    if (std::memcmp(info->dataFormat, "Brk ", 4) != 0 || info->formatVersion[0] != icu::RBBI_DATA_FORMAT_VERSION[0]) return;
+    const std::int32_t headerSize = std::max(HeaderSize(ds, inData, length, outData), 0);
+    const std::int64_t available = static_cast<std::int64_t>(length) - headerSize;
+    const Reader reader{ds, static_cast<const std::uint8_t*>(inData) + headerSize};
+    if (available < 4) APS5_INVALID_ARG_EX;
+    if (reader.U32(offsetof(icu::RBBIDataHeader, fMagic)) != 0xb1a0) return;
+    if (available < 5) APS5_INVALID_ARG_EX;
+    if (reader.bytes[offsetof(icu::RBBIDataHeader, fFormatVersion)] != icu::RBBI_DATA_FORMAT_VERSION[0]) return;
+    if (available < 12) APS5_INVALID_ARG_EX;
+    const std::uint32_t declared = reader.U32(offsetof(icu::RBBIDataHeader, fLength));
+    if (declared < sizeof(icu::RBBIDataHeader)) return;
+    if (length < static_cast<std::int32_t>(static_cast<std::uint32_t>(headerSize) + declared)) return;
+    if (static_cast<std::int32_t>(declared) < 0 || declared > available) APS5_INVALID_ARG_EX;
+    const bool copies = inData != outData;
+    constexpr std::int64_t top = offsetof(icu::RBBIStateTable, fTableData);
+    for (const std::uint64_t field : {offsetof(icu::RBBIDataHeader, fFTable), offsetof(icu::RBBIDataHeader, fRTable)}) {
+        const auto start = static_cast<std::int32_t>(reader.U32(field));
+        const auto size = static_cast<std::int32_t>(reader.U32(field + 4));
+        if (size <= 0) continue;
+        if (!Inside(start, top, available)) APS5_INVALID_ARG_EX;
+        const bool bytes = (reader.U32(static_cast<std::uint64_t>(start) + offsetof(icu::RBBIStateTable, fFlags)) & icu::RBBI_8BITS_ROWS) != 0;
+        if (bytes ? !copies : (size < top || ((size - top) & 1) != 0)) continue;
+        if (!Inside(start + top, size - top, available)) APS5_INVALID_ARG_EX;
+    }
+    const std::int64_t trie = reader.U32(offsetof(icu::RBBIDataHeader, fTrie));
+    const auto trieLength = static_cast<std::int32_t>(reader.U32(offsetof(icu::RBBIDataHeader, fTrieLen)));
+    constexpr std::int32_t trieHeader = 16;
+    if ((trieLength < 0 || trieLength >= trieHeader) && !Inside(trie, std::max(trieLength, trieHeader), available)) APS5_INVALID_ARG_EX;
+    const std::uint32_t ruleLength = reader.U32(offsetof(icu::RBBIDataHeader, fRuleSourceLen));
+    if (copies && ruleLength != 0 && !Inside(reader.U32(offsetof(icu::RBBIDataHeader, fRuleSource)), ruleLength, available)) APS5_INVALID_ARG_EX;
+    const auto statusLength = static_cast<std::int32_t>(reader.U32(offsetof(icu::RBBIDataHeader, fStatusTableLen)));
+    if (statusLength > 0 && (statusLength & 3) == 0 && !Inside(reader.U32(offsetof(icu::RBBIDataHeader, fStatusTable)), statusLength, available)) APS5_INVALID_ARG_EX;
+}
+
+void CheckNormalizer(const UDataSwapper* ds, const void* inData, std::int32_t length, const void* outData) {
+    using Impl = icu::Normalizer2Impl;
+    const std::int32_t headerSize = HeaderSize(ds, inData, length, outData);
+    if (headerSize < 0) return;
+    const auto* info = reinterpret_cast<const UDataInfo*>(static_cast<const char*>(inData) + 4);
+    const std::uint8_t version = info->formatVersion[0];
+    if (std::memcmp(info->dataFormat, "Nrm2", 4) != 0 || version < 1 || version > 4) return;
+    const std::int64_t available = static_cast<std::int64_t>(length) - headerSize;
+    const std::int32_t indexes = version == 1 ? Impl::IX_MIN_MAYBE_YES + 1 : version == 2 ? Impl::IX_MIN_YES_NO_MAPPINGS_ONLY + 1 : Impl::IX_MIN_LCCC_CP + 1;
+    if (available < indexes * 4) return;
+    const Reader reader{ds, static_cast<const std::uint8_t*>(inData) + headerSize};
+    const auto index = [&](std::int32_t slot) {
+        return static_cast<std::int32_t>(reader.U32(static_cast<std::uint64_t>(slot) * 4));
+    };
+    const std::int32_t size = index(Impl::IX_TOTAL_SIZE);
+    if (available < size) return;
+    if (size < 0 && inData != outData) APS5_INVALID_ARG_EX;
+    const std::int32_t trie = index(Impl::IX_NORM_TRIE_OFFSET);
+    const std::int32_t extra = index(Impl::IX_EXTRA_DATA_OFFSET);
+    const std::int32_t smallFcd = index(Impl::IX_SMALL_FCD_OFFSET);
+    if (trie > 0 && (trie & 3) == 0 && trie > available) APS5_INVALID_ARG_EX;
+    const std::int32_t trieLength = Difference(extra, trie);
+    const auto trieAddress = reinterpret_cast<std::uintptr_t>(reader.bytes) + static_cast<std::uintptr_t>(static_cast<std::intptr_t>(trie));
+    if (trieLength >= 16 && (trieAddress & 3) == 0 && !Inside(trie, trieLength, available)) APS5_INVALID_ARG_EX;
+    const std::int32_t extraLength = Difference(smallFcd, extra);
+    if (extraLength > 0 && (extraLength & 1) == 0 && !Inside(extra, extraLength, available)) APS5_INVALID_ARG_EX;
+}
+
+void CheckCollationBinary(const UDataSwapper* ds, const void* inData, std::int32_t length) {
+    const auto* bytes = static_cast<const std::uint8_t*>(inData);
+    const auto need = [&](std::int32_t count) {
+        if (length < count) APS5_INVALID_ARG_EX;
+    };
+    need(3);
+    bool standard = bytes[2] == 0xda;
+    if (standard) {
+        need(4);
+        standard = bytes[3] == 0x27;
+    }
+    if (standard) {
+        need(11);
+        standard = bytes[10] == 2;
+    }
+    if (standard) {
+        const auto* header = static_cast<const DataHeader*>(inData);
+        const std::uint16_t headerSize = ds->readUInt16(header->dataHeader.headerSize);
+        const std::uint16_t infoSize = ds->readUInt16(header->info.size);
+        standard = headerSize >= sizeof(DataHeader) && infoSize >= sizeof(UDataInfo) && headerSize >= sizeof(header->dataHeader) + infoSize;
+    }
+    if (!standard) return;
+    static constexpr std::uint8_t format[] = {0x55, 0x43, 0x6f, 0x6c};
+    for (std::int32_t index = 0; index < 4; ++index) {
+        need(13 + index);
+        if (bytes[12 + index] != format[index]) return;
+    }
+}
+
 template<typename TSwap>
 std::int32_t SwapChecked(const GuestDataSwapper* ds, std::int32_t* status, TSwap swap) {
     UErrorCode* error = OptionalStatus(status);
@@ -564,6 +671,27 @@ std::int32_t APS5_VABI udict_swap_nid_postfix(const GuestDataSwapper* ds, const 
     return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
         if (host && length >= 0) CheckDictionary(host, inData, length, outData);
         return udict_swap(host, inData, length, outData, error);
+    });
+}
+
+std::int32_t APS5_VABI ubrk_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status) {
+    return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
+        if (host && length >= 0) CheckBreak(host, inData, length, outData);
+        return ubrk_swap(host, inData, length, outData, error);
+    });
+}
+
+std::int32_t APS5_VABI unorm2_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status) {
+    return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
+        if (host && length >= 0) CheckNormalizer(host, inData, length, outData);
+        return unorm2_swap(host, inData, length, outData, error);
+    });
+}
+
+std::int8_t APS5_VABI ucol_looksLikeCollationBinary_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length) {
+    return WithView(ds, [&](const UDataSwapper* host) {
+        if (host && inData && length >= 0) CheckCollationBinary(host, inData, length);
+        return ucol_looksLikeCollationBinary(host, inData, length);
     });
 }
 

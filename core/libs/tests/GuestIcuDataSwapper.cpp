@@ -5,6 +5,10 @@
 #include <unicode/udata.h>
 #include <unicode/umutablecptrie.h>
 #include "dictionarydata.h"
+#include "normalizer2impl.h"
+#include "rbbidata.h"
+#include "ucol_data.h"
+#include "ucol_swp.h"
 #include "udatamem.h"
 #include "udataswp.h"
 #include "uprops.h"
@@ -608,6 +612,221 @@ void TestGuards() {
     udata_closeSwapper_nid_postfix(ds);
 }
 
+
+std::int32_t Header(const Bytes& bytes) {
+    return bytes.data()[0] | (bytes.data()[1] << 8);
+}
+
+template<typename TChange>
+Bytes Mutated(const Bytes& original, TChange change) {
+    Bytes bytes = original;
+    change(bytes.data() + Header(original));
+    return bytes;
+}
+
+template<typename TGuest, typename THost>
+std::int32_t AgainstIcu(const Bytes& input, std::int32_t length, bool inPlace, TGuest guestSwap, THost hostSwap, const std::string& name) {
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    UDataSwapper* host = HostSwapper(false, 0, true, 0);
+    Bytes guestIn = input;
+    Bytes hostIn = input;
+    Bytes guestOut(input.length);
+    Bytes hostOut(input.length);
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    const std::int32_t guestResult = guestSwap(ds, guestIn.data(), length, inPlace ? guestIn.data() : guestOut.data(), &status);
+    const std::int32_t hostResult = hostSwap(host, hostIn.data(), length, inPlace ? hostIn.data() : hostOut.data(), &hostStatus);
+    Require(guestResult == hostResult && status == hostStatus && Same(guestIn, hostIn, input.length) && Same(guestOut, hostOut, input.length), name + " against ICU");
+    udata_closeSwapper(host);
+    udata_closeSwapper_nid_postfix(ds);
+    return status;
+}
+
+template<typename TGuest>
+bool Throws(const Bytes& input, std::int32_t length, bool inPlace, TGuest guestSwap) {
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    Bytes in = input;
+    Bytes out(input.length);
+    std::int32_t status = Ok;
+    const bool thrown = Invalid([&] { guestSwap(ds, in.data(), length, inPlace ? in.data() : out.data(), &status); });
+    udata_closeSwapper_nid_postfix(ds);
+    return thrown;
+}
+
+template<typename TGuest, typename THost>
+void FormatMessage(TGuest guestSwap, THost hostSwap, const Bytes& input, const std::string& expected, const std::string& name) {
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    UDataSwapper* host = HostSwapper(false, 0, true, 0);
+    const std::string suffix = "|";
+    ds->printError = GuestPrintError;
+    ds->printErrorContext = const_cast<std::string*>(&suffix);
+    host->printError = HostPrintError;
+    Bytes out(input.length);
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    printed.clear();
+    hostPrinted.clear();
+    Require(guestSwap(ds, input.data(), input.length, out.data(), &status) == 0 && status == U_UNSUPPORTED_ERROR, name + " other data");
+    hostSwap(host, input.data(), input.length, out.data(), &hostStatus);
+    Require(hostStatus == U_UNSUPPORTED_ERROR && printed == hostPrinted + "|" && printed.find(expected) != std::string::npos, name + " format message");
+    udata_closeSwapper(host);
+    udata_closeSwapper_nid_postfix(ds);
+}
+
+void TestBreakSwap() {
+    for (const char* name : {"char", "word", "line", "line_cj", "sent", "title"}) RoundTrip(Item("ICUDATA-brkitr", "brk", name), ubrk_swap_nid_postfix, ubrk_swap, std::string("ubrk_swap ") + name);
+    const Bytes rules = Item("ICUDATA-brkitr", "brk", "word");
+    const Bytes flipped = Mutated(rules, [](std::uint8_t* b) {
+        for (const std::uint64_t field : {offsetof(icu::RBBIDataHeader, fFTable), offsetof(icu::RBBIDataHeader, fRTable)}) {
+            const std::uint64_t flags = GetU32(b, field) + offsetof(icu::RBBIStateTable, fFlags);
+            if (GetU32(b, field + 4) != 0) PutU32(b, flags, GetU32(b, flags) ^ icu::RBBI_8BITS_ROWS);
+        }
+    });
+    Require(AgainstIcu(flipped, flipped.length, false, ubrk_swap_nid_postfix, ubrk_swap, "ubrk_swap other row width") == Ok, "ubrk_swap other row width");
+    Require(AgainstIcu(flipped, flipped.length, true, ubrk_swap_nid_postfix, ubrk_swap, "ubrk_swap other row width in place") == Ok, "ubrk_swap other row width in place");
+    const Bytes word = Item("ICUDATA-brkitr", "brk", "word");
+    const Bytes names = Item(nullptr, "icu", "unames");
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    Bytes out(word.length);
+    Require(ubrk_swap_nid_postfix(ds, word.data(), word.length, out.data(), nullptr) == 0, "ubrk_swap NULL status");
+    std::int32_t status = Ok;
+    Require(ubrk_swap_nid_postfix(ds, nullptr, 20, out.data(), &status) == 0 && status == U_ILLEGAL_ARGUMENT_ERROR, "ubrk_swap NULL data");
+    status = Ok;
+    Require(ubrk_swap_nid_postfix(ds, word.data(), 20, nullptr, &status) == 0 && status == U_ILLEGAL_ARGUMENT_ERROR, "ubrk_swap NULL output");
+    status = Ok;
+    Require(ubrk_swap_nid_postfix(ds, word.data(), -2, out.data(), &status) == 0 && status == U_ILLEGAL_ARGUMENT_ERROR, "ubrk_swap length below -1");
+    udata_closeSwapper_nid_postfix(ds);
+    FormatMessage(ubrk_swap_nid_postfix, ubrk_swap, names, "75.6e.61.6d (format version 01)", "ubrk_swap");
+
+    const std::int32_t header = Header(word);
+    const auto available = static_cast<std::uint32_t>(word.length - header);
+    const std::uint32_t forward = GetU32(word.data() + header, offsetof(icu::RBBIDataHeader, fFTable));
+    const std::uint32_t forwardFlags = GetU32(word.data() + header, forward + offsetof(icu::RBBIStateTable, fFlags));
+    const std::uint32_t trie = GetU32(word.data() + header, offsetof(icu::RBBIDataHeader, fTrie));
+    const std::uint32_t ruleSource = GetU32(word.data() + header, offsetof(icu::RBBIDataHeader, fRuleSource));
+    const std::uint32_t statusTable = GetU32(word.data() + header, offsetof(icu::RBBIDataHeader, fStatusTable));
+    const auto swap = ubrk_swap_nid_postfix;
+    Require(Throws(word, 16, false, swap), "ubrk_swap data format past the length");
+    Require(AgainstIcu(word, 17, false, swap, ubrk_swap, "ubrk_swap 17 bytes") == U_UNSUPPORTED_ERROR, "ubrk_swap 17 bytes reads the data header as break data");
+    Require(AgainstIcu(word, header + 100, false, swap, ubrk_swap, "ubrk_swap short") == U_INDEX_OUTOFBOUNDS_ERROR, "ubrk_swap short break data");
+    Require(AgainstIcu(Mutated(word, [](std::uint8_t* b) { b[offsetof(icu::RBBIDataHeader, fFormatVersion)] = 5; }), word.length, false, swap, ubrk_swap, "ubrk_swap version") == U_UNSUPPORTED_ERROR, "ubrk_swap break header version");
+    Require(AgainstIcu(Mutated(word, [](std::uint8_t* b) { PutU32(b, offsetof(icu::RBBIDataHeader, fLength), sizeof(icu::RBBIDataHeader) - 1); }), word.length, false, swap, ubrk_swap, "ubrk_swap small length") == U_UNSUPPORTED_ERROR, "ubrk_swap break length below the header");
+    Require(Throws(Mutated(word, [](std::uint8_t* b) { PutU32(b, offsetof(icu::RBBIDataHeader, fLength), 0x80000000u); }), word.length, false, swap), "ubrk_swap negative break length");
+    Require(Throws(Mutated(word, [&](std::uint8_t* b) { PutU32(b, offsetof(icu::RBBIDataHeader, fFTable), available - 8); }), word.length, false, swap), "ubrk_swap table header past the data");
+    Require(Throws(Mutated(word, [](std::uint8_t* b) { PutU32(b, offsetof(icu::RBBIDataHeader, fRTable), 0xfffffffcu); PutU32(b, offsetof(icu::RBBIDataHeader, fRTableLen), 40); }), word.length, false, swap), "ubrk_swap table before the data");
+    const Bytes shortRows = Mutated(word, [&](std::uint8_t* b) {
+        PutU32(b, forward + offsetof(icu::RBBIStateTable, fFlags), forwardFlags | icu::RBBI_8BITS_ROWS);
+        PutU32(b, offsetof(icu::RBBIDataHeader, fFTableLen), 8);
+    });
+    Require(Throws(shortRows, word.length, false, swap), "ubrk_swap 8-bit table shorter than its header");
+    Require(AgainstIcu(shortRows, word.length, true, swap, ubrk_swap, "ubrk_swap short 8-bit table in place") == Ok, "ubrk_swap in place copies no 8-bit rows");
+    Require(Throws(Mutated(word, [&](std::uint8_t* b) {
+        PutU32(b, forward + offsetof(icu::RBBIStateTable, fFlags), forwardFlags | icu::RBBI_8BITS_ROWS);
+        PutU32(b, offsetof(icu::RBBIDataHeader, fFTableLen), available - forward + 1);
+    }), word.length, false, swap), "ubrk_swap 8-bit rows past the data");
+    const auto wideFlags = forwardFlags & ~icu::RBBI_8BITS_ROWS;
+    const std::uint32_t wideLength = available - forward + 2 + ((available - forward) & 1);
+    Require(Throws(Mutated(word, [&](std::uint8_t* b) {
+        PutU32(b, forward + offsetof(icu::RBBIStateTable, fFlags), wideFlags);
+        PutU32(b, offsetof(icu::RBBIDataHeader, fFTableLen), wideLength);
+    }), word.length, true, swap), "ubrk_swap 16-bit rows past the data");
+    Require(AgainstIcu(Mutated(word, [&](std::uint8_t* b) {
+        PutU32(b, forward + offsetof(icu::RBBIStateTable, fFlags), wideFlags);
+        PutU32(b, offsetof(icu::RBBIDataHeader, fFTableLen), wideLength + 1);
+    }), word.length, false, swap, ubrk_swap, "ubrk_swap odd rows") == U_ILLEGAL_ARGUMENT_ERROR, "ubrk_swap odd 16-bit rows keep ICU's error");
+    Require(Throws(Mutated(word, [&](std::uint8_t* b) {
+        PutU32(b, offsetof(icu::RBBIDataHeader, fTrie), available - 8);
+        PutU32(b, offsetof(icu::RBBIDataHeader, fTrieLen), 0xffffffffu);
+    }), word.length, false, swap), "ubrk_swap trie header past the data");
+    Require(Throws(Mutated(word, [&](std::uint8_t* b) { PutU32(b, offsetof(icu::RBBIDataHeader, fTrieLen), available - trie + 4); }), word.length, false, swap), "ubrk_swap trie past the data");
+    Require(AgainstIcu(Mutated(word, [](std::uint8_t* b) {
+        PutU32(b, offsetof(icu::RBBIDataHeader, fTrie), 0x7ffffff0u);
+        PutU32(b, offsetof(icu::RBBIDataHeader, fTrieLen), 8);
+    }), word.length, false, swap, ubrk_swap, "ubrk_swap short trie") == U_INDEX_OUTOFBOUNDS_ERROR, "ubrk_swap short trie keeps ICU's error");
+    const Bytes longRules = Mutated(word, [&](std::uint8_t* b) { PutU32(b, offsetof(icu::RBBIDataHeader, fRuleSourceLen), available - ruleSource + 1); });
+    Require(Throws(longRules, word.length, false, swap), "ubrk_swap rule source past the data");
+    Require(AgainstIcu(longRules, word.length, true, swap, ubrk_swap, "ubrk_swap long rules in place") == Ok, "ubrk_swap in place copies no rule source");
+    Require(Throws(Mutated(word, [&](std::uint8_t* b) { PutU32(b, offsetof(icu::RBBIDataHeader, fStatusTableLen), ((available - statusTable) | 3) + 1); }), word.length, false, swap), "ubrk_swap status table past the data");
+    Require(AgainstIcu(Mutated(word, [&](std::uint8_t* b) { PutU32(b, offsetof(icu::RBBIDataHeader, fStatusTableLen), 6); }), word.length, false, swap, ubrk_swap, "ubrk_swap uneven status table") == U_ILLEGAL_ARGUMENT_ERROR, "ubrk_swap uneven status table keeps ICU's error");
+
+    Bytes bare(128);
+    PutU32(bare.data(), 0, 0xb1a0);
+    bare.data()[4] = icu::RBBI_DATA_FORMAT_VERSION[0];
+    PutU32(bare.data(), 8, sizeof(icu::RBBIDataHeader));
+    std::memcpy(bare.data() + 12, "Brk ", 4);
+    bare.data()[16] = icu::RBBI_DATA_FORMAT_VERSION[0];
+    Require(AgainstIcu(bare, bare.length, false, swap, ubrk_swap, "ubrk_swap without a data header") == U_UNSUPPORTED_ERROR, "ubrk_swap without a data header continues like ICU");
+    Bytes bareRules = bare;
+    PutU32(bareRules.data(), offsetof(icu::RBBIDataHeader, fRuleSource), 64);
+    PutU32(bareRules.data(), offsetof(icu::RBBIDataHeader, fRuleSourceLen), 65);
+    Require(Throws(bareRules, bareRules.length, false, swap), "ubrk_swap without a data header bounds the rule copy");
+}
+
+void TestNormalizerSwap() {
+    for (const char* name : {"nfkc", "nfkc_cf", "uts46"}) RoundTrip(Item(nullptr, "nrm", name), unorm2_swap_nid_postfix, unorm2_swap, std::string("unorm2_swap ") + name);
+    const Bytes nfkc = Item(nullptr, "nrm", "nfkc");
+    const Bytes names = Item(nullptr, "icu", "unames");
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    Bytes out(nfkc.length);
+    Require(unorm2_swap_nid_postfix(ds, nfkc.data(), nfkc.length, out.data(), nullptr) == 0, "unorm2_swap NULL status");
+    udata_closeSwapper_nid_postfix(ds);
+    FormatMessage(unorm2_swap_nid_postfix, unorm2_swap, names, "75.6e.61.6d (format version 01) is not recognized as Normalizer2 data", "unorm2_swap");
+
+    using Impl = icu::Normalizer2Impl;
+    const std::int32_t header = Header(nfkc);
+    const auto available = static_cast<std::uint32_t>(nfkc.length - header);
+    const std::uint32_t extra = GetU32(nfkc.data() + header, Impl::IX_EXTRA_DATA_OFFSET * 4);
+    const auto swap = unorm2_swap_nid_postfix;
+    Require(AgainstIcu(nfkc, header + 40, false, swap, unorm2_swap, "unorm2_swap short") == U_INDEX_OUTOFBOUNDS_ERROR, "unorm2_swap short indexes");
+    Require(AgainstIcu(Mutated(nfkc, [&](std::uint8_t* b) { PutU32(b, Impl::IX_TOTAL_SIZE * 4, available + 4); }), nfkc.length, false, swap, unorm2_swap, "unorm2_swap size") == U_INDEX_OUTOFBOUNDS_ERROR, "unorm2_swap size past the data keeps ICU's error");
+    const Bytes negative = Mutated(nfkc, [](std::uint8_t* b) { PutU32(b, Impl::IX_TOTAL_SIZE * 4, 0xfffffffcu); });
+    Require(Throws(negative, nfkc.length, false, swap), "unorm2_swap negative size");
+    Require(AgainstIcu(negative, nfkc.length, true, swap, unorm2_swap, "unorm2_swap negative size in place") == Ok, "unorm2_swap in place copies nothing");
+    Require(Throws(Mutated(nfkc, [&](std::uint8_t* b) { PutU32(b, Impl::IX_NORM_TRIE_OFFSET * 4, (available | 3) + 1); }), nfkc.length, false, swap), "unorm2_swap indexes past the data");
+    Require(Throws(Mutated(nfkc, [&](std::uint8_t* b) { PutU32(b, Impl::IX_EXTRA_DATA_OFFSET * 4, available + 64); }), nfkc.length, false, swap), "unorm2_swap trie past the data");
+    Require(AgainstIcu(Mutated(nfkc, [&](std::uint8_t* b) {
+        PutU32(b, Impl::IX_NORM_TRIE_OFFSET * 4, 6);
+        PutU32(b, Impl::IX_EXTRA_DATA_OFFSET * 4, available + 64);
+    }), nfkc.length, false, swap, unorm2_swap, "unorm2_swap misaligned trie") == U_ILLEGAL_ARGUMENT_ERROR, "unorm2_swap misaligned trie keeps ICU's error");
+    Require(Throws(Mutated(nfkc, [&](std::uint8_t* b) { PutU32(b, Impl::IX_SMALL_FCD_OFFSET * 4, available + 2 + ((available - extra) & 1)); }), nfkc.length, false, swap), "unorm2_swap extra data past the data");
+    Require(AgainstIcu(Mutated(nfkc, [&](std::uint8_t* b) { PutU32(b, Impl::IX_SMALL_FCD_OFFSET * 4, extra + 3); }), nfkc.length, false, swap, unorm2_swap, "unorm2_swap odd extra data") == U_ILLEGAL_ARGUMENT_ERROR, "unorm2_swap odd extra data keeps ICU's error");
+}
+
+void TestCollationBinary() {
+    const Bytes uca = Item("ICUDATA-coll", "icu", "ucadata");
+    const Bytes word = Item("ICUDATA-brkitr", "brk", "word");
+    const Bytes names = Item(nullptr, "icu", "unames");
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    UDataSwapper* host = HostSwapper(false, 0, true, 0);
+    const auto looks = [&](const Bytes& bytes, std::int32_t length) {
+        const std::int8_t result = ucol_looksLikeCollationBinary_nid_postfix(ds, bytes.data(), length);
+        Require(result == ucol_looksLikeCollationBinary(host, bytes.data(), length), "ucol_looksLikeCollationBinary against ICU");
+        return result;
+    };
+    Require(looks(uca, uca.length) == 1 && looks(uca, -1) == 1, "ucol_looksLikeCollationBinary UCA data");
+    Require(looks(names, names.length) == 0 && looks(word, 13) == 0, "ucol_looksLikeCollationBinary other data");
+    Require(ucol_looksLikeCollationBinary_nid_postfix(nullptr, uca.data(), uca.length) == 0 && ucol_looksLikeCollationBinary_nid_postfix(ds, nullptr, 10) == 0 && ucol_looksLikeCollationBinary_nid_postfix(ds, uca.data(), -2) == 0, "ucol_looksLikeCollationBinary arguments");
+    for (const std::int32_t length : {0, 2, 3, 10, 12, 15}) Require(Invalid([&] { ucol_looksLikeCollationBinary_nid_postfix(ds, uca.data(), length); }), "ucol_looksLikeCollationBinary data header past the length " + std::to_string(length));
+    Bytes noMagic = uca;
+    noMagic.data()[2] = 0;
+    Require(looks(noMagic, 3) == 0, "ucol_looksLikeCollationBinary stops at a bad magic byte");
+    Bytes smallHeader = uca;
+    PutU16(smallHeader.data(), 0, 8);
+    Require(looks(smallHeader, 11) == 0, "ucol_looksLikeCollationBinary stops at a bad header size");
+
+    Bytes v3(42 * 4);
+    PutU32(v3.data(), offsetof(UCATableHeader, size), 42 * 4);
+    PutU32(v3.data(), offsetof(UCATableHeader, magic), UCOL_HEADER_MAGIC);
+    v3.data()[offsetof(UCATableHeader, formatVersion)] = 3;
+    Require(looks(v3, v3.length) == 1 && looks(v3, -1) == 1, "ucol_looksLikeCollationBinary format version 3");
+    Require(looks(v3, v3.length - 1) == 0, "ucol_looksLikeCollationBinary format version 3 too short");
+    Bytes v3Big = v3;
+    v3Big.data()[offsetof(UCATableHeader, isBigEndian)] = 1;
+    Require(looks(v3Big, v3Big.length) == 0, "ucol_looksLikeCollationBinary format version 3 endianness");
+    udata_closeSwapper(host);
+    udata_closeSwapper_nid_postfix(ds);
+}
+
 }
 
 int main() {
@@ -620,6 +839,9 @@ int main() {
     TestReplacedFunctions();
     TestPrintError();
     TestGuards();
+    TestBreakSwap();
+    TestNormalizerSwap();
+    TestCollationBinary();
     std::puts("ICU DATA SWAPPER TESTS PASSED");
     return 0;
 }
