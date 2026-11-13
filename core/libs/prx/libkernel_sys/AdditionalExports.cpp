@@ -457,7 +457,7 @@ int APS5_VABI _execvpe_nid_postfix(const char* name, char* const* argv, char* co
     return fail(accessFailure ? GuestEacces : GuestEnoent);
 }
 
-int APS5_VABI _wait4_nid_postfix(int pid, int* status, int options, GuestResourceUsage* usage) {
+int APS5_VABI _wait4_nid_postfix(int pid, int* status, int options, void* usage) {
     return wait4_nid_postfix(pid, status, options, usage);
 }
 

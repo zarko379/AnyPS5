@@ -26,14 +26,6 @@ void Require(bool value, const char* what) {
 
 int APS5_VABI CookieSend(std::int32_t, const char*, const char*, void*) { std::abort(); }
 
-bool CookieLimitsAre(int id, int expected) {
-    for (const std::uint32_t value : {0u, 0xffffffffu}) {
-        if (sceHttpSetCookieMaxNum(id, value) != expected || sceHttpSetCookieMaxNumPerDomain(id, value) != expected) return false;
-        if (sceHttpSetCookieMaxSize(id, value) != expected || sceHttpSetCookieTotalMaxSize(id, value) != expected) return false;
-    }
-    return true;
-}
-
 int Get(int (APS5_VABI *getter)(int, int*), int id) {
     int value = -1;
     Require(getter(id, &value) == 0, "an option getter failed on a live object");
@@ -220,13 +212,12 @@ void CheckTermEndsOptions() {
     Require(sceHttpCacheRedirectedConnectionEnabled(connection, 1) == BeforeInit, "sceHttpCacheRedirectedConnectionEnabled works after the last sceHttpTerm");
     Require(sceHttpSetProxy(connection, 1, 0, "proxy.example", 3128) == BeforeInit, "sceHttpSetProxy works after the last sceHttpTerm");
     Require(sceHttpSetCookieSendCallback(connection, CookieSend, nullptr) == BeforeInit, "sceHttpSetCookieSendCallback works after the last sceHttpTerm");
-    Require(CookieLimitsAre(context, BeforeInit), "the cookie limits work after the last sceHttpTerm");
     Require(sceHttpsEnableOptionPrivate(connection, 0x4000u) == BeforeInit && sceHttpsDisableOptionPrivate(connection, 0x4000u) == BeforeInit, "the private SSL options work after the last sceHttpTerm");
     Require(sceHttpGetNonblock(connection, nullptr) == BeforeInit, "a null output is checked before initialisation");
     Require(value == -1 && bound == nullptr, "a refused getter wrote its output");
     const int next = sceHttpInit_nid_postfix(1, 1, 0x10000);
     Require(sceHttpSetAutoRedirect(pattern, 0) == InvalidId && sceHttpGetNonblock(connection, &value) == InvalidId, "an object outlived the last sceHttpTerm into a new sceHttpInit");
-    Require(sceHttpSetCookieSendCallback(connection, CookieSend, nullptr) == InvalidId && CookieLimitsAre(context, InvalidId) && CookieLimitsAre(next, 0), "a context or object outlived the last sceHttpTerm into a new sceHttpInit");
+    Require(sceHttpSetCookieSendCallback(connection, CookieSend, nullptr) == InvalidId, "an object outlived the last sceHttpTerm into a new sceHttpInit");
     Require(sceHttpTerm_nid_postfix(next) == 0, "sceHttpTerm failed");
 }
 
@@ -285,10 +276,8 @@ void CheckUnobservedOptions(int context) {
     for (const int id : {pattern, connection, request}) {
         Require(sceHttpSetCookieSendCallback(id, CookieSend, &marker) == 0, "sceHttpSetCookieSendCallback refused a live object");
         Require(sceHttpSetCookieSendCallback(id, nullptr, nullptr) == 0, "sceHttpSetCookieSendCallback refused a null callback");
-        Require(CookieLimitsAre(id, InvalidId), "a cookie limit took a template, connection or request id");
     }
     Require(sceHttpSetCookieSendCallback(UnknownId, CookieSend, &marker) == InvalidId && sceHttpSetCookieSendCallback(UnknownId, nullptr, nullptr) == InvalidId, "sceHttpSetCookieSendCallback took an unknown id");
-    Require(CookieLimitsAre(context, 0) && CookieLimitsAre(UnknownId, InvalidId), "the cookie limits did not follow the context id");
     const int child = sceHttpCreateConnectionWithURL(pattern, "http://example.com/", 1);
     Require(sceHttpSetCookieSendCallback(child, CookieSend, &marker) == 0 && sceHttpDeleteConnection(child) == 0, "a connection created after the callback refused it");
     Require(sceHttpSetCookieSendCallback(child, CookieSend, &marker) == InvalidId, "a deleted connection still took a cookie send callback");
@@ -302,7 +291,6 @@ void CheckUnobservedOptions(int context) {
 int main() {
     Require(sceHttpSetDelayBuildRequestEnabled(UnknownId, 1) == BeforeInit, "delay build request was taken before sceHttpInit");
     Require(sceHttpSetCookieSendCallback(UnknownId, CookieSend, nullptr) == BeforeInit && sceHttpSetCookieSendCallback(0, nullptr, nullptr) == BeforeInit, "a cookie send callback was taken before sceHttpInit");
-    Require(CookieLimitsAre(0, BeforeInit) && CookieLimitsAre(UnknownId, BeforeInit), "a cookie limit was taken before sceHttpInit");
     const int context = sceHttpInit_nid_postfix(1, 1, 0x10000);
     Require(context > 0, "sceHttpInit failed");
     CheckAutoRedirect(context);

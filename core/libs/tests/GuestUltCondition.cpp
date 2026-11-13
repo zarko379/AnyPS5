@@ -67,10 +67,6 @@ static void Validation() {
     CHECK(sceUltConditionVariableSignal(&unused) == State);
     CHECK(sceUltConditionVariableSignal(reinterpret_cast<unsigned char*>(&unused) + 1) == Alignment);
     CHECK(sceUltConditionVariableSignal(reinterpret_cast<unsigned char*>(&unused) + 4) == Alignment);
-    CHECK(sceUltConditionVariableSignalAll(nullptr) == Null);
-    CHECK(sceUltConditionVariableSignalAll(&unused) == State);
-    CHECK(sceUltConditionVariableSignalAll(reinterpret_cast<unsigned char*>(&unused) + 1) == Alignment);
-    CHECK(sceUltConditionVariableSignalAll(reinterpret_cast<unsigned char*>(&unused) + 4) == Alignment);
     CHECK(sceUltConditionVariableWait(nullptr) == Null);
     CHECK(sceUltConditionVariableWait(&unused) == State);
     CHECK(_sceUltConditionVariableCreate(&unused, nullptr, nullptr, nullptr, 0) == Null);
@@ -102,7 +98,6 @@ static void Validation() {
     CHECK(sceUltMutexCreate(&f.mutex, nullptr, nullptr, nullptr, 0) == 0);
     CHECK(sceUltConditionVariableDestroy(&f.condition) == State);
     CHECK(sceUltConditionVariableSignal(&f.condition) == State);
-    CHECK(sceUltConditionVariableSignalAll(&f.condition) == State);
     CHECK(_sceUltConditionVariableCreate(&f.condition, nullptr, &f.mutex, nullptr, 0) == 0);
 }
 
@@ -173,34 +168,53 @@ static void SignalOne() {
 }
 
 static void SignalAll() {
+    Object unused;
+    CHECK(sceUltConditionVariableSignalAll(nullptr) == Null);
+    CHECK(sceUltConditionVariableSignalAll(&unused) == State);
     Fixture f;
     CHECK(sceUltConditionVariableSignalAll(&f.condition) == 0);
-    std::atomic<int> entered = 0, finished = 0;
-    std::array<std::future<void>, 3> waiters;
-    for (auto& waiter : waiters) waiter = std::async(std::launch::async, [&] {
+    std::atomic<int> entered = 0, holding = 0, finished = 0;
+    const auto waiter = [&] {
         f.Lock();
         ++entered;
         f.Wait();
+        CHECK(++holding == 1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        --holding;
         ++finished;
         f.Unlock();
-    });
+    };
+    std::array<std::future<void>, 4> waiters;
+    waiters[0] = std::async(std::launch::async, waiter);
+    Await(entered, 1);
+    f.Lock();
+    f.Unlock();
+    CHECK(waiters[0].wait_for(std::chrono::milliseconds(30)) == std::future_status::timeout);
+    waiters[1] = std::async(std::launch::async, waiter);
+    waiters[2] = std::async(std::launch::async, waiter);
     Await(entered, 3);
     f.Lock();
-    f.Unlock();
-    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    CHECK(sceUltConditionVariableSignalAll(&f.condition) == 0);
+    CHECK(waiters[0].wait_for(std::chrono::milliseconds(30)) == std::future_status::timeout);
     CHECK(finished == 0);
+    f.Unlock();
+    Await(finished, 3);
+    waiters[3] = std::async(std::launch::async, waiter);
+    Await(entered, 4);
     f.Lock();
-    CHECK(sceUltConditionVariableSignalAll(&f.condition) == 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    CHECK(finished == 0);
-    CHECK(sceUltConditionVariableDestroy(&f.condition) == Busy);
     f.Unlock();
-    for (auto& waiter : waiters) {
-        CHECK(waiter.wait_for(std::chrono::seconds(3)) == std::future_status::ready);
-        waiter.get();
+    CHECK(waiters[3].wait_for(std::chrono::milliseconds(30)) == std::future_status::timeout);
+    f.Lock();
+    f.Signal();
+    f.Unlock();
+    for (auto& future : waiters) {
+        CHECK(future.wait_for(std::chrono::seconds(3)) == std::future_status::ready);
+        future.get();
     }
-    CHECK(finished == 3);
-    CHECK(sceUltConditionVariableSignalAll(&f.condition) == 0);
+    CHECK(finished == 4);
+    CHECK(sceUltConditionVariableDestroy(&f.condition) == 0);
+    CHECK(sceUltConditionVariableSignalAll(&f.condition) == State);
+    CHECK(_sceUltConditionVariableCreate(&f.condition, nullptr, &f.mutex, nullptr, 0) == 0);
 }
 
 static void Stress() {

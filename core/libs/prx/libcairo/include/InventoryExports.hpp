@@ -75,7 +75,6 @@ int APS5_VABI cairo_scaled_font_destroy();
 int APS5_VABI cairo_scaled_font_get_font_options();
 int APS5_VABI cairo_in_stroke();
 int APS5_VABI cairo_scaled_font_get_ctm();
-int APS5_VABI cairo_surface_write_to_png_stream();
 int APS5_VABI cairo_ft_font_face_create_for_pattern();
 int APS5_VABI cairo_mask();
 int APS5_VABI cairo_scaled_font_extents();

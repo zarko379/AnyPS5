@@ -3,6 +3,7 @@
 
 #include "SceTypes.hpp"
 #include "prx/libSceHttp/include/Http.hpp"
+#include "prx/libSceHttp/src/Cookies.hpp"
 #include <optional>
 
 struct HttpOptions {
@@ -21,6 +22,7 @@ struct HttpOptions {
 void AddHttpContext(int contextId);
 void RemoveHttpContext(int contextId);
 bool HttpInitialised();
+bool IsHttpContext(int contextId);
 void AddHttpTemplate(int templateId, int contextId);
 void AddHttpChild(int id, int parentId);
 void RemoveHttpObject(int id);

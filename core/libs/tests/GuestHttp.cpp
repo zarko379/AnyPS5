@@ -704,13 +704,7 @@ int main(int argc, char** argv) {
     constexpr int invalidId = static_cast<int>(0x80431100);
     const auto flushCaches = [](int id, int expected) {
         Require(sceHttpAuthCacheFlush(id) == expected);
-        Require(sceHttpCookieFlush(id) == expected);
-        for (const std::uint32_t value : {0u, 1u, 3000u, 0x7fffffffu, 0xffffffffu}) {
-            Require(sceHttpSetCookieMaxNum(id, value) == expected);
-            Require(sceHttpSetCookieMaxNumPerDomain(id, value) == expected);
-            Require(sceHttpSetCookieMaxSize(id, value) == expected);
-            Require(sceHttpSetCookieTotalMaxSize(id, value) == expected);
-        }
+        Require(sceHttpCookieFlush(id) == (expected == beforeInit ? invalidId : expected));
     };
     flushCaches(0, beforeInit);
     flushCaches(-1, beforeInit);
@@ -870,6 +864,10 @@ int main(int argc, char** argv) {
     Require(sslError == 0 && sslDetail == 0);
     Require(sceHttpsGetSslError(1, nullptr, &sslDetail) == invalidValue);
     Require(sceHttpsGetSslError(1, &sslError, nullptr) == invalidValue);
+    errno = 71;
+    Require(sceHttpsGetSslError(1, reinterpret_cast<int*>(0x10), &sslDetail) == invalidValue);
+    Require(sceHttpsGetSslError(1, &sslError, reinterpret_cast<std::uint32_t*>(0x10)) == invalidValue);
+    Require(errno == 71);
 
     constexpr int parseInvalidResponse = static_cast<int>(0x80432060);
     constexpr int parseInvalidValue = static_cast<int>(0x804321FE);

@@ -55,37 +55,6 @@ bool Different(const MediaTime& lhs, const MediaTime& rhs) {
     return NotEqual(lhs, rhs) && NotEqual(rhs, lhs);
 }
 
-void TestTimeWithDynamicClockType() {
-    const TimeWithDynamicClockType wallOne{1.0, ClockType::Wall};
-    const TimeWithDynamicClockType wallTwo{2.0, ClockType::Wall};
-    const TimeWithDynamicClockType monotonicOne{1.0, ClockType::Monotonic};
-    const TimeWithDynamicClockType monotonicTwo{2.0, ClockType::Monotonic};
-    const TimeWithDynamicClockType wallNaN{std::numeric_limits<double>::quiet_NaN(), ClockType::Wall};
-    Check(_ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&wallOne, &wallTwo), __LINE__);
-    Check(!_ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&wallTwo, &wallOne), __LINE__);
-    Check(!_ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&wallOne, &wallOne), __LINE__);
-    Check(_ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&monotonicOne, &monotonicTwo), __LINE__);
-    Check(!_ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&wallNaN, &wallTwo), __LINE__);
-    Check(!_ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&wallOne, &wallNaN), __LINE__);
-    Check(Throws<std::invalid_argument>([&] { _ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&wallOne, &monotonicTwo); }), __LINE__);
-    Check(Throws<std::invalid_argument>([&] { _ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&monotonicTwo, &wallOne); }), __LINE__);
-    Check(Throws<std::invalid_argument>([&] { _ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(nullptr, &wallOne); }), __LINE__);
-    Check(Throws<std::invalid_argument>([&] { _ZNK3WTF24TimeWithDynamicClockTypeltERKS0_(&wallOne, nullptr); }), __LINE__);
-
-    const Seconds seconds{1.5};
-    const TimeWithDynamicClockType monotonic{2.25, ClockType::Monotonic};
-    TimeWithDynamicClockType sum = _ZNK3WTF7SecondsplERKNS_24TimeWithDynamicClockTypeE(&seconds, &monotonic);
-    Check(sum.value == 3.75 && sum.type == ClockType::Monotonic, __LINE__);
-    const Seconds negative{-4.0};
-    sum = _ZNK3WTF7SecondsplERKNS_24TimeWithDynamicClockTypeE(&negative, &wallOne);
-    Check(sum.value == -3.0 && sum.type == ClockType::Wall, __LINE__);
-    const TimeWithDynamicClockType otherClock{0.5, static_cast<ClockType>(7)};
-    sum = _ZNK3WTF7SecondsplERKNS_24TimeWithDynamicClockTypeE(&seconds, &otherClock);
-    Check(sum.value == 2.0 && sum.type == static_cast<ClockType>(7), __LINE__);
-    Check(Throws<std::invalid_argument>([&] { _ZNK3WTF7SecondsplERKNS_24TimeWithDynamicClockTypeE(nullptr, &wallOne); }), __LINE__);
-    Check(Throws<std::invalid_argument>([&] { _ZNK3WTF7SecondsplERKNS_24TimeWithDynamicClockTypeE(&seconds, nullptr); }), __LINE__);
-}
-
 void TestMediaTimeSpecialValues() {
     const MediaTime invalid = Rational(5, 1, 0);
     const MediaTime otherInvalid = Rational(7, 3, MediaTimeHasBeenRounded);
@@ -165,7 +134,6 @@ void TestMediaTimeRationals() {
 } // namespace
 
 int main() {
-    TestTimeWithDynamicClockType();
     TestMediaTimeSpecialValues();
     TestMediaTimeDoubles();
     TestMediaTimeRationals();

@@ -53,10 +53,6 @@ int APS5_VABI cairo_scaled_font_get_ctm() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI cairo_surface_write_to_png_stream() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 
 int APS5_VABI cairo_ft_font_face_create_for_pattern() {
     NotImplemented_nid_no_patch(__func__);

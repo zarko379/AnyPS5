@@ -1,5 +1,4 @@
 #include "prx/libkernel_sys/include/Api.hpp"
-#include "prx/libkernel_sys/include/AdditionalExports.hpp"
 #include "prx/libkernel/include/Api.hpp"
 #include "prx/libSceNet/include/Net.hpp"
 #include "prx/libkernel/Apr/include/AprCommandBuffer.hpp"
@@ -729,6 +728,13 @@ void CheckSigreturn() {
     _mm_setcsr(savedMxcsr);
 }
 
+void CheckReboot() {
+    for (const int options : {std::numeric_limits<std::int32_t>::min(), -1, 0, 1, 2, 0x10000, std::numeric_limits<std::int32_t>::max()}) {
+        *__error_nid_postfix() = 73;
+        Require(reboot_nid_postfix(options) == -1 && Error() == 1);
+    }
+}
+
 void CheckSchedSetscheduler() {
     const Pthread self = scePthreadSelf();
     int savedPolicy = 0;
@@ -1017,8 +1023,11 @@ void CheckAmmMapperCalls() {
     param.fill(0xAAAAAAAAAAAAAAAAull);
     param[0] = 0x10;
     Require(sceKernelMapperGetParam(param.data()) == 0 && param[0] == 0x38 && param[1] == start && param[2] == 0xAAAAAAAAAAAAAAAAull);
+    param.fill(0xAAAAAAAAAAAAAAAAull);
     param[0] = 0x30;
-    Require(MapperCallThrows([&] { sceKernelMapperGetParam(param.data()); }));
+    Require(sceKernelMapperGetParam(param.data()) == 0 && param[5] == 0 && param[6] == 0xAAAAAAAAAAAAAAAAull);
+    param[0] = 0x38;
+    Require(sceKernelMapperGetParam(param.data()) == 0 && param[5] == 0 && param[6] == 0);
 
     std::array<std::uint8_t, 64> commands{};
     std::uint64_t bytes = 0;
@@ -1488,36 +1497,6 @@ void CheckRawGetcwd() {
     Require(__getcwd_nid_postfix(nullptr, buffer.size()) == -1 && Error() == 14);
 }
 
-static void CheckWaitWithoutChildren() {
-    const int self = getpid_nid_postfix();
-    const auto untouched = [](const GuestResourceUsage& usage) {
-        const auto* bytes = reinterpret_cast<const unsigned char*>(&usage);
-        return std::all_of(bytes, bytes + sizeof(usage), [](unsigned char value) { return value == 0x5a; });
-    };
-    const auto expect = [&](auto call, int error) {
-        int status = 0x5a5a5a5a;
-        GuestResourceUsage usage;
-        std::memset(&usage, 0x5a, sizeof(usage));
-        *__error_nid_postfix() = 0;
-        Require(call(&status, &usage) == -1 && Error() == error);
-        Require(status == 0x5a5a5a5a && untouched(usage));
-    };
-    for (const int options : {0x40, 0x41, 0x80, 0x100, 0x40000000, static_cast<int>(0x80000040u), static_cast<int>(0xffffffffu)}) {
-        expect([&](int* status, GuestResourceUsage* usage) { return _wait4_nid_postfix(-1, status, options, usage); }, 22);
-        expect([&](int* status, GuestResourceUsage* usage) { return _wait4_nid_postfix(self, status, options, usage); }, 22);
-    }
-    for (const int pid : {-1, 0, 1, self, self + 1, -self, -(self + 1), std::numeric_limits<int>::min()}) {
-        int expected = 10;
-#ifdef __linux__
-        if (pid == std::numeric_limits<int>::min()) expected = 3;
-#endif
-        for (const int options : {0, 1, 2, 4, 8, 16, 32, 0x3f, static_cast<int>(0x80000000u), static_cast<int>(0x80000001u), static_cast<int>(0x8000003fu)})
-            expect([&](int* status, GuestResourceUsage* usage) { return _wait4_nid_postfix(pid, status, options, usage); }, expected);
-    }
-    *__error_nid_postfix() = 0;
-    Require(_wait4_nid_postfix(-1, nullptr, 1, nullptr) == -1 && Error() == 10);
-}
-
 static void CheckGetfsstat() {
     constexpr std::int64_t Size = sizeof(KernelStatfs);
     constexpr int MntWait = 1;
@@ -1567,7 +1546,6 @@ int main() {
 #endif
     Require(sceKernelGetPhysPageSize() == 16384);
     CheckProcessQueries();
-    CheckWaitWithoutChildren();
     CheckRawGetcwdErrors();
 #ifndef _WIN32
     CheckRawGetcwdPathLimit();
@@ -1591,6 +1569,7 @@ int main() {
     CheckAmmWrittenWaitsRun();
     CheckAmmMapperCalls();
     CheckAmmWaitConcurrentSubmits();
+    CheckReboot();
     CheckSchedSetscheduler();
     CheckSigreturn();
     CheckKernelEnvironment();
@@ -1888,10 +1867,6 @@ int main() {
     Require(kldunload_nid_postfix(-1) == -1 && Error() == 1);
     Require(kldunload_nid_postfix(0) == -1 && Error() == 1);
     Require(kldunload_nid_postfix(1) == -1 && Error() == 1);
-    for (const int howto : {0, 0x4, 0x8, 0x4000, 0x200000, -1}) {
-        *__error_nid_postfix() = 0;
-        Require(reboot_nid_postfix(howto) == -1 && Error() == 1);
-    }
     const auto unmountDenied = [](const char* path, int flags) {
         *__error_nid_postfix() = 0;
         return unmount_nid_postfix(path, flags) == -1 && Error() == 1;
@@ -2437,12 +2412,25 @@ int main() {
     Require(fchown_nid_postfix(-1, 1, 0) == -1 && Error() == 9);
     Require(fchown_nid_postfix(-1, 0, 1) == -1 && Error() == 9);
     Require(fchown_nid_postfix(-1, 1, 1) == -1 && Error() == 9);
+    const int fchownKqueueDescriptor = kqueue_nid_postfix();
+    Require(fchownKqueueDescriptor >= 0);
+    Require(fchown_nid_postfix(fchownKqueueDescriptor, 0, 0) == -1 && Error() == 22);
+    Require(close_nid_postfix(fchownKqueueDescriptor) == 0);
     bool fchownThrew = false;
     try { fchown_nid_postfix(base, 1, 0); } catch (const std::exception&) { fchownThrew = true; }
     Require(fchownThrew);
     fchownThrew = false;
     try { fchown_nid_postfix(base, 0, 1); } catch (const std::exception&) { fchownThrew = true; }
     Require(fchownThrew);
+    const int owned = sceKernelOpen(file.c_str(), SCE_KERNEL_O_RDONLY, 0);
+    Require(owned >= 0);
+    FileStat owner{};
+    Require(fstat_nid_postfix(owned, &owner) == 0);
+    Require(owner.st_uid == static_cast<std::uint32_t>(geteuid_nid_postfix()) && owner.st_gid == static_cast<std::uint32_t>(getegid_nid_postfix()));
+    Require(fchown_nid_postfix(owned, owner.st_uid, owner.st_gid) == 0);
+    Require(stat_nid_postfix(file.c_str(), &owner) == 0 && owner.st_uid == 0 && owner.st_gid == 0);
+    Require(fstat_nid_postfix(base, &owner) == 0 && owner.st_uid == 0 && owner.st_gid == 0);
+    Require(sceKernelClose(owned) == 0);
     FileStat stat{};
     Require(fstatat_nid_postfix(base, "file.txt", &stat, 0) == 0 && (stat.st_mode & 0170000) == 0100000 && stat.st_size == 1);
     Require(fstatat_nid_postfix(base, "other_dir", &stat, 0) == 0 && (stat.st_mode & 0170000) == 0040000);

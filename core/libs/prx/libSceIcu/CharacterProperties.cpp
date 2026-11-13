@@ -1,7 +1,9 @@
 #include "prx/libSceIcu/CharacterProperties.hpp"
 #include "prx/libSceIcu/Backend.hpp"
+#include "prx/libSceIcu/Script.hpp"
 #include <unicode/uchar.h>
 #include <unicode/ucpmap.h>
+#include <unicode/uscript.h>
 #include <unicode/uset.h>
 #include <array>
 #include <mutex>
@@ -95,6 +97,12 @@ std::uint32_t APS5_VABI ucpmap_get_nid_postfix(const UCPMap* map, std::int32_t c
 std::int32_t APS5_VABI ucpmap_getRange_nid_postfix(const UCPMap* map, std::int32_t start, std::int32_t option, std::uint32_t surrogateValue, GuestMapValueFilter filter, const void* context, std::uint32_t* value) {
     const ValueFilterForward forward{filter, context};
     return ucpmap_getRange(Map(map), start, static_cast<UCPMapRangeOption>(option), surrogateValue, filter ? ForwardValueFilter : nullptr, &forward, value);
+}
+
+std::int32_t APS5_VABI uscript_getCode_nid_postfix(const char* nameOrAbbrOrLocale, std::int32_t* fillIn, std::int32_t capacity, std::int32_t* status) {
+    UErrorCode* error = RequiredStatus(status);
+    if (U_SUCCESS(*error) && nameOrAbbrOrLocale && (fillIn == nullptr ? capacity == 0 : capacity >= 0)) IcuBackend::CanonicalLocale(nameOrAbbrOrLocale);
+    return uscript_getCode(nameOrAbbrOrLocale, reinterpret_cast<UScriptCode*>(fillIn), capacity, error);
 }
 
 }

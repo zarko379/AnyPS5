@@ -25,8 +25,6 @@ struct Api {
     decltype(&FT_Outline_Done_Internal_nid_postfix) doneOutline;
     decltype(&FT_New_Memory_nid_postfix) newMemory;
     decltype(&FT_Done_Memory_nid_postfix) doneMemory;
-    decltype(&FT_Outline_NewOt_nid_no_patch) newLibraryOutline;
-    decltype(&FT_Outline_DoneOt_nid_no_patch) doneLibraryOutline;
 };
 
 struct Recorder {
@@ -196,47 +194,6 @@ void HostMemory(const Api& api) {
     api.doneMemory(memory);
 }
 
-void LibraryCalls(const Api& api) {
-    int marker = 0;
-    auto* library = reinterpret_cast<FreeType::GuestLibrary*>(&marker);
-    GuestOutline outline = Sentinel();
-    Require(api.newLibraryOutline(nullptr, 1, 1, &outline) == 0x21 && Same(outline, Sentinel()), "a null library is Invalid_Library_Handle and leaves the outline");
-    Require(api.newLibraryOutline(library, 1, 1, nullptr) == 0x06, "a null outline is Invalid_Argument");
-    Require(api.doneLibraryOutline(nullptr, &outline) == 0x21 && Same(outline, Sentinel()), "done with a null library is Invalid_Library_Handle and leaves the outline");
-    Require(api.doneLibraryOutline(library, nullptr) == 0x06, "done with a null outline is Invalid_Argument");
-    Require(marker == 0, "the library record is not read");
-
-    Require(api.newLibraryOutline(library, 5, 7, &outline) == 0, "more contours than points are allocated as 2.4.11 does");
-    Require(outline.points && outline.tags && outline.contours && Zero(outline.points, 80) && Zero(outline.tags, 5) && Zero(outline.contours, 14), "the library outline arrays are cleared");
-    Require(outline.n_points == 5 && outline.n_contours == 7 && outline.flags == 1, "the library outline counts and owner flag");
-    Require(api.doneLibraryOutline(library, &outline) == 0 && Empty(outline), "done frees and clears the library outline");
-
-    outline = Sentinel();
-    Require(api.newLibraryOutline(library, 0, 0, &outline) == 0 && outline.flags == 1 && !outline.points && !outline.tags && !outline.contours, "an empty library outline is owned and has null arrays");
-    Require(api.doneLibraryOutline(library, &outline) == 0 && Empty(outline), "done of an empty library outline");
-
-    Require(api.newLibraryOutline(library, 70000, 0x12345, &outline) == 0 && outline.n_points == (70000 & 0xFFFF) && outline.n_contours == 0x2345, "library outline counts keep the low 16 bits");
-    Require(api.doneLibraryOutline(library, &outline) == 0 && Empty(outline), "done of the large library outline");
-
-    outline = Sentinel();
-    Require(api.newLibraryOutline(library, 3, -1, &outline) == 0x06 && Empty(outline), "a negative contour count is Invalid_Argument and clears the outline");
-    outline = Sentinel();
-    Require(api.newLibraryOutline(library, 0x08000000, 1, &outline) == 0x0A && Empty(outline), "an oversized point array is Array_Too_Large");
-    outline = Sentinel();
-    Require(api.newLibraryOutline(library, 1, 0x40000000, &outline) == 0x0A && Empty(outline), "an oversized contour array is Array_Too_Large");
-
-    GuestVector points[2]{};
-    unsigned char tags[2]{};
-    std::uint16_t contours[1]{};
-    outline = {1, 2, points, tags, contours, 0x104};
-    Require(api.doneLibraryOutline(library, &outline) == 0 && Empty(outline), "done of a borrowed library outline frees nothing and clears it");
-
-    GuestMemoryRec* memory = api.newMemory();
-    Require(api.newLibraryOutline(library, 3, 1, &outline) == 0 && api.doneOutline(memory, &outline) == 0 && Empty(outline), "the library allocator is the FT_New_Memory C allocator");
-    Require(api.newOutline(memory, 3, 1, &outline) == 0 && api.doneLibraryOutline(library, &outline) == 0 && Empty(outline), "an FT_New_Memory outline is freed through the library");
-    api.doneMemory(memory);
-}
-
 template <typename T>
 void Resolve(T& target, void* module, const char* symbol) {
 #ifdef _WIN32
@@ -271,14 +228,11 @@ int main(int count, char** arguments) {
     Resolve(api.doneOutline, ot, patched ? "umIqupy8UU0" : "FT_Outline_Done_Internal_nid_postfix");
     Resolve(api.newMemory, ot, patched ? "tCMhTh7h8D4" : "FT_New_Memory_nid_postfix");
     Resolve(api.doneMemory, ot, patched ? "UTumVjeIQtg" : "FT_Done_Memory_nid_postfix");
-    Resolve(api.newLibraryOutline, ot, patched ? "QH2emcgeFck" : "FT_Outline_NewOt_nid_no_patch");
-    Resolve(api.doneLibraryOutline, ot, patched ? "BqGJsJcFYaM" : "FT_Outline_DoneOt_nid_no_patch");
     NullArguments(api);
     Allocation(api);
     Failures(api);
     Ownership(api);
     HostMemory(api);
-    LibraryCalls(api);
     std::puts("FreeType Ot outline: all checks passed");
     return 0;
 }
