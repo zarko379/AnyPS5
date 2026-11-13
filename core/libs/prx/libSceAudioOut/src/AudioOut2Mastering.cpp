@@ -60,8 +60,7 @@ static_assert(offsetof(AudioOut2MasteringStates, limiter_states) + offsetof(Audi
 extern "C" {
 
 int APS5_VABI sceAudioOutMasteringInit(uint32_t flags) {
-    if (flags == 1) return SCE_AUDIO_OUT_ERROR_MASTERING_INVALID_FLAGS;
-    if (flags != 0) NotImplemented_nid_no_patch(__func__);
+    if (flags != 0) return SCE_AUDIO_OUT_ERROR_MASTERING_INVALID_FLAGS;
     g_legacyMasteringInitialized.store(true);
     return 0;
 }

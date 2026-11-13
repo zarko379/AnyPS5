@@ -163,10 +163,13 @@ void TestLegacyMasteringInit() {
     Require(sceAudioOutMasteringInit(0) == 0, "legacy flags 0 must be accepted");
     Require(sceAudioOutMasteringInit(1) == static_cast<int>(0x80260201), "legacy flags 1 are refused with 0x80260201");
     Require(sceAudioOutMasteringInit(0) == 0, "a repeated legacy initialization must be accepted");
-    Require(ThrowsException([] { sceAudioOutMasteringInit(2); }), "legacy flags bit 1 must throw");
-    Require(ThrowsException([] { sceAudioOutMasteringInit(3); }), "legacy flags bits 0 and 1 must throw");
-    Require(ThrowsException([] { sceAudioOutMasteringInit(0x80000000u); }), "legacy flags bit 31 must throw");
-    Require(ThrowsException([] { sceAudioOutMasteringInit(0xFFFFFFFFu); }), "legacy flags 0xFFFFFFFF must throw");
+    for (std::uint32_t flags : {2u, 3u, 0x80000000u, 0xFFFFFFFFu}) {
+        Require(sceAudioOutMasteringInit(flags) == static_cast<int>(0x80260201), "legacy flags other than 0 are refused with 0x80260201");
+    }
+    Require(sceAudioOutMasteringTerm() == 0, "a refused legacy initialization keeps the earlier one");
+    Require(sceAudioOutMasteringInit(2) == static_cast<int>(0x80260201), "legacy flags 2 are refused before an initialization");
+    Require(sceAudioOutMasteringTerm() == static_cast<int>(0x80260203), "a refused legacy initialization does not initialize");
+    Require(sceAudioOutMasteringInit(0) == 0, "legacy flags 0 initialize again");
 }
 
 void TestLegacyMasteringTerm() {
