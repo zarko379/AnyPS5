@@ -7,6 +7,7 @@
 #include <unicode/uiter.h>
 #include <unicode/ures.h>
 #include <unicode/uset.h>
+#include "uarrsort.h"
 #include <cstddef>
 
 namespace {
@@ -130,6 +131,16 @@ UCharIterator* Bridge(UCharIterator& host, UCharIterator* guest) {
     return &host;
 }
 
+struct ComparatorForward {
+    GuestComparator cmp;
+    const void* context;
+};
+
+int32_t U_CALLCONV ForwardComparator(const void* context, const void* left, const void* right) {
+    const auto* forward = static_cast<const ComparatorForward*>(context);
+    return forward->cmp(forward->context, left, right);
+}
+
 }
 
 extern "C" {
@@ -229,6 +240,19 @@ UEnumeration* APS5_VABI ucol_getKeywordValuesForLocale_nid_postfix(const char* k
     if (probe == U_USING_DEFAULT_WARNING) IcuBackend::RequireGuestDefault();
     icu::LocalUEnumerationPointer host(ucol_getKeywordValuesForLocale(key, locale, commonlyUsed, error));
     return IcuBackend::GuestEnumeration(host.orphan(), status);
+}
+
+void APS5_VABI uprv_sortArray_nid_postfix(void* array, std::int32_t length, std::int32_t itemSize, GuestComparator cmp, const void* context, std::int8_t sortStable, std::int32_t* status) {
+    IcuBackend::Ensure();
+    const ComparatorForward forward{cmp, context};
+    uprv_sortArray(array, length, itemSize, cmp ? ForwardComparator : nullptr, &forward, sortStable, reinterpret_cast<UErrorCode*>(status));
+}
+
+std::int32_t APS5_VABI uprv_stableBinarySearch_nid_postfix(char* array, std::int32_t length, void* item, std::int32_t itemSize, GuestComparator cmp, const void* context) {
+    IcuBackend::Ensure();
+    if (!cmp && length > 0) APS5_INVALID_ARG_EX;
+    const ComparatorForward forward{cmp, context};
+    return uprv_stableBinarySearch(array, length, item, itemSize, ForwardComparator, &forward);
 }
 
 }

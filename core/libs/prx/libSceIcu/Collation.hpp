@@ -7,7 +7,11 @@ struct UCharIterator;
 struct USet;
 struct UEnumeration;
 
+using GuestComparator = std::int32_t (APS5_VABI*)(const void* context, const void* left, const void* right);
+
 extern "C" {
+void APS5_VABI uprv_sortArray_nid_postfix(void* array, std::int32_t length, std::int32_t itemSize, GuestComparator cmp, const void* context, std::int8_t sortStable, std::int32_t* status);
+std::int32_t APS5_VABI uprv_stableBinarySearch_nid_postfix(char* array, std::int32_t length, void* item, std::int32_t itemSize, GuestComparator cmp, const void* context);
 UCollator* APS5_VABI ucol_open_nid_postfix(const char* locale, std::int32_t* status);
 void APS5_VABI ucol_close_nid_postfix(UCollator* collator);
 std::int32_t APS5_VABI ucol_strcoll_nid_postfix(const UCollator* collator, const char16_t* source, std::int32_t sourceLength, const char16_t* target, std::int32_t targetLength);

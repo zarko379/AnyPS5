@@ -1,18 +1,22 @@
 #include "prx/libSceIcu/Collation.hpp"
 #include "prx/libSceIcu/Defaults.hpp"
 #include "prx/libSceIcu/Set.hpp"
+#include "prx/libSceIcu/Numeric.hpp"
 #include <unicode/ucol.h>
 #include <unicode/udata.h>
 #include <unicode/uiter.h>
 #include <unicode/uloc.h>
 #include <unicode/uniset.h>
 #include <unicode/uset.h>
+#include "uarrsort.h"
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 void* GuestStringIterator(const char16_t* text, std::int32_t length);
@@ -494,6 +498,83 @@ void CheckTailoredSet() {
     ucol_close_nid_postfix(croatian);
 }
 
+struct Pair {
+    std::int32_t key;
+    std::int32_t order;
+};
+
+int comparisons = 0;
+
+std::int32_t APS5_VABI GuestPairs_nid_no_patch(const void* context, const void* left, const void* right) {
+    ++comparisons;
+    Require(context == &comparisons, "the comparator receives the guest context");
+    const std::int32_t a = static_cast<const Pair*>(left)->key;
+    const std::int32_t b = static_cast<const Pair*>(right)->key;
+    return a < b ? -1 : a > b;
+}
+
+int32_t U_CALLCONV HostPairs(const void*, const void* left, const void* right) {
+    const std::int32_t a = static_cast<const Pair*>(left)->key;
+    const std::int32_t b = static_cast<const Pair*>(right)->key;
+    return a < b ? -1 : a > b;
+}
+
+std::vector<Pair> Pairs(std::int32_t count) {
+    std::vector<Pair> pairs;
+    for (std::int32_t i = 0; i < count; ++i) pairs.push_back({(i * 7919) % 13, i});
+    return pairs;
+}
+
+bool SamePairs(const std::vector<Pair>& left, const std::vector<Pair>& right) {
+    return left.size() == right.size() && std::equal(left.begin(), left.end(), right.begin(), [](const Pair& a, const Pair& b) { return a.key == b.key && a.order == b.order; });
+}
+
+void CheckArraySorting() {
+    for (const std::int32_t count : {0, 1, 2, 8, 9, 40, 300}) {
+        for (const std::int8_t stable : {0, 1}) {
+            std::vector<Pair> guest = Pairs(count);
+            std::vector<Pair> host = guest;
+            std::int32_t status = 0;
+            UErrorCode hostStatus = U_ZERO_ERROR;
+            comparisons = 0;
+            uprv_sortArray_nid_postfix(guest.data(), count, sizeof(Pair), GuestPairs_nid_no_patch, &comparisons, stable, &status);
+            uprv_sortArray(host.data(), count, sizeof(Pair), HostPairs, nullptr, stable, &hostStatus);
+            Require(status == 0 && U_SUCCESS(hostStatus) && SamePairs(guest, host) && (count < 2 || comparisons > 0), "uprv_sortArray against ICU");
+            if (stable) Require(std::is_sorted(guest.begin(), guest.end(), [](const Pair& a, const Pair& b) { return a.key < b.key || (a.key == b.key && a.order < b.order); }), "uprv_sortArray stable");
+        }
+    }
+    std::vector<std::int32_t> numbers{5, -3, 9, 0, -3, 7, 1, 2, 8, 4, 6};
+    std::int32_t status = 0;
+    uprv_sortArray_nid_postfix(numbers.data(), static_cast<std::int32_t>(numbers.size()), 4, uprv_int32Comparator_nid_postfix, nullptr, 0, &status);
+    Require(status == 0 && std::is_sorted(numbers.begin(), numbers.end()), "uprv_sortArray with the library's comparator");
+    for (const auto& [array, length, size, withComparator] : {std::tuple<void*, std::int32_t, std::int32_t, bool>{nullptr, 2, 4, true}, {numbers.data(), -1, 4, true}, {numbers.data(), 2, 0, true}, {numbers.data(), 2, 4, false}}) {
+        status = 0;
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        uprv_sortArray_nid_postfix(array, length, size, withComparator ? GuestPairs_nid_no_patch : nullptr, &comparisons, 0, &status);
+        uprv_sortArray(array, length, size, withComparator ? HostPairs : nullptr, nullptr, 0, &hostStatus);
+        Require(status == U_ILLEGAL_ARGUMENT_ERROR && hostStatus == U_ILLEGAL_ARGUMENT_ERROR, "uprv_sortArray arguments");
+    }
+    status = U_INVALID_FORMAT_ERROR;
+    uprv_sortArray_nid_postfix(nullptr, -1, 0, nullptr, nullptr, 0, &status);
+    Require(status == U_INVALID_FORMAT_ERROR, "uprv_sortArray failed status");
+    uprv_sortArray_nid_postfix(nullptr, -1, 0, nullptr, nullptr, 0, nullptr);
+
+    std::vector<Pair> sorted = Pairs(40);
+    std::stable_sort(sorted.begin(), sorted.end(), [](const Pair& a, const Pair& b) { return a.key < b.key; });
+    for (const std::int32_t length : {0, 3, 8, 9, 40}) {
+        for (std::int32_t key = -1; key <= 13; ++key) {
+            Pair item{key, -1};
+            comparisons = 0;
+            const std::int32_t guest = uprv_stableBinarySearch_nid_postfix(reinterpret_cast<char*>(sorted.data()), length, &item, sizeof(Pair), GuestPairs_nid_no_patch, &comparisons);
+            const std::int32_t host = uprv_stableBinarySearch(reinterpret_cast<char*>(sorted.data()), length, &item, sizeof(Pair), HostPairs, nullptr);
+            Require(guest == host, "uprv_stableBinarySearch against ICU");
+        }
+    }
+    Pair item{1, -1};
+    Require(uprv_stableBinarySearch_nid_postfix(nullptr, 0, &item, sizeof(Pair), nullptr, nullptr) == ~0, "uprv_stableBinarySearch empty array without a comparator");
+    Require(Throws<std::invalid_argument>([&] { uprv_stableBinarySearch_nid_postfix(reinterpret_cast<char*>(sorted.data()), 4, &item, sizeof(Pair), nullptr, nullptr); }), "uprv_stableBinarySearch NULL comparator");
+}
+
 }
 
 int main() {
@@ -510,5 +591,6 @@ int main() {
     CheckReorderCodes();
     CheckAvailable();
     CheckTailoredSet();
+    CheckArraySorting();
     return 0;
 }
