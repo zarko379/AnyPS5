@@ -4,6 +4,8 @@
 #include <unicode/ucpmap.h>
 #include <unicode/udata.h>
 #include <unicode/uset.h>
+#include "uprops.h"
+#include "uset_imp.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -317,6 +319,32 @@ void CheckPropertyMaps() {
     Require(Throws<std::invalid_argument>([] { ucpmap_getRange_nid_postfix(nullptr, 0, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr); }), "a null map throws in ucpmap_getRange");
 }
 
+std::vector<std::int32_t> guestAdded;
+std::vector<std::int32_t> hostAdded;
+USet* const guestSet = reinterpret_cast<USet*>(&guestAdded);
+
+void APS5_VABI GuestAdd_nid_no_patch(USet* set, std::int32_t c) {
+    Require(set == guestSet, "the adder receives the guest set");
+    guestAdded.push_back(c);
+}
+
+void U_CALLCONV HostAdd(USet*, UChar32 c) {
+    hostAdded.push_back(c);
+}
+
+void CheckNameCharacters() {
+    const std::int32_t longest = uprv_getMaxCharNameLength_nid_postfix();
+    Require(longest > 0 && longest == uprv_getMaxCharNameLength(), "the longest character name against ICU");
+    GuestSetAdder guest{guestSet, GuestAdd_nid_no_patch, nullptr, nullptr, nullptr, nullptr};
+    uprv_getCharNameCharacters_nid_postfix(&guest);
+    const USetAdder host{nullptr, HostAdd, nullptr, nullptr, nullptr, nullptr};
+    uprv_getCharNameCharacters(&host);
+    Require(!guestAdded.empty() && guestAdded == hostAdded, "the characters of character names against ICU");
+    Require(Throws<std::invalid_argument>([] { uprv_getCharNameCharacters_nid_postfix(nullptr); }), "a null adder");
+    GuestSetAdder empty{guestSet, nullptr, nullptr, nullptr, nullptr, nullptr};
+    Require(Throws<std::invalid_argument>([&] { uprv_getCharNameCharacters_nid_postfix(&empty); }), "an adder without add");
+}
+
 }
 
 int main() {
@@ -327,5 +355,6 @@ int main() {
     CheckNameEnumeration();
     CheckPropertySets();
     CheckPropertyMaps();
+    CheckNameCharacters();
     return 0;
 }

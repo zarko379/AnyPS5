@@ -52,5 +52,6 @@ std::int32_t APS5_VABI ucol_swap_nid_postfix(const GuestDataSwapper* ds, const v
 std::int32_t APS5_VABI ucol_swapInverseUCA_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
 std::int32_t APS5_VABI ures_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
 std::int32_t APS5_VABI ucnv_swapAliases_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
+std::int32_t APS5_VABI uprv_ebcdicFromAscii_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
 std::int32_t APS5_VABI ucnv_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
 }

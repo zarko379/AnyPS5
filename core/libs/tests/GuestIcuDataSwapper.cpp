@@ -24,6 +24,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -1239,6 +1240,45 @@ void TestConverterSwap() {
     Require(Throws(noName, Header(extOnly) + 100 + static_cast<std::int32_t>(onlyOffset) + 128, true, swap), "ucnv_swap base name without a NUL");
 }
 
+void TestEbcdicFromAscii() {
+    GuestDataSwapper* ds = Swapper(false, 0, false, 1);
+    UDataSwapper* host = HostSwapper(false, 0, false, 1);
+    const char text[] = "Az09 _%<>?\0x";
+    char guestOut[sizeof(text)] = {};
+    char hostOut[sizeof(text)] = {};
+    std::int32_t status = Ok;
+    UErrorCode hostStatus = U_ZERO_ERROR;
+    const auto length = static_cast<std::int32_t>(sizeof(text) - 1);
+    Require(uprv_ebcdicFromAscii_nid_postfix(ds, text, length, guestOut, &status) == length && status == Ok, "uprv_ebcdicFromAscii converts");
+    Require(uprv_ebcdicFromAscii(host, text, length, hostOut, &hostStatus) == length && std::memcmp(guestOut, hostOut, sizeof(text)) == 0, "uprv_ebcdicFromAscii against ICU");
+    Bytes inPlace(16);
+    std::memcpy(inPlace.data(), "ABC", 3);
+    status = Ok;
+    Require(uprv_ebcdicFromAscii_nid_postfix(ds, inPlace.data(), 3, inPlace.data(), &status) == 3 && std::memcmp(inPlace.data(), hostOut, 1) == 0, "uprv_ebcdicFromAscii in place");
+    const std::string suffix = "|";
+    ds->printError = GuestPrintError;
+    ds->printErrorContext = const_cast<std::string*>(&suffix);
+    host->printError = HostPrintError;
+    printed.clear();
+    hostPrinted.clear();
+    status = Ok;
+    hostStatus = U_ZERO_ERROR;
+    Require(uprv_ebcdicFromAscii_nid_postfix(ds, "ab[c", 4, guestOut, &status) == 0 && status == U_INVALID_CHAR_FOUND, "uprv_ebcdicFromAscii variant character");
+    uprv_ebcdicFromAscii(host, "ab[c", 4, hostOut, &hostStatus);
+    Require(hostStatus == U_INVALID_CHAR_FOUND && printed == hostPrinted + "|" && printed.find("string[4] contains a variant character in position 2") != std::string::npos, "uprv_ebcdicFromAscii message");
+    Require(uprv_ebcdicFromAscii_nid_postfix(ds, text, length, guestOut, nullptr) == 0, "uprv_ebcdicFromAscii NULL status");
+    status = U_INVALID_FORMAT_ERROR;
+    Require(uprv_ebcdicFromAscii_nid_postfix(ds, text, length, guestOut, &status) == 0 && status == U_INVALID_FORMAT_ERROR, "uprv_ebcdicFromAscii failed status");
+    for (const auto& [swapper, input, size, output] : {std::tuple<GuestDataSwapper*, const char*, std::int32_t, char*>{nullptr, text, 2, guestOut}, {ds, nullptr, 2, guestOut}, {ds, text, -1, guestOut}, {ds, text, 2, nullptr}}) {
+        status = Ok;
+        Require(uprv_ebcdicFromAscii_nid_postfix(swapper, input, size, output, &status) == 0 && status == U_ILLEGAL_ARGUMENT_ERROR, "uprv_ebcdicFromAscii arguments");
+    }
+    status = Ok;
+    Require(uprv_ebcdicFromAscii_nid_postfix(ds, text, 0, nullptr, &status) == 0 && status == Ok, "uprv_ebcdicFromAscii empty");
+    udata_closeSwapper(host);
+    udata_closeSwapper_nid_postfix(ds);
+}
+
 }
 
 int main() {
@@ -1259,6 +1299,7 @@ int main() {
     TestBundleSwap();
     TestAliasSwap();
     TestConverterSwap();
+    TestEbcdicFromAscii();
     std::puts("ICU DATA SWAPPER TESTS PASSED");
     return 0;
 }

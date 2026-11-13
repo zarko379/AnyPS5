@@ -1,10 +1,13 @@
 #include "prx/libSceIcu/CharacterProperties.hpp"
 #include "prx/libSceIcu/Backend.hpp"
 #include "prx/libSceIcu/Script.hpp"
+#include "prx/libc/include/General.hpp"
 #include <unicode/uchar.h>
 #include <unicode/ucpmap.h>
 #include <unicode/uscript.h>
 #include <unicode/uset.h>
+#include "uprops.h"
+#include "uset_imp.h"
 #include <array>
 #include <mutex>
 
@@ -37,6 +40,16 @@ struct ValueFilterForward {
 uint32_t U_CALLCONV ForwardValueFilter(const void* context, uint32_t value) {
     const auto* forward = static_cast<const ValueFilterForward*>(context);
     return forward->fn(forward->context, value);
+}
+
+static_assert(offsetof(GuestSetAdder, add) == offsetof(USetAdder, add) && offsetof(GuestSetAdder, removeRange) == offsetof(USetAdder, removeRange) && sizeof(GuestSetAdder) == sizeof(USetAdder));
+
+thread_local const GuestSetAdder* activeAdder = nullptr;
+
+void U_CALLCONV ForwardAdd(USet*, UChar32 c) {
+    const GuestSetAdder* adder = activeAdder;
+    if (!adder->add) APS5_INVALID_ARG_EX;
+    adder->add(adder->set, c);
 }
 
 std::mutex& PropertySetMutex() {
@@ -103,6 +116,27 @@ std::int32_t APS5_VABI uscript_getCode_nid_postfix(const char* nameOrAbbrOrLocal
     UErrorCode* error = RequiredStatus(status);
     if (U_SUCCESS(*error) && nameOrAbbrOrLocale && (fillIn == nullptr ? capacity == 0 : capacity >= 0)) IcuBackend::CanonicalLocale(nameOrAbbrOrLocale);
     return uscript_getCode(nameOrAbbrOrLocale, reinterpret_cast<UScriptCode*>(fillIn), capacity, error);
+}
+
+std::int32_t APS5_VABI uprv_getMaxCharNameLength_nid_postfix() {
+    IcuBackend::Ensure();
+    return uprv_getMaxCharNameLength();
+}
+
+void APS5_VABI uprv_getCharNameCharacters_nid_postfix(const GuestSetAdder* sa) {
+    IcuBackend::Ensure();
+    if (uprv_getMaxCharNameLength() == 0) return;
+    if (!sa) APS5_INVALID_ARG_EX;
+    const GuestSetAdder* saved = activeAdder;
+    activeAdder = sa;
+    const USetAdder host{nullptr, ForwardAdd, nullptr, nullptr, nullptr, nullptr};
+    try {
+        uprv_getCharNameCharacters(&host);
+    } catch (...) {
+        activeAdder = saved;
+        throw;
+    }
+    activeAdder = saved;
 }
 
 }

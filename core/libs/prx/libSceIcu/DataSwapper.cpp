@@ -1234,4 +1234,10 @@ std::int32_t APS5_VABI ucnv_swap_nid_postfix(const GuestDataSwapper* ds, const v
     });
 }
 
+std::int32_t APS5_VABI uprv_ebcdicFromAscii_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status) {
+    return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
+        return uprv_ebcdicFromAscii(host, inData, length, outData, error);
+    });
+}
+
 }
