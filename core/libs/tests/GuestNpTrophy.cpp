@@ -152,7 +152,20 @@ int main() {
     Require(sceNpTrophyGetTrophyIcon(context, handle, 0, unregisteredIcon, &unregisteredSize) == NotRegistered, "trophy icon before registration");
     Require(sceNpTrophyGetGroupInfo(context, handle, -1, &groupDetails, nullptr) == NotRegistered, "group info before registration");
     Require(sceNpTrophyGetTrophyInfo(context, handle, 0, &trophyDetails, nullptr) == NotRegistered, "trophy info before registration");
+    Require(sceNpTrophyShowTrophyList(context, handle) == NotRegistered, "trophy list before registration");
+    Require(sceNpTrophyShowTrophyList(-1, -1) == InvalidContext, "trophy list checks the context id before the handle id");
+    Require(sceNpTrophyShowTrophyList(context + 100, handle + 100) == InvalidContext, "trophy list checks the context before the handle");
+    Require(sceNpTrophyShowTrophyList(context, -1) == InvalidHandle, "trophy list for the invalid handle id");
+    Require(sceNpTrophyShowTrophyList(context, handle + 100) == InvalidHandle, "trophy list for an unknown handle");
     Require(sceNpTrophyRegisterContext(context, handle, 0) == 0, "register the context");
+    bool listThrew = false;
+    try {
+        sceNpTrophyShowTrophyList(context, handle);
+    } catch (const std::exception&) {
+        listThrew = true;
+    }
+    Require(listThrew, "a trophy list for a registered context is not shown");
+    Require(sceNpTrophyGetGameIcon(context, handle, nullptr, &unregisteredSize) == 0, "the library stays usable after the unshown trophy list");
     Require(sceNpTrophyRegisterContext(context, handle, 0) == AlreadyRegistered, "register twice");
     errno = 71;
     Require(sceNpTrophyGetTrophyUnlockState(context, handle, reinterpret_cast<TrophyFlagArray*>(0x10), &count) == InvalidArgument, "unwritable flags rejected");
@@ -247,6 +260,8 @@ int main() {
     Require(sceNpTrophyGetGameIcon(context, handle, icon, &size) == Abort, "game icon through an aborted handle");
     Require(sceNpTrophyUnlockTrophy(context, handle, 0, &platinum) == Abort, "unlock through an aborted handle");
     Require(sceNpTrophyRegisterContext(context, handle, 0) == Abort, "register through an aborted handle");
+    Require(sceNpTrophyShowTrophyList(context, handle) == Abort, "trophy list through an aborted handle");
+    Require(sceNpTrophyShowTrophyList(context + 100, handle) == InvalidContext, "trophy list checks the context before the abort");
     Require(sceNpTrophyAbortHandle(handle) == 0, "abort the handle again");
     Require(sceNpTrophyGetTrophyUnlockState(context, live, reinterpret_cast<TrophyFlagArray*>(flags), &count) == 0, "the other handle still works");
     Require(sceNpTrophyDestroyHandle(live) == 0, "destroy the second handle");
