@@ -321,6 +321,53 @@ static void CheckNetstat() {
     Require(Failed(sceNetShowRoute6WithMemory(pool), 9));
 }
 
+static std::string BufferText(const std::vector<char>& buffer) {
+    const auto end = std::find(buffer.begin(), buffer.end(), '\0');
+    Require(end != buffer.end());
+    return std::string(buffer.begin(), end);
+}
+
+template <typename Show, typename Plain>
+static void CheckShowForBuffer(Show show, Plain plain) {
+    std::vector<char> buffer(0x4000, static_cast<char>(0xa5));
+    Require(show(buffer.data(), 0x2000, 0) == 0);
+    const auto text = BufferText(buffer);
+    Require(!text.empty() && text == CaptureDiagnostic(plain));
+    Require(std::all_of(buffer.begin() + static_cast<std::ptrdiff_t>(text.size()) + 1, buffer.end(), [](char byte) { return byte == static_cast<char>(0xa5); }));
+    for (const std::int32_t size : {0, -1, 0x2000})
+        Require(CaptureDiagnostic([&] { return show(nullptr, size, 0); }) == text);
+    Require(Failed(show(buffer.data(), 0x1fff, 0), 22));
+    Require(Failed(show(reinterpret_cast<char*>(std::uintptr_t{0x10}), 0x2000, 0), 14));
+    for (const std::int32_t pool : {1, -1}) {
+        bool threw = false;
+        try { show(buffer.data(), 0x2000, pool); } catch (const std::runtime_error&) { threw = true; }
+        Require(threw);
+        threw = false;
+        try { show(nullptr, 0, pool); } catch (const std::runtime_error&) { threw = true; }
+        Require(threw);
+    }
+}
+
+static void CheckShowForBuffers() {
+    CheckShowForBuffer(sceNetShowIfconfigForBuffer, sceNetShowIfconfig);
+    const std::string name(31, 'b');
+    std::vector<int> sockets;
+    sockets.push_back(sceNetSocket(name.c_str(), 2, 2, 0));
+    Require(sockets.back() >= 0);
+    CheckShowForBuffer(sceNetShowNetstatForBuffer, sceNetShowNetstat);
+    while (CaptureDiagnostic(sceNetShowNetstat).size() <= 0x2400) {
+        sockets.push_back(sceNetSocket(name.c_str(), 2, 2, 0));
+        Require(sockets.back() >= 0);
+    }
+    const auto full = CaptureDiagnostic(sceNetShowNetstat);
+    std::vector<char> buffer(0x4000, static_cast<char>(0xa5));
+    Require(sceNetShowNetstatForBuffer(buffer.data(), 0x4000, 0) == 0);
+    Require(std::memcmp(buffer.data(), full.data(), 0x1fff) == 0 && buffer[0x1fff] == '\0');
+    Require(std::all_of(buffer.begin() + 0x2000, buffer.end(), [](char byte) { return byte == static_cast<char>(0xa5); }));
+    Require(CaptureDiagnostic([] { return sceNetShowNetstatForBuffer(nullptr, 0, 0); }) == full);
+    for (const int socket : sockets) Require(sceNetSocketClose(socket) == 0);
+}
+
 static void CheckPoolStats() {
     const int pool = sceNetPoolCreate("stats", 0x4000, 0);
     Require(pool > 0);
@@ -2671,6 +2718,7 @@ int main() {
     CheckByteOrderConversion();
     CheckNetMemory();
     CheckNetstat();
+    CheckShowForBuffers();
     CheckEmptyEpoll();
     CheckResolverEpoll();
     CheckIfFlags();
