@@ -1,7 +1,9 @@
 #include "prx/libSceIcu/libSceIcu.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
 #include "prx/libc/include/Api.hpp"
+#include <cstdarg>
 #include <cstddef>
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -253,8 +255,8 @@ void APS5_VABI TraceEntered_nid_no_patch(const void* context, std::int32_t funct
     ++traceCall.calls;
 }
 
-void APS5_VABI TraceExited_nid_no_patch() {}
-void APS5_VABI TraceData_nid_no_patch() {}
+void APS5_VABI TraceExited_nid_no_patch(const void*, std::int32_t, const char*, VaList*) {}
+void APS5_VABI TraceData_nid_no_patch(const void*, std::int32_t, std::int32_t, const char*, VaList*) {}
 
 void TraceFunctions(const void* context, Icu::TraceEntry entry, Icu::TraceExit exit, Icu::TraceData data) {
     const void* gotContext = &traceCall;
@@ -313,6 +315,123 @@ void TraceNames() {
     for (const auto& [number, name] : names) Require(std::string(utrace_functionName_nid_postfix(number)) == name);
     for (const std::int32_t number : {-1, 2, 0xfff, 0x1008, 0x1fff, 0x2008, 0x3004, 0x4000, 0x4001, INT32_MIN, INT32_MAX})
         Require(std::string(utrace_functionName_nid_postfix(number)) == "[BOGUS Trace Function Number]");
+}
+
+struct TraceRecord {
+    const void* context = nullptr;
+    std::int32_t function = 0;
+    std::int32_t level = 0;
+    std::string format;
+    std::string text;
+    std::int32_t calls = 0;
+};
+
+TraceRecord traceRecord;
+
+void APS5_VABI TraceExitRecorded_nid_no_patch(const void* context, std::int32_t function, const char* fmt, VaList* args) {
+    char buffer[128];
+    traceRecord = {context, function, 0, fmt, "", traceRecord.calls + 1};
+    utrace_vformat_nid_postfix(buffer, sizeof(buffer), 0, fmt, args);
+    traceRecord.text = buffer;
+}
+
+void APS5_VABI TraceDataRecorded_nid_no_patch(const void* context, std::int32_t function, std::int32_t level, const char* fmt, VaList* args) {
+    char buffer[128];
+    traceRecord = {context, function, level, fmt, "", traceRecord.calls + 1};
+    utrace_vformat_nid_postfix(buffer, sizeof(buffer), 0, fmt, args);
+    traceRecord.text = buffer;
+}
+
+void TraceExitAndData() {
+    u_cleanup_nid_postfix();
+    utrace_exit_nid_postfix(1, 0x55);
+    utrace_data_nid_postfix(1, 9, "%s", "unused");
+    Require(traceRecord.calls == 0);
+    int marker = 0;
+    utrace_setFunctions_nid_postfix(&marker, nullptr, TraceExitRecorded_nid_no_patch, TraceDataRecorded_nid_no_patch);
+    utrace_setLevel_nid_postfix(-1);
+    utrace_exit_nid_postfix(0x2001, 0);
+    Require(traceRecord.calls == 1 && traceRecord.context == &marker && traceRecord.function == 0x2001 && traceRecord.format == "Returns." && traceRecord.text == "Returns.");
+    utrace_exit_nid_postfix(7, 1, -2);
+    Require(traceRecord.format == "Returns %d." && traceRecord.text == "Returns fffffffe.");
+    utrace_exit_nid_postfix(7, 0x10, 5);
+    Require(traceRecord.format == "Returns.  Status = %d." && traceRecord.text == "Returns.  Status = 00000005.");
+    utrace_exit_nid_postfix(7, 0x11, 0x1234, 1);
+    Require(traceRecord.format == "Returns %d.  Status = %d." && traceRecord.text == "Returns 00001234.  Status = 00000001.");
+    utrace_exit_nid_postfix(7, 0x12, 3, &marker);
+    Require(traceRecord.format == "Returns %d.  Status = %p." && traceRecord.calls == 5);
+    for (const std::int32_t returnType : {2, 3, 0x13, 0x20, -1}) RequireThrows([&] { utrace_exit_nid_postfix(7, returnType, 0, 0); });
+    Require(traceRecord.calls == 5);
+    utrace_data_nid_postfix(0x3001, 4, "%s:%d:%c", "bundle", 12, 'z');
+    Require(traceRecord.calls == 6 && traceRecord.function == 0x3001 && traceRecord.level == 4 && traceRecord.format == "%s:%d:%c" && traceRecord.text == "bundle:0000000c:z");
+    utrace_data_nid_postfix(1, 9, "%d %d %d %d %d %d %d %d", 1, 2, 3, 4, 5, 6, 7, 8);
+    Require(traceRecord.text == "00000001 00000002 00000003 00000004 00000005 00000006 00000007 00000008");
+    u_cleanup_nid_postfix();
+}
+
+extern "C" std::int32_t utrace_format_68(char* outBuf, std::int32_t capacity, std::int32_t indent, const char* fmt, ...);
+
+template<typename... TArgs>
+void SameAsIcu(std::int32_t capacity, std::int32_t indent, const char* fmt, TArgs... args) {
+    char guest[512];
+    char host[512];
+    std::memset(guest, 0x5a, sizeof(guest));
+    std::memset(host, 0x5a, sizeof(host));
+    const std::int32_t guestLength = utrace_format_nid_postfix(capacity ? guest : nullptr, capacity, indent, fmt, args...);
+    const std::int32_t hostLength = utrace_format_68(capacity ? host : nullptr, capacity, indent, fmt, args...);
+    if (guestLength != hostLength || std::memcmp(guest, host, sizeof(guest)) != 0) {
+        std::fprintf(stderr, "utrace_format \"%s\": %d \"%.*s\" against ICU %d \"%.*s\"\n", fmt, guestLength, capacity, guest, hostLength, capacity, host);
+        Require(false);
+    }
+}
+
+std::int32_t APS5_VABI GuestVformat_nid_no_patch(char* outBuf, std::int32_t capacity, const char* fmt, ...) {
+#ifdef _WIN32
+    __builtin_sysv_va_list args;
+    __builtin_sysv_va_start(args, fmt);
+    const std::int32_t length = utrace_vformat_nid_postfix(outBuf, capacity, 2, fmt, reinterpret_cast<VaList*>(args));
+    __builtin_sysv_va_end(args);
+#else
+    std::va_list args;
+    va_start(args, fmt);
+    const std::int32_t length = utrace_vformat_nid_postfix(outBuf, capacity, 2, fmt, reinterpret_cast<VaList*>(args));
+    va_end(args);
+#endif
+    return length;
+}
+
+void TraceFormat() {
+    const char16_t text[] = u"été";
+    const std::int8_t bytes[] = {1, -2, 3, 0};
+    const std::int16_t halves[] = {0x1234, -1, 0};
+    const std::int32_t words[] = {0x12345678, -5, 0};
+    const std::int64_t longs[] = {0x0123456789abcdefLL, -1, 0};
+    int marker = 0;
+    const void* pointers[] = {&marker, nullptr};
+    const char* strings[] = {"one", "two", nullptr};
+    const char16_t* unicode[] = {u"ab", nullptr};
+    const char chars[] = "chars";
+    for (const std::int32_t capacity : {512, 40, 7, 1, 0}) {
+        for (const std::int32_t indent : {0, 3}) {
+            SameAsIcu(capacity, indent, "plain");
+            SameAsIcu(capacity, indent, "%c|%s|%s|%%|%q|%", 'x', "str", static_cast<const char*>(nullptr));
+            SameAsIcu(capacity, indent, "%S|%S|%S", text, 3, text, -1, static_cast<const char16_t*>(nullptr), 2);
+            SameAsIcu(capacity, indent, "%b %h %d %l %p", 0x1ff, 0x12345, -7, static_cast<std::int64_t>(0x0123456789abcdefLL), static_cast<const void*>(&marker));
+            SameAsIcu(capacity, indent, "%vb %vh %vd %vl", bytes, 4, halves, -1, words, 3, longs, -1);
+            SameAsIcu(capacity, indent, "%vp %vc %vs %vS %vd", pointers, -1, chars, -1, strings, -1, unicode, 2, static_cast<const void*>(nullptr), 4);
+            SameAsIcu(capacity, indent, "%vx %v", words, 2, words, 1);
+            SameAsIcu(capacity, indent, "a\nb\n\nc%s\n", "d\ne");
+            SameAsIcu(capacity, indent, "%d%d%d%d%d%d%d%d%d%d", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        }
+    }
+    char buffer[64];
+    Require(GuestVformat_nid_no_patch(buffer, sizeof(buffer), "%s %d\n%c", "va", 10, 'q') == 18 && std::string(buffer) == "  va 0000000a\n  q");
+    RequireThrows([&] { utrace_format_nid_postfix(buffer, sizeof(buffer), 0, nullptr); });
+    RequireThrows([&] { utrace_format_nid_postfix(nullptr, 1, 0, "x"); });
+    Require(utrace_vformat_nid_postfix(buffer, sizeof(buffer), 0, "no arguments", nullptr) == 13 && std::string(buffer) == "no arguments");
+    RequireThrows([&] { utrace_vformat_nid_postfix(buffer, sizeof(buffer), 0, "%d", nullptr); });
+    RequireThrows([&] { utrace_format_nid_postfix(buffer, sizeof(buffer), 0, "%l%vx", static_cast<std::int64_t>(1), words, -1); });
+    SameAsIcu(64, 0, "%l%vx", static_cast<std::int64_t>(0), words, -1);
 }
 
 }
@@ -390,6 +509,13 @@ void UprvMemoryWithUserFunctions() {
     std::memset(g_arena, 0x55, sizeof(g_arena));
     char* empty = uprv_strndup_nid_postfix("abc", 0);
     Require(empty[0] == 0 && g_log.lastSize == 1);
+
+    std::memset(g_arena, 0x55, sizeof(g_arena));
+    auto* cleared = static_cast<unsigned char*>(uprv_calloc_nid_postfix(3, 8));
+    Require(cleared == g_arena && g_log.lastSize == 24 && g_log.context == &marker && cleared[0] == 0 && cleared[23] == 0 && cleared[24] == 0x55);
+    const int allocations = g_log.allocations;
+    Require(uprv_calloc_nid_postfix(0, 8) == zero && uprv_calloc_nid_postfix(8, 0) == zero && uprv_calloc_nid_postfix((SIZE_MAX >> 1) + 1, 2) == zero);
+    Require(g_log.allocations == allocations);
     u_cleanup_nid_postfix();
 }
 
@@ -415,11 +541,16 @@ void UprvMemoryWithDefaultHeap() {
     char* whole = uprv_strndup_nid_postfix("heap", -5);
     Require(whole != nullptr && std::string(whole) == "heap");
     free_nid_postfix(whole);
+    auto* cleared = static_cast<unsigned char*>(uprv_calloc_nid_postfix(4, 4));
+    Require(cleared != nullptr && std::all_of(cleared, cleared + 16, [](unsigned char value) { return value == 0; }));
+    free_nid_postfix(cleared);
 }
 
 int main() {
     Tracing();
     TraceNames();
+    TraceExitAndData();
+    TraceFormat();
     Locking();
     Memory();
     UprvMemoryWithUserFunctions();

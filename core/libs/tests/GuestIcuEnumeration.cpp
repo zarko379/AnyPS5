@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <stdexcept>
 #include <vector>
 
@@ -27,13 +28,23 @@ constexpr std::array<const char16_t*, 3> Wide{u"alpha", u"be", u""};
 
 std::vector<void*> freed;
 
-void* APS5_VABI Allocate_nid_no_patch(std::size_t size) { return std::malloc(size); }
+bool failAllocation = false;
+std::vector<std::size_t> allocated;
+std::vector<std::size_t> reallocated;
+
+void* APS5_VABI Allocate_nid_no_patch(std::size_t size) {
+    allocated.push_back(size);
+    return failAllocation ? nullptr : std::malloc(size);
+}
 void APS5_VABI Free_nid_no_patch(void* pointer) {
     freed.push_back(pointer);
     std::free(pointer);
 }
 void* APS5_VABI Calloc_nid_no_patch(std::size_t, std::size_t) { throw std::runtime_error("unexpected calloc"); }
-void* APS5_VABI Reallocate_nid_no_patch(void*, std::size_t) { throw std::runtime_error("unexpected realloc"); }
+void* APS5_VABI Reallocate_nid_no_patch(void* pointer, std::size_t size) {
+    reallocated.push_back(size);
+    return failAllocation ? nullptr : std::realloc(pointer, size);
+}
 void* APS5_VABI Align_nid_no_patch(std::size_t, std::size_t) { throw std::runtime_error("unexpected aligned allocation"); }
 void* APS5_VABI Realign_nid_no_patch(void*, std::size_t, std::size_t) { throw std::runtime_error("unexpected aligned reallocation"); }
 int APS5_VABI PosixAlign_nid_no_patch(void**, std::size_t, std::size_t) { throw std::runtime_error("unexpected posix_memalign"); }
@@ -194,6 +205,86 @@ void GuestMemory() {
     free_nid_postfix(leftover);
 }
 
+constexpr std::array<const char16_t*, 3> Growing{u"ab", u"a longer word that needs a bigger buffer", u"\u00e9x"};
+
+const char16_t* APS5_VABI GrowingNext(UEnumeration* enumeration, std::int32_t* length, std::int32_t*) {
+    auto& words = State(enumeration);
+    if (words.index >= static_cast<std::int32_t>(Growing.size())) return nullptr;
+    const char16_t* word = Growing[static_cast<std::size_t>(words.index++)];
+    *length = static_cast<std::int32_t>(std::char_traits<char16_t>::length(word));
+    return word;
+}
+
+std::int32_t Capacity(const UEnumeration& enumeration) {
+    return *static_cast<const std::int32_t*>(enumeration.baseContext);
+}
+
+void Defaults() {
+    allocated.clear();
+    reallocated.clear();
+    freed.clear();
+    Words words;
+    UEnumeration narrow{nullptr, &words, Close, Count, GrowingNext, uenum_nextDefault_nid_postfix, nullptr};
+    std::int32_t status = Success;
+    std::int32_t length = -1;
+    const char* word = uenum_next_nid_postfix(&narrow, &length, &status);
+    Require(word && std::string(word) == "ab" && length == 2 && status == Success, "nextDefault converts the unicode word");
+    Require(narrow.baseContext && word == static_cast<char*>(narrow.baseContext) + 4 && Capacity(narrow) == 11 && allocated == std::vector<std::size_t>{15}, "nextDefault allocates the word and eight spare bytes after a capacity");
+    void* first = narrow.baseContext;
+    word = uenum_next_nid_postfix(&narrow, &length, &status);
+    Require(word && std::string(word) == "a longer word that needs a bigger buffer" && length == 40 && Capacity(narrow) == 49 && reallocated == std::vector<std::size_t>{53}, "nextDefault grows the buffer");
+    word = uenum_next_nid_postfix(&narrow, &length, &status);
+    Require(word && length == 2 && word[0] == 0 && word[1] == 'x' && word[2] == 0 && Capacity(narrow) == 49 && reallocated.size() == 1, "nextDefault keeps a big enough buffer and writes 0 for a variant character");
+    Require(uenum_next_nid_postfix(&narrow, &length, &status) == nullptr && status == Success, "nextDefault ends with the unicode words");
+    void* last = narrow.baseContext;
+    uenum_close_nid_postfix(&narrow);
+    Require(freed == std::vector<void*>{last} && words.closes == 1, "close frees the default buffer");
+    (void)first;
+
+    Words other;
+    UEnumeration wide{nullptr, &other, Close, Count, uenum_unextDefault_nid_postfix, Next, nullptr};
+    status = Success;
+    length = -1;
+    const char16_t* unit = uenum_unext_nid_postfix(&wide, &length, &status);
+    Require(unit && std::u16string(unit) == u"alpha" && length == 5 && Capacity(wide) == 20, "unextDefault converts the narrow word");
+    unit = uenum_unext_nid_postfix(&wide, nullptr, &status);
+    Require(unit && std::u16string(unit) == u"be" && Capacity(wide) == 20, "unextDefault accepts a null length");
+    unit = uenum_unext_nid_postfix(&wide, &length, &status);
+    Require(unit && unit[0] == 0 && length == 0, "unextDefault converts an empty word");
+    length = 9;
+    Require(uenum_unext_nid_postfix(&wide, &length, &status) == nullptr && length == 0 && status == Success, "unextDefault reports length 0 at the end");
+    uenum_close_nid_postfix(&wide);
+
+    Words missing;
+    UEnumeration none{nullptr, &missing, Close, nullptr, nullptr, nullptr, nullptr};
+    status = Success;
+    length = 4;
+    Require(uenum_nextDefault_nid_postfix(&none, &length, &status) == nullptr && status == Unsupported && length == 4, "nextDefault without unext");
+    status = Success;
+    Require(uenum_unextDefault_nid_postfix(&none, &length, &status) == nullptr && status == Unsupported && length == 0, "unextDefault without next");
+    Require(Rejects([] { uenum_nextDefault_nid_postfix(nullptr, nullptr, nullptr); }), "nextDefault null enumeration");
+    Require(Rejects([] { uenum_unextDefault_nid_postfix(nullptr, nullptr, nullptr); }), "unextDefault null enumeration");
+    Require(Rejects([&] { uenum_nextDefault_nid_postfix(&none, &length, nullptr); }), "nextDefault null status without unext");
+    Require(Rejects([&] { uenum_unextDefault_nid_postfix(&none, &length, nullptr); }), "unextDefault null status without next");
+    Words strings;
+    UEnumeration lengthless{nullptr, &strings, Close, nullptr, UnicodeNext, nullptr, nullptr};
+    Require(Rejects([&] { uenum_nextDefault_nid_postfix(&lengthless, nullptr, &status); }), "nextDefault null length");
+
+    Words failing;
+    UEnumeration starved{nullptr, &failing, Close, nullptr, GrowingNext, Next, nullptr};
+    failAllocation = true;
+    status = Success;
+    Require(uenum_nextDefault_nid_postfix(&starved, &length, &status) == nullptr && status == 7 && !starved.baseContext, "nextDefault reports a failed allocation");
+    failAllocation = false;
+    status = Success;
+    failing.index = 0;
+    Require(uenum_nextDefault_nid_postfix(&starved, &length, &status) != nullptr && status == Success && Capacity(starved) == 11, "nextDefault allocates again");
+    failAllocation = true;
+    Require(uenum_nextDefault_nid_postfix(&starved, &length, &status) == nullptr && status == 7 && !starved.baseContext, "a failed reallocation drops the buffer as ICU does");
+    failAllocation = false;
+    uenum_close_nid_postfix(&starved);
+}
+
 }
 
 int main() {
@@ -207,5 +298,6 @@ int main() {
     MissingCallbacks();
     GuestMemory();
     Resetting();
+    Defaults();
     return 0;
 }
