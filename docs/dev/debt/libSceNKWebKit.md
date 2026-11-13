@@ -56,6 +56,8 @@ Inventory prose retains historical counts; use the [generated progress report](h
 
 - [WTF::GregorianDateTime(double, LocalTimeOffset)](../../../core/libs/prx/libSceNKWebKit/src/WtfTime.cpp) (libSceNKWebKit) - follows [GregorianDateTime.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/GregorianDateTime.cpp#L39-L60) and its DateMath.h helpers; not measured on a console. Finite times whose day count leaves `int32_t` (before -185542587187200000 ms) or overflows `days + daysOffset` (after 172857639167999999 ms) throw `std::out_of_range`, where upstream is undefined. A null object throws.
 
+- [WebCore::findIntersection](../../../core/libs/prx/libSceNKWebKit/src/WebCoreGeometry.cpp) (libSceNKWebKit) - follows [GeometryUtilities.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/platform/graphics/GeometryUtilities.cpp#L57-L74) in single precision without FMA contraction; not measured on a console, whose compiler may fuse `a * b - c * d` and round differently. A null point throws.
+
 - [WTF::StringImpl::utf8ForCharacters](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - both overloads follow [StringImpl.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.cpp#L1524-L1600), its x86 Latin-1 path in [StringImpl.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.h#L1491-L1545) and [UTF8Conversion.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/unicode/UTF8Conversion.cpp#L56-L87); `String`, `StringImpl` and `StringView` `utf8` share them and throw where upstream asserts. The 16-byte `Expected` (value or error byte at 0, flag at 8) follows the pinned `Expected.h`. Not measured on a console. Mode 3 yields an empty string as the source's switch does; a higher mode or a null buffer that must be read throws.
 
 ### Functional
@@ -2702,7 +2704,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore16convertToIntegerItEET_RN3JSC14JSGlobalObjectENS2_7JSValueE` | `QslKfV15MYY` |
 | `_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE` | `aZ1gCm7lYhU` |
 | `_ZN7WebCore16enclosingIntRectERKNS_9FloatRectE` | `VFvo8Ldr2iw` |
-| `_ZN7WebCore16findIntersectionERKNS_10FloatPointES2_S2_S2_RS0_` | `SE+sQrvs7vQ` |
 | `_ZN7WebCore16isEndOfParagraphERKNS_15VisiblePositionENS_27EditingBoundaryCrossingRuleE` | `tVGIPxZgQr4` |
 | `_ZN7WebCore16nextWordPositionERKNS_15VisiblePositionE` | `1NgqWZM7bts` |
 | `_ZN7WebCore16startOfParagraphERKNS_15VisiblePositionENS_27EditingBoundaryCrossingRuleE` | `gbcpFiojSAk` |

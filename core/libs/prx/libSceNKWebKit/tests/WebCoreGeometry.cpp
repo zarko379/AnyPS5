@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <stdexcept>
 #include <emmintrin.h>
 
 static void Check(bool value, int line) {
@@ -698,7 +699,58 @@ static void TestIntRectScaleOverflowGivesIntMin() {
     Require(ir.m_size.m_height == 30);
 }
 
+static bool FindIntersection(WebCore::FloatPoint p1, WebCore::FloatPoint p2, WebCore::FloatPoint d1, WebCore::FloatPoint d2, WebCore::FloatPoint& intersection) {
+    return _ZN7WebCore16findIntersectionERKNS_10FloatPointES2_S2_S2_RS0_(&p1, &p2, &d1, &d2, &intersection);
+}
+
+static void TestFindIntersection() {
+    WebCore::FloatPoint result{-7.0f, -9.0f};
+    Require(FindIntersection({0.0f, 0.0f}, {4.0f, 4.0f}, {0.0f, 4.0f}, {4.0f, 0.0f}, result));
+    Require(result.m_x == 2.0f && result.m_y == 2.0f);
+    Require(FindIntersection({0.0f, 0.0f}, {1.0f, 0.0f}, {5.0f, -1.0f}, {5.0f, 1.0f}, result));
+    Require(result.m_x == 5.0f && result.m_y == 0.0f);
+    Require(FindIntersection({1.0f, 1.0f}, {2.0f, 1.0f}, {-3.0f, 0.0f}, {-3.0f, 4.0f}, result));
+    Require(result.m_x == -3.0f && result.m_y == 1.0f);
+    Require(FindIntersection({0.0f, 0.0f}, {3.0f, 0.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, result));
+    float param = ((1.0f - 0.0f) * 2.0f - (-1.0f - 0.0f) * 0.0f) / (3.0f * 2.0f - 0.0f * 0.0f);
+    Require(result.m_x == 0.0f + param * 3.0f && result.m_y == 0.0f);
+
+    WebCore::FloatPoint sentinel{-7.0f, -9.0f};
+    Require(!FindIntersection({0.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}, {1.0f, 2.0f}, sentinel));
+    Require(sentinel.m_x == -7.0f && sentinel.m_y == -9.0f);
+    Require(!FindIntersection({1.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f}, {3.0f, 5.0f}, sentinel));
+    Require(sentinel.m_x == -7.0f && sentinel.m_y == -9.0f);
+    Require(!FindIntersection({0.0f, 0.0f}, {-0.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}, sentinel));
+    Require(sentinel.m_x == -7.0f && sentinel.m_y == -9.0f);
+
+    float nan = std::numeric_limits<float>::quiet_NaN();
+    WebCore::FloatPoint nanResult{-7.0f, -9.0f};
+    Require(FindIntersection({0.0f, 0.0f}, {nan, 1.0f}, {0.0f, 1.0f}, {1.0f, 0.0f}, nanResult));
+    Require(std::isnan(nanResult.m_x) && std::isnan(nanResult.m_y));
+    float inf = std::numeric_limits<float>::infinity();
+    WebCore::FloatPoint infResult{-7.0f, -9.0f};
+    Require(FindIntersection({0.0f, 0.0f}, {inf, 0.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, infResult));
+    Require(std::isnan(infResult.m_x) && infResult.m_y == 0.0f);
+
+    WebCore::FloatPoint point{};
+    bool threw = false;
+    try {
+        _ZN7WebCore16findIntersectionERKNS_10FloatPointES2_S2_S2_RS0_(&point, &point, &point, &point, nullptr);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+    threw = false;
+    try {
+        _ZN7WebCore16findIntersectionERKNS_10FloatPointES2_S2_S2_RS0_(nullptr, &point, &point, &point, &point);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+}
+
 int main() {
+    TestFindIntersection();
     TestFloatPoint();
     TestFloatSize();
     TestFloatSizeFromIntSize();

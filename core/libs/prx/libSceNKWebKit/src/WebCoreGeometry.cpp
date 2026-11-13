@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 
 namespace WebCore {
 
@@ -118,6 +119,24 @@ bool IsRoundedRectRenderable(const RoundedRect& rr) {
 }  // namespace WebCore
 
 extern "C" {
+bool APS5_VABI _ZN7WebCore16findIntersectionERKNS_10FloatPointES2_S2_S2_RS0_(const WebCore::FloatPoint* p1, const WebCore::FloatPoint* p2, const WebCore::FloatPoint* d1, const WebCore::FloatPoint* d2, WebCore::FloatPoint* intersection) {
+    if (!p1 || !p2 || !d1 || !d2 || !intersection) {
+        throw std::invalid_argument("findIntersection: null point");
+    }
+    float pxLength = p2->m_x - p1->m_x;
+    float pyLength = p2->m_y - p1->m_y;
+    float dxLength = d2->m_x - d1->m_x;
+    float dyLength = d2->m_y - d1->m_y;
+    float denom = pxLength * dyLength - pyLength * dxLength;
+    if (!denom) {
+        return false;
+    }
+    float param = ((d1->m_x - p1->m_x) * dyLength - (d1->m_y - p1->m_y) * dxLength) / denom;
+    intersection->m_x = p1->m_x + param * pxLength;
+    intersection->m_y = p1->m_y + param * pyLength;
+    return true;
+}
+
 WebCore::FloatPoint APS5_VABI _ZN7WebCore10FloatPoint15narrowPrecisionEdd(double x, double y) {
     return WebCore::FloatPoint{static_cast<float>(x), static_cast<float>(y)};
 }

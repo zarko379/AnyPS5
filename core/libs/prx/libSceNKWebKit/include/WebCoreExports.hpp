@@ -7,6 +7,7 @@
 
 extern "C" {
 
+bool APS5_VABI _ZN7WebCore16findIntersectionERKNS_10FloatPointES2_S2_S2_RS0_(const WebCore::FloatPoint* p1, const WebCore::FloatPoint* p2, const WebCore::FloatPoint* d1, const WebCore::FloatPoint* d2, WebCore::FloatPoint* intersection);
 WebCore::FloatPoint APS5_VABI _ZN7WebCore10FloatPoint15narrowPrecisionEdd(double x, double y);
 void APS5_VABI _ZN7WebCore10FloatPoint9normalizeEv(WebCore::FloatPoint* self);
 void APS5_VABI _ZN7WebCore10FloatPointC1ERKNS_8IntPointE(WebCore::FloatPoint* self, const WebCore::IntPoint& p);
