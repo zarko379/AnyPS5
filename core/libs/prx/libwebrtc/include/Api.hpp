@@ -192,7 +192,7 @@ bool APS5_VABI _ZNK3rtc13SocketAddress10IsCompleteEv_nid_postfix(const WebRtcSoc
 std::uint32_t APS5_VABI _ZNK3rtc9IPAddress27v4AddressAsHostOrderIntegerEv_nid_postfix(const WebRtcIpAddress* address);
 int APS5_VABI libwebrtcUnknown19(void);
 bool APS5_VABI _ZNK3rtc13SocketAddress7IsAnyIPEv_nid_postfix(const WebRtcSocketAddress* address);
-int APS5_VABI _ZN3rtc10TruncateIPERKNS_9IPAddressEi_nid_postfix(void);
+WebRtcIpAddress* APS5_VABI _ZN3rtc10TruncateIPERKNS_9IPAddressEi_nid_postfix(WebRtcIpAddress* result, const WebRtcIpAddress* ip, int length);
 int APS5_VABI _ZN3rtc15CountIPMaskBitsERKNS_9IPAddressE_nid_postfix(const WebRtcIpAddress* mask);
 int APS5_VABI _ZN3rtc17AsyncPacketSocketD2Ev_nid_postfix(void);
 int APS5_VABI _ZN3rtc17AsyncPacketSocket20NotifyPacketReceivedERKNS_14ReceivedPacketE_nid_postfix(void);

@@ -41,6 +41,7 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libc/libc.hpp"
 
 #include <bit>
 #include <cstdint>
@@ -65,6 +66,45 @@ std::uint32_t HostOrderIpv4(const WebRtcIpAddress& address) {
     return BigEndianWord(bytes);
 }
 
+void StoreBigEndianWord(std::uint8_t* bytes, std::uint32_t word) {
+    bytes[0] = static_cast<std::uint8_t>(word >> 24);
+    bytes[1] = static_cast<std::uint8_t>(word >> 16);
+    bytes[2] = static_cast<std::uint8_t>(word >> 8);
+    bytes[3] = static_cast<std::uint8_t>(word);
+}
+
+void APS5_VABI DestroyIpAddress_nid_no_patch(WebRtcIpAddress* address);
+
+void APS5_VABI DeleteIpAddress_nid_no_patch(WebRtcIpAddress* address) {
+    DestroyIpAddress_nid_no_patch(address);
+    _ZdlPv_nid_postfix(address);
+}
+
+void* const Vtable[] = {
+    nullptr, nullptr,
+    reinterpret_cast<void*>(&DestroyIpAddress_nid_no_patch),
+    reinterpret_cast<void*>(&DeleteIpAddress_nid_no_patch),
+};
+
+void APS5_VABI DestroyIpAddress_nid_no_patch(WebRtcIpAddress* address) {
+    address->vtable = Vtable + 2;
+}
+
+void WriteAddress(WebRtcIpAddress* result, std::int32_t family, const std::uint8_t* bytes) {
+    result->vtable = Vtable + 2;
+    result->family = family;
+    std::memcpy(&result->address, bytes, sizeof(result->address));
+}
+
+}
+
+const void* WebRtcIpAddressVtable() {
+    return Vtable + 2;
+}
+
+void WebRtcConstructIpAddress(WebRtcIpAddress* address) {
+    const std::uint8_t zero[sizeof(address->address)] = {};
+    WriteAddress(address, WebRtcAfUnspec, zero);
 }
 
 extern "C" {
@@ -112,6 +152,41 @@ int APS5_VABI _ZN3rtc15CountIPMaskBitsERKNS_9IPAddressE_nid_postfix(const WebRtc
     if (word == 0)
         return bits;
     return bits + 32 - std::countr_zero(word);
+}
+
+WebRtcIpAddress* APS5_VABI _ZN3rtc10TruncateIPERKNS_9IPAddressEi_nid_postfix(WebRtcIpAddress* result, const WebRtcIpAddress* ip, int length) {
+    if (!result)
+        throw std::invalid_argument("TruncateIP requires a result");
+    const WebRtcIpAddress& source = Checked(ip, "TruncateIP requires an address");
+    std::uint8_t bytes[sizeof(source.address)] = {};
+    std::int32_t family = WebRtcAfUnspec;
+    if (length >= 0 && source.family == WebRtcAfInet) {
+        family = WebRtcAfInet;
+        if (length > 31) {
+            std::memcpy(bytes, &source.address, sizeof(bytes));
+        } else if (length != 0) {
+            const std::uint32_t mask = 0xFFFFFFFFu << (32 - length);
+            StoreBigEndianWord(bytes, HostOrderIpv4(source) & mask);
+        }
+    } else if (length >= 0 && source.family == WebRtcAfInet6) {
+        family = WebRtcAfInet6;
+        if (length > 127) {
+            std::memcpy(bytes, &source.address, sizeof(bytes));
+        } else if (length != 0) {
+            std::memcpy(bytes, source.address.ip6.bytes, sizeof(bytes));
+            const int position = length / 32;
+            const int innerLength = 32 - (length - position * 32);
+            const auto innerMask = static_cast<std::uint32_t>(0xFFFFFFFFull << innerLength);
+            for (int i = 0; i < 4; ++i) {
+                if (i == position)
+                    StoreBigEndianWord(bytes + 4 * i, BigEndianWord(bytes + 4 * i) & innerMask);
+                else if (i > position)
+                    StoreBigEndianWord(bytes + 4 * i, 0);
+            }
+        }
+    }
+    WriteAddress(result, family, bytes);
+    return result;
 }
 
 }

@@ -489,7 +489,7 @@ if(BUILD_TESTING)
     set_tests_properties(guest_webrtc_ip_address PROPERTIES TIMEOUT 20)
     if(WIN32)
         set_tests_properties(guest_webrtc_ip_address PROPERTIES ENVIRONMENT_MODIFICATION
-            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libwebrtc>")
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libwebrtc>;PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
     add_test_executable(guest_webrtc_audio_frame_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/AudioFrame.cpp)
     target_include_directories(guest_webrtc_audio_frame_tests PRIVATE ${LIBS_INCLUDE_DIR})

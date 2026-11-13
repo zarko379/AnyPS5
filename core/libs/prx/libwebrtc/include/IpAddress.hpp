@@ -29,3 +29,6 @@ static_assert(sizeof(WebRtcIn6Addr) == 16);
 static_assert(sizeof(WebRtcIpAddress) == 32);
 static_assert(offsetof(WebRtcIpAddress, family) == 8);
 static_assert(offsetof(WebRtcIpAddress, address) == 12);
+
+const void* WebRtcIpAddressVtable();
+void WebRtcConstructIpAddress(WebRtcIpAddress* address);
