@@ -1903,6 +1903,20 @@ int main() {
     Require(unmountDenied(kldDirectory.c_str(), 0x80000));
     Require(unmountDenied((kldDirectory + "/missing").c_str(), 0));
     Require(unmountDenied("FSID:bad", 0x08000000));
+    const int locker = open_nid_postfix(file.c_str(), 0, 0);
+    const int contender = open_nid_postfix(file.c_str(), 0, 0);
+    Require(locker >= 0 && contender >= 0);
+    Require(sceKernelFlock(locker, 2 | 4) == 0);
+    Require(sceKernelFlock(contender, 2 | 4) == static_cast<int>(0x80020023));
+    Require(sceKernelFlock(contender, 1 | 4) == static_cast<int>(0x80020023));
+    Require(sceKernelFlock(locker, 8) == 0);
+    Require(sceKernelFlock(contender, 1 | 4) == 0);
+    Require(sceKernelFlock(locker, 1 | 4) == 0);
+    Require(sceKernelFlock(contender, 8) == 0);
+    Require(sceKernelFlock(locker, 8) == 0);
+    Require(sceKernelFlock(contender, 0) == static_cast<int>(0x80020009));
+    Require(sceKernelFlock(-1, 2) == static_cast<int>(0x80020009));
+    Require(close_nid_postfix(locker) == 0 && close_nid_postfix(contender) == 0);
     std::array<unsigned char, 2080> fileStatus{};
     const auto kldstatFails = [&](int fileid, std::int32_t version, int error) {
         fileStatus.fill(0xA5);
