@@ -43,9 +43,12 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libSceLibcInternal/include/Api.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -64,6 +67,48 @@ bool IsAny(const WebRtcIpAddress& ip) {
     if (ip.family == WebRtcAfInet6)
         return std::memcmp(ip.address.ip6.bytes, any, sizeof(any)) == 0 || std::memcmp(ip.address.ip6.bytes, mappedPrefix, sizeof(mappedPrefix)) == 0;
     return false;
+}
+
+static_assert(sizeof(WebRtcGuestString) == sizeof(GuestLocale::String));
+static_assert(offsetof(WebRtcGuestString, size) == offsetof(GuestLocale::String, size));
+static_assert(offsetof(WebRtcGuestString, capacity) == offsetof(GuestLocale::String, capacity));
+
+constexpr std::size_t NoPosition = std::numeric_limits<std::size_t>::max();
+
+GuestLocale::String* Guest(WebRtcGuestString& string) {
+    return reinterpret_cast<GuestLocale::String*>(&string);
+}
+
+const GuestLocale::String* Guest(const WebRtcGuestString& string) {
+    return reinterpret_cast<const GuestLocale::String*>(&string);
+}
+
+void Construct(WebRtcSocketAddress& address) {
+    address.hostname.reserved = 0;
+    address.hostname.buffer[0] = '\0';
+    address.hostname.size = 0;
+    address.hostname.capacity = WebRtcGuestStringInlineCapacity;
+    WebRtcConstructIpAddress(&address.ip);
+}
+
+void AssignIp(WebRtcIpAddress& target, const WebRtcIpAddress& source) {
+    target.family = source.family;
+    std::memmove(&target.address, &source.address, sizeof(target.address));
+}
+
+void SetIp(WebRtcSocketAddress& address, const WebRtcIpAddress& ip) {
+    _ZNSs5eraseEmm_nid_postfix(Guest(address.hostname), 0, NoPosition);
+    address.literal = false;
+    AssignIp(address.ip, ip);
+    address.scopeId = 0;
+}
+
+void Assign(WebRtcSocketAddress& address, const WebRtcSocketAddress& other) {
+    _ZNSs6assignERKSsmm_nid_postfix(Guest(address.hostname), Guest(other.hostname), 0, NoPosition);
+    AssignIp(address.ip, other.ip);
+    address.port = other.port;
+    address.literal = other.literal;
+    address.scopeId = other.scopeId;
 }
 
 }
@@ -90,6 +135,42 @@ bool APS5_VABI _ZNK3rtc13SocketAddress10IsCompleteEv_nid_postfix(const WebRtcSoc
 bool APS5_VABI _ZNK3rtc13SocketAddress5IsNilEv_nid_postfix(const WebRtcSocketAddress* address) {
     const WebRtcSocketAddress& checked = Checked(address, "SocketAddress::IsNil requires an address");
     return checked.hostname.size == 0 && checked.ip.family == WebRtcAfUnspec && checked.port == 0;
+}
+
+void APS5_VABI _ZN3rtc13SocketAddressC1Ev_nid_postfix(WebRtcSocketAddress* address) {
+    if (!address)
+        throw std::invalid_argument("SocketAddress::SocketAddress requires an address");
+    Construct(*address);
+    WebRtcIpAddress unspecified;
+    WebRtcConstructIpAddress(&unspecified);
+    SetIp(*address, unspecified);
+    address->port = 0;
+}
+
+void APS5_VABI _ZN3rtc13SocketAddressC1ERKNS_9IPAddressEi_nid_postfix(WebRtcSocketAddress* address, const WebRtcIpAddress* ip, int port) {
+    if (!address)
+        throw std::invalid_argument("SocketAddress::SocketAddress requires an address");
+    if (!ip)
+        throw std::invalid_argument("SocketAddress::SocketAddress requires an IP address");
+    const WebRtcIpAddress source = *ip;
+    Construct(*address);
+    SetIp(*address, source);
+    address->port = static_cast<std::uint16_t>(port);
+}
+
+void APS5_VABI _ZN3rtc13SocketAddressC1ERKS0__nid_postfix(WebRtcSocketAddress* address, const WebRtcSocketAddress* other) {
+    if (!address)
+        throw std::invalid_argument("SocketAddress::SocketAddress requires an address");
+    const WebRtcSocketAddress& source = Checked(other, "SocketAddress::SocketAddress requires an address to copy");
+    Construct(*address);
+    Assign(*address, source);
+}
+
+WebRtcSocketAddress* APS5_VABI _ZN3rtc13SocketAddressaSERKS0__nid_postfix(WebRtcSocketAddress* address, const WebRtcSocketAddress* other) {
+    if (!address)
+        throw std::invalid_argument("SocketAddress::operator= requires an address");
+    Assign(*address, Checked(other, "SocketAddress::operator= requires an address to copy"));
+    return address;
 }
 
 }
