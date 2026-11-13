@@ -16,7 +16,7 @@ Includes a [relinker](core/relinker) that converts executable to the target syst
 
 ## Status
 
-[![libraries](docs/progress/badge-libraries.svg)](docs/progress/progress.svg) [![shaders](docs/progress/badge-shaders.svg)](docs/progress/progress.svg)
+[![libraries](docs/progress/badge-libraries.svg)](docs/progress/progress.svg) [![shaders](docs/progress/badge-shaders.svg)](docs/progress/progress.svg) [![gfx1013 reference shader forms decoded](docs/progress/badge-shaders-gfx1013.svg)](docs/progress/progress.svg)
 
 [![progress map](docs/progress/progress.svg)](docs/progress/progress.svg)
 
