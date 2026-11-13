@@ -1,6 +1,7 @@
 #include "prx/libSceSystemService/include/SystemService.hpp"
 #include "prx/libSceSystemService/SystemService.hpp"
 #include "prx/libc/include/General.hpp"
+#include "prx/libkernel/AppMetadata/include/AppMetadata.hpp"
 
 #include <atomic>
 #include <cerrno>
@@ -241,8 +242,14 @@ int APS5_VABI sceLncUtilGetAppCategory(std::int32_t appId, char* category) {
 }
 
 int APS5_VABI sceLncUtilGetAppCategoryType(std::int32_t appId, std::uint32_t* categoryType) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+    if (categoryType == nullptr) return LNC_UTIL_ERROR_INVALID_ARGUMENT;
+    if (appId != sceSystemServiceGetAppIdOfRunningBigApp()) throw std::runtime_error("sceLncUtilGetAppCategoryType: application other than the running title");
+    std::uint32_t value = 0;
+    if (!GetAppCategoryType_nid_no_patch(&value)) NotImplemented_nid_no_patch("sceLncUtilGetAppCategoryType: param.json without applicationCategoryType");
+    const int savedErrno = errno;
+    const bool copied = GuestCopyOut_nid_no_patch(categoryType, &value, sizeof(value));
+    errno = savedErrno;
+    return copied ? 0 : LNC_UTIL_ERROR_INVALID_ARGUMENT;
 }
 
 int APS5_VABI sceLncUtilGetAppFocusedAppStatus(LncAppStatus* status) {
@@ -1696,8 +1703,7 @@ int APS5_VABI sceSystemServiceEnablePersonalEyeToEyeDistanceSetting() {
 }
 
 int APS5_VABI sceSystemServiceGetAppCategoryType(std::int32_t appId, std::uint32_t* categoryType) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+    return sceLncUtilGetAppCategoryType(appId, categoryType);
 }
 
 int APS5_VABI sceSystemServiceGetAppFocusedAppStatus(SystemServiceAppStatus* status) {

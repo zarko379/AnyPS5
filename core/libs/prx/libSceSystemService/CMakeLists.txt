@@ -241,6 +241,9 @@ if(BUILD_TESTING)
         set(appTitleIdRun ${CMAKE_CURRENT_BINARY_DIR}/guest_system_service_app_title_id_${appTitleIdName})
         if(appTitleIdName STREQUAL "missing")
             file(MAKE_DIRECTORY ${appTitleIdRun})
+        elseif(appTitleIdName STREQUAL "known")
+            file(WRITE ${appTitleIdRun}/app0/sce_sys/param.json
+                "{\"titleId\":\"${appTitleIdValue}\",\"applicationCategoryType\":65536,\"localizedParameters\":{\"en-US\":{\"titleName\":\"Example\"}}}")
         else()
             file(WRITE ${appTitleIdRun}/app0/sce_sys/param.json
                 "{\"titleId\":\"${appTitleIdValue}\",\"localizedParameters\":{\"en-US\":{\"titleName\":\"Example\"}}}")

@@ -108,6 +108,46 @@ void CheckNullBuffers(int runningAppId) {
     Require(IsAppLaunchedRejects(nullptr));
 }
 
+struct GuardedCategoryType {
+    std::uint32_t words[3] = {0x5A5A5A5Au, 0x5A5A5A5Au, 0x5A5A5A5Au};
+    bool Untouched() const { return words[0] == 0x5A5A5A5Au && words[1] == 0x5A5A5A5Au && words[2] == 0x5A5A5A5Au; }
+    bool Holds(std::uint32_t value) const { return words[0] == 0x5A5A5A5Au && words[1] == value && words[2] == 0x5A5A5A5Au; }
+    std::uint32_t* Output() { return &words[1]; }
+};
+
+bool CategoryTypeRejects(int appId, std::uint32_t* output) {
+    return sceLncUtilGetAppCategoryType(appId, output) == LNC_UTIL_ERROR_INVALID_ARGUMENT && sceSystemServiceGetAppCategoryType(appId, output) == LNC_UTIL_ERROR_INVALID_ARGUMENT;
+}
+
+bool CategoryTypeThrows(int appId) {
+    GuardedCategoryType lnc;
+    GuardedCategoryType systemService;
+    return Throws([&] { static_cast<void>(sceLncUtilGetAppCategoryType(appId, lnc.Output())); }) && lnc.Untouched() &&
+        Throws([&] { static_cast<void>(sceSystemServiceGetAppCategoryType(appId, systemService.Output())); }) && systemService.Untouched();
+}
+
+void CheckCategoryTypeArguments(int runningAppId) {
+    const int appIds[] = {runningAppId, runningAppId + 1, runningAppId - 1, -1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()};
+    for (const int appId : appIds) Require(CategoryTypeRejects(appId, nullptr));
+    for (const int appId : appIds) {
+        if (appId != runningAppId) Require(CategoryTypeThrows(appId));
+    }
+}
+
+void CheckCategoryType(int runningAppId, std::uint32_t expected) {
+    CheckCategoryTypeArguments(runningAppId);
+    GuardedCategoryType lnc;
+    Require(sceLncUtilGetAppCategoryType(runningAppId, lnc.Output()) == 0 && lnc.Holds(expected));
+    GuardedCategoryType systemService;
+    Require(sceSystemServiceGetAppCategoryType(runningAppId, systemService.Output()) == 0 && systemService.Holds(expected));
+    Require(CategoryTypeRejects(runningAppId, reinterpret_cast<std::uint32_t*>(0x10)));
+}
+
+void CheckMissingCategoryType(int runningAppId) {
+    CheckCategoryTypeArguments(runningAppId);
+    Require(CategoryTypeThrows(runningAppId));
+}
+
 void CheckKnownTitle(int runningAppId) {
     constexpr std::string_view titleId = "PPSA00000";
     Require(runningAppId >= 0);
@@ -150,6 +190,7 @@ void CheckKnownTitle(int runningAppId) {
     CheckOtherApplications(runningAppId);
     CheckNullBuffers(runningAppId);
     CheckMainAppTitleId(titleId);
+    CheckCategoryType(runningAppId, 0x10000u);
 }
 
 void CheckLongTitle(int runningAppId) {
@@ -161,6 +202,7 @@ void CheckLongTitle(int runningAppId) {
     Require(GetAppTitleIdThrows(runningAppId, buffer));
     Require(LncGetAppTitleIdThrows(static_cast<std::uint32_t>(runningAppId), buffer));
     CheckMainAppTitleId("PPSA000000");
+    CheckMissingCategoryType(runningAppId);
 }
 
 void CheckMissingMetadata(int runningAppId) {
@@ -173,6 +215,7 @@ void CheckMissingMetadata(int runningAppId) {
     Require(sceSystemServiceGetMainAppTitleId(nullptr) == SYSTEM_SERVICE_ERROR_PARAMETER);
     MainAppTitleIdBuffer mainApp;
     Require(Throws([&] { static_cast<void>(sceSystemServiceGetMainAppTitleId(mainApp.bytes)); }) && mainApp.Untouched());
+    CheckMissingCategoryType(runningAppId);
 }
 
 }
