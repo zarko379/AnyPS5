@@ -10642,15 +10642,7 @@ int APS5_VABI WKContextClearCurrentModifierStateForTesting() {
 }
 
 
-int APS5_VABI WKContextGetGeolocationManager() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKContextGetGlobalStatistics() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKContextGetNotificationManager() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -14352,10 +14344,6 @@ int APS5_VABI _ZN3WTF10StringImpl5adoptEONS_12StringBufferIDsEE() {
 }
 
 int APS5_VABI _ZN3WTF10StringImpl5adoptEONS_12StringBufferIhEE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3WTF10StringImpl7destroyEPS0_() {
     NotImplemented_nid_no_patch(__func__);
 }
 

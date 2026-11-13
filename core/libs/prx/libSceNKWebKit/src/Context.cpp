@@ -33,4 +33,12 @@ void APS5_VABI WKContextSetUsesSingleWebProcess(const void* contextRef, bool use
     pool->usesSingleWebProcess = usesSingleWebProcess;
 }
 
+const void* APS5_VABI WKContextGetGeolocationManager(const void* contextRef) {
+    return static_cast<const NKWebKit::Object*>(NKWebKit::Cast<NKWebKit::ProcessPool>(contextRef, __func__)->geolocationManager.Get());
+}
+
+const void* APS5_VABI WKContextGetNotificationManager(const void* contextRef) {
+    return static_cast<const NKWebKit::Object*>(NKWebKit::Cast<NKWebKit::ProcessPool>(contextRef, __func__)->notificationManager.Get());
+}
+
 }

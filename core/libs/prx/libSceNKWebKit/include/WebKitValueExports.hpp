@@ -99,6 +99,8 @@ std::uint32_t APS5_VABI WKCertificateInfoGetTypeID();
 int APS5_VABI WKCertificateInfoGetVerificationError(const void* certificateInfoRef);
 std::uint32_t APS5_VABI WKConnectionGetTypeID();
 const void* APS5_VABI WKContextCreate();
+const void* APS5_VABI WKContextGetGeolocationManager(const void* contextRef);
+const void* APS5_VABI WKContextGetNotificationManager(const void* contextRef);
 const void* APS5_VABI WKContextCreateWithConfiguration(const void* configurationRef);
 const void* APS5_VABI WKContextCreateWithInjectedBundlePath(const void* pathRef);
 std::uint32_t APS5_VABI WKContextGetTypeID();

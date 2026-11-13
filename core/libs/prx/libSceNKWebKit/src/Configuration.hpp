@@ -55,6 +55,9 @@ public:
     std::vector<std::u16string> overrideLanguages;
 };
 
+class GeolocationManager final : public ObjectOf<ObjectType::GeolocationManager> {};
+class NotificationManager final : public ObjectOf<ObjectType::NotificationManager> {};
+
 class ProcessPool final : public ObjectOf<ObjectType::ProcessPool> {
 public:
     ProcessPool() : configuration(Make<ProcessPoolConfiguration>()) {}
@@ -74,6 +77,8 @@ public:
     bool javaScriptGarbageCollectorTimerEnabled = true;
     bool storageAccessAPIEnabled = false;
     std::uint32_t garbageCollectJavaScriptObjectsCount = 0;
+    Retained<GeolocationManager> geolocationManager = Make<GeolocationManager>();
+    Retained<NotificationManager> notificationManager = Make<NotificationManager>();
 };
 
 class PageConfiguration final : public ObjectOf<ObjectType::PageConfiguration> {

@@ -69,6 +69,7 @@ NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF10StringImpl20create8BitIfPossibleEPKD
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF10StringImpl23convertToASCIILowercaseEv(const NKWebKit::WtfAbi::StringImpl* self);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF10StringImpl23convertToASCIIUppercaseEv(const NKWebKit::WtfAbi::StringImpl* self);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF10StringImpl6createEPKDsj(const char16_t* data, unsigned length);
+void APS5_VABI _ZN3WTF10StringImpl7destroyEPS0_(NKWebKit::WtfAbi::StringImpl* self);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF10StringImpl6createEPKhj(const unsigned char* data, unsigned length);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF10StringImpl9substringEjj(const NKWebKit::WtfAbi::StringImpl* self, unsigned start, unsigned length);
 void APS5_VABI _ZN3WTF10TextStream10startGroupEv(NKWebKit::WtfAbi::TextStream* self);

@@ -396,7 +396,78 @@ static void TestEmptyExports() {
     Require(NotImplementedCalls_nid_no_patch() == before);
 }
 
+static void TestContextSupplements() {
+    const void* context = WKContextCreate();
+    const void* other = WKContextCreate();
+    const void* geolocation = WKContextGetGeolocationManager(context);
+    const void* notification = WKContextGetNotificationManager(context);
+    Require(geolocation != nullptr && notification != nullptr);
+    Require(WKGetTypeID(geolocation) == WKGeolocationManagerGetTypeID());
+    Require(WKGetTypeID(notification) == WKNotificationManagerGetTypeID());
+    Require(WKContextGetGeolocationManager(context) == geolocation);
+    Require(WKContextGetNotificationManager(context) == notification);
+    Require(WKContextGetGeolocationManager(other) != geolocation);
+    Require(WKContextGetNotificationManager(other) != notification);
+    Require(Throws([] { WKContextGetGeolocationManager(nullptr); }));
+    Require(Throws([] { WKContextGetNotificationManager(nullptr); }));
+    Require(Throws([geolocation] { WKContextGetNotificationManager(geolocation); }));
+    WKRelease(other);
+    WKRelease(context);
+}
+
+template<typename Function>
+static bool ThrowsNotImplemented(Function function) {
+    const auto before = NotImplementedCalls_nid_no_patch();
+    try {
+        function();
+    } catch (const std::runtime_error&) {
+        return NotImplementedCalls_nid_no_patch() == before + 1;
+    }
+    return false;
+}
+
+static NKWebKit::WtfAbi::StringImpl* RawImpl(unsigned length, unsigned flags, std::size_t tail = 0) {
+    auto* impl = static_cast<NKWebKit::WtfAbi::StringImpl*>(_ZN3WTF10fastMallocEm(sizeof(NKWebKit::WtfAbi::StringImpl) + tail));
+    *impl = NKWebKit::WtfAbi::StringImpl{0, length, "", flags};
+    if (tail) std::memset(impl + 1, 0, tail);
+    return impl;
+}
+
+static void TestStringImplDestroy() {
+    const char16_t text[] = u"a fairly long string used to share a substring buffer";
+    NKWebKit::WtfAbi::String base = _ZN3WTF10StringImpl6createEPKDsj(text, 54);
+    Require(base.impl->refCount == 2);
+    NKWebKit::WtfAbi::String part = _ZNK3WTF6String20substringSharingImplEjj(&base, 2, 40);
+    Require((part.impl->hashAndFlags & 3) == 2);
+    Require(base.impl->refCount == 4);
+    _ZN3WTF10StringImpl7destroyEPS0_(part.impl);
+    part.impl = nullptr;
+    Require(base.impl->refCount == 2);
+
+    NKWebKit::WtfAbi::String internal = _ZN3WTF10StringImpl6createEPKDsj(text, 54);
+    _ZN3WTF10StringImpl7destroyEPS0_(internal.impl);
+    internal.impl = nullptr;
+
+    auto* owned = RawImpl(3, 1 | 4);
+    auto* buffer = static_cast<char*>(_ZN3WTF10fastMallocEm(3));
+    std::memcpy(buffer, "abc", 3);
+    owned->data = buffer;
+    _ZN3WTF10StringImpl7destroyEPS0_(owned);
+
+    _ZN3WTF10StringImpl7destroyEPS0_(RawImpl(0, 16 | 4));
+
+    auto* atom = RawImpl(1, 16 | 4);
+    Require(ThrowsNotImplemented([atom] { _ZN3WTF10StringImpl7destroyEPS0_(atom); }));
+    auto* symbol = RawImpl(0, 32 | 2 | 4, 8);
+    Require(ThrowsNotImplemented([symbol] { _ZN3WTF10StringImpl7destroyEPS0_(symbol); }));
+    auto* external = RawImpl(1, 3 | 4);
+    Require(ThrowsNotImplemented([external] { _ZN3WTF10StringImpl7destroyEPS0_(external); }));
+    Require(Throws([] { _ZN3WTF10StringImpl7destroyEPS0_(nullptr); }));
+}
+
 int main() {
+    TestContextSupplements();
+    TestStringImplDestroy();
     TestScriptWorlds();
     TestDataFromUint8Array();
     TestSessionValueTypes();

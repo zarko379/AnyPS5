@@ -66,6 +66,7 @@
  * Derived from Source/WTF/wtf/text/StringHasher.h@80f77e94c63ee7202eec3d4b5b1a021dd89011ba
  */
 
+#include "prx/libc/include/General.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include "prx/libSceNKWebKit/include/WtfExports.hpp"
 
@@ -687,6 +688,23 @@ String SubstringSharingImpl(const String& string, unsigned start, unsigned lengt
 }  // namespace NKWebKit::WtfAbi
 
 extern "C" {
+void APS5_VABI _ZN3WTF10StringImpl7destroyEPS0_(StringImpl* self) {
+    auto& impl = Checked(self);
+    if ((impl.hashAndFlags & 16) && impl.length) NotImplemented_nid_no_patch(__func__);
+    if (impl.hashAndFlags & 32) NotImplemented_nid_no_patch(__func__);
+    switch (impl.hashAndFlags & 3) {
+    case 1:
+        NKWebKit::Deallocate(const_cast<void*>(impl.data));
+        break;
+    case 2:
+        Release(*reinterpret_cast<StringImpl**>(reinterpret_cast<unsigned char*>(&impl) + sizeof(StringImpl)));
+        break;
+    case 3:
+        NotImplemented_nid_no_patch(__func__);
+    }
+    NKWebKit::Deallocate(&impl);
+}
+
 String APS5_VABI _ZN3WTF10StringImpl6createEPKDsj(const char16_t* data, unsigned length) {
     return String(CopyImpl({data, length, false}));
 }
