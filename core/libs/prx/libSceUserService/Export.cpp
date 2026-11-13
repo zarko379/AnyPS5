@@ -22,6 +22,8 @@
 #include <condition_variable>
 #include <algorithm>
 #include <thread>
+#include <optional>
+#include <string>
 #include "prx/libSceUserService/UserService.hpp"
 
 namespace {
@@ -84,10 +86,54 @@ void PopulateInitialLoginEvents() {
  }
 }
 
+struct StoredUserSettings {
+ std::optional<std::int32_t> keyboardType;
+ std::optional<std::int32_t> japaneseInputType;
+ std::optional<std::int32_t> traditionalChineseInputType;
+ std::optional<std::int32_t> accessibilityZoom;
+ std::optional<std::int32_t> accessibilityKeyremapEnable;
+ std::optional<std::int32_t> platformPrivacyWs1;
+ std::optional<std::string> userName;
+};
 
-// Per-user keyboard settings. Nothing in AnyPS5 stores a keyboard type or input variant, so every known user reports
-// the keyboard type of the configured system language and 0 for the input variants (see
-// docs/dev/debt/libSceUserService.md).
+using StoredSetting = std::optional<std::int32_t> StoredUserSettings::*;
+
+std::mutex settingsMutex;
+std::array<StoredUserSettings, USER_SERVICE_MAX_USERS> storedSettings;
+std::optional<int> storedForegroundUser;
+
+std::optional<std::int32_t> LoadSetting(int index, StoredSetting setting) {
+ std::lock_guard lock(settingsMutex);
+ return storedSettings[index].*setting;
+}
+
+void StoreSetting(int index, StoredSetting setting, std::int32_t value) {
+ std::lock_guard lock(settingsMutex);
+ storedSettings[index].*setting = value;
+}
+
+int StoreLoggedInUserSetting(int user_id, StoredSetting setting, std::int32_t value) {
+ if (!IsUserLoggedIn(user_id)) {
+  return USER_SERVICE_ERROR_NOT_LOGGED_IN;
+ }
+ StoreSetting(UserIndex(user_id), setting, value);
+ return USER_SERVICE_OK;
+}
+
+int ReportStoredAccessibilitySetting(int user_id, int32_t* output, StoredSetting setting, const char* function) {
+ if (!IsUserLoggedIn(user_id)) {
+  return USER_SERVICE_ERROR_NOT_LOGGED_IN;
+ }
+ if (output == nullptr) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ const std::optional<std::int32_t> stored = LoadSetting(UserIndex(user_id), setting);
+ if (!stored) {
+  NotImplemented_nid_no_patch(function);
+ }
+ return ReportAccessibilitySetting(user_id, output, *stored);
+}
+
 static int32_t KeyboardTypeForSystemLanguage() {
  constexpr int param_id_lang = 1;
  constexpr int32_t fallback = 20;
@@ -105,14 +151,16 @@ static int32_t NoInputVariant() {
  return 0;
 }
 
-static int ReportKeyboardSetting(int user_id, int32_t* type, int32_t (*value)()) {
+static int ReportKeyboardSetting(int user_id, int32_t* type, int32_t (*value)(), StoredSetting setting) {
  if (type == nullptr) {
   return USER_SERVICE_ERROR_INVALID_ARGUMENT;
  }
- if (UserIndex(user_id) < 0) {
+ const int index = UserIndex(user_id);
+ if (index < 0) {
   return USER_SERVICE_ERROR_UNKNOWN_USER;
  }
- const int32_t result = value();
+ const std::optional<std::int32_t> stored = LoadSetting(index, setting);
+ const int32_t result = stored ? *stored : value();
  const int savedErrno = errno;
  const bool copied = GuestCopyOut_nid_no_patch(type, &result, sizeof(result));
  errno = savedErrno;
@@ -121,6 +169,16 @@ static int ReportKeyboardSetting(int user_id, int32_t* type, int32_t (*value)())
  }
  return USER_SERVICE_OK;
 }
+
+static int StoreKeyboardSetting(int user_id, std::int32_t value, StoredSetting setting) {
+ const int index = UserIndex(user_id);
+ if (index < 0) {
+  return USER_SERVICE_ERROR_UNKNOWN_USER;
+ }
+ StoreSetting(index, setting, value);
+ return USER_SERVICE_OK;
+}
+
 bool UserGroupSlotExists(int index) {
     if (index < 0 || index > 128) {
         return false;
@@ -315,14 +373,7 @@ int APS5_VABI sceUserServiceGetAccessibilityChatTranscription(int user_id, int32
 }
 
 int APS5_VABI sceUserServiceGetAccessibilityKeyremapEnable(std::int32_t userId, std::int32_t* enabled) {
- if (!IsUserLoggedIn(userId)) {
-  return USER_SERVICE_ERROR_NOT_LOGGED_IN;
- }
- if (enabled == nullptr) {
-  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
- }
- NotImplemented_nid_no_patch(__func__);
- return 0;
+ return ReportStoredAccessibilitySetting(userId, enabled, &StoredUserSettings::accessibilityKeyremapEnable, __func__);
 }
 
 int APS5_VABI sceUserServiceGetAccessibilityPressAndHoldDelay(int user_id, int32_t* press_and_hold_delay) {
@@ -338,14 +389,7 @@ int APS5_VABI sceUserServiceGetAccessibilityVibration(int user_id, int32_t* vibr
 }
 
 int APS5_VABI sceUserServiceGetAccessibilityZoom(std::int32_t userId, std::int32_t* zoom) {
- if (!IsUserLoggedIn(userId)) {
-  return USER_SERVICE_ERROR_NOT_LOGGED_IN;
- }
- if (zoom == nullptr) {
-  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
- }
- NotImplemented_nid_no_patch(__func__);
- return 0;
+ return ReportStoredAccessibilitySetting(userId, zoom, &StoredUserSettings::accessibilityZoom, __func__);
 }
 
 int APS5_VABI sceUserServiceGetAccessibilityZoomEnabled(int user_id, int32_t* zoom_enabled) {
@@ -466,7 +510,12 @@ int APS5_VABI sceUserServiceGetUserName(int user_id, char* name, size_t size) {
   std::memset(name, 0, size);
   return USER_SERVICE_ERROR_BUFFER_TOO_SHORT;
  }
- std::strncpy(name, USER_SERVICE_USER_NAMES[index], size);
+ std::optional<std::string> storedName;
+ {
+  std::lock_guard lock(settingsMutex);
+  storedName = storedSettings[index].userName;
+ }
+ std::strncpy(name, storedName ? storedName->c_str() : USER_SERVICE_USER_NAMES[index], size);
  return USER_SERVICE_OK;
 }
 
@@ -545,9 +594,9 @@ int APS5_VABI sceUserServiceGetPlatformPrivacyWs1(int32_t user_id, int32_t* valu
     if (value == nullptr) {
         return USER_SERVICE_ERROR_INVALID_ARGUMENT;
     }
-    const int32_t zero = 0;
+    const int32_t privacy = LoadSetting(UserIndex(user_id), &StoredUserSettings::platformPrivacyWs1).value_or(0);
     const int savedErrno = errno;
-    const bool copied = GuestCopyOut_nid_no_patch(value, &zero, sizeof(zero));
+    const bool copied = GuestCopyOut_nid_no_patch(value, &privacy, sizeof(privacy));
     errno = savedErrno;
     if (!copied) {
         return USER_SERVICE_ERROR_INVALID_ARGUMENT;
@@ -559,7 +608,11 @@ int APS5_VABI sceUserServiceGetForegroundUser(int* user_id) {
  if (user_id == nullptr) {
   return USER_SERVICE_ERROR_INVALID_ARGUMENT;
  }
- const int foregroundUser = USER_SERVICE_INITIAL_USER_ID;
+ int foregroundUser;
+ {
+  std::lock_guard lock(settingsMutex);
+  foregroundUser = storedForegroundUser.value_or(USER_SERVICE_INITIAL_USER_ID);
+ }
  const int savedErrno = errno;
  const bool copied = GuestCopyOut_nid_no_patch(user_id, &foregroundUser, sizeof(foregroundUser));
  errno = savedErrno;
@@ -607,15 +660,15 @@ int APS5_VABI sceUserServiceGetUserColor(int user_id, int* color) {
 }
 
 int APS5_VABI sceUserServiceGetKeyboardType(int user_id, int32_t* type) {
- return ReportKeyboardSetting(user_id, type, KeyboardTypeForSystemLanguage);
+ return ReportKeyboardSetting(user_id, type, KeyboardTypeForSystemLanguage, &StoredUserSettings::keyboardType);
 }
 
 int APS5_VABI sceUserServiceGetJapaneseInputType(int user_id, int32_t* type) {
- return ReportKeyboardSetting(user_id, type, NoInputVariant);
+ return ReportKeyboardSetting(user_id, type, NoInputVariant, &StoredUserSettings::japaneseInputType);
 }
 
 int APS5_VABI sceUserServiceGetTraditionalChineseInputType(int user_id, int32_t* type) {
- return ReportKeyboardSetting(user_id, type, NoInputVariant);
+ return ReportKeyboardSetting(user_id, type, NoInputVariant, &StoredUserSettings::traditionalChineseInputType);
 }
 
 int APS5_VABI sceUserServiceGetNpAccountId(int user_id, uint64_t* account_id) {
@@ -674,9 +727,8 @@ int APS5_VABI sceUserServiceSetNpCountryCode(void) {
     return 0;
 }
 
-int APS5_VABI sceUserServiceSetJapaneseInputType(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceUserServiceSetJapaneseInputType(int user_id, int32_t type) {
+ return StoreKeyboardSetting(user_id, type, &StoredUserSettings::japaneseInputType);
 }
 
 int APS5_VABI sceUserServiceSetGlsBroadcastersComment(void) {
@@ -796,9 +848,8 @@ int APS5_VABI sceUserServiceGetUserStatus(void) {
     return 0;
 }
 
-int APS5_VABI sceUserServiceSetTraditionalChineseInputType(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceUserServiceSetTraditionalChineseInputType(int user_id, int32_t type) {
+ return StoreKeyboardSetting(user_id, type, &StoredUserSettings::traditionalChineseInputType);
 }
 
 int APS5_VABI sceUserServiceGetHmd2MuteAssign(void) {
@@ -1447,9 +1498,8 @@ int APS5_VABI sceUserServiceGetHearingAssistUseAudiogramData(void) {
     return 0;
 }
 
-int APS5_VABI sceUserServiceSetAccessibilityKeyremapEnable(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceUserServiceSetAccessibilityKeyremapEnable(std::int32_t userId, std::int32_t enabled) {
+ return StoreLoggedInUserSetting(userId, &StoredUserSettings::accessibilityKeyremapEnable, enabled);
 }
 
 int APS5_VABI sceUserServiceSetPbtcFlag(void) {
@@ -1948,9 +1998,8 @@ int APS5_VABI sceUserServiceGetNpDateOfBirth(void) {
     return 0;
 }
 
-int APS5_VABI sceUserServiceSetKeyboardType(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceUserServiceSetKeyboardType(int user_id, int32_t type) {
+ return StoreKeyboardSetting(user_id, type, &StoredUserSettings::keyboardType);
 }
 
 int APS5_VABI sceUserServiceSetParentalGame(void) {
@@ -2253,9 +2302,8 @@ int APS5_VABI sceUserServiceGetAccountRemarks(void) {
     return 0;
 }
 
-int APS5_VABI sceUserServiceSetAccessibilityZoom(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceUserServiceSetAccessibilityZoom(std::int32_t userId, std::int32_t zoom) {
+ return StoreLoggedInUserSetting(userId, &StoredUserSettings::accessibilityZoom, zoom);
 }
 
 int APS5_VABI sceUserServiceGetSystemLoggerHashedAccountIdTtl(void) {
@@ -2356,8 +2404,12 @@ int APS5_VABI sceUserServiceSetShareStatus2(void) {
 }
 
 int APS5_VABI sceUserServiceSetForegroundUser(int userId) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+ if (!IsUserLoggedIn(userId)) {
+  NotImplemented_nid_no_patch(__func__);
+ }
+ std::lock_guard lock(settingsMutex);
+ storedForegroundUser = userId;
+ return USER_SERVICE_OK;
 }
 
 int APS5_VABI sceUserServiceSetGlsAccessTokenTwitch(void) {
@@ -2794,9 +2846,8 @@ int APS5_VABI sceUserServiceSetGazeActivate(void) {
     return 0;
 }
 
-int APS5_VABI sceUserServiceSetPlatformPrivacyWs1(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceUserServiceSetPlatformPrivacyWs1(int32_t user_id, int32_t value) {
+ return StoreLoggedInUserSetting(user_id, &StoredUserSettings::platformPrivacyWs1, value);
 }
 
 int APS5_VABI sceUserServiceSetVolumeForSidetone(void) {
@@ -3055,9 +3106,25 @@ int APS5_VABI sceUserServiceGetHmd2PlayAreaShape(void) {
     return 0;
 }
 
-int APS5_VABI sceUserServiceSetUserName(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceUserServiceSetUserName(int user_id, const char* name) {
+ if (name == nullptr) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ const int index = UserIndex(user_id);
+ if (index < 0) {
+  return USER_SERVICE_ERROR_UNKNOWN_USER;
+ }
+ std::string guestName;
+ const int copyError = CopyGuestString_nid_no_patch(name, USER_SERVICE_MAX_USER_NAME_LENGTH + 1, guestName);
+ if (copyError == EFAULT) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ if (copyError != 0 || guestName.empty()) {
+  NotImplemented_nid_no_patch(__func__);
+ }
+ std::lock_guard lock(settingsMutex);
+ storedSettings[index].userName = std::move(guestName);
+ return USER_SERVICE_OK;
 }
 
 int APS5_VABI sceUserServiceGetA11yControllerADeviceUniqueIds(void) {

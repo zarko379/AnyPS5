@@ -1,6 +1,8 @@
 #include "SceTypes.hpp"
 #include "prx/libSceUserService/UserService.hpp"
 #include <array>
+#include <cerrno>
+#include <climits>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -69,6 +71,169 @@ void VerifyLoggedOutUser(int userId) {
         Require(value == 0x5a5a5a5a);
         Require(setting.get(userId, nullptr) == USER_SERVICE_ERROR_NOT_LOGGED_IN);
     }
+}
+
+template <typename Call>
+bool Throws(Call call) {
+    try {
+        call();
+    } catch (const std::runtime_error&) {
+        return true;
+    }
+    return false;
+}
+
+void VerifyStoredSettings() {
+    const int unknownUsers[] = {0, USER_SERVICE_USER_ID_INVALID, 123, USER_SERVICE_INITIAL_USER_ID + USER_SERVICE_MAX_USERS,
+                                0x20000000};
+    const int loggedOut = USER_SERVICE_INITIAL_USER_ID + 1;
+
+    using KeyboardGet = decltype(&sceUserServiceGetKeyboardType);
+    using KeyboardSet = decltype(&sceUserServiceSetKeyboardType);
+    struct KeyboardPair {
+        KeyboardGet get;
+        KeyboardSet set;
+        std::int32_t initial;
+    };
+    const KeyboardPair keyboardPairs[] = {
+        {sceUserServiceGetKeyboardType, sceUserServiceSetKeyboardType, 20},
+        {sceUserServiceGetJapaneseInputType, sceUserServiceSetJapaneseInputType, 0},
+        {sceUserServiceGetTraditionalChineseInputType, sceUserServiceSetTraditionalChineseInputType, 0},
+    };
+    for (std::size_t i = 0; i < std::size(keyboardPairs); ++i) {
+        const KeyboardPair& pair = keyboardPairs[i];
+        for (int userId : unknownUsers) {
+            Require(pair.set(userId, 7) == USER_SERVICE_ERROR_UNKNOWN_USER);
+        }
+        std::int32_t value = -1;
+        Require(pair.get(USER_SERVICE_INITIAL_USER_ID, &value) == USER_SERVICE_OK && value == pair.initial);
+        const std::int32_t stored = -7 - static_cast<std::int32_t>(i);
+        Require(pair.set(loggedOut, stored) == USER_SERVICE_OK);
+        Require(pair.get(loggedOut, &value) == USER_SERVICE_OK && value == stored);
+        Require(pair.get(USER_SERVICE_INITIAL_USER_ID, &value) == USER_SERVICE_OK && value == pair.initial);
+        for (const KeyboardPair& other : keyboardPairs) {
+            if (&other != &pair) {
+                Require(other.get(USER_SERVICE_INITIAL_USER_ID, &value) == USER_SERVICE_OK && value == other.initial);
+            }
+        }
+    }
+    for (const std::int32_t stored : {INT_MIN, INT_MAX, 0, 99}) {
+        Require(sceUserServiceSetKeyboardType(USER_SERVICE_INITIAL_USER_ID, stored) == USER_SERVICE_OK);
+        std::int32_t value = -1;
+        Require(sceUserServiceGetKeyboardType(USER_SERVICE_INITIAL_USER_ID, &value) == USER_SERVICE_OK && value == stored);
+    }
+    Require(sceUserServiceSetJapaneseInputType(USER_SERVICE_INITIAL_USER_ID, 2) == USER_SERVICE_OK);
+    SetLanguage("arabic");
+    std::int32_t keyboard = -1;
+    Require(sceUserServiceGetKeyboardType(USER_SERVICE_INITIAL_USER_ID, &keyboard) == USER_SERVICE_OK && keyboard == 99);
+    Require(sceUserServiceGetKeyboardType(loggedOut, &keyboard) == USER_SERVICE_OK && keyboard == -7);
+    Require(Throws([] {
+        std::int32_t value = 0;
+        sceUserServiceGetKeyboardType(USER_SERVICE_INITIAL_USER_ID + 2, &value);
+    }));
+    SetLanguage("0");
+    Require(sceUserServiceGetKeyboardType(USER_SERVICE_INITIAL_USER_ID, &keyboard) == USER_SERVICE_OK && keyboard == 99);
+    Require(sceUserServiceGetKeyboardType(USER_SERVICE_INITIAL_USER_ID + 2, &keyboard) == USER_SERVICE_OK && keyboard == 37);
+    Require(sceUserServiceGetJapaneseInputType(USER_SERVICE_INITIAL_USER_ID, &keyboard) == USER_SERVICE_OK && keyboard == 2);
+    Require(sceUserServiceGetJapaneseInputType(USER_SERVICE_INITIAL_USER_ID + 2, &keyboard) == USER_SERVICE_OK && keyboard == 0);
+    SetLanguage(nullptr);
+
+    using AccessibilityGet = decltype(&sceUserServiceGetAccessibilityZoom);
+    using AccessibilitySet = decltype(&sceUserServiceSetAccessibilityZoom);
+    const std::pair<AccessibilityGet, AccessibilitySet> accessibilityPairs[] = {
+        {sceUserServiceGetAccessibilityZoom, sceUserServiceSetAccessibilityZoom},
+        {sceUserServiceGetAccessibilityKeyremapEnable, sceUserServiceSetAccessibilityKeyremapEnable},
+    };
+    for (std::size_t i = 0; i < std::size(accessibilityPairs); ++i) {
+        const AccessibilityGet get = accessibilityPairs[i].first;
+        const AccessibilitySet set = accessibilityPairs[i].second;
+        for (int userId : unknownUsers) {
+            Require(set(userId, 1) == USER_SERVICE_ERROR_NOT_LOGGED_IN);
+        }
+        Require(set(loggedOut, 1) == USER_SERVICE_ERROR_NOT_LOGGED_IN);
+        Require(Throws([get] {
+            std::int32_t value = 0;
+            get(USER_SERVICE_INITIAL_USER_ID, &value);
+        }));
+        const std::int32_t stored = 3 + static_cast<std::int32_t>(i);
+        Require(set(USER_SERVICE_INITIAL_USER_ID, stored) == USER_SERVICE_OK);
+        std::int32_t value = -1;
+        Require(get(USER_SERVICE_INITIAL_USER_ID, nullptr) == USER_SERVICE_ERROR_INVALID_ARGUMENT);
+        errno = 71;
+        Require(get(USER_SERVICE_INITIAL_USER_ID, reinterpret_cast<std::int32_t*>(0x10)) == USER_SERVICE_ERROR_INVALID_ARGUMENT);
+        Require(errno == 71);
+        Require(get(USER_SERVICE_INITIAL_USER_ID, &value) == USER_SERVICE_OK && value == stored);
+        value = 0x5a5a;
+        Require(get(loggedOut, &value) == USER_SERVICE_ERROR_NOT_LOGGED_IN && value == 0x5a5a);
+        if (i == 0) {
+            Require(Throws([] {
+                std::int32_t keyremap = 0;
+                sceUserServiceGetAccessibilityKeyremapEnable(USER_SERVICE_INITIAL_USER_ID, &keyremap);
+            }));
+        }
+    }
+    UserServiceSetUserConnected_nid_postfix(1, true);
+    Require(Throws([loggedOut] {
+        std::int32_t value = 0;
+        sceUserServiceGetAccessibilityZoom(loggedOut, &value);
+    }));
+    Require(sceUserServiceSetAccessibilityZoom(loggedOut, INT_MIN) == USER_SERVICE_OK);
+    std::int32_t zoom = -1;
+    Require(sceUserServiceGetAccessibilityZoom(loggedOut, &zoom) == USER_SERVICE_OK && zoom == INT_MIN);
+    Require(sceUserServiceGetAccessibilityZoom(USER_SERVICE_INITIAL_USER_ID, &zoom) == USER_SERVICE_OK && zoom == 3);
+
+    Require(sceUserServiceSetForegroundUser(loggedOut) == USER_SERVICE_OK);
+    int foreground = -1;
+    Require(sceUserServiceGetForegroundUser(&foreground) == USER_SERVICE_OK && foreground == loggedOut);
+    UserServiceSetUserConnected_nid_postfix(1, false);
+    Require(sceUserServiceGetAccessibilityZoom(loggedOut, &zoom) == USER_SERVICE_ERROR_NOT_LOGGED_IN);
+    Require(Throws([loggedOut] { sceUserServiceSetForegroundUser(loggedOut); }));
+    for (int userId : unknownUsers) {
+        Require(Throws([userId] { sceUserServiceSetForegroundUser(userId); }));
+    }
+    Require(sceUserServiceGetForegroundUser(&foreground) == USER_SERVICE_OK && foreground == loggedOut);
+    Require(sceUserServiceSetForegroundUser(USER_SERVICE_INITIAL_USER_ID) == USER_SERVICE_OK);
+    Require(sceUserServiceGetForegroundUser(&foreground) == USER_SERVICE_OK && foreground == USER_SERVICE_INITIAL_USER_ID);
+
+    for (int userId : unknownUsers) {
+        Require(sceUserServiceSetPlatformPrivacyWs1(userId, 1) == USER_SERVICE_ERROR_NOT_LOGGED_IN);
+    }
+    Require(sceUserServiceSetPlatformPrivacyWs1(loggedOut, 1) == USER_SERVICE_ERROR_NOT_LOGGED_IN);
+    std::int32_t privacy = -1;
+    Require(sceUserServiceGetPlatformPrivacyWs1(USER_SERVICE_INITIAL_USER_ID, &privacy) == USER_SERVICE_OK && privacy == 0);
+    for (const std::int32_t stored : {1, INT_MAX, INT_MIN}) {
+        Require(sceUserServiceSetPlatformPrivacyWs1(USER_SERVICE_INITIAL_USER_ID, stored) == USER_SERVICE_OK);
+        Require(sceUserServiceGetPlatformPrivacyWs1(USER_SERVICE_INITIAL_USER_ID, &privacy) == USER_SERVICE_OK && privacy == stored);
+    }
+    UserServiceSetUserConnected_nid_postfix(1, true);
+    Require(sceUserServiceGetPlatformPrivacyWs1(loggedOut, &privacy) == USER_SERVICE_OK && privacy == 0);
+    UserServiceSetUserConnected_nid_postfix(1, false);
+
+    char name[32]{};
+    for (int userId : unknownUsers) {
+        Require(sceUserServiceSetUserName(userId, nullptr) == USER_SERVICE_ERROR_INVALID_ARGUMENT);
+        Require(sceUserServiceSetUserName(userId, "Somebody") == USER_SERVICE_ERROR_UNKNOWN_USER);
+    }
+    Require(sceUserServiceSetUserName(USER_SERVICE_INITIAL_USER_ID, nullptr) == USER_SERVICE_ERROR_INVALID_ARGUMENT);
+    Require(sceUserServiceSetUserName(USER_SERVICE_INITIAL_USER_ID, reinterpret_cast<const char*>(0x10)) ==
+            USER_SERVICE_ERROR_INVALID_ARGUMENT);
+    Require(Throws([] { sceUserServiceSetUserName(USER_SERVICE_INITIAL_USER_ID, "ABCDEFGHIJKLMNOPQ"); }));
+    Require(Throws([] { sceUserServiceSetUserName(USER_SERVICE_INITIAL_USER_ID, ""); }));
+    Require(sceUserServiceGetUserName(USER_SERVICE_INITIAL_USER_ID, name, sizeof(name)) == USER_SERVICE_OK);
+    Require(std::strcmp(name, USER_SERVICE_INITIAL_USER_NAME) == 0);
+    Require(sceUserServiceSetUserName(USER_SERVICE_INITIAL_USER_ID, "ABCDEFGHIJKLMNOP") == USER_SERVICE_OK);
+    std::memset(name, 'Z', sizeof(name));
+    Require(sceUserServiceGetUserName(USER_SERVICE_INITIAL_USER_ID, name, USER_SERVICE_MAX_USER_NAME_LENGTH + 1) == USER_SERVICE_OK);
+    Require(std::strcmp(name, "ABCDEFGHIJKLMNOP") == 0);
+    std::memset(name, 'Z', sizeof(name));
+    Require(sceUserServiceGetUserName(USER_SERVICE_INITIAL_USER_ID, name, USER_SERVICE_MAX_USER_NAME_LENGTH) ==
+            USER_SERVICE_ERROR_BUFFER_TOO_SHORT);
+    Require(name[0] == 0 && name[USER_SERVICE_MAX_USER_NAME_LENGTH] == 'Z');
+    Require(sceUserServiceSetUserName(USER_SERVICE_INITIAL_USER_ID + 2, "Q") == USER_SERVICE_OK);
+    Require(sceUserServiceGetUserName(USER_SERVICE_INITIAL_USER_ID + 2, name, sizeof(name)) == USER_SERVICE_OK);
+    Require(std::strcmp(name, "Q") == 0 && name[2] == 0);
+    Require(sceUserServiceGetUserName(loggedOut, name, sizeof(name)) == USER_SERVICE_OK);
+    Require(std::strcmp(name, USER_SERVICE_USER_NAMES[1]) == 0);
 }
 
 void VerifyLoggedInUser(int userId) {
@@ -419,6 +584,8 @@ int main() {
         Require(registered.user_id[i] == USER_SERVICE_USER_ID_INVALID);
     }
     VerifyLoggedInUser(USER_SERVICE_INITIAL_USER_ID);
+
+    VerifyStoredSettings();
 
     return 0;
 }
