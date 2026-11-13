@@ -1,4 +1,5 @@
 #include "prx/libSceLibreSsl/include/Api.hpp"
+#include <atomic>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -8,7 +9,14 @@ static_assert(sizeof(LibreSslCertKey) == 24);
 static_assert(offsetof(LibreSslCertKey, privatekey) == 8);
 static_assert(sizeof(LibreSslCert) == 256);
 static_assert(sizeof(LibreSslSession) == 232);
+static_assert(offsetof(LibreSslSession, peer) == 128);
+static_assert(offsetof(LibreSslSession, verifyResult) == 136);
+static_assert(offsetof(LibreSslSession, references) == 160);
 static_assert(offsetof(LibreSslSession, cipher) == 168);
+static_assert(offsetof(LibreSslSession, tlsextHostname) == 192);
+static_assert(offsetof(LibreSslX509, references) == 28);
+static_assert(offsetof(LibreSslSsl, param) == 64);
+static_assert(offsetof(LibreSslSsl, tlsextHostname) == 184);
 
 namespace {
 
@@ -49,6 +57,31 @@ void* APS5_VABI SSL_get_certificate_nid_postfix(const LibreSslSsl* ssl) {
 void* APS5_VABI SSL_get_privatekey_nid_postfix(const LibreSslSsl* ssl) {
     const LibreSslCertKey* key = CurrentKey(ssl, __func__);
     return key ? key->privatekey : nullptr;
+}
+
+LibreSslSession* APS5_VABI SSL_get1_session_nid_postfix(LibreSslSsl* ssl) {
+    LibreSslSession* session = Session(ssl, __func__);
+    if (session) std::atomic_ref(session->references).fetch_add(1);
+    return session;
+}
+
+LibreSslX509* APS5_VABI SSL_get_peer_certificate_nid_postfix(const LibreSslSsl* ssl) {
+    if (!ssl || !ssl->session) return nullptr;
+    LibreSslX509* peer = static_cast<const LibreSslSession*>(ssl->session)->peer;
+    if (peer) std::atomic_ref(peer->references).fetch_add(1);
+    return peer;
+}
+
+const char* APS5_VABI SSL_get_servername_nid_postfix(const LibreSslSsl* ssl, int type) {
+    constexpr int HostName = 0;
+    if (type != HostName) return nullptr;
+    const LibreSslSsl& connection = Connection(ssl, __func__);
+    const auto* session = static_cast<const LibreSslSession*>(connection.session);
+    return session && !connection.tlsextHostname ? session->tlsextHostname : connection.tlsextHostname;
+}
+
+void* APS5_VABI SSL_get0_param_nid_postfix(LibreSslSsl* ssl) {
+    return Connection(ssl, __func__).param;
 }
 
 }

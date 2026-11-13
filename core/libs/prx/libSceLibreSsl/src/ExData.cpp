@@ -63,4 +63,10 @@ void APS5_VABI CRYPTO_cleanup_all_ex_data_nid_postfix(void) {
     for (auto& registered : classes) std::vector<ExDataFunctions>().swap(registered);
 }
 
+void* LibreSslGetExData_nid_no_patch(const LibreSslExData* data, int index) {
+    const auto* stack = static_cast<const LibreSslStack*>(data->stack);
+    if (!stack || index >= sk_num_nid_postfix(stack)) return nullptr;
+    return sk_value_nid_postfix(stack, index);
+}
+
 }

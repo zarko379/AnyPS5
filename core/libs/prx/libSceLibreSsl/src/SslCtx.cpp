@@ -242,6 +242,11 @@ int APS5_VABI SSL_CTX_set_ex_data_nid_postfix(LibreSslCtx* ctx, int index, void*
     return SetCtxExData_nid_no_patch(Internal(ctx, __func__), index, value);
 }
 
+void* APS5_VABI SSL_CTX_get_ex_data_nid_postfix(const LibreSslCtx* ctx, int index) {
+    const LibreSslCtxInternal& internal = Internal(const_cast<LibreSslCtx*>(ctx), __func__);
+    return LibreSslGetExData_nid_no_patch(reinterpret_cast<const LibreSslExData*>(&internal.exData), index);
+}
+
 int APS5_VABI SSL_CTX_use_PrivateKey_ASN1_nid_postfix(int type, LibreSslCtx*, const unsigned char*, std::int64_t) {
     if (type != 0) NotImplemented_nid_no_patch(__func__);
 

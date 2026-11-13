@@ -48,9 +48,82 @@ struct TestSsl {
     int beforeCtx;
     void* ctx;
     std::int64_t verifyResult;
-    unsigned char beforeInternal[56];
+    int references;
+    int clientVersion;
+    unsigned int maxSendFragment;
+    const char* tlsextHostname;
+    int tlsextStatusType;
+    void* initialCtx;
+    void* encReadCtx;
+    void* readHash;
     TestSslInternal* internal;
 };
+
+struct TestConnectionInternal {
+    unsigned char beforeHandshakeFunc[56];
+    void* handshakeFunc;
+    unsigned char beforeRwstate[92];
+    int rwstate;
+    unsigned char beforeShutdown[8];
+    int shutdown;
+    unsigned char beforeExData[100];
+    LibreSslExData exData;
+    unsigned char beforeState[132];
+    int state;
+    unsigned char rest[16];
+};
+
+struct TestMethodInternal {
+    int version;
+    unsigned char beforeConnect[36];
+    void* connect;
+    int (APS5_VABI* read)(LibreSslSsl*, void*, int);
+    int (APS5_VABI* peek)(LibreSslSsl*, void*, int);
+    int (APS5_VABI* write)(LibreSslSsl*, const void*, int);
+    int (APS5_VABI* shutdown)(LibreSslSsl*);
+    unsigned char beforePending[40];
+    int (APS5_VABI* pending)(const LibreSslSsl*);
+    unsigned char rest[32];
+};
+
+struct TestMethod {
+    unsigned char beforeInternal[40];
+    const TestMethodInternal* internal;
+};
+
+struct TestSsl3Internal {
+    unsigned char beforeWarnAlert[324];
+    int warnAlert;
+    unsigned char rest[712];
+};
+
+struct TestSsl3State {
+    unsigned char beforeInternal[136];
+    TestSsl3Internal* internal;
+};
+
+struct TestSession {
+    unsigned char beforePeer[128];
+    LibreSslX509* peer;
+    std::int64_t verifyResult;
+    std::int64_t timeout;
+    std::int64_t time;
+    int references;
+    const void* cipher;
+    std::uint64_t cipherId;
+    void* ciphers;
+    const char* tlsextHostname;
+    unsigned char rest[32];
+};
+
+static_assert(sizeof(TestConnectionInternal) == 432 && offsetof(TestConnectionInternal, handshakeFunc) == 56 && offsetof(TestConnectionInternal, rwstate) == 156);
+static_assert(offsetof(TestConnectionInternal, shutdown) == 168 && offsetof(TestConnectionInternal, exData) == 272 && offsetof(TestConnectionInternal, state) == 412);
+static_assert(sizeof(TestMethodInternal) == 160 && offsetof(TestMethodInternal, read) == 48 && offsetof(TestMethodInternal, peek) == 56);
+static_assert(offsetof(TestMethodInternal, write) == 64 && offsetof(TestMethodInternal, shutdown) == 72 && offsetof(TestMethodInternal, pending) == 120);
+static_assert(sizeof(TestMethod) == 48 && sizeof(TestSsl3Internal) == 1040 && offsetof(TestSsl3Internal, warnAlert) == 324 && sizeof(TestSsl3State) == 144);
+static_assert(sizeof(TestSession) == 232 && offsetof(TestSession, peer) == 128 && offsetof(TestSession, references) == 160);
+static_assert(offsetof(TestSession, cipher) == 168 && offsetof(TestSession, tlsextHostname) == 192);
+static_assert(offsetof(TestSsl, tlsextHostname) == 184 && offsetof(TestSsl, param) == 64);
 
 static_assert(sizeof(TestSslInternal) == 432 && offsetof(TestSslInternal, rwstate) == 156 && offsetof(TestSslInternal, shutdown) == 168);
 static_assert(offsetof(TestSslInternal, exData) == 272);
@@ -305,6 +378,292 @@ static void TestGetPeerCertChain() {
     Require(ERR_get_error_nid_postfix() == 0);
 }
 
+static std::uint64_t ErrorCode(std::uint64_t library, std::uint64_t function, std::uint64_t reason) {
+    return (library << 24) | (function << 12) | reason;
+}
+
+static void TestGetExData() {
+    TestSslInternal internal {};
+    TestSsl ssl {};
+    int first = 1;
+    RequireThrows([] { SSL_get_ex_data_nid_postfix(nullptr, 0); });
+    RequireThrows([&] { SSL_get_ex_data_nid_postfix(Ssl(&ssl), 0); });
+    ssl.internal = &internal;
+    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 0) == nullptr);
+    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), -1) == nullptr);
+    Require(SSL_set_ex_data_nid_postfix(Ssl(&ssl), 2, &first) == 1);
+    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 2) == &first);
+    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 1) == nullptr);
+    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 3) == nullptr);
+    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), -1) == nullptr);
+    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 1 << 30) == nullptr);
+    auto* stack = static_cast<LibreSslStack*>(internal.exData.stack);
+    char** const data = stack->data;
+    stack->data = nullptr;
+    RequireThrows([&] { SSL_get_ex_data_nid_postfix(Ssl(&ssl), 0); });
+    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 3) == nullptr);
+    stack->data = data;
+    FreeExData(internal);
+
+    LibreSslCtxInternal contextInternal {};
+    LibreSslCtx context {};
+    RequireThrows([] { SSL_CTX_get_ex_data_nid_postfix(nullptr, 0); });
+    RequireThrows([&] { SSL_CTX_get_ex_data_nid_postfix(&context, 0); });
+    context.internal = &contextInternal;
+    Require(SSL_CTX_get_ex_data_nid_postfix(&context, 0) == nullptr);
+    Require(SSL_CTX_set_ex_data_nid_postfix(&context, 1, &first) == 1);
+    Require(SSL_CTX_get_ex_data_nid_postfix(&context, 1) == &first);
+    Require(SSL_CTX_get_ex_data_nid_postfix(&context, 0) == nullptr);
+    Require(SSL_CTX_get_ex_data_nid_postfix(&context, 2) == nullptr);
+    Require(SSL_CTX_get_ex_data_nid_postfix(&context, -1) == nullptr);
+    auto* contextStack = static_cast<LibreSslStack*>(contextInternal.exData);
+    CRYPTO_free_nid_postfix(contextStack->data);
+    CRYPTO_free_nid_postfix(contextStack);
+}
+
+static void TestSessionAccessors() {
+    TestSsl ssl {};
+    TestSession session {};
+    LibreSslX509 peer {};
+    session.references = 1;
+    peer.references = 1;
+    Require(SSL_get1_session_nid_postfix(Ssl(&ssl)) == nullptr);
+    ssl.session = &session;
+    Require(static_cast<void*>(SSL_get1_session_nid_postfix(Ssl(&ssl))) == &session && session.references == 2);
+    Require(static_cast<void*>(SSL_get1_session_nid_postfix(Ssl(&ssl))) == &session && session.references == 3);
+    Require(SSL_get_peer_certificate_nid_postfix(Ssl(&ssl)) == nullptr && session.references == 3);
+    session.peer = &peer;
+    Require(SSL_get_peer_certificate_nid_postfix(Ssl(&ssl)) == &peer && peer.references == 2);
+    Require(SSL_get_peer_certificate_nid_postfix(Ssl(&ssl)) == &peer && peer.references == 3 && session.references == 3);
+
+    static const char connectionName[] = "connection.example";
+    static const char sessionName[] = "session.example";
+    TestSsl named {};
+    Require(SSL_get_servername_nid_postfix(nullptr, 1) == nullptr);
+    Require(SSL_get_servername_nid_postfix(nullptr, -1) == nullptr);
+    RequireThrows([] { SSL_get_servername_nid_postfix(nullptr, 0); });
+    Require(SSL_get_servername_nid_postfix(Ssl(&named), 0) == nullptr);
+    named.tlsextHostname = connectionName;
+    Require(SSL_get_servername_nid_postfix(Ssl(&named), 0) == connectionName);
+    Require(SSL_get_servername_nid_postfix(Ssl(&named), 1) == nullptr);
+    TestSession namedSession {};
+    namedSession.tlsextHostname = sessionName;
+    named.session = &namedSession;
+    Require(SSL_get_servername_nid_postfix(Ssl(&named), 0) == connectionName);
+    named.tlsextHostname = nullptr;
+    Require(SSL_get_servername_nid_postfix(Ssl(&named), 0) == sessionName);
+    namedSession.tlsextHostname = nullptr;
+    Require(SSL_get_servername_nid_postfix(Ssl(&named), 0) == nullptr);
+
+    int parameters = 0;
+    RequireThrows([] { SSL_get0_param_nid_postfix(nullptr); });
+    Require(SSL_get0_param_nid_postfix(Ssl(&named)) == nullptr);
+    named.param = &parameters;
+    Require(SSL_get0_param_nid_postfix(Ssl(&named)) == &parameters);
+}
+
+struct DispatchLog {
+    LibreSslSsl* ssl;
+    const void* buffer;
+    int length;
+    int calls;
+};
+
+static DispatchLog dispatchLog;
+
+static int APS5_VABI DispatchRead(LibreSslSsl* ssl, void* buffer, int length) {
+    dispatchLog = {ssl, buffer, length, dispatchLog.calls + 1};
+    return 7;
+}
+
+static int APS5_VABI DispatchPeek(LibreSslSsl* ssl, void* buffer, int length) {
+    dispatchLog = {ssl, buffer, length, dispatchLog.calls + 1};
+    return 8;
+}
+
+static int APS5_VABI DispatchWrite(LibreSslSsl* ssl, const void* buffer, int length) {
+    dispatchLog = {ssl, buffer, length, dispatchLog.calls + 1};
+    return 9;
+}
+
+static int APS5_VABI DispatchShutdown(LibreSslSsl* ssl) {
+    dispatchLog = {ssl, nullptr, 0, dispatchLog.calls + 1};
+    return 10;
+}
+
+static int APS5_VABI DispatchPending(const LibreSslSsl* ssl) {
+    dispatchLog = {const_cast<LibreSslSsl*>(ssl), nullptr, 0, dispatchLog.calls + 1};
+    return 11;
+}
+
+static void TestDispatch() {
+    ERR_clear_error_nid_postfix();
+    TestMethodInternal methodInternal {};
+    TestMethod method {};
+    method.internal = &methodInternal;
+    TestConnectionInternal internal {};
+    TestSsl ssl {};
+    ssl.method = &method;
+    ssl.internal = reinterpret_cast<TestSslInternal*>(&internal);
+    LibreSslSsl* const connection = Ssl(&ssl);
+    char buffer[4] {};
+    dispatchLog = {};
+
+    RequireThrows([&] { SSL_read_nid_postfix(nullptr, buffer, 4); });
+    RequireThrows([&] { SSL_write_nid_postfix(nullptr, buffer, 4); });
+    RequireThrows([&] { SSL_peek_nid_postfix(nullptr, buffer, 4); });
+    RequireThrows([&] { SSL_shutdown_nid_postfix(nullptr); });
+    RequireThrows([&] { SSL_pending_nid_postfix(nullptr); });
+
+    internal.state = 0x5000;
+    internal.shutdown = 3;
+    Require(SSL_read_nid_postfix(connection, buffer, 4) == -1);
+    Require(ERR_get_error_nid_postfix() == ErrorCode(20, 78, 276));
+    Require(SSL_peek_nid_postfix(connection, buffer, 4) == -1);
+    Require(ERR_get_error_nid_postfix() == ErrorCode(20, 78, 276));
+    internal.state = 0x1234;
+    Require(SSL_write_nid_postfix(connection, buffer, 4) == -1);
+    Require(ERR_get_error_nid_postfix() == ErrorCode(20, 0xfff, 276));
+    internal.state = 0x2141;
+    Require(SSL_shutdown_nid_postfix(connection) == -1);
+    Require(ERR_get_error_nid_postfix() == ErrorCode(20, 46, 276));
+    internal.state = 0x3;
+    Require(SSL_shutdown_nid_postfix(connection) == -1);
+    Require(ERR_get_error_nid_postfix() == ErrorCode(20, 76, 276));
+    Require(ERR_get_error_nid_postfix() == 0 && dispatchLog.calls == 0 && internal.rwstate == 0);
+
+    internal.handshakeFunc = &internal;
+    internal.rwstate = 3;
+    internal.shutdown = 2;
+    Require(SSL_peek_nid_postfix(connection, buffer, 4) == 0 && internal.rwstate == 3);
+    Require(SSL_read_nid_postfix(connection, buffer, 4) == 0 && internal.rwstate == 1);
+    Require(dispatchLog.calls == 0);
+    RequireThrows([&] { SSL_write_nid_postfix(connection, buffer, 4); });
+    methodInternal.write = DispatchWrite;
+    internal.rwstate = 2;
+    Require(SSL_write_nid_postfix(connection, buffer, 3) == 9 && internal.rwstate == 2);
+    Require(dispatchLog.ssl == connection && dispatchLog.buffer == buffer && dispatchLog.length == 3 && dispatchLog.calls == 1);
+    internal.shutdown = 1;
+    internal.state = 0x1110;
+    Require(SSL_write_nid_postfix(connection, buffer, 3) == -1 && internal.rwstate == 1 && dispatchLog.calls == 1);
+    Require(ERR_get_error_nid_postfix() == ErrorCode(20, 2, 207));
+    Require(ERR_get_error_nid_postfix() == 0);
+
+    RequireThrows([&] { SSL_read_nid_postfix(connection, buffer, 4); });
+    RequireThrows([&] { SSL_peek_nid_postfix(connection, buffer, 4); });
+    methodInternal.read = DispatchRead;
+    methodInternal.peek = DispatchPeek;
+    Require(SSL_read_nid_postfix(connection, buffer, 4) == 7 && dispatchLog.length == 4 && dispatchLog.calls == 2);
+    Require(SSL_peek_nid_postfix(connection, buffer + 1, 2) == 8 && dispatchLog.buffer == buffer + 1 && dispatchLog.calls == 3);
+
+    internal.state = 0x1000;
+    Require(SSL_shutdown_nid_postfix(connection) == 1 && dispatchLog.calls == 3);
+    internal.state = 0x2000;
+    Require(SSL_shutdown_nid_postfix(connection) == 1 && dispatchLog.calls == 3);
+    internal.state = 0x3;
+    RequireThrows([&] { SSL_shutdown_nid_postfix(connection); });
+    methodInternal.shutdown = DispatchShutdown;
+    Require(SSL_shutdown_nid_postfix(connection) == 10 && dispatchLog.ssl == connection && dispatchLog.calls == 4);
+
+    RequireThrows([&] { SSL_pending_nid_postfix(connection); });
+    methodInternal.pending = DispatchPending;
+    Require(SSL_pending_nid_postfix(connection) == 11 && dispatchLog.ssl == connection && dispatchLog.calls == 5);
+    method.internal = nullptr;
+    RequireThrows([&] { SSL_pending_nid_postfix(connection); });
+    ssl.method = nullptr;
+    RequireThrows([&] { SSL_read_nid_postfix(connection, buffer, 4); });
+    Require(ERR_get_error_nid_postfix() == 0);
+}
+
+static void TestGetError() {
+    ERR_clear_error_nid_postfix();
+    TestConnectionInternal internal {};
+    TestSsl ssl {};
+    LibreSsl::Bio readBio {};
+    LibreSsl::Bio writeBio {};
+    TestSsl3Internal stateInternal {};
+    TestSsl3State state {};
+    state.internal = &stateInternal;
+    LibreSslSsl* const connection = Ssl(&ssl);
+    Require(SSL_get_error_nid_postfix(nullptr, 1) == 0);
+    RequireThrows([] { SSL_get_error_nid_postfix(nullptr, 0); });
+    RequireThrows([&] { SSL_get_error_nid_postfix(connection, -1); });
+    ssl.internal = reinterpret_cast<TestSslInternal*>(&internal);
+
+    LibreSslPutError_nid_no_patch(2, 1, 3);
+    Require(SSL_get_error_nid_postfix(nullptr, 0) == 5);
+    Require(SSL_get_error_nid_postfix(nullptr, -1) == 5);
+    Require(SSL_get_error_nid_postfix(connection, 5) == 0);
+    LibreSslPutError_nid_no_patch(20, 1, 3);
+    Require(SSL_get_error_nid_postfix(connection, -1) == 5);
+    ERR_clear_error_nid_postfix();
+    LibreSslPutError_nid_no_patch(20, 1, 3);
+    LibreSslPutError_nid_no_patch(2, 1, 3);
+    Require(SSL_get_error_nid_postfix(connection, 0) == 1);
+    ERR_clear_error_nid_postfix();
+
+    Require(SSL_get_error_nid_postfix(connection, -1) == 5);
+    Require(SSL_get_error_nid_postfix(connection, 0) == 5);
+    internal.rwstate = 3;
+    RequireThrows([&] { SSL_get_error_nid_postfix(connection, -1); });
+    Require(SSL_get_error_nid_postfix(connection, 0) == 5);
+    ssl.rbio = &readBio;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 5);
+    readBio.flags = 0x09;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 2);
+    readBio.flags = 0x03;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 2);
+    readBio.flags = 0x02;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 3);
+    readBio.flags = 0x06;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 3);
+    readBio.flags = 0x04;
+    readBio.retryReason = 0x02;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 7);
+    readBio.retryReason = 0x03;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 8);
+    readBio.retryReason = 0x01;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 5);
+
+    internal.rwstate = 2;
+    RequireThrows([&] { SSL_get_error_nid_postfix(connection, -1); });
+    ssl.wbio = &writeBio;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 5);
+    writeBio.flags = 0x03;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 3);
+    writeBio.flags = 0x01;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 2);
+    writeBio.flags = 0x05;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 2);
+    writeBio.flags = 0x04;
+    writeBio.retryReason = 0x02;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 7);
+    writeBio.retryReason = 0x03;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 8);
+    writeBio.retryReason = 0x00;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 5);
+
+    internal.rwstate = 4;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 4);
+    Require(SSL_get_error_nid_postfix(connection, 0) == 5);
+    internal.rwstate = 1;
+    Require(SSL_get_error_nid_postfix(connection, -1) == 5);
+
+    internal.shutdown = 1;
+    Require(SSL_get_error_nid_postfix(connection, 0) == 5);
+    internal.shutdown = 2;
+    RequireThrows([&] { SSL_get_error_nid_postfix(connection, 0); });
+    ssl.s3 = &state;
+    Require(SSL_get_error_nid_postfix(connection, 0) == 6);
+    Require(SSL_get_error_nid_postfix(connection, -1) == 5);
+    stateInternal.warnAlert = 100;
+    Require(SSL_get_error_nid_postfix(connection, 0) == 5);
+    stateInternal.warnAlert = 0;
+    state.internal = nullptr;
+    RequireThrows([&] { SSL_get_error_nid_postfix(connection, 0); });
+    Require(ERR_get_error_nid_postfix() == 0);
+}
+
 int main() {
     void* heap[10] {};
     ApplicationHeapRegister_nid_no_patch(heap);
@@ -321,5 +680,9 @@ int main() {
     TestSetExData();
     TestSetExDataPrefilledStack();
     TestGetPeerCertChain();
+    TestGetExData();
+    TestSessionAccessors();
+    TestDispatch();
+    TestGetError();
     return 0;
 }

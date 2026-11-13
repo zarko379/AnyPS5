@@ -2,8 +2,9 @@
 #include "prx/libc/include/Api.hpp"
 #include "prx/libSceLibreSsl/include/Error.hpp"
 
+#include <array>
 #include <limits>
-#include "prx/libSceLibreSsl/include/Error.hpp"
+#include <utility>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
@@ -57,7 +58,9 @@ const LibreSslSslInternal& Internal(const LibreSslSsl* ssl, const char* function
 }
 
 struct Ssl3StateInternal {
-    unsigned char beforeSendConnectionBinding[1012];
+    unsigned char beforeWarnAlert[324];
+    int warnAlert;
+    unsigned char beforeSendConnectionBinding[684];
     int sendConnectionBinding;
     unsigned char beforeAlpnSelected[8];
     const unsigned char* alpnSelected;
@@ -80,11 +83,22 @@ struct Dtls1State {
     Dtls1StateInternal* internal;
 };
 
+using SslReadFunction = int (APS5_VABI*)(LibreSslSsl*, void*, int);
+using SslWriteFunction = int (APS5_VABI*)(LibreSslSsl*, const void*, int);
+using SslShutdownFunction = int (APS5_VABI*)(LibreSslSsl*);
+using SslPendingFunction = int (APS5_VABI*)(const LibreSslSsl*);
+
 struct SslMethodInternal {
     int version;
     unsigned char beforeConnect[36];
     void* connect;
-    unsigned char rest[112];
+    SslReadFunction read;
+    SslReadFunction peek;
+    SslWriteFunction write;
+    SslShutdownFunction shutdown;
+    unsigned char beforePending[40];
+    SslPendingFunction pending;
+    unsigned char rest[32];
 };
 
 struct SslMethod {
@@ -93,6 +107,7 @@ struct SslMethod {
 };
 
 static_assert(sizeof(Ssl3StateInternal) == 1040);
+static_assert(offsetof(Ssl3StateInternal, warnAlert) == 324);
 static_assert(offsetof(Ssl3StateInternal, sendConnectionBinding) == 1012);
 static_assert(offsetof(Ssl3StateInternal, alpnSelected) == 1024);
 static_assert(offsetof(Ssl3StateInternal, alpnSelectedLength) == 1032);
@@ -101,6 +116,11 @@ static_assert(offsetof(Dtls1StateInternal, mtu) == 636);
 static_assert(sizeof(Dtls1State) == 40);
 static_assert(sizeof(SslMethodInternal) == 160);
 static_assert(offsetof(SslMethodInternal, connect) == 40);
+static_assert(offsetof(SslMethodInternal, read) == 48);
+static_assert(offsetof(SslMethodInternal, peek) == 56);
+static_assert(offsetof(SslMethodInternal, write) == 64);
+static_assert(offsetof(SslMethodInternal, shutdown) == 72);
+static_assert(offsetof(SslMethodInternal, pending) == 120);
 static_assert(sizeof(SslMethod) == 48);
 
 constexpr int ControlSetMessageCallbackArgument = 16;
@@ -170,6 +190,76 @@ void ValidateExDataStack(const LibreSslStack* stack, const char* function) {
     if (!stack->data || stack->num < 0 || stack->numAlloc < MinimumNodes || stack->num > stack->numAlloc) {
         NotImplemented_nid_no_patch(function);
     }
+}
+
+constexpr int SslLibrary = 20;
+constexpr int SystemLibrary = 2;
+constexpr int AnyFunctionCode = 0xfff;
+constexpr int ReasonProtocolIsShutdown = 207;
+constexpr int ReasonUninitialized = 276;
+constexpr int SentShutdown = 1;
+constexpr int ReceivedShutdown = 2;
+constexpr int StateInit = 0x3000;
+constexpr int Nothing = 1;
+constexpr int Writing = 2;
+constexpr int Reading = 3;
+constexpr int X509Lookup = 4;
+constexpr int AlertCloseNotify = 0;
+constexpr int BioShouldRead = 0x01;
+constexpr int BioShouldWrite = 0x02;
+constexpr int BioIoSpecial = 0x04;
+constexpr int BioRetryConnect = 0x02;
+constexpr int BioRetryAccept = 0x03;
+constexpr int ErrorNone = 0;
+constexpr int ErrorSsl = 1;
+constexpr int ErrorWantRead = 2;
+constexpr int ErrorWantWrite = 3;
+constexpr int ErrorWantX509Lookup = 4;
+constexpr int ErrorSyscall = 5;
+constexpr int ErrorZeroReturn = 6;
+constexpr int ErrorWantConnect = 7;
+constexpr int ErrorWantAccept = 8;
+
+constexpr std::array<std::pair<int, int>, 85> StateFunctionCodes{{
+    {0x3, 76}, {0x1000, 75}, {0x1003, 79}, {0x1100, 1}, {0x1110, 2}, {0x1111, 3}, {0x1120, 4}, {0x1121, 5},
+    {0x1126, 83}, {0x1127, 84}, {0x1130, 6}, {0x1131, 7}, {0x1140, 8}, {0x1141, 9}, {0x1150, 10}, {0x1151, 11},
+    {0x1160, 12}, {0x1161, 13}, {0x1170, 14}, {0x1171, 15}, {0x1172, 16}, {0x1173, 17}, {0x1180, 18}, {0x1181, 19},
+    {0x1190, 20}, {0x1191, 21}, {0x11a0, 22}, {0x11a1, 23}, {0x11b0, 26}, {0x11b1, 27}, {0x11c0, 28}, {0x11c1, 29},
+    {0x11d0, 30}, {0x11d1, 31}, {0x11e0, 32}, {0x11e1, 33}, {0x11f0, 34}, {0x11f1, 35}, {0x1200, 24}, {0x1201, 25},
+    {0x2000, 74}, {0x2003, 81}, {0x2100, 36}, {0x2110, 37}, {0x2111, 38}, {0x2112, 39}, {0x2113, 85}, {0x2114, 86},
+    {0x2120, 40}, {0x2121, 41}, {0x2122, 42}, {0x2130, 43}, {0x2131, 44}, {0x2140, 45}, {0x2141, 46}, {0x2150, 47},
+    {0x2151, 48}, {0x2160, 49}, {0x2161, 50}, {0x2170, 51}, {0x2171, 52}, {0x2180, 53}, {0x2181, 54}, {0x2190, 55},
+    {0x2191, 56}, {0x21a0, 57}, {0x21a1, 58}, {0x21b0, 59}, {0x21b1, 60}, {0x21c0, 63}, {0x21c1, 64}, {0x21d0, 65},
+    {0x21d1, 66}, {0x21e0, 67}, {0x21e1, 68}, {0x21f0, 69}, {0x21f1, 70}, {0x2200, 71}, {0x2201, 72}, {0x2210, 61},
+    {0x2211, 62}, {0x3004, 77}, {0x4000, 73}, {0x5000, 78}, {0x6000, 80},
+}};
+
+int StateFunctionCode(int state) {
+    for (const auto& [value, code] : StateFunctionCodes)
+        if (value == state) return code;
+    return AnyFunctionCode;
+}
+
+int PutStateError(const LibreSslSslInternal& internal, int reason, int result) {
+    LibreSslPutError_nid_no_patch(SslLibrary, StateFunctionCode(internal.state), reason, __FILE__, __LINE__);
+    return result;
+}
+
+template<typename TFunction> TFunction Dispatch(TFunction function, const char* name) {
+    if (!function) throw std::invalid_argument(std::string(name) + ": null method function");
+    return function;
+}
+
+int RetryError(const LibreSsl::Bio* bio, int first, int firstError, int second, int secondError, const char* function) {
+    if (!bio) throw std::invalid_argument(std::string(function) + ": null BIO");
+    if (bio->flags & first) return firstError;
+    if (bio->flags & second) return secondError;
+    if (bio->flags & BioIoSpecial) {
+        if (bio->retryReason == BioRetryConnect) return ErrorWantConnect;
+        if (bio->retryReason == BioRetryAccept) return ErrorWantAccept;
+        return ErrorSyscall;
+    }
+    return ErrorNone;
 }
 
 bool PushExData(LibreSslStack* stack, void* value, const char* function) {
@@ -325,6 +415,70 @@ int APS5_VABI SSL_set_ex_data_nid_postfix(LibreSslSsl* ssl, int index, void* val
     }
     if (index >= 0 && index < stack->num) stack->data[index] = static_cast<char*>(value);
     return 1;
+}
+
+void* APS5_VABI SSL_get_ex_data_nid_postfix(const LibreSslSsl* ssl, int index) {
+    return LibreSslGetExData_nid_no_patch(&Internal(ssl, __func__).exData, index);
+}
+
+int APS5_VABI SSL_read_nid_postfix(LibreSslSsl* ssl, void* buffer, int length) {
+    LibreSslSslInternal& internal = Internal(ssl, __func__);
+    if (!internal.handshakeFunc) return PutStateError(internal, ReasonUninitialized, -1);
+    if (internal.shutdown & ReceivedShutdown) {
+        internal.rwstate = Nothing;
+        return 0;
+    }
+    return Dispatch(Method(*ssl, __func__).read, __func__)(ssl, buffer, length);
+}
+
+int APS5_VABI SSL_peek_nid_postfix(LibreSslSsl* ssl, void* buffer, int length) {
+    LibreSslSslInternal& internal = Internal(ssl, __func__);
+    if (!internal.handshakeFunc) return PutStateError(internal, ReasonUninitialized, -1);
+    if (internal.shutdown & ReceivedShutdown) return 0;
+    return Dispatch(Method(*ssl, __func__).peek, __func__)(ssl, buffer, length);
+}
+
+int APS5_VABI SSL_write_nid_postfix(LibreSslSsl* ssl, const void* buffer, int length) {
+    LibreSslSslInternal& internal = Internal(ssl, __func__);
+    if (!internal.handshakeFunc) return PutStateError(internal, ReasonUninitialized, -1);
+    if (internal.shutdown & SentShutdown) {
+        internal.rwstate = Nothing;
+        return PutStateError(internal, ReasonProtocolIsShutdown, -1);
+    }
+    return Dispatch(Method(*ssl, __func__).write, __func__)(ssl, buffer, length);
+}
+
+int APS5_VABI SSL_shutdown_nid_postfix(LibreSslSsl* ssl) {
+    LibreSslSslInternal& internal = Internal(ssl, __func__);
+    if (!internal.handshakeFunc) return PutStateError(internal, ReasonUninitialized, -1);
+    if (internal.state & StateInit) return 1;
+    return Dispatch(Method(*ssl, __func__).shutdown, __func__)(ssl);
+}
+
+int APS5_VABI SSL_pending_nid_postfix(const LibreSslSsl* ssl) {
+    return Dispatch(Method(Connection(ssl, __func__), __func__).pending, __func__)(ssl);
+}
+
+int APS5_VABI SSL_get_error_nid_postfix(const LibreSslSsl* ssl, int result) {
+    if (result > 0) return ErrorNone;
+    const std::uint64_t error = ERR_peek_error_nid_postfix();
+    if (error != 0) return ((error >> 24) & 0xff) == SystemLibrary ? ErrorSyscall : ErrorSsl;
+    const LibreSslSslInternal& internal = Internal(ssl, __func__);
+    if (result < 0 && internal.rwstate == Reading) {
+        const int retry = RetryError(static_cast<const LibreSsl::Bio*>(ssl->rbio), BioShouldRead, ErrorWantRead, BioShouldWrite, ErrorWantWrite, __func__);
+        if (retry != ErrorNone) return retry;
+    }
+    if (result < 0 && internal.rwstate == Writing) {
+        const int retry = RetryError(static_cast<const LibreSsl::Bio*>(ssl->wbio), BioShouldWrite, ErrorWantWrite, BioShouldRead, ErrorWantRead, __func__);
+        if (retry != ErrorNone) return retry;
+    }
+    if (result < 0 && internal.rwstate == X509Lookup) return ErrorWantX509Lookup;
+    if (result == 0 && (internal.shutdown & ReceivedShutdown)) {
+        const auto* state = static_cast<const Ssl3State*>(ssl->s3);
+        if (!state || !state->internal) throw std::invalid_argument(std::string(__func__) + ": null SSL3 state");
+        if (state->internal->warnAlert == AlertCloseNotify) return ErrorZeroReturn;
+    }
+    return ErrorSyscall;
 }
 
 }
