@@ -291,11 +291,11 @@ void CheckClipExtents() {
     cairo_destroy(context);
     CairoSurface* nested = cairo_surface_create_for_rectangle(sub, 1.5, 0, 10, 10);
     context = ClipContext(nested);
-    ExpectClip(context, 0, 0, 9, 10);
+    ExpectClip(context, 0, 0, 2.25, 2.5);
     cairo_destroy(context);
     cairo_surface_set_device_scale(sub, 2, 3);
     context = ClipContext(cairo_surface_create_for_rectangle(sub, 1.5, 0.5, 10, 10));
-    ExpectClip(context, 0, 0, 10, 29.0 / 3.0);
+    ExpectClip(context, 0, 0, 5, 7.25);
     cairo_destroy(context);
     cairo_surface_destroy(sub);
 
