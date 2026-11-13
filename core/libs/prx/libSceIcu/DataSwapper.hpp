@@ -50,4 +50,7 @@ std::int32_t APS5_VABI unorm2_swap_nid_postfix(const GuestDataSwapper* ds, const
 std::int8_t APS5_VABI ucol_looksLikeCollationBinary_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length);
 std::int32_t APS5_VABI ucol_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
 std::int32_t APS5_VABI ucol_swapInverseUCA_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
+std::int32_t APS5_VABI ures_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
+std::int32_t APS5_VABI ucnv_swapAliases_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
+std::int32_t APS5_VABI ucnv_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status);
 }

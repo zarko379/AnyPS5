@@ -6,11 +6,16 @@
 #include "dictionarydata.h"
 #include "normalizer2impl.h"
 #include "rbbidata.h"
+#include "ucnv_bld.h"
+#include "ucnv_ext.h"
+#include "ucnv_io.h"
+#include "ucnvmbcs.h"
 #include "ucmndata.h"
 #include "ucol_data.h"
 #include "ucol_swp.h"
 #include "udataswp.h"
 #include "uprops.h"
+#include "uresdata.h"
 #include <algorithm>
 #include <array>
 #include <cstdarg>
@@ -18,6 +23,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <mutex>
 #include <new>
 #include <stdexcept>
@@ -25,6 +31,7 @@
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -678,6 +685,385 @@ void CheckInverse(const UDataSwapper* ds, const void* inData, std::int32_t lengt
     if (conts > 0 && !Inside(reader.U32(offsetof(InverseUCATableHeader, conts)), conts, available)) APS5_INVALID_ARG_EX;
 }
 
+struct SilentView {
+    HostView view;
+
+    explicit SilentView(const UDataSwapper* ds) : view(ViewOf(ds)->guest) {
+        view.host.printError = nullptr;
+    }
+
+    const UDataSwapper* operator->() const {
+        return &view.host;
+    }
+
+    const UDataSwapper* get() const {
+        return &view.host;
+    }
+};
+
+std::int32_t Wrapped(std::uint64_t value) {
+    return static_cast<std::int32_t>(static_cast<std::uint32_t>(value));
+}
+
+constexpr std::int64_t NoKey = -1;
+constexpr std::int64_t UnknownKey = -2;
+
+struct BundleCheck {
+    const UDataSwapper* ds;
+    SilentView silent;
+    Reader reader;
+    std::uint8_t* outBundle;
+    std::int64_t available;
+    std::int64_t keysBegin;
+    std::int64_t keysEnd;
+    std::int64_t localKeyLimit;
+    std::int64_t rows;
+    bool sorts;
+    std::vector<bool> visited;
+
+    BundleCheck(const UDataSwapper* swapper, const std::uint8_t* inBundle, std::uint8_t* out, std::int64_t bytes)
+        : ds(swapper), silent(swapper), reader{swapper, inBundle}, outBundle(out), available(bytes), keysBegin(0), keysEnd(0), localKeyLimit(0), rows(0), sorts(false),
+          visited(static_cast<std::size_t>(bytes / 4 + 1), false) {}
+
+    void Need(std::int64_t offset, std::int64_t size) const {
+        if (!Inside(offset, size, available)) APS5_INVALID_ARG_EX;
+    }
+
+    const char* Key(std::int64_t offset) const {
+        if (offset < keysBegin || offset >= keysEnd) APS5_INVALID_ARG_EX;
+        const auto* key = reinterpret_cast<const char*>(reader.bytes + offset);
+        if (!std::memchr(key, 0, static_cast<std::size_t>(keysEnd - offset))) APS5_INVALID_ARG_EX;
+        return key;
+    }
+
+    bool CollationKey(std::int64_t offset) const {
+        static const UChar name[] = {0x25, 0x25, 0x43, 0x6f, 0x6c, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x69, 0x6e};
+        const char* key = Key(offset);
+        const auto length = static_cast<std::int32_t>(std::strlen(key));
+        std::string converted(static_cast<std::size_t>(length), '\0');
+        UErrorCode error = U_ZERO_ERROR;
+        silent->swapInvChars(silent.get(), key, length, converted.data(), &error);
+        if (U_FAILURE(error)) return false;
+        return silent->compareInvChars(silent.get(), converted.data(), length, name, static_cast<std::int32_t>(std::size(name))) == 0;
+    }
+
+    void Binary(std::int64_t offset, std::int64_t key) {
+        const auto count = static_cast<std::int32_t>(reader.U32(static_cast<std::uint64_t>(offset)));
+        const std::int64_t data = offset + 4;
+        if (key == NoKey) return;
+        bool collation;
+        if (key == UnknownKey) {
+            if (count < -1) return;
+            if (count == -1) APS5_INVALID_ARG_EX;
+            const std::int64_t remaining = available - data;
+            CheckCollationBinary(ds, reader.bytes + data, static_cast<std::int32_t>(remaining));
+            if (count >= static_cast<std::int32_t>(sizeof(UCATableHeader)) && remaining < static_cast<std::int64_t>(sizeof(UCATableHeader))) APS5_INVALID_ARG_EX;
+            collation = ucol_looksLikeCollationBinary(silent.get(), reader.bytes + data, count);
+        } else {
+            collation = CollationKey(key);
+        }
+        if (!collation || count < -1) return;
+        if (count == -1) APS5_INVALID_ARG_EX;
+        Need(data, count);
+        CheckCollation(ds, reader.bytes + data, count, outBundle + data);
+    }
+
+    void SortedKeys(std::int64_t keys, std::int64_t count, bool wide) const {
+        if (!sorts) return;
+        if (count > rows) APS5_INVALID_ARG_EX;
+        if (count < 2) return;
+        for (std::int64_t index = 0; index < count; ++index) {
+            const std::int64_t key = wide ? static_cast<std::int32_t>(reader.U32(static_cast<std::uint64_t>(keys + 4 * index))) : reader.U16(static_cast<std::uint64_t>(keys + 2 * index));
+            Key(key);
+        }
+    }
+
+    void Table16(std::int64_t offset) {
+        const std::int64_t count = reader.U16(static_cast<std::uint64_t>(offset));
+        if (count == 0) return;
+        const std::int64_t keys = offset + 2;
+        const std::int64_t items = (offset / 4 + ((1 + count) + 1) / 2) * 4;
+        Need(keys, 2 * count);
+        Need(items, 4 * count);
+        for (std::int64_t index = 0; index < count; ++index) {
+            const std::int64_t key = reader.U16(static_cast<std::uint64_t>(keys + 2 * index));
+            Walk(reader.U32(static_cast<std::uint64_t>(items + 4 * index)), key < localKeyLimit ? key : UnknownKey);
+        }
+        SortedKeys(keys, count, false);
+    }
+
+    void Table32(std::int64_t offset) {
+        const std::int64_t count = static_cast<std::int32_t>(reader.U32(static_cast<std::uint64_t>(offset)));
+        if (count <= 0) return;
+        const std::int64_t keys = offset + 4;
+        const std::int64_t items = keys + 4 * count;
+        Need(keys, 4 * count);
+        Need(items, 4 * count);
+        for (std::int64_t index = 0; index < count; ++index) {
+            const std::int64_t key = static_cast<std::int32_t>(reader.U32(static_cast<std::uint64_t>(keys + 4 * index)));
+            Walk(reader.U32(static_cast<std::uint64_t>(items + 4 * index)), key >= 0 ? key : UnknownKey);
+        }
+        SortedKeys(keys, count, true);
+    }
+
+    void Walk(std::uint32_t resource, std::int64_t key) {
+        const std::uint32_t type = resource >> 28;
+        if (type == URES_TABLE16 || type == URES_STRING_V2 || type == URES_INT || type == URES_ARRAY16) return;
+        const std::int64_t word = resource & 0x0fffffff;
+        if (word == 0) return;
+        const std::int64_t offset = word * 4;
+        Need(offset, type == URES_TABLE ? 2 : 4);
+        if (visited[static_cast<std::size_t>(word)]) return;
+        visited[static_cast<std::size_t>(word)] = true;
+        switch (type) {
+        case URES_ALIAS:
+        case URES_STRING: {
+            const std::int32_t size = Wrapped(2ull * reader.U32(static_cast<std::uint64_t>(offset)));
+            if (size >= 0) Need(offset + 4, size);
+            break;
+        }
+        case URES_BINARY:
+            Binary(offset, key);
+            break;
+        case URES_TABLE:
+            Table16(offset);
+            break;
+        case URES_TABLE32:
+            Table32(offset);
+            break;
+        case URES_ARRAY: {
+            const std::int64_t count = static_cast<std::int32_t>(reader.U32(static_cast<std::uint64_t>(offset)));
+            if (count <= 0) break;
+            Need(offset + 4, 4 * count);
+            for (std::int64_t index = 0; index < count; ++index) Walk(reader.U32(static_cast<std::uint64_t>(offset + 4 + 4 * index)), NoKey);
+            break;
+        }
+        case URES_INT_VECTOR: {
+            const std::int32_t size = Wrapped(4ull * (1ull + reader.U32(static_cast<std::uint64_t>(offset))));
+            if (size >= 0) Need(offset, size);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+};
+
+void CheckBundle(const UDataSwapper* ds, const void* inData, std::int32_t length, void* outData) {
+    const std::int32_t headerSize = HeaderSize(ds, inData, length, outData);
+    if (headerSize < 0) return;
+    const auto* info = reinterpret_cast<const UDataInfo*>(static_cast<const char*>(inData) + 4);
+    const std::uint8_t major = info->formatVersion[0];
+    if (std::memcmp(info->dataFormat, "ResB", 4) != 0 || !((major == 1 && info->formatVersion[1] >= 1) || major == 2 || major == 3)) return;
+    const std::int64_t available = static_cast<std::int64_t>(length) - headerSize;
+    const std::int64_t bundleLength = available / 4;
+    if (bundleLength < 1 + 5) return;
+    if (length > std::numeric_limits<std::int32_t>::max() - 31) APS5_INVALID_ARG_EX;
+    BundleCheck check(ds, static_cast<const std::uint8_t*>(inData) + headerSize, static_cast<std::uint8_t*>(outData) + headerSize, available);
+    const Reader& reader = check.reader;
+    const auto index = [&](std::int32_t slot) {
+        return static_cast<std::int32_t>(reader.U32(4 + 4 * static_cast<std::uint64_t>(slot)));
+    };
+    const std::int32_t indexLength = index(URES_INDEX_LENGTH) & 0xff;
+    if (indexLength <= URES_INDEX_MAX_TABLE_LENGTH) return;
+    const std::int64_t keysBottom = 1 + indexLength;
+    const std::int32_t keysTop = index(URES_INDEX_KEYS_TOP);
+    std::int32_t resBottom = keysTop;
+    if (indexLength > URES_INDEX_16BIT_TOP) {
+        check.Need(4 + 4 * URES_INDEX_16BIT_TOP, 4);
+        resBottom = index(URES_INDEX_16BIT_TOP);
+    }
+    const std::int32_t top = index(URES_INDEX_BUNDLE_TOP);
+    const std::int32_t maxTableLength = index(URES_INDEX_MAX_TABLE_LENGTH);
+    if (bundleLength < top) return;
+    if (top < 0 && inData != outData) APS5_INVALID_ARG_EX;
+    if (keysTop > keysBottom) check.localKeyLimit = Wrapped(static_cast<std::uint64_t>(static_cast<std::uint32_t>(keysTop)) << 2);
+    const std::int32_t keyBytes = Wrapped(4ull * (static_cast<std::uint32_t>(keysTop) - static_cast<std::uint32_t>(keysBottom)));
+    if (keyBytes < 0) return;
+    check.Need(keysBottom * 4, keyBytes);
+    check.keysBegin = keysBottom * 4;
+    check.keysEnd = check.keysBegin + keyBytes;
+    if (keysTop < resBottom) {
+        const std::int32_t unitBytes = Wrapped(4ull * (static_cast<std::uint32_t>(resBottom) - static_cast<std::uint32_t>(keysTop)));
+        if (unitBytes < 0) return;
+        check.Need(static_cast<std::int64_t>(keysTop) * 4, unitBytes);
+    }
+    check.rows = major > 1 || maxTableLength <= 200 ? 200 : maxTableLength;
+    check.sorts = major == 1 && ds->inCharset != ds->outCharset;
+    check.Walk(reader.U32(0), NoKey);
+}
+
+void Section(std::int64_t offset, std::int32_t size, std::int32_t unit, std::int64_t available) {
+    if (size < 0 || size % unit != 0) return;
+    if (!Inside(offset, size, available)) APS5_INVALID_ARG_EX;
+}
+
+void CheckAliases(const UDataSwapper* ds, const void* inData, std::int32_t length, const void* outData) {
+    const std::int32_t headerSize = HeaderSize(ds, inData, length, outData);
+    if (headerSize < 0) return;
+    const auto* info = reinterpret_cast<const UDataInfo*>(static_cast<const char*>(inData) + 4);
+    if (std::memcmp(info->dataFormat, "CvAl", 4) != 0 || info->formatVersion[0] != 3) return;
+    constexpr std::uint32_t minimum = 8;
+    constexpr std::uint32_t sections = 10;
+    const std::int64_t available = static_cast<std::int64_t>(length) - headerSize;
+    if (available < 4 * (1 + minimum)) return;
+    const Reader reader{ds, static_cast<const std::uint8_t*>(inData) + headerSize};
+    const std::uint32_t tocLength = reader.U32(0);
+    if (tocLength < minimum || tocLength >= sections) return;
+    if (!Inside(0, 4 * (1 + static_cast<std::int64_t>(tocLength)), available)) APS5_INVALID_ARG_EX;
+    std::array<std::uint32_t, sections> toc{};
+    std::array<std::uint32_t, sections> offsets{};
+    toc[0] = tocLength;
+    for (std::uint32_t i = 1; i <= tocLength; ++i) toc[i] = reader.U32(4 * static_cast<std::uint64_t>(i));
+    offsets[1] = 2 * (1 + tocLength);
+    for (std::uint32_t i = 2; i <= tocLength; ++i) offsets[i] = offsets[i - 1] + toc[i - 1];
+    const std::uint32_t topOffset = offsets[tocLength] + toc[tocLength];
+    if (available < Wrapped(2ull * topOffset)) return;
+    const auto at = [&](std::size_t section) {
+        return 2 * static_cast<std::int64_t>(offsets[section]);
+    };
+    const auto units = [](std::uint32_t count) {
+        return Wrapped(2ull * count);
+    };
+    const std::int32_t stringBytes = units(toc[8] + toc[9]);
+    if (stringBytes < 0) return;
+    if (!Inside(at(8), stringBytes, available)) APS5_INVALID_ARG_EX;
+    if (ds->inCharset == ds->outCharset) {
+        Section(at(1), units(offsets[8] - offsets[1]), 2, available);
+        return;
+    }
+    const std::int64_t count = toc[3];
+    if (count > 0) {
+        if (!Inside(at(3), 2 * count, available) || !Inside(at(4), 2 * count, available)) APS5_INVALID_ARG_EX;
+    }
+    if (count >= 2 && count <= std::numeric_limits<std::int32_t>::max()) {
+        const auto* strings = reinterpret_cast<const char*>(reader.bytes + at(8));
+        std::string stripped;
+        for (std::int64_t index = 0; index < count; ++index) {
+            const std::int64_t start = 2 * static_cast<std::int64_t>(reader.U16(static_cast<std::uint64_t>(at(3) + 2 * index)));
+            if (start >= stringBytes) APS5_INVALID_ARG_EX;
+            const void* end = std::memchr(strings + start, 0, static_cast<std::size_t>(stringBytes - start));
+            if (!end) APS5_INVALID_ARG_EX;
+            stripped.assign(static_cast<std::size_t>(static_cast<const char*>(end) - (strings + start)) + 1, '\0');
+            if (ds->inCharset == U_ASCII_FAMILY) ucnv_io_stripASCIIForCompare(stripped.data(), strings + start);
+            else ucnv_io_stripEBCDICForCompare(stripped.data(), strings + start);
+            if (std::strlen(stripped.c_str()) >= UCNV_MAX_CONVERTER_NAME_LENGTH) APS5_INVALID_ARG_EX;
+        }
+    }
+    Section(at(1), units(offsets[3] - offsets[1]), 2, available);
+    Section(at(5), units(offsets[8] - offsets[5]), 2, available);
+}
+
+void CheckConverter(const UDataSwapper* ds, const void* inData, std::int32_t length, const void* outData) {
+    const std::int32_t headerSize = HeaderSize(ds, inData, length, outData);
+    if (headerSize < 0) return;
+    const auto* info = reinterpret_cast<const UDataInfo*>(static_cast<const char*>(inData) + 4);
+    if (std::memcmp(info->dataFormat, "cnvt", 4) != 0 || info->formatVersion[0] != 6 || info->formatVersion[1] < 2) return;
+    const std::int64_t all = static_cast<std::int64_t>(length) - headerSize;
+    const auto* bytes = static_cast<const std::uint8_t*>(inData) + headerSize;
+    const Reader statics{ds, bytes};
+    if (all < static_cast<std::int64_t>(sizeof(UConverterStaticData))) return;
+    const std::uint32_t staticDataSize = statics.U32(offsetof(UConverterStaticData, structSize));
+    if (all < staticDataSize) return;
+    constexpr auto name = static_cast<std::int64_t>(offsetof(UConverterStaticData, name));
+    if (!std::memchr(bytes + name, 0, static_cast<std::size_t>(all - name))) APS5_INVALID_ARG_EX;
+    const auto* staticData = reinterpret_cast<const UConverterStaticData*>(bytes);
+    if (staticData->conversionType != UCNV_MBCS) return;
+    const std::int64_t available = all - staticDataSize;
+    if (available < static_cast<std::int64_t>(sizeof(_MBCSHeader))) return;
+    const Reader reader{ds, bytes + staticDataSize};
+    const auto field = [&](std::size_t offset) {
+        return reader.U32(offset);
+    };
+    const auto* version = reader.bytes;
+    std::uint32_t headerLength;
+    bool noFromU = false;
+    if (version[0] == 4 && version[1] >= 1) {
+        headerLength = MBCS_HEADER_V4_LENGTH;
+    } else {
+        const std::uint32_t options = field(offsetof(_MBCSHeader, options));
+        if (!(version[0] == 5 && version[1] >= 3 && (options & MBCS_OPT_UNKNOWN_INCOMPATIBLE_MASK) == 0)) return;
+        headerLength = options & MBCS_OPT_LENGTH_MASK;
+        noFromU = (options & MBCS_OPT_NO_FROM_U) != 0;
+    }
+    const std::uint32_t countStates = field(offsetof(_MBCSHeader, countStates));
+    const std::uint32_t countToUFallbacks = field(offsetof(_MBCSHeader, countToUFallbacks));
+    const std::uint32_t offsetToUCodeUnits = field(offsetof(_MBCSHeader, offsetToUCodeUnits));
+    const std::uint32_t offsetFromUTable = field(offsetof(_MBCSHeader, offsetFromUTable));
+    const std::uint32_t offsetFromUBytes = field(offsetof(_MBCSHeader, offsetFromUBytes));
+    const std::uint32_t flags = field(offsetof(_MBCSHeader, flags));
+    const std::uint32_t fromUBytesLength = field(offsetof(_MBCSHeader, fromUBytesLength));
+    const auto extOffset = static_cast<std::int32_t>(flags >> 8);
+    const auto outputType = static_cast<std::uint8_t>(flags);
+    if (noFromU && outputType == MBCS_OUTPUT_1) return;
+    switch (outputType) {
+    case MBCS_OUTPUT_1:
+    case MBCS_OUTPUT_2:
+    case MBCS_OUTPUT_3:
+    case MBCS_OUTPUT_4:
+    case MBCS_OUTPUT_3_EUC:
+    case MBCS_OUTPUT_4_EUC:
+    case MBCS_OUTPUT_2_SISO:
+    case MBCS_OUTPUT_EXT_ONLY:
+        break;
+    default:
+        return;
+    }
+    std::int32_t indexLength = 0;
+    if (outputType != MBCS_OUTPUT_EXT_ONLY && outputType != MBCS_OUTPUT_1 && version[1] >= 3 && version[2] != 0) indexLength = ((((version[2] << 8) | 0xff) + 1) >> 6) * 2;
+    const auto extIndex = [&](std::int32_t slot) {
+        return static_cast<std::int32_t>(reader.U32(static_cast<std::uint64_t>(extOffset) + 4 * static_cast<std::uint64_t>(slot)));
+    };
+    std::int32_t size;
+    if (extOffset == 0) {
+        size = Wrapped(static_cast<std::uint64_t>(offsetFromUBytes) + static_cast<std::uint32_t>(indexLength) + (noFromU ? 0 : fromUBytesLength));
+    } else {
+        if (available < static_cast<std::int64_t>(extOffset) + UCNV_EXT_INDEXES_MIN_LENGTH * 4) return;
+        size = Wrapped(static_cast<std::uint64_t>(static_cast<std::uint32_t>(extOffset)) + static_cast<std::uint32_t>(extIndex(UCNV_EXT_SIZE)));
+    }
+    if (available < size) return;
+    if (size < 0 && inData != outData) APS5_INVALID_ARG_EX;
+    const std::uint32_t headerBytes = headerLength * 4;
+    Section(offsetof(_MBCSHeader, countStates), Wrapped(static_cast<std::uint64_t>(headerBytes) - 4), 4, available);
+    if (outputType == MBCS_OUTPUT_EXT_ONLY) {
+        if (headerBytes >= available || !std::memchr(reader.bytes + headerBytes, 0, static_cast<std::size_t>(available - headerBytes))) APS5_INVALID_ARG_EX;
+    } else {
+        std::uint32_t offset = headerBytes;
+        std::uint32_t count = countStates * 1024;
+        Section(offset, Wrapped(count), 4, available);
+        offset += count;
+        count = countToUFallbacks * 8;
+        Section(offset, Wrapped(count), 4, available);
+        Section(offsetToUCodeUnits, Wrapped(offsetFromUTable - offsetToUCodeUnits), 2, available);
+        offset = offsetFromUTable;
+        if (outputType == MBCS_OUTPUT_1) {
+            Section(offset, Wrapped((offsetFromUBytes - offset) + fromUBytesLength), 2, available);
+        } else {
+            count = (staticData->unicodeMask & UCNV_HAS_SUPPLEMENTARY) ? 0x440 * 2 : 0x40 * 2;
+            Section(offset, Wrapped(count), 2, available);
+            offset += count;
+            Section(offset, Wrapped(offsetFromUBytes - offset), 4, available);
+            offset = offsetFromUBytes;
+            count = noFromU ? 0 : fromUBytesLength;
+            if (outputType == MBCS_OUTPUT_2 || outputType == MBCS_OUTPUT_3_EUC || outputType == MBCS_OUTPUT_2_SISO) Section(offset, Wrapped(count), 2, available);
+            else if (outputType == MBCS_OUTPUT_4) Section(offset, Wrapped(count), 4, available);
+            if (indexLength != 0) Section(static_cast<std::uint32_t>(offset + count), indexLength, 2, available);
+        }
+    }
+    if (extOffset == 0) return;
+    const auto extension = [&](std::int32_t offsetSlot, std::int32_t lengthSlot, std::int32_t unit) {
+        Section(static_cast<std::int64_t>(extOffset) + static_cast<std::uint32_t>(extIndex(offsetSlot)), Wrapped(static_cast<std::uint64_t>(static_cast<std::uint32_t>(extIndex(lengthSlot))) * static_cast<std::uint32_t>(unit)), unit, available);
+    };
+    extension(UCNV_EXT_TO_U_INDEX, UCNV_EXT_TO_U_LENGTH, 4);
+    extension(UCNV_EXT_TO_U_UCHARS_INDEX, UCNV_EXT_TO_U_UCHARS_LENGTH, 2);
+    extension(UCNV_EXT_FROM_U_UCHARS_INDEX, UCNV_EXT_FROM_U_LENGTH, 2);
+    extension(UCNV_EXT_FROM_U_VALUES_INDEX, UCNV_EXT_FROM_U_LENGTH, 4);
+    extension(UCNV_EXT_FROM_U_STAGE_12_INDEX, UCNV_EXT_FROM_U_STAGE_12_LENGTH, 2);
+    extension(UCNV_EXT_FROM_U_STAGE_3_INDEX, UCNV_EXT_FROM_U_STAGE_3_LENGTH, 2);
+    extension(UCNV_EXT_FROM_U_STAGE_3B_INDEX, UCNV_EXT_FROM_U_STAGE_3B_LENGTH, 4);
+    Section(extOffset, Wrapped(static_cast<std::uint64_t>(static_cast<std::uint32_t>(extIndex(UCNV_EXT_INDEXES_LENGTH))) * 4), 4, available);
+}
+
 template<typename TSwap>
 std::int32_t SwapChecked(const GuestDataSwapper* ds, std::int32_t* status, TSwap swap) {
     UErrorCode* error = OptionalStatus(status);
@@ -824,6 +1210,27 @@ std::int32_t APS5_VABI ucol_swapInverseUCA_nid_postfix(const GuestDataSwapper* d
     return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
         if (host && length >= 0) CheckInverse(host, inData, length, outData);
         return ucol_swapInverseUCA(host, inData, length, outData, error);
+    });
+}
+
+std::int32_t APS5_VABI ures_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status) {
+    return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
+        if (host && length >= 0) CheckBundle(host, inData, length, outData);
+        return ures_swap(host, inData, length, outData, error);
+    });
+}
+
+std::int32_t APS5_VABI ucnv_swapAliases_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status) {
+    return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
+        if (host && length >= 0) CheckAliases(host, inData, length, outData);
+        return ucnv_swapAliases(host, inData, length, outData, error);
+    });
+}
+
+std::int32_t APS5_VABI ucnv_swap_nid_postfix(const GuestDataSwapper* ds, const void* inData, std::int32_t length, void* outData, std::int32_t* status) {
+    return SwapChecked(ds, status, [&](const UDataSwapper* host, UErrorCode* error) {
+        if (host && length >= 0) CheckConverter(host, inData, length, outData);
+        return ucnv_swap(host, inData, length, outData, error);
     });
 }
 

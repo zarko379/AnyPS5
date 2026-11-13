@@ -11,6 +11,11 @@
 #include "ucol_swp.h"
 #include "udatamem.h"
 #include "udataswp.h"
+#include "ucnv_bld.h"
+#include "ucnv_ext.h"
+#include "ucnv_io.h"
+#include "ucnvmbcs.h"
+#include "uresdata.h"
 #include "uprops.h"
 #include "utrie2.h"
 #include <cstdint>
@@ -19,6 +24,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -308,7 +314,8 @@ void RoundTrip(const Bytes& original, TGuest guestSwap, THost hostSwap, const st
     status = Ok;
     hostStatus = U_ZERO_ERROR;
     const std::int32_t length = guestSwap(toBig, original.data(), original.length, big.data(), &status);
-    Require(status == Ok && length == hostSwap(host, original.data(), original.length, expected.data(), &hostStatus) && U_SUCCESS(hostStatus) && length == preflight, name + " swap against ICU");
+    const std::int32_t hostLength = hostSwap(host, original.data(), original.length, expected.data(), &hostStatus);
+    Require(status == Ok && length == hostLength && U_SUCCESS(hostStatus) && length == preflight, name + " swap against ICU (" + std::to_string(status) + " " + std::to_string(length) + " " + std::to_string(hostStatus) + " " + std::to_string(hostLength) + " " + std::to_string(preflight) + ")");
     Require(Same(big, expected, length) && !Same(big, original, length), name + " swapped bytes");
     Bytes back(original.length);
     status = Ok;
@@ -625,9 +632,9 @@ Bytes Mutated(const Bytes& original, TChange change) {
 }
 
 template<typename TGuest, typename THost>
-std::int32_t AgainstIcu(const Bytes& input, std::int32_t length, bool inPlace, TGuest guestSwap, THost hostSwap, const std::string& name) {
-    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
-    UDataSwapper* host = HostSwapper(false, 0, true, 0);
+std::int32_t AgainstIcuAs(std::uint8_t outCharset, const Bytes& input, std::int32_t length, bool inPlace, TGuest guestSwap, THost hostSwap, const std::string& name) {
+    GuestDataSwapper* ds = Swapper(false, 0, true, outCharset);
+    UDataSwapper* host = HostSwapper(false, 0, true, outCharset);
     Bytes guestIn = input;
     Bytes hostIn = input;
     Bytes guestOut(input.length);
@@ -640,6 +647,22 @@ std::int32_t AgainstIcu(const Bytes& input, std::int32_t length, bool inPlace, T
     udata_closeSwapper(host);
     udata_closeSwapper_nid_postfix(ds);
     return status;
+}
+
+template<typename TGuest, typename THost>
+std::int32_t AgainstIcu(const Bytes& input, std::int32_t length, bool inPlace, TGuest guestSwap, THost hostSwap, const std::string& name) {
+    return AgainstIcuAs(0, input, length, inPlace, guestSwap, hostSwap, name);
+}
+
+template<typename TGuest>
+bool ThrowsAs(std::uint8_t outCharset, const Bytes& input, std::int32_t length, bool inPlace, TGuest guestSwap) {
+    GuestDataSwapper* ds = Swapper(false, 0, true, outCharset);
+    Bytes in = input;
+    Bytes out(input.length);
+    std::int32_t status = Ok;
+    const bool thrown = Invalid([&] { guestSwap(ds, in.data(), length, inPlace ? in.data() : out.data(), &status); });
+    udata_closeSwapper_nid_postfix(ds);
+    return thrown;
 }
 
 template<typename TGuest>
@@ -982,6 +1005,240 @@ void TestInverseSwap() {
     }), inverse.length, false, swap, ucol_swapInverseUCA, "ucol_swapInverseUCA empty table") == Ok, "ucol_swapInverseUCA empty table ignores its offset");
 }
 
+constexpr std::uint32_t Res(std::uint32_t type, std::uint32_t word) {
+    return (type << 28) | word;
+}
+
+constexpr std::size_t TinyString = 14;
+constexpr std::size_t TinyVector = 17;
+constexpr std::size_t TinyArray = 20;
+constexpr std::size_t TinyBinary = 23;
+
+using Words = std::vector<std::uint32_t>;
+
+void AddKeys(Words& words) {
+    const char keys[] = "%%CollationBin\0k1\0k2\0\xaa\xaa\xaa";
+    static_assert(sizeof(keys) == 25);
+    for (std::size_t i = 0; i < 24; i += 4) words.push_back(GetU32(reinterpret_cast<const std::uint8_t*>(keys), i));
+}
+
+void SetIndexes(Words& words, std::uint32_t root, std::uint32_t maxTableLength) {
+    const auto top = static_cast<std::uint32_t>(words.size());
+    words[0] = Res(URES_TABLE, root);
+    words[1] = 7;
+    words[URES_INDEX_KEYS_TOP + 1] = 14;
+    words[URES_INDEX_RESOURCES_TOP + 1] = top;
+    words[URES_INDEX_BUNDLE_TOP + 1] = top;
+    words[URES_INDEX_MAX_TABLE_LENGTH + 1] = maxTableLength;
+    words[URES_INDEX_16BIT_TOP + 1] = 14;
+}
+
+Words TinyWords() {
+    const Bytes v3 = CollationVersion3();
+    Words w(8, 0);
+    AddKeys(w);
+    w.insert(w.end(), {2u, 0x68u | (0x69u << 16), 0u});
+    w.insert(w.end(), {2u, 7u, 9u});
+    w.insert(w.end(), {2u, Res(URES_STRING, TinyString), Res(URES_INT_VECTOR, TinyVector)});
+    w.push_back(static_cast<std::uint32_t>(v3.length));
+    for (std::int32_t i = 0; i < v3.length; i += 4) w.push_back(GetU32(v3.data(), static_cast<std::uint64_t>(i)));
+    const auto root = static_cast<std::uint32_t>(w.size());
+    w.insert(w.end(), {3u | (32u << 16), 47u | (50u << 16), Res(URES_BINARY, TinyBinary), Res(URES_ARRAY, TinyArray), Res(URES_STRING, TinyString)});
+    SetIndexes(w, root, 3);
+    return w;
+}
+
+Words WideWords(std::uint32_t count, std::uint32_t maxTableLength) {
+    Words w(8, 0);
+    AddKeys(w);
+    w.insert(w.end(), {2u, 0x68u | (0x69u << 16), 0u});
+    const auto root = static_cast<std::uint32_t>(w.size());
+    std::vector<std::uint16_t> keys(count + 1 + (count + 1) % 2, 47);
+    keys[0] = static_cast<std::uint16_t>(count);
+    for (std::size_t i = 0; i < keys.size(); i += 2) w.push_back(keys[i] | (static_cast<std::uint32_t>(keys[i + 1]) << 16));
+    w.insert(w.end(), count, Res(URES_STRING, TinyString));
+    SetIndexes(w, root, maxTableLength);
+    return w;
+}
+
+Bytes BundleOf(const Words& words, std::uint8_t major) {
+    Bytes body(static_cast<std::int32_t>(words.size() * 4));
+    std::memcpy(body.data(), words.data(), words.size() * 4);
+    return WithDataHeader("ResB", major, major == 1 ? 2 : 0, body);
+}
+
+template<typename TChange>
+Bytes Tiny(TChange change, std::uint8_t major = 2) {
+    Words words = TinyWords();
+    change(words);
+    return BundleOf(words, major);
+}
+
+Bytes AsVersion1(const Bytes& bundle) {
+    Bytes bytes = bundle;
+    bytes.data()[16] = 1;
+    bytes.data()[17] = 2;
+    return bytes;
+}
+
+void TestBundleSwap() {
+    const auto swap = ures_swap_nid_postfix;
+    for (const auto& [path, name] : {std::pair<const char*, const char*>{nullptr, "root"}, {nullptr, "pool"}, {"ICUDATA-coll", "de"}, {"ICUDATA-coll", "root"}})
+        RoundTrip(Item(path, "res", name), swap, ures_swap, std::string("ures_swap ") + name);
+    const auto none = [](Words&) {};
+    const Bytes tiny = Tiny(none);
+    RoundTrip(tiny, swap, ures_swap, "ures_swap crafted bundle");
+    const Bytes de = Item("ICUDATA-coll", "res", "de");
+    const Bytes root = Item(nullptr, "res", "root");
+    for (const bool inPlace : {false, true}) {
+        Require(AgainstIcuAs(1, root, root.length, inPlace, swap, ures_swap, "ures_swap root to EBCDIC") == Ok, "ures_swap root to EBCDIC");
+        Require(AgainstIcuAs(1, de, de.length, inPlace, swap, ures_swap, "ures_swap de to EBCDIC") == Ok, "ures_swap de to EBCDIC");
+        Require(AgainstIcuAs(1, AsVersion1(de), de.length, inPlace, swap, ures_swap, "ures_swap sorted de") == Ok, "ures_swap sorts format version 1 tables by EBCDIC keys");
+        Require(AgainstIcuAs(1, Tiny(none, 1), tiny.length, inPlace, swap, ures_swap, "ures_swap sorted crafted bundle") == Ok, "ures_swap sorts the crafted bundle");
+        const Bytes unknownKeys = Mutated(de, [](std::uint8_t* b) { PutU32(b, 4 + 4 * URES_INDEX_KEYS_TOP, (GetU32(b, 4) & 0xff) + 1); });
+        AgainstIcu(unknownKeys, unknownKeys.length, inPlace, swap, ures_swap, "ures_swap collation binary found by its data");
+    }
+    const auto unknown = [](Words& w) { w[w[0] & 0x0fffffff] = 3u | (0xffffu << 16); };
+    Require(AgainstIcu(Tiny(unknown), tiny.length, false, swap, ures_swap, "ures_swap unknown key") == Ok, "ures_swap swaps a collation binary under an unknown key");
+    Require(AgainstIcu(Tiny([&](Words& w) { unknown(w); w[TinyBinary + 1 + offsetof(UCATableHeader, magic) / 4] = 1; }), tiny.length, false, swap, ures_swap, "ures_swap other binary") == Ok, "ures_swap leaves other binaries");
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    Bytes out(tiny.length);
+    Require(ures_swap_nid_postfix(ds, tiny.data(), tiny.length, out.data(), nullptr) == 0, "ures_swap NULL status");
+    std::int32_t status = Ok;
+    Require(ures_swap_nid_postfix(ds, nullptr, 20, out.data(), &status) == 0 && status == U_ILLEGAL_ARGUMENT_ERROR, "ures_swap NULL data");
+    udata_closeSwapper_nid_postfix(ds);
+    FormatMessage(swap, ures_swap, Item(nullptr, "icu", "unames"), "75.6e.61.6d (format version 01.", "ures_swap");
+
+    const std::int32_t header = Header(tiny);
+    const auto top = static_cast<std::uint32_t>(TinyWords().size());
+    const auto with = [&](auto change) { return Tiny(change); };
+    Require(AgainstIcu(tiny, header + 20, false, swap, ures_swap, "ures_swap short") == U_INDEX_OUTOFBOUNDS_ERROR, "ures_swap too few bytes");
+    Require(AgainstIcu(with([](Words& w) { w[1] = 4; }), tiny.length, false, swap, ures_swap, "ures_swap indexes") == U_INDEX_OUTOFBOUNDS_ERROR, "ures_swap too few indexes");
+    Require(AgainstIcu(with([&](Words& w) { w[URES_INDEX_BUNDLE_TOP + 1] = top + 1; }), tiny.length, false, swap, ures_swap, "ures_swap top") == U_INDEX_OUTOFBOUNDS_ERROR, "ures_swap top past the data keeps ICU's error");
+    Require(AgainstIcu(with([](Words& w) { w[URES_INDEX_KEYS_TOP + 1] = 7; }), tiny.length, false, swap, ures_swap, "ures_swap keys") == U_ILLEGAL_ARGUMENT_ERROR, "ures_swap keys below the indexes keep ICU's error");
+    Require(AgainstIcu(with([](Words& w) { w[URES_INDEX_16BIT_TOP + 1] = 14 + 0x20000000; }), tiny.length, false, swap, ures_swap, "ures_swap units") == U_ILLEGAL_ARGUMENT_ERROR, "ures_swap negative 16-bit units keep ICU's error");
+    Require(AgainstIcu(with([](Words& w) { w[TinyArray + 1] = Res(10, TinyString); }), tiny.length, false, swap, ures_swap, "ures_swap type") == U_UNSUPPORTED_ERROR, "ures_swap unknown resource type");
+    Require(AgainstIcu(with([](Words& w) { w[TinyString] = 0xc0000000u; }), tiny.length, false, swap, ures_swap, "ures_swap string") == U_ILLEGAL_ARGUMENT_ERROR, "ures_swap negative string length keeps ICU's error");
+    Require(AgainstIcu(with([](Words& w) { w[TinyVector] = 0xffffffffu; }), tiny.length, false, swap, ures_swap, "ures_swap vector") == Ok, "ures_swap empty int vector");
+    Require(AgainstIcu(with([](Words& w) { w[TinyBinary] = 0xfffffffeu; }), tiny.length, false, swap, ures_swap, "ures_swap binary") == U_ILLEGAL_ARGUMENT_ERROR, "ures_swap collation binary below -1 keeps ICU's error");
+    Require(AgainstIcu(with([](Words& w) { w[1] = 6; }), header + 28, false, swap, ures_swap, "ures_swap six indexes") == U_INDEX_OUTOFBOUNDS_ERROR, "ures_swap six indexes read no 16-bit top");
+
+    Require(Throws(tiny, header + 28, false, swap), "ures_swap 16-bit top index past the data");
+    Require(Throws(tiny, 0x7fffffe1, false, swap), "ures_swap length ICU overflows");
+    const Bytes negativeTop = with([](Words& w) { w[URES_INDEX_BUNDLE_TOP + 1] = 0xffffffffu; });
+    Require(Throws(negativeTop, tiny.length, false, swap), "ures_swap negative top");
+    Require(AgainstIcu(negativeTop, tiny.length, true, swap, ures_swap, "ures_swap negative top in place") == Ok, "ures_swap in place copies nothing");
+    Require(Throws(with([&](Words& w) { w[URES_INDEX_KEYS_TOP + 1] = top + 1; }), tiny.length, false, swap), "ures_swap keys past the data");
+    Require(Throws(with([&](Words& w) { w[URES_INDEX_16BIT_TOP + 1] = top + 1; }), tiny.length, false, swap), "ures_swap 16-bit units past the data");
+    Require(Throws(with([](Words& w) { w[URES_INDEX_KEYS_TOP + 1] = 8 - 0x40000000; }), tiny.length, false, swap), "ures_swap 16-bit units before the data");
+    Require(Throws(with([](Words& w) { w[TinyString] = 0x10000; }), tiny.length, false, swap), "ures_swap string past the data");
+    Require(Throws(with([&](Words& w) { w[TinyArray + 1] = Res(URES_STRING, top + 5); }), tiny.length, false, swap), "ures_swap resource past the data");
+    Require(Throws(with([&](Words& w) { w[TinyArray + 1] = Res(URES_TABLE, top); }), tiny.length, false, swap), "ures_swap table count past the data");
+    Require(Throws(with([](Words& w) { w[TinyArray] = 0x100000; }), tiny.length, false, swap), "ures_swap array past the data");
+    Require(Throws(with([](Words& w) { w[TinyVector] = 0x100000; }), tiny.length, false, swap), "ures_swap int vector past the data");
+    Require(Throws(with([](Words& w) { w[TinyBinary] += 0x10000; }), tiny.length, false, swap), "ures_swap collation binary past the data");
+    Require(Throws(with([](Words& w) { w[TinyBinary] = 0xffffffffu; }), tiny.length, false, swap), "ures_swap collation binary without a length");
+    Require(Throws(with([](Words& w) { w[TinyBinary + 1 + offsetof(UCATableHeader, expansion) / 4] = 0x100000; }), tiny.length, false, swap), "ures_swap checks the collation binary");
+    Require(Throws(with([](Words& w) { w[w[0] & 0x0fffffff] = 3u | (4u << 16); }), tiny.length, false, swap), "ures_swap key outside the key strings");
+    Require(Throws(with([](Words& w) { for (std::size_t i = 8; i < 14; ++i) w[i] = 0x61616161u; }), tiny.length, false, swap), "ures_swap key without a NUL");
+    Require(Throws(with([&](Words& w) { unknown(w); w[TinyBinary] = 0xffffffffu; }), tiny.length, false, swap), "ures_swap unknown key binary without a length");
+
+    const auto farKey = [](Words& w) { w[(w[0] & 0x0fffffff) + 1] = 4u | (50u << 16); };
+    Require(AgainstIcuAs(1, Tiny(farKey), tiny.length, false, swap, ures_swap, "ures_swap unsorted far key") == Ok, "ures_swap format version 2 does not sort");
+    Require(AgainstIcu(Tiny(farKey, 1), tiny.length, false, swap, ures_swap, "ures_swap same charset far key") == Ok, "ures_swap same charset does not sort");
+    Require(ThrowsAs(1, Tiny(farKey, 1), tiny.length, false, swap), "ures_swap sorted key outside the key strings");
+    const Bytes wide = BundleOf(WideWords(201, 200), 1);
+    Require(ThrowsAs(1, wide, wide.length, false, swap), "ures_swap table longer than the sort rows");
+    Require(AgainstIcuAs(1, BundleOf(WideWords(201, 200), 2), wide.length, false, swap, ures_swap, "ures_swap long table unsorted") == Ok, "ures_swap format version 2 long table");
+    Require(AgainstIcuAs(1, BundleOf(WideWords(201, 201), 1), wide.length, true, swap, ures_swap, "ures_swap long table sorted") == Ok, "ures_swap sorts a table its maximum length allows");
+}
+
+void TestAliasSwap() {
+    const auto swap = ucnv_swapAliases_nid_postfix;
+    const Bytes aliases = Item(nullptr, "icu", "cnvalias");
+    RoundTrip(aliases, swap, ucnv_swapAliases, "ucnv_swapAliases");
+    for (const bool inPlace : {false, true}) Require(AgainstIcuAs(1, aliases, aliases.length, inPlace, swap, ucnv_swapAliases, "ucnv_swapAliases to EBCDIC") == Ok, "ucnv_swapAliases sorts by EBCDIC names");
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    Bytes out(aliases.length);
+    Require(ucnv_swapAliases_nid_postfix(ds, aliases.data(), aliases.length, out.data(), nullptr) == 0, "ucnv_swapAliases NULL status");
+    udata_closeSwapper_nid_postfix(ds);
+    FormatMessage(swap, ucnv_swapAliases, Item(nullptr, "icu", "unames"), "75.6e.61.6d (format version 01) is not an alias table", "ucnv_swapAliases");
+    const std::int32_t header = Header(aliases);
+    const std::uint8_t* base = aliases.data() + header;
+    Require(GetU32(base, 0) == 9, "cnvalias has nine sections");
+    Require(AgainstIcu(aliases, header + 35, false, swap, ucnv_swapAliases, "ucnv_swapAliases short") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swapAliases too few bytes");
+    Require(AgainstIcu(Mutated(aliases, [](std::uint8_t* b) { PutU32(b, 0, 7); }), aliases.length, false, swap, ucnv_swapAliases, "ucnv_swapAliases sections") == U_INVALID_FORMAT_ERROR, "ucnv_swapAliases section count");
+    Require(AgainstIcu(aliases, header + 40, false, swap, ucnv_swapAliases, "ucnv_swapAliases tables") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swapAliases tables past the length");
+    Require(Throws(aliases, header + 36, false, swap), "ucnv_swapAliases ninth section size past the length");
+    Require(AgainstIcu(Mutated(aliases, [](std::uint8_t* b) { PutU32(b, 0, 8); }), header + 36, false, swap, ucnv_swapAliases, "ucnv_swapAliases eight sections") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swapAliases eight sections read no ninth size");
+    Require(Throws(Mutated(aliases, [](std::uint8_t* b) { PutU32(b, 28, GetU32(b, 28) + 0x40000000u); }), aliases.length, false, swap), "ucnv_swapAliases overflowing total size");
+    const std::uint32_t aliasList = 2 * (1 + 9) + GetU32(base, 4) + GetU32(base, 8);
+    const std::uint32_t strings = aliasList + GetU32(base, 12) + GetU32(base, 16) + GetU32(base, 20) + GetU32(base, 24) + GetU32(base, 28);
+    const Bytes farString = Mutated(aliases, [&](std::uint8_t* b) { PutU16(b, 2ull * aliasList, 0xffff); });
+    Require(AgainstIcu(farString, aliases.length, false, swap, ucnv_swapAliases, "ucnv_swapAliases far string unsorted") == Ok, "ucnv_swapAliases same charset does not sort");
+    Require(ThrowsAs(1, farString, aliases.length, false, swap), "ucnv_swapAliases sorted name past the strings");
+    const auto named = [&](std::size_t letters) {
+        return Mutated(aliases, [&](std::uint8_t* b) {
+            const std::uint64_t start = 2ull * strings + 2ull * GetU16(b, 2ull * aliasList);
+            std::memset(b + start, 'a', letters);
+            b[start + letters] = 0;
+        });
+    };
+    Require(ThrowsAs(1, named(60), aliases.length, false, swap), "ucnv_swapAliases sorted name longer than ICU's buffer");
+    AgainstIcuAs(1, named(59), aliases.length, false, swap, ucnv_swapAliases, "ucnv_swapAliases longest sorted name");
+}
+
+void TestConverterSwap() {
+    const auto swap = ucnv_swap_nid_postfix;
+    for (const char* name : {"ibm-1006_P100-1995", "ibm-5478_P100-1995", "cns-11643-1992", "euc-jp-2007", "euc-tw-2014", "gb18030", "gsm-03.38-2009", "ibm-1363_P110-1997", "ibm-1364_P110-2007"})
+        RoundTrip(Item(nullptr, "cnv", name), swap, ucnv_swap, std::string("ucnv_swap ") + name);
+    const Bytes sbcs = Item(nullptr, "cnv", "ibm-1006_P100-1995");
+    const Bytes ext = Item(nullptr, "cnv", "gb18030");
+    const Bytes extOnly = Item(nullptr, "cnv", "ibm-1363_P110-1997");
+    for (const bool inPlace : {false, true}) {
+        Require(AgainstIcuAs(1, sbcs, sbcs.length, inPlace, swap, ucnv_swap, "ucnv_swap SBCS to EBCDIC") == Ok, "ucnv_swap SBCS to EBCDIC");
+        Require(AgainstIcuAs(1, extOnly, extOnly.length, inPlace, swap, ucnv_swap, "ucnv_swap extension only to EBCDIC") == Ok, "ucnv_swap extension only to EBCDIC");
+    }
+    GuestDataSwapper* ds = Swapper(false, 0, true, 0);
+    Bytes out(sbcs.length);
+    Require(ucnv_swap_nid_postfix(ds, sbcs.data(), sbcs.length, out.data(), nullptr) == 0, "ucnv_swap NULL status");
+    udata_closeSwapper_nid_postfix(ds);
+    FormatMessage(swap, ucnv_swap, Item(nullptr, "icu", "unames"), "75.6e.61.6d (format version 01.", "ucnv_swap");
+
+    const std::int32_t header = Header(sbcs);
+    constexpr std::uint64_t mbcs = sizeof(UConverterStaticData);
+    const auto field = [&](std::size_t offset) { return mbcs + offset; };
+    Require(AgainstIcu(sbcs, header + 99, false, swap, ucnv_swap, "ucnv_swap short") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swap short static data");
+    Require(AgainstIcu(Mutated(sbcs, [](std::uint8_t* b) { PutU32(b, 0, 0x10000000); }), sbcs.length, false, swap, ucnv_swap, "ucnv_swap static size") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swap static data past the length");
+    Require(AgainstIcu(Mutated(sbcs, [](std::uint8_t* b) { b[offsetof(UConverterStaticData, conversionType)] = UCNV_SBCS; }), sbcs.length, false, swap, ucnv_swap, "ucnv_swap type") == U_UNSUPPORTED_ERROR, "ucnv_swap non-MBCS data");
+    Require(AgainstIcu(sbcs, header + 100 + 39, false, swap, ucnv_swap, "ucnv_swap MBCS header") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swap short MBCS header");
+    Require(AgainstIcu(Mutated(sbcs, [](std::uint8_t* b) { b[mbcs] = 3; }), sbcs.length, false, swap, ucnv_swap, "ucnv_swap version") == U_UNSUPPORTED_ERROR, "ucnv_swap MBCS version");
+    Require(AgainstIcu(Mutated(sbcs, [&](std::uint8_t* b) { b[field(offsetof(_MBCSHeader, flags))] = 0x55; }), sbcs.length, false, swap, ucnv_swap, "ucnv_swap output") == U_UNSUPPORTED_ERROR, "ucnv_swap output type");
+    Require(AgainstIcu(sbcs, header + 100 + 48, false, swap, ucnv_swap, "ucnv_swap tables") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swap tables past the length");
+    const std::uint32_t extOffset = GetU32(ext.data() + Header(ext), mbcs + offsetof(_MBCSHeader, flags)) >> 8;
+    Require(AgainstIcu(ext, Header(ext) + 100 + static_cast<std::int32_t>(extOffset) + 100, false, swap, ucnv_swap, "ucnv_swap extension") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swap short extension indexes");
+
+    Require(Throws(Mutated(sbcs, [](std::uint8_t* b) { std::memset(b + 4, 'a', 96); }), header + 100, false, swap), "ucnv_swap name without a NUL");
+    Require(AgainstIcu(sbcs, header + 100, false, swap, ucnv_swap, "ucnv_swap static only") == U_INDEX_OUTOFBOUNDS_ERROR, "ucnv_swap name inside the data");
+    const Bytes negative = Mutated(sbcs, [&](std::uint8_t* b) { PutU32(b, field(offsetof(_MBCSHeader, offsetFromUBytes)), 0x80000000u); });
+    Require(Throws(negative, sbcs.length, false, swap), "ucnv_swap negative size");
+    AgainstIcu(negative, sbcs.length, true, swap, ucnv_swap, "ucnv_swap negative size in place");
+    Require(Throws(Mutated(sbcs, [&](std::uint8_t* b) { PutU32(b, field(offsetof(_MBCSHeader, countStates)), 0x1000); }), sbcs.length, false, swap), "ucnv_swap states past the data");
+    Require(Throws(Mutated(sbcs, [&](std::uint8_t* b) { PutU32(b, field(offsetof(_MBCSHeader, countToUFallbacks)), 0x100000); }), sbcs.length, false, swap), "ucnv_swap fallbacks past the data");
+    Require(Throws(Mutated(sbcs, [&](std::uint8_t* b) { PutU32(b, field(offsetof(_MBCSHeader, offsetFromUTable)), GetU32(b, field(offsetof(_MBCSHeader, offsetToUCodeUnits))) + 0x100000); }), sbcs.length, false, swap), "ucnv_swap code units past the data");
+    Require(Throws(Mutated(ext, [&](std::uint8_t* b) { PutU32(b, field(offsetof(_MBCSHeader, offsetFromUBytes)), 0x100000); }), ext.length, false, swap), "ucnv_swap stage 2 past the data");
+    const auto extIndex = [&](std::int32_t slot) { return mbcs + extOffset + 4ull * static_cast<std::uint64_t>(slot); };
+    Require(Throws(Mutated(ext, [&](std::uint8_t* b) { PutU32(b, extIndex(UCNV_EXT_TO_U_INDEX), 0x100000); }), ext.length, false, swap), "ucnv_swap extension table past the data");
+    Require(Throws(Mutated(ext, [&](std::uint8_t* b) { PutU32(b, extIndex(UCNV_EXT_TO_U_INDEX), 0xfffffffcu); }), ext.length, false, swap), "ucnv_swap extension table at a negative offset");
+    Require(Throws(Mutated(ext, [&](std::uint8_t* b) { PutU32(b, extIndex(UCNV_EXT_INDEXES_LENGTH), 0x100000); }), ext.length, false, swap), "ucnv_swap extension indexes past the data");
+    const std::uint32_t onlyOffset = GetU32(extOnly.data() + Header(extOnly), mbcs + offsetof(_MBCSHeader, flags)) >> 8;
+    const Bytes noName = Mutated(extOnly, [&](std::uint8_t* b) {
+        std::memset(b + mbcs + 32, 'a', onlyOffset - 32 + 128);
+        PutU32(b, mbcs + onlyOffset + 4ull * UCNV_EXT_SIZE, 0x81818181u);
+    });
+    Require(Throws(noName, Header(extOnly) + 100 + static_cast<std::int32_t>(onlyOffset) + 128, true, swap), "ucnv_swap base name without a NUL");
+}
+
 }
 
 int main() {
@@ -999,6 +1256,9 @@ int main() {
     TestCollationBinary();
     TestCollationSwap();
     TestInverseSwap();
+    TestBundleSwap();
+    TestAliasSwap();
+    TestConverterSwap();
     std::puts("ICU DATA SWAPPER TESTS PASSED");
     return 0;
 }
