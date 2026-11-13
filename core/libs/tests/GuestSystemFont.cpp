@@ -291,6 +291,14 @@ static void CheckGlyphImages(FontHandle font, FontRenderer renderer) {
         Require(Cleared(RenderInto([&](FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput*) { std::memset(metrics, 0xA5, sizeof(*metrics)); return render(glyph, nullptr, renderer, surface, 10.0f, 100.0f, metrics, nullptr); }), SCE_FONT_ERROR_INVALID_PARAMETER));
         Require(Cleared(RenderInto([&](FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput* result) { filled(metrics, result); return render(glyph, nullptr, nullptr, surface, 10.0f, 100.0f, metrics, result); }), SCE_FONT_ERROR_INVALID_RENDERER));
     }
+    bool verticalThrew = false;
+    try {
+        RenderInto([&](FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput* result) { return sceFontGlyphRenderImageVertical(glyph, nullptr, renderer, surface, 10.0f, 100.0f, metrics, result); });
+    } catch (const std::runtime_error&) {
+        verticalThrew = true;
+    }
+    Require(verticalThrew);
+    Require(SameImage(horizontal, RenderInto([&](FontRenderSurface* surface, FontGlyphMetrics* metrics, FontRenderOutput* result) { return sceFontGlyphRenderImageHorizontal(glyph, nullptr, renderer, surface, 10.0f, 100.0f, metrics, result); })));
     Require(sceFontDeleteGlyph(nullptr, &glyph) == SCE_FONT_OK && glyph == nullptr);
 }
 
