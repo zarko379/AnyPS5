@@ -46,7 +46,7 @@ static void CheckRawWildcard(int family) {
 }
 
 static int CheckRawSockets() {
-    const int probe = sceNetSocket("protocol-raw", 2, 3, 1);
+    const int probe = sceNetSocket("protocol-raw", 2, 3, 2);
     if (probe < 0) {
         Require(*sceNetErrnoLoc() == 1 || *sceNetErrnoLoc() == 13);
         std::fprintf(stderr, "the host refuses raw sockets (needs CAP_NET_RAW on Linux or administrator rights on Windows): the raw SO_PROTOCOL checks were not run\n");
