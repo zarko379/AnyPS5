@@ -4,6 +4,7 @@
 #include "prx/libSceFreeType/include/Api.hpp"
 #include "prx/libSceFreeTypeOt/include/Bitmap.hpp"
 #include "prx/libSceFreeTypeOt/include/Calc.hpp"
+#include "prx/libSceFreeTypeOt/include/GlyphLoader.hpp"
 #include "prx/libSceFreeTypeOt/include/GlyphSlot.hpp"
 #include "prx/libSceFreeTypeOt/include/Memory.hpp"
 #include "prx/libSceFreeTypeOt/include/Outline.hpp"
@@ -11,6 +12,7 @@
 #include "prx/libSceFreeTypeOt/include/SizeMetrics.hpp"
 #include "prx/libSceFreeTypeOt/include/System.hpp"
 #include "prx/libSceFreeTypeOt/include/Trigonometry.hpp"
+#include "prx/libSceFreeTypeOt/include/Validation.hpp"
 
 extern "C" {
 int APS5_VABI FT_Glyph_Stroke_nid_postfix();

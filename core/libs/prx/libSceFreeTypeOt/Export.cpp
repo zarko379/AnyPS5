@@ -60,56 +60,6 @@ std::int32_t IntegerSqrt(std::uint64_t value) {
 extern "C" {
 
 
-int APS5_VABI sceFreeTypeOtUnknown_UD7IFu7ML2U_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("UD7IFu7ML2U", sceFreeTypeOtUnknown_UD7IFu7ML2U_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_2T7lbS_CSzA_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("2T7lbS+CSzA", sceFreeTypeOtUnknown_2T7lbS_CSzA_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_MGEIQsujKaY_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("MGEIQsujKaY", sceFreeTypeOtUnknown_MGEIQsujKaY_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_mkmgcRnAJog_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("mkmgcRnAJog", sceFreeTypeOtUnknown_mkmgcRnAJog_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_m18bTUNF_0g_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("m18bTUNF-0g", sceFreeTypeOtUnknown_m18bTUNF_0g_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_vTZ34rw1sfg_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("vTZ34rw1sfg", sceFreeTypeOtUnknown_vTZ34rw1sfg_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_PvCNusrp9xQ_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("PvCNusrp9xQ", sceFreeTypeOtUnknown_PvCNusrp9xQ_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_dlM4ASZdcjk_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("dlM4ASZdcjk", sceFreeTypeOtUnknown_dlM4ASZdcjk_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_Ev3BqJ_U1Fg_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("Ev3BqJ-U1Fg", sceFreeTypeOtUnknown_Ev3BqJ_U1Fg_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_ZhtAXOoLNyo_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("ZhtAXOoLNyo", sceFreeTypeOtUnknown_ZhtAXOoLNyo_nid_no_patch);
-
 int APS5_VABI sceFreeTypeOtGlyphSlotEmbolden_nid_no_patch() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -167,16 +117,6 @@ int APS5_VABI sceFreeTypeOtNewLibrary_nid_no_patch() {
     NotImplemented_nid_no_patch(__func__);
 }
 APS5_EXPORT("yrtsLmTfa48", sceFreeTypeOtNewLibrary_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_C_PpdS5zris_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("C-PpdS5zris", sceFreeTypeOtUnknown_C_PpdS5zris_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_g8eLxL9VAhU_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("g8eLxL9VAhU", sceFreeTypeOtUnknown_g8eLxL9VAhU_nid_no_patch);
 
 int APS5_VABI sceFreeTypeOtOpenFace_nid_no_patch() {
     NotImplemented_nid_no_patch(__func__);
@@ -260,16 +200,6 @@ const char* APS5_VABI FT_Trace_Get_Name_nid_no_patch(int idx) {
     return nullptr;
 }
 APS5_EXPORT("64XMq6sDxUo", FT_Trace_Get_Name_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_4xG87W9dTSg_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("4xG87W9dTSg", sceFreeTypeOtUnknown_4xG87W9dTSg_nid_no_patch);
-
-int APS5_VABI sceFreeTypeOtUnknown_4_SScYDT5Pg_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("4+SScYDT5Pg", sceFreeTypeOtUnknown_4_SScYDT5Pg_nid_no_patch);
 
 int APS5_VABI ft_corner_is_flat_nid_postfix(std::int64_t in_x, std::int64_t in_y, std::int64_t out_x, std::int64_t out_y) {
     const __int128 ax = static_cast<__int128>(in_x) + static_cast<__int128>(out_x);
