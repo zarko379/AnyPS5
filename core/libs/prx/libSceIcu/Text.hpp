@@ -5,6 +5,25 @@
 struct UText;
 struct UBreakIterator;
 
+struct GuestTextFuncs {
+    std::int32_t tableSize;
+    std::int32_t reserved1;
+    std::int32_t reserved2;
+    std::int32_t reserved3;
+    UText* (APS5_VABI* clone)(UText* dest, const UText* src, std::int8_t deep, std::int32_t* status);
+    std::int64_t (APS5_VABI* nativeLength)(UText* ut);
+    std::int8_t (APS5_VABI* access)(UText* ut, std::int64_t nativeIndex, std::int8_t forward);
+    std::int32_t (APS5_VABI* extract)(UText* ut, std::int64_t nativeStart, std::int64_t nativeLimit, char16_t* dest, std::int32_t destCapacity, std::int32_t* status);
+    std::int32_t (APS5_VABI* replace)(UText* ut, std::int64_t nativeStart, std::int64_t nativeLimit, const char16_t* replacementText, std::int32_t replacementLength, std::int32_t* status);
+    void (APS5_VABI* copy)(UText* ut, std::int64_t nativeStart, std::int64_t nativeLimit, std::int64_t nativeDest, std::int8_t move, std::int32_t* status);
+    std::int64_t (APS5_VABI* mapOffsetToNative)(const UText* ut);
+    std::int32_t (APS5_VABI* mapNativeIndexToUTF16)(const UText* ut, std::int64_t nativeIndex);
+    void (APS5_VABI* close)(UText* ut);
+    void* spare1;
+    void* spare2;
+    void* spare3;
+};
+
 extern "C" {
 UText* APS5_VABI utext_openUChars_nid_postfix(UText* ut, const char16_t* s, std::int64_t length, std::int32_t* status);
 UText* APS5_VABI utext_openUTF8_nid_postfix(UText* ut, const char* s, std::int64_t length, std::int32_t* status);
