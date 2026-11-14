@@ -152,6 +152,64 @@ struct LengthAbi {
     bool m_isFloat;
 };
 
+inline constexpr std::uint8_t kLengthTypePercent = 2;
+
+struct ScaleTransformOperation {
+    void* m_vptr;
+    std::uint32_t m_refCount;
+    std::uint32_t m_type;
+    double m_x;
+    double m_y;
+    double m_z;
+};
+
+struct RotateTransformOperation {
+    void* m_vptr;
+    std::uint32_t m_refCount;
+    std::uint32_t m_type;
+    double m_x;
+    double m_y;
+    double m_z;
+    double m_angle;
+};
+
+struct SkewTransformOperation {
+    void* m_vptr;
+    std::uint32_t m_refCount;
+    std::uint32_t m_type;
+    double m_angleX;
+    double m_angleY;
+};
+
+struct TranslateTransformOperation {
+    void* m_vptr;
+    std::uint32_t m_refCount;
+    std::uint32_t m_type;
+    LengthAbi m_x;
+    LengthAbi m_y;
+    LengthAbi m_z;
+};
+
+struct PerspectiveTransformOperation {
+    void* m_vptr;
+    std::uint32_t m_refCount;
+    std::uint32_t m_type;
+    LengthAbi m_p;
+};
+
+struct Matrix3DTransformOperation {
+    void* m_vptr;
+    std::uint32_t m_refCount;
+    std::uint32_t m_type;
+    TransformationMatrix m_matrix;
+};
+
+struct IdentityTransformOperation {
+    void* m_vptr;
+    std::uint32_t m_refCount;
+    std::uint32_t m_type;
+};
+
 struct MatrixTransformOperation {
     void* m_vptr;
     std::uint32_t m_refCount;
@@ -292,6 +350,20 @@ static_assert(sizeof(LengthAbi) == 8);
 static_assert(offsetof(LengthAbi, m_hasQuirk) == 4);
 static_assert(offsetof(LengthAbi, m_type) == 5);
 static_assert(offsetof(LengthAbi, m_isFloat) == 6);
+static_assert(sizeof(ScaleTransformOperation) == 40);
+static_assert(offsetof(ScaleTransformOperation, m_x) == 16);
+static_assert(sizeof(RotateTransformOperation) == 48);
+static_assert(offsetof(RotateTransformOperation, m_angle) == 40);
+static_assert(sizeof(SkewTransformOperation) == 32);
+static_assert(offsetof(SkewTransformOperation, m_angleX) == 16);
+static_assert(sizeof(TranslateTransformOperation) == 40);
+static_assert(offsetof(TranslateTransformOperation, m_x) == 16);
+static_assert(offsetof(TranslateTransformOperation, m_z) == 32);
+static_assert(sizeof(PerspectiveTransformOperation) == 24);
+static_assert(offsetof(PerspectiveTransformOperation, m_p) == 16);
+static_assert(sizeof(Matrix3DTransformOperation) == 144);
+static_assert(offsetof(Matrix3DTransformOperation, m_matrix) == 16);
+static_assert(sizeof(IdentityTransformOperation) == 16);
 static_assert(sizeof(MatrixTransformOperation) == 64);
 static_assert(offsetof(MatrixTransformOperation, m_a) == 16);
 static_assert(sizeof(Color) == 8);

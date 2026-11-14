@@ -1360,4 +1360,71 @@ void APS5_VABI _ZN7WebCore20TransformationMatrix5blendERKS0_d(
     }
 }
 
+bool APS5_VABI _ZNK7WebCore23ScaleTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
+    const WebCore::ScaleTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize&) {
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&transform, self->m_x, self->m_y, self->m_z);
+    return false;
+}
+
+bool APS5_VABI _ZNK7WebCore24RotateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
+    const WebCore::RotateTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize&) {
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&transform, self->m_x, self->m_y, self->m_z, self->m_angle);
+    return false;
+}
+
+bool APS5_VABI _ZNK7WebCore22SkewTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
+    const WebCore::SkewTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize&) {
+    _ZN7WebCore20TransformationMatrix4skewEdd(&transform, self->m_angleX, self->m_angleY);
+    return false;
+}
+
+double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1xERKNS_9FloatSizeE(
+    const WebCore::TranslateTransformOperation* self, const WebCore::FloatSize& borderBoxSize) {
+    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(self->m_x, borderBoxSize.m_width);
+}
+
+double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1yERKNS_9FloatSizeE(
+    const WebCore::TranslateTransformOperation* self, const WebCore::FloatSize& borderBoxSize) {
+    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(self->m_y, borderBoxSize.m_height);
+}
+
+double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1zERKNS_9FloatSizeE(
+    const WebCore::TranslateTransformOperation* self, const WebCore::FloatSize&) {
+    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(self->m_z, 1.0f);
+}
+
+bool APS5_VABI _ZNK7WebCore27TranslateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
+    const WebCore::TranslateTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize) {
+    double x = _ZNK7WebCore27TranslateTransformOperation1xERKNS_9FloatSizeE(self, borderBoxSize);
+    double y = _ZNK7WebCore27TranslateTransformOperation1yERKNS_9FloatSizeE(self, borderBoxSize);
+    double z = _ZNK7WebCore27TranslateTransformOperation1zERKNS_9FloatSizeE(self, borderBoxSize);
+    _ZN7WebCore20TransformationMatrix11translate3dEddd(&transform, x, y, z);
+    return self->m_x.m_type == WebCore::kLengthTypePercent || self->m_y.m_type == WebCore::kLengthTypePercent;
+}
+
+bool APS5_VABI _ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
+    const WebCore::PerspectiveTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize&) {
+    float perspective = _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(self->m_p, 1.0f);
+    _ZN7WebCore20TransformationMatrix16applyPerspectiveEd(&transform, static_cast<double>(perspective));
+    return false;
+}
+
+bool APS5_VABI _ZNK7WebCore24MatrixTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
+    const WebCore::MatrixTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize&) {
+    WebCore::TransformationMatrix matrix = _ZNK7WebCore24MatrixTransformOperation6matrixEv(self);
+    _ZN7WebCore20TransformationMatrix8multiplyERKS0_(&transform, matrix);
+    return false;
+}
+
+bool APS5_VABI _ZNK7WebCore26Matrix3DTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
+    const WebCore::Matrix3DTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize&) {
+    _ZN7WebCore20TransformationMatrix8multiplyERKS0_(&transform, self->m_matrix);
+    return false;
+}
+
+bool APS5_VABI _ZNK7WebCore26IdentityTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
+    const WebCore::IdentityTransformOperation*, WebCore::TransformationMatrix&, const WebCore::FloatSize&) {
+    return false;
+}
+
 }

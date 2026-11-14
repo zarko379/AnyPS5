@@ -1274,6 +1274,123 @@ static void TestTransformationMatrixBlend() {
     Require(threw);
 }
 
+static void TestTransformOperationApply() {
+    WebCore::FloatSize box{200.0f, 80.0f};
+
+    WebCore::ScaleTransformOperation scale{};
+    scale.m_x = 2.0;
+    scale.m_y = 3.0;
+    scale.m_z = 4.0;
+    WebCore::TransformationMatrix scaled;
+    Require(!_ZNK7WebCore23ScaleTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&scale, scaled, box));
+    WebCore::TransformationMatrix expectedScale;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&expectedScale, 2.0, 3.0, 4.0);
+    Require(std::memcmp(&scaled, &expectedScale, sizeof(scaled)) == 0);
+
+    WebCore::RotateTransformOperation rotate{};
+    rotate.m_x = 1.0;
+    rotate.m_y = 2.0;
+    rotate.m_z = 3.0;
+    rotate.m_angle = 30.0;
+    WebCore::TransformationMatrix rotated;
+    rotated.m_matrix[3][0] = 4.0;
+    WebCore::TransformationMatrix expectedRotate = rotated;
+    Require(!_ZNK7WebCore24RotateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&rotate, rotated, box));
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&expectedRotate, 1.0, 2.0, 3.0, 30.0);
+    Require(std::memcmp(&rotated, &expectedRotate, sizeof(rotated)) == 0);
+    Require(rotated.m_matrix[0][1] != 0.0);
+
+    WebCore::SkewTransformOperation skew{};
+    skew.m_angleX = 45.0;
+    skew.m_angleY = -10.0;
+    WebCore::TransformationMatrix skewed;
+    Require(!_ZNK7WebCore22SkewTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&skew, skewed, box));
+    WebCore::TransformationMatrix expectedSkew;
+    _ZN7WebCore20TransformationMatrix4skewEdd(&expectedSkew, 45.0, -10.0);
+    Require(std::memcmp(&skewed, &expectedSkew, sizeof(skewed)) == 0);
+    Require(AlmostEqual(skewed.m_matrix[1][0], 1.0) && skewed.m_matrix[0][1] < 0.0);
+
+    constexpr std::uint8_t percent = 2;
+    constexpr std::uint8_t fixed = 3;
+    WebCore::TranslateTransformOperation translate{};
+    translate.m_x = MakeLength(fixed, false, 0.0f, 10);
+    translate.m_y = MakeLength(percent, true, 50.0f, 0);
+    translate.m_z = MakeLength(fixed, true, 2.5f, 0);
+    Require(_ZNK7WebCore27TranslateTransformOperation1xERKNS_9FloatSizeE(&translate, box) == 10.0);
+    Require(_ZNK7WebCore27TranslateTransformOperation1yERKNS_9FloatSizeE(&translate, box) == 40.0);
+    Require(_ZNK7WebCore27TranslateTransformOperation1zERKNS_9FloatSizeE(&translate, box) == 2.5);
+    WebCore::TransformationMatrix translated;
+    _ZN7WebCore20TransformationMatrix15scaleNonUniformEdd(&translated, 2.0, 1.0);
+    Require(_ZNK7WebCore27TranslateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&translate, translated, box));
+    Require(translated.m_matrix[3][0] == 20.0 && translated.m_matrix[3][1] == 40.0 && translated.m_matrix[3][2] == 2.5);
+
+    translate.m_y = MakeLength(fixed, false, 0.0f, 7);
+    translate.m_z = MakeLength(percent, false, 0.0f, 50);
+    Require(_ZNK7WebCore27TranslateTransformOperation1zERKNS_9FloatSizeE(&translate, box) == 0.5);
+    WebCore::TransformationMatrix fixedTranslate;
+    Require(!_ZNK7WebCore27TranslateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&translate, fixedTranslate, box));
+    Require(fixedTranslate.m_matrix[3][0] == 10.0 && fixedTranslate.m_matrix[3][1] == 7.0 && fixedTranslate.m_matrix[3][2] == 0.5);
+    translate.m_x = MakeLength(percent, false, 0.0f, 25);
+    WebCore::TransformationMatrix percentX;
+    Require(_ZNK7WebCore27TranslateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&translate, percentX, box));
+    Require(percentX.m_matrix[3][0] == 50.0);
+
+    WebCore::PerspectiveTransformOperation perspective{};
+    perspective.m_p = MakeLength(fixed, false, 0.0f, 100);
+    WebCore::TransformationMatrix projected;
+    Require(!_ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&perspective, projected, box));
+    Require(projected.m_matrix[2][3] == -1.0 / 100.0 && projected.m_matrix[3][3] == 1.0);
+    perspective.m_p = MakeLength(percent, false, 0.0f, 200);
+    WebCore::TransformationMatrix percentPerspective;
+    _ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&perspective, percentPerspective, box);
+    Require(percentPerspective.m_matrix[2][3] == -0.5);
+    perspective.m_p = MakeLength(10, false, 0.0f, 0);
+    bool threw = false;
+    try {
+        _ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&perspective, projected, box);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+
+    WebCore::MatrixTransformOperation affine{};
+    affine.m_a = 1.0;
+    affine.m_b = 2.0;
+    affine.m_c = 3.0;
+    affine.m_d = 4.0;
+    affine.m_e = 5.0;
+    affine.m_f = 6.0;
+    WebCore::TransformationMatrix affineTarget;
+    _ZN7WebCore20TransformationMatrix15scaleNonUniformEdd(&affineTarget, 2.0, 0.5);
+    WebCore::TransformationMatrix expectedAffine = affineTarget;
+    Require(!_ZNK7WebCore24MatrixTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&affine, affineTarget, box));
+    WebCore::TransformationMatrix affineMatrix;
+    affineMatrix.m_matrix[0][1] = 2.0;
+    affineMatrix.m_matrix[1][0] = 3.0;
+    affineMatrix.m_matrix[1][1] = 4.0;
+    affineMatrix.m_matrix[3][0] = 5.0;
+    affineMatrix.m_matrix[3][1] = 6.0;
+    _ZN7WebCore20TransformationMatrix8multiplyERKS0_(&expectedAffine, affineMatrix);
+    Require(std::memcmp(&affineTarget, &expectedAffine, sizeof(affineTarget)) == 0);
+    Require(affineTarget.m_matrix[0][1] == 1.0 && affineTarget.m_matrix[3][0] == 10.0);
+
+    WebCore::Matrix3DTransformOperation matrix3d{};
+    _ZN7WebCore20TransformationMatrix11translate3dEddd(&matrix3d.m_matrix, 1.0, 2.0, 3.0);
+    matrix3d.m_matrix.m_matrix[0][3] = 0.25;
+    WebCore::TransformationMatrix target3d;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&target3d, 2.0, 2.0, 2.0);
+    WebCore::TransformationMatrix expected3d = target3d;
+    Require(!_ZNK7WebCore26Matrix3DTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&matrix3d, target3d, box));
+    _ZN7WebCore20TransformationMatrix8multiplyERKS0_(&expected3d, matrix3d.m_matrix);
+    Require(std::memcmp(&target3d, &expected3d, sizeof(target3d)) == 0);
+    Require(target3d.m_matrix[3][2] == 6.0 && target3d.m_matrix[0][3] == 0.25);
+
+    WebCore::IdentityTransformOperation identity{};
+    WebCore::TransformationMatrix untouched = expected3d;
+    Require(!_ZNK7WebCore26IdentityTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&identity, untouched, box));
+    Require(std::memcmp(&untouched, &expected3d, sizeof(untouched)) == 0);
+}
+
 int main() {
     TestFindIntersection();
     TestFloatPoint();
@@ -1302,5 +1419,6 @@ int main() {
     TestTransformationMatrixScaleRotate();
     TestTransformationMatrixInverse();
     TestTransformationMatrixBlend();
+    TestTransformOperationApply();
     return 0;
 }
