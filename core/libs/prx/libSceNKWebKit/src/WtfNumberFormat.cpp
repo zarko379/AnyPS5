@@ -41,6 +41,10 @@ constexpr int DecimalInShortestLow = -6;
 constexpr int DecimalInShortestHigh = 21;
 constexpr int MaxFixedDigitsAfterPoint = 100;
 constexpr double FirstNonFixed = 1e21;
+constexpr int MinPrecisionDigits = 1;
+constexpr int MaxPrecisionDigits = 100;
+constexpr int MaxLeadingPaddingZeroesInPrecisionMode = 6;
+constexpr int MaxTrailingPaddingZeroesInPrecisionMode = 0;
 
 std::string SpecialValue(double value) {
     if (std::isnan(value)) return "NaN";
@@ -140,6 +144,66 @@ std::string NumberToFixedWidthString(double number, unsigned decimalPlaces) {
     if (digits.empty()) decimalPoint = -static_cast<int>(decimalPlaces);
     std::string result = std::signbit(number) && number != 0.0 ? "-" : "";
     CreateDecimalRepresentation(result, digits, decimalPoint, static_cast<int>(decimalPlaces));
+    return result;
+}
+
+std::string NumberToFixedPrecisionString(double number, int precision, bool truncateTrailingZeros) {
+    std::string result;
+    if (!std::isfinite(number)) {
+        result = SpecialValue(number);
+    } else if (precision >= MinPrecisionDigits && precision <= MaxPrecisionDigits) {
+        std::string digits;
+        int exponent = 0;
+        if (number == 0.0) {
+            digits = "0";
+        } else {
+            char buffer[1024];
+            constexpr int exactPrecision = 800;
+            auto converted = std::to_chars(buffer, buffer + sizeof(buffer), std::fabs(number), std::chars_format::scientific, exactPrecision);
+            if (converted.ec != std::errc{}) throw std::runtime_error("WTF precision formatting failed");
+            const char* cursor = buffer;
+            for (; cursor != converted.ptr && *cursor != 'e'; ++cursor) {
+                if (*cursor != '.') digits += *cursor;
+            }
+            if (cursor == converted.ptr || std::from_chars(cursor + (cursor[1] == '+' ? 2 : 1), converted.ptr, exponent).ec != std::errc{})
+                throw std::runtime_error("WTF precision exponent formatting failed");
+            std::size_t keepCount = static_cast<std::size_t>(precision);
+            bool roundUp = digits.size() > keepCount && digits[keepCount] >= '5';
+            digits.resize(keepCount, '0');
+            if (roundUp) {
+                std::size_t index = keepCount;
+                while (index && digits[index - 1] == '9') digits[--index] = '0';
+                if (index) {
+                    ++digits[index - 1];
+                } else {
+                    digits[0] = '1';
+                    ++exponent;
+                }
+            }
+            while (digits.size() > 1 && digits.back() == '0') digits.pop_back();
+        }
+        if (std::signbit(number) && number != 0.0) result += '-';
+        int decimalPoint = exponent + 1;
+        if (-decimalPoint + 1 > MaxLeadingPaddingZeroesInPrecisionMode || decimalPoint - precision > MaxTrailingPaddingZeroesInPrecisionMode) {
+            digits.resize(static_cast<std::size_t>(precision), '0');
+            CreateExponentialRepresentation(result, digits, decimalPoint - 1);
+        } else {
+            CreateDecimalRepresentation(result, digits, decimalPoint, precision - decimalPoint > 0 ? precision - decimalPoint : 0);
+        }
+    }
+    if (truncateTrailingZeros) {
+        std::size_t point = result.find('.');
+        if (point != std::string::npos) {
+            std::size_t pastMantissa = result.find('e', point + 1);
+            if (pastMantissa == std::string::npos) pastMantissa = result.size();
+            std::size_t truncatedLength = pastMantissa;
+            while (truncatedLength > point + 1 && result[truncatedLength - 1] == '0') --truncatedLength;
+            if (truncatedLength != pastMantissa) {
+                if (truncatedLength == point + 1) truncatedLength = point;
+                result.erase(truncatedLength, pastMantissa - truncatedLength);
+            }
+        }
+    }
     return result;
 }
 

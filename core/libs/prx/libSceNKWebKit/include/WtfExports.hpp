@@ -15,6 +15,10 @@ struct SHA1;
 
 extern "C" {
 
+NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String24numberToStringFixedWidthEdj(double number, unsigned decimalPlaces);
+NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String28numberToStringFixedPrecisionEdjNS_29TrailingZerosTruncatingPolicyE(double number, unsigned precision, int trailingZerosTruncatingPolicy);
+NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String28numberToStringFixedPrecisionEfjNS_29TrailingZerosTruncatingPolicyE(float number, unsigned precision, int trailingZerosTruncatingPolicy);
+
 unsigned APS5_VABI _ZN3WTF10SymbolImpl17nextHashForSymbolEv();
 
 [[noreturn]] void APS5_VABI WTFCrash();

@@ -71,6 +71,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 - [WebCore::parseRange](../../../core/libs/prx/libSceNKWebKit/src/WebCoreParsers.cpp) (libSceNKWebKit) - not measured on a console. The exported `String` signature only exists at the [2020 revision](https://github.com/WebKit/WebKit/blob/73a35b43be7ae44c084885bd3fa4b403e59723c8/Source/WebCore/platform/network/HTTPParsers.cpp#L576-L632), which this follows with its `toInt64Strict` and `stripWhiteSpace`; whitespace reuses the `parseXFrameOptionsHeader` predicate (ASCII spaces in Latin-1, Unicode 13.0 bidi WS above). A string with a null buffer and a nonzero length throws.
 - [WebCore::toAutofillFieldName](../../../core/libs/prx/libSceNKWebKit/src/WebCoreParsers.cpp) (libSceNKWebKit) - not measured on a console, and the device's WebKit revision is unknown. The [2020 map](https://github.com/WebKit/WebKit/blob/73a35b43be7ae44c084885bd3fa4b403e59723c8/Source/WebCore/html/Autofill.cpp#L51-L131) is case-sensitive; the [pinned PS5 map](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/html/Autofill.cpp#L46-L109) folds with `(c | 0x20)` and adds `webauthn`. Tokens on which they disagree throw, as does a null `AtomString`. Closes when: the device revision is known.
 - [WTF::SymbolImpl::nextHashForSymbol](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - not measured on a console. Follows [SymbolImpl.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/SymbolImpl.cpp#L37-L43): the counter starts at 0 per process. Symbol creation still throws, so nothing else in the module consumes these hashes.
+- [WTF::String fixed-width and fixed-precision numbers](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - not measured on a console. Follows [dtoa.cpp](https://github.com/WebKit/WebKit/blob/73a35b43be7ae44c084885bd3fa4b403e59723c8/Source/WTF/wtf/dtoa.cpp#L41-L125) and the double-conversion `ToFixed` and `ToPrecision` with the EcmaScript converter; digits come from the exact expansion rounded half up, matching double-conversion on exact ties. A fixed-width result that would not fit the 123-byte `NumberToStringBuffer` (undefined upstream) throws, as do decimal places beyond `INT_MAX`.
 
 - [WTF::StringImpl::utf8ForCharacters](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - both overloads follow [StringImpl.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.cpp#L1524-L1600), its x86 Latin-1 path in [StringImpl.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/text/StringImpl.h#L1491-L1545) and [UTF8Conversion.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/unicode/UTF8Conversion.cpp#L56-L87); `String`, `StringImpl` and `StringView` `utf8` share them and throw where upstream asserts. The 16-byte `Expected` (value or error byte at 0, flag at 8) follows the pinned `Expected.h`. Not measured on a console. Mode 3 yields an empty string as the source's switch does; a higher mode or a null buffer that must be read throws.
 
@@ -1322,7 +1323,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN3WTF10StringView16GraphemeClusters8IteratorD2Ev` | `C+IZRnhqqG8` |
 | `_ZN3WTF10StringView16GraphemeClusters8IteratorppEv` | `YD77iANnIzg` |
 | `_ZN3WTF10SymbolImpl16createNullSymbolEv` | `mi8ipN3nDyg` |
-| `_ZN3WTF10SymbolImpl17nextHashForSymbolEv` | `AaU89EqjdQ4` |
 | `_ZN3WTF10SymbolImpl6createERNS_10StringImplE` | `24SDQYS0N4M` |
 | `_ZN3WTF10URLHelpers14userVisibleURLERKNS_7CStringE` | `2lI1xw8MWoE` |
 | `_ZN3WTF10WorkerPool8postTaskEONS_8FunctionIFvvEEE` | `rKBbPSETkpU` |
@@ -1549,9 +1549,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN3WTF5MutexD1Ev` | `SVYZa9hbTh8` |
 | `_ZN3WTF5MutexD2Ev` | `WBxQfbet+nY` |
 | `_ZN3WTF5sleepENS_7SecondsE` | `gsFoqQ-R5js` |
-| `_ZN3WTF6String24numberToStringFixedWidthEdj` | `EIwwRbyxZTM` |
-| `_ZN3WTF6String28numberToStringFixedPrecisionEdjNS_29TrailingZerosTruncatingPolicyE` | `KtgcveZxnco` |
-| `_ZN3WTF6String28numberToStringFixedPrecisionEfjNS_29TrailingZerosTruncatingPolicyE` | `16H0tI43iL8` |
 | `_ZN3WTF6String6numberEd` | `I6gS9R3DurY` |
 | `_ZN3WTF6String6numberEf` | `7qx9ZPDsDq4` |
 | `_ZN3WTF6Thread13mayBeGCThreadEv` | `QIdqG9iFqwI` |
@@ -2266,8 +2263,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore14ScrollableArea27notifyScrollPositionChangedERKNS_8IntPointE` | `7nhDWYNO3lw` |
 | `_ZN7WebCore14ScrollableArea28setScrollOffsetFromInternalsERKNS_8IntPointE` | `IqcrfZx0zKs` |
 | `_ZN7WebCore14ScrollableArea30scrollToOffsetWithoutAnimationERKNS_10FloatPointENS_14ScrollClampingE` | `3JU1ZUdvOO8` |
-| `_ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_` | `kRCyhNPMrpg` |
-| `_ZN7WebCore14ScrollableArea34constrainScrollPositionForOverhangERKNS_10LayoutRectERKNS_10LayoutSizeERKNS_11LayoutPointES9_ii` | `I3Cm2PthpHQ` |
 | `_ZN7WebCore14ScrollableAreaC2Ev` | `8DA2XBZ-VqY` |
 | `_ZN7WebCore14ScrollableAreaD0Ev` | `BVaird4y-R8` |
 | `_ZN7WebCore14ScrollableAreaD1Ev` | `OC-U7LadwqI` |
@@ -2290,7 +2285,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore14XMLHttpRequestD2Ev` | `yrbzVXtDvXg` |
 | `_ZN7WebCore14endOfParagraphERKNS_15VisiblePositionENS_27EditingBoundaryCrossingRuleE` | `0QZ4ACiysus` |
 | `_ZN7WebCore14stopResolveDNSEm` | `EvaWvuniNCE` |
-| `_ZN7WebCore14valueForLengthERKNS_6LengthENS_10LayoutUnitE` | `Aioru3Sp3WQ` |
 | `_ZN7WebCore15ActiveDOMObject15suspendIfNeededEv` | `q629pGti59c` |
 | `_ZN7WebCore15ActiveDOMObject20queueTaskInEventLoopENS_10TaskSourceEON3WTF8FunctionIFvvEEE` | `CM8jw+2tnHc` |
 | `_ZN7WebCore15ActiveDOMObject4stopEv` | `7Uoplf70Yus` |
@@ -2364,10 +2358,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore15HTMLLinkElement14setCrossOriginERKN3WTF10AtomStringE` | `H8KVeCoTFeQ` |
 | `_ZN7WebCore15HTMLLinkElement5setAsERKN3WTF10AtomStringE` | `G6ftGG8w5Ik` |
 | `_ZN7WebCore15HTMLLinkElement7relListEv` | `GnimSlf3jqg` |
-| `_ZN7WebCore15HitTestLocationC1ERKS0_` | `WaA+akXnqK4` |
-| `_ZN7WebCore15HitTestLocationC1Ev` | `FtC9uKqXDjg` |
-| `_ZN7WebCore15HitTestLocationC2ERKS0_` | `oliwAKLVWgM` |
-| `_ZN7WebCore15HitTestLocationC2Ev` | `7rCiCCIa8Jo` |
 | `_ZN7WebCore15JSDOMWindowBase14finishCreationERN3JSC2VMEPNS_13JSWindowProxyE` | `W-cGzhINllg` |
 | `_ZN7WebCore15JSDOMWindowBase14updateDocumentEv` | `LBzty5qElcE` |
 | `_ZN7WebCore15JSDOMWindowBase15createStructureERN3JSC2VMENS1_7JSValueE` | `GEjhu-eMbeY` |
@@ -2656,8 +2646,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore16convertToIntegerImEET_RN3JSC14JSGlobalObjectENS2_7JSValueE` | `PRi-5flaksc` |
 | `_ZN7WebCore16convertToIntegerIsEET_RN3JSC14JSGlobalObjectENS2_7JSValueE` | `41XIke70jMw` |
 | `_ZN7WebCore16convertToIntegerItEET_RN3JSC14JSGlobalObjectENS2_7JSValueE` | `QslKfV15MYY` |
-| `_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE` | `aZ1gCm7lYhU` |
-| `_ZN7WebCore16enclosingIntRectERKNS_9FloatRectE` | `VFvo8Ldr2iw` |
 | `_ZN7WebCore16isEndOfParagraphERKNS_15VisiblePositionENS_27EditingBoundaryCrossingRuleE` | `tVGIPxZgQr4` |
 | `_ZN7WebCore16nextWordPositionERKNS_15VisiblePositionE` | `1NgqWZM7bts` |
 | `_ZN7WebCore16startOfParagraphERKNS_15VisiblePositionENS_27EditingBoundaryCrossingRuleE` | `gbcpFiojSAk` |
@@ -3016,12 +3004,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore19UserContentProviderD0Ev` | `aN4xuJLVnKc` |
 | `_ZN7WebCore19UserContentProviderD1Ev` | `auKLpZXdSfw` |
 | `_ZN7WebCore19UserContentProviderD2Ev` | `9cFgcwjP8fw` |
-| `_ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE` | `BRAEBSsyFho` |
-| `_ZN7WebCore19floatValueForLengthERKNS_6LengthEf` | `aaPDegynKuY` |
-| `_ZN7WebCore19makeMapBetweenRectsERKNS_9FloatRectES2_` | `ACv0fKVga70` |
 | `_ZN7WebCore19serializationForCSSERKNS_5ColorE` | `13YTEVlQaOM` |
-| `_ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE` | `PhM-93-E9p8` |
-| `_ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE` | `WzM2QIMJhO8` |
 | `_ZN7WebCore19watchAdaptationNameEv` | `ndXiA4gT0qY` |
 | `_ZN7WebCore20ApplicationCacheHost17maybeLoadResourceERNS_14ResourceLoaderERKNS_15ResourceRequestERKN3WTF3URLE` | `zMV+5IFxYFI` |
 | `_ZN7WebCore20ApplicationCacheHost25maybeLoadFallbackForErrorEPNS_14ResourceLoaderERKNS_13ResourceErrorE` | `R45OuqCl6l8` |
@@ -3436,7 +3419,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore25WebSocketChannelInspectorC1ERNS_8DocumentE` | `e3HfkECgcUE` |
 | `_ZN7WebCore25WebSocketChannelInspectorC2ERNS_8DocumentE` | `JA9b3iqvtHo` |
 | `_ZN7WebCore25directionOfEnclosingBlockERKNS_8PositionE` | `d2IOtQGjd-M` |
-| `_ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf` | `N13NkeOmCiU` |
 | `_ZN7WebCore25enclosingBlockFlowElementERKNS_15VisiblePositionE` | `nLnz3XxhWuM` |
 | `_ZN7WebCore25getOutOfLineCachedWrapperEPNS_17JSDOMGlobalObjectERNS_4NodeE` | `YKwPUXLyid0` |
 | `_ZN7WebCore25unwrapSerializedCryptoKeyERKN3WTF6VectorIhLm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEES6_RS4_` | `m2S0+pUgP1s` |
@@ -4213,7 +4195,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCore9TreeScope17elementsFromPointEdd` | `rAkuRf44hSE` |
 | `_ZN7WebCore9endOfLineERKNS_15VisiblePositionE` | `KR+lNUwO7oo` |
 | `_ZN7WebCore9endOfWordERKNS_15VisiblePositionENS_9EWordSideE` | `MCXbvH462z4` |
-| `_ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE` | `Yd+FzGZ5llY` |
 | `_ZN7WebCoreeqERKNS_18SecurityOriginDataES2_` | `7qJpOjZSSkI` |
 | `_ZN7WebCorelsERN3WTF10TextStreamENS_11TouchActionE` | `D5Y1cX5ZyLU` |
 | `_ZN7WebCorelsERN3WTF10TextStreamENS_24ScrollableAreaParametersE` | `vrqGZr3Opv8` |

@@ -88,6 +88,9 @@
 
 namespace {
 
+constexpr std::size_t kNumberToStringBufferSize = 123;
+constexpr int kTruncateTrailingZeros = 1;
+
 class StringHasher {
 public:
     static constexpr unsigned stringHashingStartValue = 0x9E3779B9U;
@@ -1605,6 +1608,28 @@ unsigned APS5_VABI _ZN3WTF10SymbolImpl17nextHashForSymbolEv() {
         next = (current + (1u << flagCount)) | (1u << 31);
     } while (!nextHashForSymbol.compare_exchange_weak(current, next, std::memory_order_relaxed));
     return next;
+}
+
+NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String24numberToStringFixedWidthEdj(double number, unsigned decimalPlaces) {
+    if (decimalPlaces > static_cast<unsigned>(std::numeric_limits<int>::max())) {
+        throw std::invalid_argument("String::numberToStringFixedWidth: decimal places beyond int");
+    }
+    std::string text = NKWebKit::WtfAbi::NumberToFixedWidthString(number, decimalPlaces);
+    if (text.size() >= kNumberToStringBufferSize) {
+        throw std::out_of_range("String::numberToStringFixedWidth: result exceeds NumberToStringBuffer");
+    }
+    return _ZN3WTF10StringImpl6createEPKhj(reinterpret_cast<const unsigned char*>(text.data()), static_cast<unsigned>(text.size()));
+}
+
+NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String28numberToStringFixedPrecisionEdjNS_29TrailingZerosTruncatingPolicyE(
+    double number, unsigned precision, int trailingZerosTruncatingPolicy) {
+    std::string text = NKWebKit::WtfAbi::NumberToFixedPrecisionString(number, static_cast<int>(precision), trailingZerosTruncatingPolicy == kTruncateTrailingZeros);
+    return _ZN3WTF10StringImpl6createEPKhj(reinterpret_cast<const unsigned char*>(text.data()), static_cast<unsigned>(text.size()));
+}
+
+NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String28numberToStringFixedPrecisionEfjNS_29TrailingZerosTruncatingPolicyE(
+    float number, unsigned precision, int trailingZerosTruncatingPolicy) {
+    return _ZN3WTF6String28numberToStringFixedPrecisionEdjNS_29TrailingZerosTruncatingPolicyE(static_cast<double>(number), precision, trailingZerosTruncatingPolicy);
 }
 
 }

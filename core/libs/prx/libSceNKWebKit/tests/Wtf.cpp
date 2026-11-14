@@ -641,6 +641,87 @@ static void TestNextHashForSymbol() {
     Require(third == 0x80000300u);
 }
 
+static std::string NumberText(const NKWebKit::WtfAbi::String& string) {
+    Require(string.impl != nullptr);
+    Require((string.impl->hashAndFlags & 4) != 0);
+    return std::string(static_cast<const char*>(string.impl->data), string.impl->length);
+}
+
+static void TestNumberFormatting() {
+    auto fixedWidth = [](double value, unsigned places) { return NumberText(_ZN3WTF6String24numberToStringFixedWidthEdj(value, places)); };
+    Require(fixedWidth(3.14159, 2) == "3.14");
+    Require(fixedWidth(0.5, 0) == "1");
+    Require(fixedWidth(2.5, 0) == "3");
+    Require(fixedWidth(0.125, 2) == "0.13");
+    Require(fixedWidth(1.005, 2) == "1.00");
+    Require(fixedWidth(-0.001, 2) == "-0.00");
+    Require(fixedWidth(-0.0, 2) == "0.00");
+    Require(fixedWidth(0.0, 0) == "0");
+    Require(fixedWidth(123.456, 5) == "123.45600");
+    Require(fixedWidth(9.9999, 3) == "10.000");
+    Require(fixedWidth(1e20, 1) == "100000000000000000000.0");
+    Require(fixedWidth(1e21, 2).empty());
+    Require(fixedWidth(-1e21, 2).empty());
+    Require(fixedWidth(std::numeric_limits<double>::quiet_NaN(), 2) == "NaN");
+    Require(fixedWidth(-std::numeric_limits<double>::infinity(), 1) == "-Infinity");
+    Require(fixedWidth(1.0, 101).empty());
+    Require(fixedWidth(1.0, 100) == "1." + std::string(100, '0'));
+    Require(fixedWidth(1e20, 100).size() == 122);
+    bool threw = false;
+    try {
+        _ZN3WTF6String24numberToStringFixedWidthEdj(-1e20, 100);
+    } catch (const std::out_of_range&) {
+        threw = true;
+    }
+    Require(threw);
+    threw = false;
+    try {
+        _ZN3WTF6String24numberToStringFixedWidthEdj(1.0, 0x80000000u);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+
+    constexpr int keep = 0;
+    constexpr int truncate = 1;
+    auto precision = [](double value, unsigned digits, int policy) {
+        return NumberText(_ZN3WTF6String28numberToStringFixedPrecisionEdjNS_29TrailingZerosTruncatingPolicyE(value, digits, policy));
+    };
+    Require(precision(3.14159, 3, truncate) == "3.14");
+    Require(precision(1.0, 6, truncate) == "1");
+    Require(precision(1.0, 6, keep) == "1.00000");
+    Require(precision(1.0, 6, 5) == "1.00000");
+    Require(precision(123456789.0, 3, keep) == "1.23e+8");
+    Require(precision(1200000.0, 2, truncate) == "1.2e+6");
+    Require(precision(1000000.0, 2, keep) == "1.0e+6");
+    Require(precision(1000000.0, 2, truncate) == "1e+6");
+    Require(precision(0.000001, 3, keep) == "0.00000100");
+    Require(precision(0.000001, 3, truncate) == "0.000001");
+    Require(precision(0.0000001, 2, keep) == "1.0e-7");
+    Require(precision(0.0000001, 2, truncate) == "1e-7");
+    Require(precision(0.0, 3, keep) == "0.00");
+    Require(precision(-0.0, 3, keep) == "0.00");
+    Require(precision(-2.5, 1, keep) == "-3");
+    Require(precision(9.96, 2, keep) == "10");
+    Require(precision(99.5, 2, keep) == "1.0e+2");
+    Require(precision(99.5, 2, truncate) == "1e+2");
+    Require(precision(-12.5, 2, keep) == "-13");
+    Require(precision(1.0, 0, keep).empty());
+    Require(precision(1.0, 101, keep).empty());
+    Require(precision(1.0, 0xFFFFFFFFu, keep).empty());
+    Require(precision(1.0, 100, keep) == "1." + std::string(99, '0'));
+    Require(precision(std::numeric_limits<double>::quiet_NaN(), 3, truncate) == "NaN");
+    Require(precision(std::numeric_limits<double>::infinity(), 3, keep) == "Infinity");
+
+    auto precisionFloat = [](float value, unsigned digits, int policy) {
+        return NumberText(_ZN3WTF6String28numberToStringFixedPrecisionEfjNS_29TrailingZerosTruncatingPolicyE(value, digits, policy));
+    };
+    Require(precisionFloat(0.1f, 3, keep) == "0.100");
+    Require(precisionFloat(0.1f, 9, keep) == "0.100000001");
+    Require(precisionFloat(0.1f, 6, truncate) == "0.1");
+    Require(precisionFloat(-1.5f, 1, keep) == "-2");
+}
+
 int main() {
     TestGregorianDateTimeFromMilliseconds();
     TestAdditionalWtf();
@@ -650,6 +731,7 @@ int main() {
     TestSystem();
     TestString();
     TestNextHashForSymbol();
+    TestNumberFormatting();
     TestWebCorePure();
     TestJscAndPal();
     TestMappedFiles();
