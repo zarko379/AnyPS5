@@ -432,6 +432,34 @@ void CheckFloatInvxSqrtx() {
     RequireInvalid([&] { _FXp_sqrtx_nid_postfix(words.data(), -1, scratch.data()); }, "_FXp_sqrtx rejects a negative count");
 }
 
+const unsigned char* Bytes(const void* value) {
+    return static_cast<const unsigned char*>(value);
+}
+
+void CheckWordPointers() {
+    double value = -2.5;
+    std::uint16_t* msw = sceLibcInternalUnknown_hrv1BgM68kU_nid_no_patch(&value);
+    Require(Bytes(msw) == Bytes(&value) + 6, "_Pmsw points at the sign and exponent word of a double");
+    Require(*msw == 0xc004, "_Pmsw reads the sign and exponent of -2.5");
+    *msw = 0x4004;
+    Require(value == 2.5, "_Pmsw writes the sign and exponent of a double");
+    double low = 1.0 + std::ldexp(1.0, -52);
+    std::uint16_t* lsw = sceLibcInternalUnknown_1hGmBh83dL8_nid_no_patch(&low);
+    Require(Bytes(lsw) == Bytes(&low), "_Plsw points at the first word of a double");
+    Require(*lsw == 1, "_Plsw reads the lowest fraction bits");
+    float single = -2.0f;
+    std::uint16_t* fmsw = sceLibcInternalUnknown_IdWhZ0SM7JA_nid_no_patch(&single);
+    Require(Bytes(fmsw) == Bytes(&single) + 2, "_FPmsw points at the sign and exponent word of a float");
+    Require(*fmsw == 0xc000, "_FPmsw reads the sign and exponent of -2");
+    float singleLow = 1.0f + std::ldexp(1.0f, -23);
+    std::uint16_t* flsw = sceLibcInternalUnknown_cfpRP3h9F6o_nid_no_patch(&singleLow);
+    Require(Bytes(flsw) == Bytes(&singleLow), "_FPlsw points at the first word of a float");
+    Require(*flsw == 1, "_FPlsw reads the lowest fraction bits");
+    long double extended = 1.0L;
+    std::uint16_t* llsw = sceLibcInternalUnknown_W_T_amhWrkA_nid_no_patch(&extended);
+    Require(Bytes(llsw) == Bytes(&extended), "_LPlsw points at the first word of a long double");
+}
+
 }
 
 int main() {
@@ -452,5 +480,6 @@ int main() {
     CheckFloatMovxAddxSubxLdexpx();
     CheckFloatMulx();
     CheckFloatInvxSqrtx();
+    CheckWordPointers();
     return 0;
 }

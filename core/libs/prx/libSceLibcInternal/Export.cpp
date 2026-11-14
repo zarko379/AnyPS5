@@ -1,6 +1,7 @@
 #include "prx/libkernel/include/Api.hpp"
 #include "prx/libSceLibcInternal/include/Api.hpp"
 #include "prx/libSceLibcInternal/include/MathInternals.hpp"
+#include "prx/libc/include/Api.hpp"
 #include "SceTypes.hpp"
 #include "prx/libSceLibcInternal/include/PendingExports.hpp"
 #include "prx/libc/include/General.hpp"
@@ -742,15 +743,13 @@ int APS5_VABI _FLogpoly_nid_postfix() {
     return 0;
 }
 
-int APS5_VABI sceLibcInternalUnknown_cfpRP3h9F6o_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uint16_t* APS5_VABI sceLibcInternalUnknown_cfpRP3h9F6o_nid_no_patch(float* value) {
+    return reinterpret_cast<std::uint16_t*>(value);
 }
 APS5_EXPORT("cfpRP3h9F6o", sceLibcInternalUnknown_cfpRP3h9F6o_nid_no_patch);
 
-int APS5_VABI sceLibcInternalUnknown_IdWhZ0SM7JA_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uint16_t* APS5_VABI sceLibcInternalUnknown_IdWhZ0SM7JA_nid_no_patch(float* value) {
+    return _ZNSt8__sce_v26_FPmswEPf_nid_postfix(value);
 }
 APS5_EXPORT("IdWhZ0SM7JA", sceLibcInternalUnknown_IdWhZ0SM7JA_nid_no_patch);
 
@@ -969,9 +968,8 @@ int APS5_VABI _LLogpoly_nid_postfix() {
     return 0;
 }
 
-int APS5_VABI sceLibcInternalUnknown_W_T_amhWrkA_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uint16_t* APS5_VABI sceLibcInternalUnknown_W_T_amhWrkA_nid_no_patch(long double* value) {
+    return reinterpret_cast<std::uint16_t*>(value);
 }
 APS5_EXPORT("W-T-amhWrkA", sceLibcInternalUnknown_W_T_amhWrkA_nid_no_patch);
 
@@ -1136,15 +1134,13 @@ int APS5_VABI _Nnl_nid_postfix() {
     return 0;
 }
 
-int APS5_VABI sceLibcInternalUnknown_1hGmBh83dL8_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uint16_t* APS5_VABI sceLibcInternalUnknown_1hGmBh83dL8_nid_no_patch(double* value) {
+    return reinterpret_cast<std::uint16_t*>(value);
 }
 APS5_EXPORT("1hGmBh83dL8", sceLibcInternalUnknown_1hGmBh83dL8_nid_no_patch);
 
-int APS5_VABI sceLibcInternalUnknown_hrv1BgM68kU_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uint16_t* APS5_VABI sceLibcInternalUnknown_hrv1BgM68kU_nid_no_patch(double* value) {
+    return _ZNSt8__sce_v25_PmswEPd_nid_postfix(value);
 }
 APS5_EXPORT("hrv1BgM68kU", sceLibcInternalUnknown_hrv1BgM68kU_nid_no_patch);
 
