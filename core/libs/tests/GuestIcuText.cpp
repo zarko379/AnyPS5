@@ -282,6 +282,28 @@ void CheckGuards() {
     Require(Invalid([&] { utext_next32_nid_postfix(setup); }), "a set-up text without a provider throws");
     Require(Invalid([&] { utext_close_nid_postfix(setup); }), "closing a set-up text without a provider throws");
     Require(Invalid([&] { std::int32_t ok = Ok; utext_setup_nid_postfix(setup, 0, &ok); }), "setting up a set-up text without a provider throws");
+    Require(Invalid([&] { utext_char32At_nid_postfix(setup, 0); }) && Invalid([&] { utext_current32_nid_postfix(setup); }) && Invalid([&] { utext_previous32_nid_postfix(setup); }), "reading a set-up text without a provider throws");
+    Require(Invalid([&] { utext_moveIndex32_nid_postfix(setup, 1); }) && Invalid([&] { utext_nativeLength_nid_postfix(setup); }), "moving or measuring a set-up text without a provider throws");
+    Require(Invalid([&] { std::int32_t ok = Ok; utext_clone_nid_postfix(nullptr, setup, 0, 0, &ok); }), "cloning a set-up text without a provider throws");
+    {
+        UErrorCode hostStatus = U_ZERO_ERROR;
+        UText* hostSetup = utext_setup(nullptr, 16, &hostStatus);
+        UText* hostOther = utext_setup(nullptr, 0, &hostStatus);
+        status = Ok;
+        UText* other = utext_setup_nid_postfix(nullptr, 0, &status);
+        Require(utext_getNativeIndex_nid_postfix(setup) == utext_getNativeIndex(hostSetup) && utext_getNativeIndex(hostSetup) == 0, "a set-up text without a provider is at index 0");
+        Require(utext_getPreviousNativeIndex_nid_postfix(setup) == utext_getPreviousNativeIndex(hostSetup), "getPreviousNativeIndex at the start needs no provider");
+        Require(utext_moveIndex32_nid_postfix(setup, 0) == utext_moveIndex32(hostSetup, 0) && utext_moveIndex32(hostSetup, 0) != 0, "moveIndex32 by 0 needs no provider");
+        Require(utext_equals_nid_postfix(setup, other) == utext_equals(hostSetup, hostOther) && utext_equals(hostSetup, hostOther) != 0, "two set-up texts without a provider are equal as in ICU");
+        status = Ok;
+        hostStatus = U_ZERO_ERROR;
+        Require(utext_replace_nid_postfix(setup, 0, 0, u"x", 1, &status) == utext_replace(hostSetup, 0, 0, u"x", 1, &hostStatus) && status == hostStatus && status == NoWritePermission, "replace on a read-only text needs no provider");
+        Require(setup->pFuncs == nullptr && other->pFuncs == nullptr, "a text without a provider keeps a NULL table");
+        setup->providerProperties |= 1 << UTEXT_PROVIDER_WRITABLE;
+        status = Ok;
+        Require(Invalid([&] { utext_replace_nid_postfix(setup, 0, 0, u"x", 1, &status); }) && setup->pFuncs == nullptr, "a writable text without a provider throws in replace");
+        Require(utext_equals_nid_postfix(setup, &open) == 0, "a text without a provider never equals an ICU text");
+    }
     status = Ok;
     UText stack = UTEXT_INITIALIZER;
     Require(utext_setup_nid_postfix(&stack, 0, &status) == &stack && status == Ok && stack.pFuncs == nullptr, "setup opens a stack UText");

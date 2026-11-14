@@ -75,14 +75,54 @@ TSlot Slot(TSlot slot) {
     return slot;
 }
 
+UText* U_CALLCONV AbsentClone(UText*, const UText*, UBool, UErrorCode*) {
+    APS5_INVALID_ARG_EX;
+}
+
+int64_t U_CALLCONV AbsentLength(UText*) {
+    APS5_INVALID_ARG_EX;
+}
+
+UBool U_CALLCONV AbsentAccess(UText*, int64_t, UBool) {
+    APS5_INVALID_ARG_EX;
+}
+
+int32_t U_CALLCONV AbsentExtract(UText*, int64_t, int64_t, UChar*, int32_t, UErrorCode*) {
+    APS5_INVALID_ARG_EX;
+}
+
+int32_t U_CALLCONV AbsentReplace(UText*, int64_t, int64_t, const UChar*, int32_t, UErrorCode*) {
+    APS5_INVALID_ARG_EX;
+}
+
+void U_CALLCONV AbsentCopy(UText*, int64_t, int64_t, int64_t, UBool, UErrorCode*) {
+    APS5_INVALID_ARG_EX;
+}
+
+int64_t U_CALLCONV AbsentOffsetToNative(const UText*) {
+    APS5_INVALID_ARG_EX;
+}
+
+int32_t U_CALLCONV AbsentNativeToOffset(const UText*, int64_t) {
+    APS5_INVALID_ARG_EX;
+}
+
+void U_CALLCONV AbsentClose(UText*) {
+    APS5_INVALID_ARG_EX;
+}
+
+const UTextFuncs absent{sizeof(UTextFuncs), 0, 0, 0, AbsentClone, AbsentLength, AbsentAccess, AbsentExtract, AbsentReplace, AbsentCopy, AbsentOffsetToNative, AbsentNativeToOffset, AbsentClose, nullptr, nullptr, nullptr};
+
 enum class Kind {
     Icu,
+    Absent,
     Wrapped,
     Guest
 };
 
 Kind Classify(const UTextFuncs* funcs) {
     if (funcs == Known().chars || funcs == Known().utf8) return Kind::Icu;
+    if (funcs == &absent) return Kind::Absent;
     Wrappers& wrappers = Registry();
     const std::lock_guard lock(wrappers.mutex);
     return wrappers.hosts.count(funcs) != 0 ? Kind::Wrapped : Kind::Guest;
@@ -195,15 +235,25 @@ public:
 
     ~Bridge() {
         for (UText* text : texts_) {
-            if (text != nullptr && text->pFuncs != nullptr && Classify(text->pFuncs) == Kind::Wrapped) text->pFuncs = AsHost(GuestOf(text));
+            if (text == nullptr || text->pFuncs == nullptr) continue;
+            const Kind kind = Classify(text->pFuncs);
+            if (kind == Kind::Absent) {
+                text->pFuncs = nullptr;
+            } else if (kind == Kind::Wrapped) {
+                text->pFuncs = AsHost(GuestOf(text));
+            }
         }
     }
 
     void Enter(const UText* text) {
         if (!IsOpen(text)) return;
-        if (text->pFuncs == nullptr) APS5_INVALID_ARG_EX;
-        if (Classify(text->pFuncs) != Kind::Guest) return;
         UText* guest = const_cast<UText*>(text);
+        if (guest->pFuncs == nullptr) {
+            Keep(guest);
+            guest->pFuncs = &absent;
+            return;
+        }
+        if (Classify(guest->pFuncs) != Kind::Guest) return;
         Keep(guest);
         guest->pFuncs = Wrap(AsGuest(guest->pFuncs));
     }
