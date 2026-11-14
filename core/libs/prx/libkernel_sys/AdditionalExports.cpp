@@ -1680,8 +1680,8 @@ int APS5_VABI sceKernelGetCpuCoreClock() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI sceKernelGetGenuineProsperoSystemSwVersion() {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceKernelGetGenuineProsperoSystemSwVersion(SceKernelProsperoSystemSwVersion* version) {
+    return sceKernelGetProsperoSystemSwVersion_nid_postfix(version);
 }
 
 int APS5_VABI sceKernelGetNandInfo() {

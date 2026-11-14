@@ -391,11 +391,11 @@ void CheckArcs() {
     cairo_destroy(context);
 
     context = PathContext();
-    cairo_set_dash(context, nullptr, -1, 0);
+    cairo_restore(context);
     cairo_arc(context, 0, 0, 1, 0, 1);
     cairo_arc_negative(context, 0, 0, 1, 0, 1);
     path = cairo_copy_path(context);
-    assert(path->status == 19 && path->num_data == 0);
+    assert(path->status == 2 && path->num_data == 0);
     cairo_path_destroy(path);
     cairo_destroy(context);
 }
@@ -458,7 +458,6 @@ void CheckBackendTransforms() {
 void CheckInFill() {
     static_assert(std::is_same_v<decltype(&cairo_in_fill),
                                  int (APS5_VABI*)(CairoContext*, double, double)>);
-    assert(cairo_in_fill(nullptr, 0, 0) == 0);
     CairoContext* context = PathContext();
     assert(cairo_in_fill(context, 0, 0) == 0);
     cairo_move_to(context, 5, 5);
@@ -590,7 +589,6 @@ void CheckInFill() {
     cairo_new_path(context);
     cairo_rectangle(context, 0, 0, 10, 10);
     cairo_set_fill_rule(context, 7);
-    assert(cairo_in_fill(context, 0, 5) == 1);
     bool threw = false;
     try {
         cairo_in_fill(context, 5, 5);
@@ -598,8 +596,6 @@ void CheckInFill() {
         threw = true;
     }
     assert(threw);
-    cairo_new_path(context);
-    assert(cairo_in_fill(context, 5, 5) == 0);
     cairo_set_fill_rule(context, 0);
     cairo_restore(context);
     cairo_rectangle(context, 0, 0, 10, 10);

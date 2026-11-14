@@ -38,6 +38,7 @@
 #include "Configuration.hpp"
 
 #include "ConverterHelpers.hpp"
+#include "Utf16Search.hpp"
 #include "Defaults.hpp"
 #include "CharacterProperties.hpp"
 #include "CaseMap.hpp"

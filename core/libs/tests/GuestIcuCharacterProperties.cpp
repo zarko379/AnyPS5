@@ -1,5 +1,4 @@
 #include "prx/libSceIcu/CharacterProperties.hpp"
-#include "prx/libSceIcu/Set.hpp"
 #include <unicode/uchar.h>
 #include <unicode/ucpmap.h>
 #include <unicode/udata.h>
@@ -204,54 +203,6 @@ void CheckNameEnumeration() {
     Require(collector.records.empty(), "a null status calls nothing, as in ICU");
 }
 
-std::vector<std::pair<std::int32_t, std::int32_t>> GuestItems(const USet* set) {
-    std::vector<std::pair<std::int32_t, std::int32_t>> items;
-    const std::int32_t count = uset_getItemCount_nid_postfix(set);
-    for (std::int32_t index = 0; index < count; ++index) {
-        std::int32_t start = 0;
-        std::int32_t end = 0;
-        std::int32_t status = Ok;
-        Require(uset_getItem_nid_postfix(set, index, &start, &end, nullptr, 0, &status) == 0 && status == Ok, "guest set items are ranges");
-        items.emplace_back(start, end);
-    }
-    return items;
-}
-
-std::vector<std::pair<std::int32_t, std::int32_t>> HostItems(const USet* set) {
-    std::vector<std::pair<std::int32_t, std::int32_t>> items;
-    const std::int32_t count = uset_getItemCount(set);
-    for (std::int32_t index = 0; index < count; ++index) {
-        UChar32 start = 0;
-        UChar32 end = 0;
-        UErrorCode status = U_ZERO_ERROR;
-        Require(uset_getItem(set, index, &start, &end, nullptr, 0, &status) == 0 && U_SUCCESS(status), "host set items are ranges");
-        items.emplace_back(start, end);
-    }
-    return items;
-}
-
-void CheckPropertySets() {
-    for (std::int32_t property = UCHAR_BINARY_START; property < UCHAR_BINARY_LIMIT; ++property) {
-        std::int32_t guestStatus = Ok;
-        UErrorCode hostStatus = U_ZERO_ERROR;
-        const USet* guest = u_getBinaryPropertySet_nid_postfix(property, &guestStatus);
-        const USet* host = u_getBinaryPropertySet(static_cast<UProperty>(property), &hostStatus);
-        Require(guestStatus == Ok && U_SUCCESS(hostStatus) && guest && GuestItems(guest) == HostItems(host), "binary property sets match ICU");
-        guestStatus = Ok;
-        Require(u_getBinaryPropertySet_nid_postfix(property, &guestStatus) == guest, "the same set is returned again");
-    }
-    std::int32_t status = Ok;
-    const USet* alphabetic = u_getBinaryPropertySet_nid_postfix(UCHAR_ALPHABETIC, &status);
-    Require(uset_contains_nid_postfix(alphabetic, 0x41) && !uset_contains_nid_postfix(alphabetic, 0x31), "the alphabetic set");
-    status = Ok;
-    Require(u_getBinaryPropertySet_nid_postfix(UCHAR_BINARY_LIMIT, &status) == nullptr && status == IllegalArgument, "a non-binary property is an illegal argument");
-    status = Ok;
-    Require(u_getBinaryPropertySet_nid_postfix(-1, &status) == nullptr && status == IllegalArgument, "a negative property is an illegal argument");
-    status = BufferOverflow;
-    Require(u_getBinaryPropertySet_nid_postfix(UCHAR_ALPHABETIC, &status) == nullptr && status == BufferOverflow, "a failed status returns null");
-    Require(Throws<std::invalid_argument>([] { u_getBinaryPropertySet_nid_postfix(UCHAR_ALPHABETIC, nullptr); }), "a null status throws");
-}
-
 std::uint32_t APS5_VABI GuestUppercaseFilter(const void* context, std::uint32_t value) {
     return value == *static_cast<const std::uint32_t*>(context) ? 1 : 0;
 }
@@ -353,7 +304,6 @@ int main() {
     CheckCharacterNames();
     CheckClosure();
     CheckNameEnumeration();
-    CheckPropertySets();
     CheckPropertyMaps();
     CheckNameCharacters();
     return 0;

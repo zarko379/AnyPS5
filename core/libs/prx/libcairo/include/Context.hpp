@@ -4,9 +4,18 @@
 #include "prx/libcairo/include/Matrix.hpp"
 #include "prx/libcairo/include/Surface.hpp"
 #include "prx/libcairo/include/Pattern.hpp"
-#include "prx/libcairo/include/InventoryExports.hpp"
 
 struct CairoContext;
+
+struct CairoFontOptionsFields {
+    int antialias;
+    int subpixelOrder;
+    int hintStyle;
+    int hintMetrics;
+};
+
+void CairoContextSetFontOptions(CairoContext* context, const CairoFontOptionsFields* options);
+void CairoContextSetNilFontOptions(CairoContext* context);
 
 extern "C" {
 CairoContext* APS5_VABI cairo_create(CairoSurface* target);
@@ -56,7 +65,6 @@ void APS5_VABI cairo_set_source_rgba(CairoContext* context, double red, double g
 void APS5_VABI cairo_set_source_surface(CairoContext* context, CairoSurface* surface,
                                         double x, double y);
 void APS5_VABI cairo_set_font_size(CairoContext* context, double size);
-void APS5_VABI cairo_set_font_options(CairoContext* context, const cairo_font_options_t* options);
 void APS5_VABI cairo_clip_extents(CairoContext* context, double* x1, double* y1,
                                   double* x2, double* y2);
 }

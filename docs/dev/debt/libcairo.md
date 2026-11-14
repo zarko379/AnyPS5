@@ -2,41 +2,21 @@
 
 ### Functional
 
-- [Cairo affine matrices](../../../core/libs/prx/libcairo/Matrix.cpp) - Ten pure affine operations implement the documented [Cairo matrix API](https://www.cairographics.org/manual/cairo-cairo-matrix-t.html), including multiplication with aliased outputs, singular inversion status and point/distance transforms. The 48-byte `cairo_matrix_t` layout and C signatures are public; the PS5 library revision and native behavior have not been measured. These functions do not require the pending surface, font or rendering exports.
+- [Matrix.cpp](../../../core/libs/prx/libcairo/Matrix.cpp), [Region.cpp](../../../core/libs/prx/libcairo/Region.cpp), [Surface.cpp](../../../core/libs/prx/libcairo/Surface.cpp), [Png.cpp](../../../core/libs/prx/libcairo/Png.cpp), [Pattern.cpp](../../../core/libs/prx/libcairo/Pattern.cpp) and [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) - Sony's three Cairo patches ([source](https://www.playstation.com/en-us/oss/ps5/cairo/)) are not applied to the Cairo 1.18.0 these exports run, with the image backend only, as on PS5 system software 9.00 and later. The patch that changes behaviour adds `CAIRO_STATUS_NULL_SURFACE_IMAGE` where a surface pattern's image cannot be acquired; no export reaches that path while `cairo_paint`, `cairo_fill`, `cairo_mask` and the other drawing exports are stubs. Sony publishes no pixman or libpng source, so their console versions are unknown; this build uses pixman 0.42.2, the newest when Cairo 1.18.0 came out, and libpng 1.6.59.
 
-### Functional image and surface exports
+- [Region.cpp](../../../core/libs/prx/libcairo/Region.cpp) - a null region or rectangle, which Cairo dereferences, returns `CAIRO_STATUS_NULL_POINTER` from `cairo_region_union_rectangle`, 0 from `cairo_region_num_rectangles` and leaves `cairo_region_get_rectangle` without effect; an `nth` outside the region, which Cairo reads past the array for, returns an empty rectangle. Negative sizes and coordinate overflow are not separately validated; pixman can reject an invalid box or wrap its endpoints. A merged box wider or taller than `INT32_MAX` overflows a signed subtraction in `cairo_region_get_rectangle`; the result is undefined. Console behaviour is unmeasured.
 
-- [Surface.cpp](../../../core/libs/prx/libcairo/Surface.cpp) implements 20 Cairo image/surface/stride exports with caller-owned and internally-owned pixel buffers, reference-counted surfaces, format and stride handling, device scales, subsurfaces and error surfaces. CPU image flush/mark-dirty require no deferred device synchronization. The original 19 exports passed Windows and Linux sanitizer tests and native Cairo 1.18.0 differential metadata checks. Surface user-data tests pass on Linux; the callback has no Windows run. No PS5 console comparison or complete rasterizer is claimed.
+- [Surface.cpp](../../../core/libs/prx/libcairo/Surface.cpp), [Pattern.cpp](../../../core/libs/prx/libcairo/Pattern.cpp) and [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) - Cairo dereferences these null pointers, and console behaviour is unmeasured. A null surface makes `cairo_surface_status` return `CAIRO_STATUS_NULL_POINTER`, and a null context makes `cairo_path_extents` store zeros, as Cairo answers for an object in error. A null surface in `cairo_surface_create_similar` or `cairo_surface_create_for_rectangle`, and null dashes with a positive count in `cairo_set_dash`, throw through `NotImplemented_nid_no_patch`, because Cairo has no error object to return for them. Every other null handle, key or callback reaches Cairo unchanged.
 
-- The PS5 library revision and [surface user-data](../../../core/libs/prx/libcairo/Surface.cpp) callback behavior remain unmeasured. A null surface pointer still throws because its contract is unknown. Surface user-data ownership follows [Cairo 1.18.0](https://cairographics.org/releases/cairo-1.18.0.tar.xz), `src/cairo-surface.c` and `src/cairo-array.c`. Arbitrary recursive slot replacement or growth from callbacks is not established.
+- [Png.cpp](../../../core/libs/prx/libcairo/Png.cpp) - console malformed-PNG status is unmeasured. Cairo 1.18.0 maps `CAIRO_STATUS_PNG_ERROR` to a no-memory error surface, so an invalid PNG CRC reports `CAIRO_STATUS_NO_MEMORY`. Later Cairo versions provide a distinct PNG-error surface; that change is not backported.
 
-- [PNG stream writing](../../../core/libs/prx/libcairo/Png.cpp) follows Cairo 1.18.0 image formats, subsurface clipping and callback status propagation. The shared encoder buffers the PNG before delivering chunks. Compression and callback chunk sizes can differ from native Cairo, and the encoder's size limit is reported as `CAIRO_STATUS_NO_MEMORY`. Null pointers, unreadable pixels and nonfinite subsurface coordinates have unverified behavior and throw. PS5 behavior remains unmeasured.
+- [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) - `cairo_in_fill` on a context without error throws through `NotImplemented_nid_no_patch` when the fill rule is neither winding nor even-odd. Cairo 1.18.0 `cairo-path-in-fill.c` returns 0 for an empty path and 1 for a point on an edge under any rule, but reaches `ASSERT_NOT_REACHED` for any other point, which aborts or returns 0 depending on `NDEBUG`; the guard runs before Cairo, so the empty-path and on-edge answers are not reproduced for such a rule. Not measured on a console.
 
 ### Functional font options
 
 - [FontOptions.cpp](../../../core/libs/prx/libcairo/FontOptions.cpp) implements eight font-option lifecycle, antialias and hint-setting helpers with Cairo-compatible owned state and a protected nil object. Tested on Windows and Linux sanitizers.
 
-### Functional regions
-
-- [Region.cpp](../../../core/libs/prx/libcairo/Region.cpp) implements six region lifecycle and rectangle operations with canonical band geometry and Cairo-compatible errors; Windows, Linux sanitizers and native Cairo/Pixman geometry comparisons passed.
-
-### Functional context and coordinate transforms
-
-- [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements seventeen Cairo context lifecycle, nested matrix save/restore, and user/device coordinate transform exports, with an owned surface reference, a sticky invalid-matrix/invalid-restore state and System V guest ABI. Drawing, clip-setting and rasterization remain pending. The context code depends on the image/surface lifecycles above and shares the affine matrix primitives.
-
-- [Path data in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) builds the eleven path lifecycle and current-point exports and the arcs in Cairo 24.8 fixed point as Cairo 1.18.0 `cairo-path-fixed.c`, `cairo-arc.c` and `cairo-gstate.c` do, with the incremental inverse CTM and the line-width clamp, and deep-copies public cairo_path_t arrays; not measured on a console. Rectangles use quantized device displacements and close-path canonicalization. Path extents bound line segments and quantized cubic extrema in device space, then convert to user coordinates. Cairo recomputes its identity-transform shortcut when the target device scale changes; here a later device-scale change back to 1 does not restore the shortcut for a CTM that was modified to identity, which only changes results for non-finite coordinates. Tolerance is fixed at 0.1 because `cairo_set_tolerance` is not exported.
-
-- [Operator state in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) has no rendering consumer. The default is OVER, and save/restore preserves the stored operator. Native Cairo 1.18.0 is the comparison target; console behavior is unmeasured.
-
-- [Fill hit testing in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implements `cairo_in_fill` as Cairo 1.18.0 `cairo-path-in-fill.c` and `cairo-spline.c` do: an empty-fill flag kept as `cairo-path-fixed.c` keeps `fill_is_empty`, edge crossings in 24.8 fixed point, on-edge points inside, and curves flattened at tolerance 0.1. As in Cairo, a curve whose control points coincide with its ends adds no edge and leaves the current point unchanged. A fill rule other than winding or even-odd reaches `ASSERT_NOT_REACHED` in Cairo, whose result depends on the build, so it throws through `NotImplemented_nid_no_patch`. Not measured on a console.
-
-- [Clip extents in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implement `cairo_clip_extents` as the target extents mapped to user space by `_cairo_gstate_clip_extents` and `_cairo_matrix_transform_bounding_box`. This is complete only while no export sets a clip or pushes a group; `cairo_clip` and `cairo_push_group` must update it. Subsurface extents are rounded at creation as `cairo-surface-subsurface.c` does; values whose conversion to int is undefined in Cairo, and a non-invertible device scale, throw. Not measured on a console.
-
-### Functional patterns
-
-- [Pattern.cpp](../../../core/libs/prx/libcairo/Pattern.cpp) implements sixteen gradient, surface and mesh pattern constructors, reference counting, color stops, matrix, filter, extend and mesh patch exports following [Cairo 1.18.0](https://cairographics.org/releases/cairo-1.18.0.tar.xz) `src/cairo-pattern.c`. No pattern getter or rasterizer is exported, so the stored state is only checked by host tests; not measured on a console. A null pattern passed to a mutator is ignored, whereas Cairo dereferences it. Mesh patches are zero-initialised, so a corner copied from an unset corner 0 is transparent where Cairo copies uninitialised memory.
-
-- [Context sources in Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) implement `cairo_set_source`, `cairo_set_source_rgb`, `cairo_set_source_rgba`, `cairo_set_source_surface`, `cairo_set_font_size` and `cairo_set_font_options` as saved graphics state with Cairo 1.18.0 reference ownership and destruction order. The source, font matrix and font options are not used by any implemented drawing or text export; not measured on a console.
+- [FontOptions.cpp](../../../core/libs/prx/libcairo/FontOptions.cpp) - `cairo_set_font_options` copies the antialias, subpixel order, hint style and hint metrics of the guest object into a Cairo 1.18.0 font options object before forwarding it, and passes null as null and the nil object as Cairo's nil. Cairo's other font-option fields keep their defaults because no guest export sets them; not measured on a console.
 
 ### Functional glyphs
 
@@ -52,7 +32,6 @@
 | `cairo_paint` | `+PEo5Z7DOlY` |
 | `cairo_font_face_set_user_data` | `1GGpdjyZslI` |
 | `cairo_stroke_extents` | `1K5ly63m6fo` |
-| `cairo_image_surface_create_from_png_stream` | `4dvdsqyLM8c` |
 | `cairo_ft_scaled_font_lock_face` | `4gDTaBZH8lo` |
 | `cairo_glyph_path` | `54HrgUIQHOk` |
 | `cairo_scaled_font_destroy` | `6Y3HHedGzlw` |

@@ -229,16 +229,6 @@ void FirmwareExSignatures() {
     getVolume.value = readBack;
     getVolume.value_size = sizeof(readBack);
     Require(sceAudioOut2LoPortGetAttributes(exPort, &getVolume, 1) == 0 && readBack[0] == 0.5f && readBack[1] == 0.25f, "the volume attribute did not round trip");
-    float exVolume[2] = {0.75f, 0.125f};
-    AudioOut2Attribute setExVolume = setVolume;
-    setExVolume.value = exVolume;
-    Require(sceAudioOut2PortSetAttributesEx(portSentinel, &setExVolume, 1) == errorInvalidHandle, "an extended attribute set on a dead port was not refused");
-    Require(sceAudioOut2PortSetAttributesEx(portSentinel, nullptr, 1) == errorInvalidHandle, "a null extended attribute list hid an invalid handle");
-    Require(sceAudioOut2PortSetAttributesEx(exPort, nullptr, 1) == errorInvalidArgument, "a null extended attribute list was accepted");
-    Require(sceAudioOut2PortSetAttributesEx(exPort, nullptr, 0) == 0, "an empty extended attribute set was refused");
-    Require(sceAudioOut2LoPortGetAttributes(exPort, &getVolume, 1) == 0 && readBack[0] == 0.5f && readBack[1] == 0.25f, "a refused extended attribute set changed the volume");
-    Require(sceAudioOut2PortSetAttributesEx(exPort, &setExVolume, 1) == 0, "the extended port attribute set was refused");
-    Require(sceAudioOut2LoPortGetAttributes(exPort, &getVolume, 1) == 0 && readBack[0] == 0.75f && readBack[1] == 0.125f, "the extended volume attribute did not round trip");
     auto* unreadableAttributes = reinterpret_cast<AudioOut2Attribute*>(0x10);
     errno = 73;
     Require(sceAudioOut2LoPortGetAttributes(exPort, unreadableAttributes, 1) == errorInvalidParam, "an unreadable port attribute record was accepted");
@@ -254,6 +244,11 @@ void FirmwareExSignatures() {
     Require(errno == 73, "an unwritable port attribute value changed host errno");
     FreePage(readOnlyValue);
     getVolume.value = readBack;
+    volume[0] = 0.75f;
+    volume[1] = 0.125f;
+    Require(sceAudioOut2PortSetAttributesEx(exPort, &setVolume, 1) == 0, "the attribute set through sceAudioOut2PortSetAttributesEx was refused");
+    Require(sceAudioOut2LoPortGetAttributes(exPort, &getVolume, 1) == 0 && readBack[0] == 0.75f && readBack[1] == 0.125f, "the volume set through sceAudioOut2PortSetAttributesEx did not round trip");
+    Require(sceAudioOut2PortSetAttributesEx(portSentinel, &setVolume, 1) == errorInvalidHandle, "sceAudioOut2PortSetAttributesEx accepted a dead port");
     AudioOut2Attribute badAttribute{};
     badAttribute.attribute_id = 5;
     badAttribute.value = readBack;

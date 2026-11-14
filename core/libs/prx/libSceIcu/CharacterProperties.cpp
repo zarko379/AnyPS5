@@ -8,8 +8,6 @@
 #include <unicode/uset.h>
 #include "uprops.h"
 #include "uset_imp.h"
-#include <array>
-#include <mutex>
 
 namespace {
 
@@ -52,16 +50,6 @@ void U_CALLCONV ForwardAdd(USet*, UChar32 c) {
     adder->add(adder->set, c);
 }
 
-std::mutex& PropertySetMutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-
-std::array<USet*, UCHAR_BINARY_LIMIT>& PropertySets() {
-    static std::array<USet*, UCHAR_BINARY_LIMIT> sets{};
-    return sets;
-}
-
 const UCPMap* Map(const UCPMap* map) {
     IcuBackend::RequireObject(map);
     IcuBackend::Ensure();
@@ -87,16 +75,6 @@ std::int32_t APS5_VABI u_getFC_NFKC_Closure_nid_postfix(std::int32_t c, char16_t
 void APS5_VABI u_enumCharNames_nid_postfix(std::int32_t start, std::int32_t limit, GuestCharNamesCallback fn, void* context, std::int32_t nameChoice, std::int32_t* status) {
     CharNamesForward forward{fn, context};
     u_enumCharNames(start, limit, fn ? ForwardCharName : nullptr, &forward, static_cast<UCharNameChoice>(nameChoice), Status(status));
-}
-
-const USet* APS5_VABI u_getBinaryPropertySet_nid_postfix(std::int32_t property, std::int32_t* status) {
-    UErrorCode* error = RequiredStatus(status);
-    const USet* host = u_getBinaryPropertySet(static_cast<UProperty>(property), error);
-    if (!host) return nullptr;
-    std::lock_guard lock(PropertySetMutex());
-    USet*& guest = PropertySets()[property];
-    if (!guest) guest = IcuBackend::GuestSet(host);
-    return guest;
 }
 
 const UCPMap* APS5_VABI u_getIntPropertyMap_nid_postfix(std::int32_t property, std::int32_t* status) {

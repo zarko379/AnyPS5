@@ -24,7 +24,6 @@ std::int32_t APS5_VABI uloc_minimizeSubtags_nid_postfix(const char* localeID, ch
 std::int32_t APS5_VABI uloc_toLanguageTag_nid_postfix(const char* localeID, char* langtag, std::int32_t langtagCapacity, std::int8_t strict, std::int32_t* err);
 std::int32_t APS5_VABI uloc_getCharacterOrientation_nid_postfix(const char* localeId, std::int32_t* status);
 std::int32_t APS5_VABI uloc_getLineOrientation_nid_postfix(const char* localeId, std::int32_t* status);
-std::int8_t APS5_VABI uloc_isRightToLeft_nid_postfix(const char* locale);
 const char16_t* APS5_VABI uloc_getTableStringWithFallback_nid_postfix(const char* path, const char* locale, const char* tableKey, const char* subTableKey, const char* itemKey, std::int32_t* pLength, std::int32_t* pErrorCode);
 std::int32_t APS5_VABI uloc_getDisplayLanguage_nid_postfix(const char* locale, const char* displayLocale, char16_t* language, std::int32_t languageCapacity, std::int32_t* status);
 std::int32_t APS5_VABI uloc_getDisplayScript_nid_postfix(const char* locale, const char* displayLocale, char16_t* script, std::int32_t scriptCapacity, std::int32_t* status);

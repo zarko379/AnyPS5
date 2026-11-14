@@ -90,6 +90,23 @@ void APS5_VABI SelfUnregisteringCallback(int, std::uint32_t, void* userdata) {
     context->result = sceNpUnregisterStateCallbackA(context->id);
 }
 
+StateCall toolkitStateCall;
+
+void APS5_VABI ToolkitStateCallback(int userId, std::uint32_t state, void* userdata) {
+    toolkitStateCall = {toolkitStateCall.calls + 1, userId, state, nullptr, userdata};
+}
+
+struct ToolkitSelfUnregister {
+    int calls;
+    int result;
+};
+
+void APS5_VABI ToolkitSelfUnregisteringCallback(int, std::uint32_t, void* userdata) {
+    auto* context = static_cast<ToolkitSelfUnregister*>(userdata);
+    ++context->calls;
+    context->result = sceNpUnregisterStateCallbackForToolkit();
+}
+
 void CheckStateCallbacksA() {
     constexpr int CallbackMax = static_cast<int>(0x8055001Du);
     void* const callbacks[] = {
@@ -183,56 +200,6 @@ void CheckLegacyStateCallback() {
     Require(sceNpUnregisterStateCallback() == NotRegistered, "unregistering the legacy callback twice");
 }
 
-int callbackSequence = 0;
-int toolkitOrder[2];
-StateCall toolkitCalls[2];
-int orderedAOrder = 0;
-StateCall orderedACall;
-
-template <int Index>
-void APS5_VABI ToolkitStateCallback(int userId, std::uint32_t state, void* userdata) {
-    toolkitOrder[Index] = ++callbackSequence;
-    toolkitCalls[Index] = {toolkitCalls[Index].calls + 1, userId, state, nullptr, userdata};
-}
-
-void APS5_VABI OrderedStateCallbackA(int userId, std::uint32_t state, void* userdata) {
-    orderedAOrder = ++callbackSequence;
-    orderedACall = {orderedACall.calls + 1, userId, state, nullptr, userdata};
-}
-
-void CheckToolkitStateCallback() {
-    int userdata[2] = {};
-    auto first = reinterpret_cast<NpStateCallbackA>(reinterpret_cast<void*>(&ToolkitStateCallback<0>));
-    auto second = reinterpret_cast<NpStateCallbackA>(reinterpret_cast<void*>(&ToolkitStateCallback<1>));
-    auto ordered = reinterpret_cast<NpStateCallbackA>(reinterpret_cast<void*>(&OrderedStateCallbackA));
-    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "unregistering with no toolkit callback");
-    Require(sceNpRegisterStateCallbackForToolkit(nullptr, &userdata[0]) == 0, "a null toolkit callback must return 0");
-    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "a null toolkit callback must not register");
-    Require(sceNpCheckCallback() == 0, "sceNpCheckCallback failed with a null toolkit callback");
-    Require(sceNpRegisterStateCallbackForToolkit(first, &userdata[0]) == 0, "registering the toolkit callback");
-    const int id = sceNpRegisterStateCallbackA(ordered, &userdata[1]);
-    Require(id > 0, "registering the A callback next to the toolkit callback");
-    Require(sceNpCheckCallback() == 0, "sceNpCheckCallback failed with the toolkit callback");
-    Require(SignedOutOnce(toolkitCalls[0], &userdata[0]), "the toolkit callback must get SIGNED_OUT once");
-    Require(SignedOutOnce(orderedACall, &userdata[1]), "the A callback must get SIGNED_OUT once");
-    Require(orderedAOrder < toolkitOrder[0], "the toolkit callback must follow the A callbacks");
-    Require(sceNpCheckCallback() == 0, "second sceNpCheckCallback failed with the toolkit callback");
-    Require(toolkitCalls[0].calls == 1, "the toolkit callback got the state again");
-    Require(sceNpUnregisterStateCallbackA(id) == 0, "unregistering the A callback next to the toolkit callback");
-    Require(sceNpRegisterStateCallbackForToolkit(first, &userdata[0]) == 0, "registering the toolkit callback again");
-    Require(sceNpRegisterStateCallbackForToolkit(second, &userdata[1]) == 0, "replacing the toolkit callback");
-    Require(sceNpCheckCallback() == 0, "sceNpCheckCallback failed with the replaced toolkit callback");
-    Require(toolkitCalls[0].calls == 1, "the replaced toolkit callback was called");
-    Require(SignedOutOnce(toolkitCalls[1], &userdata[1]), "the replacing toolkit callback must get SIGNED_OUT once");
-    Require(sceNpRegisterStateCallbackForToolkit(nullptr, nullptr) == 0, "clearing the toolkit callback with null");
-    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "a null toolkit callback must clear the earlier one");
-    Require(sceNpRegisterStateCallbackForToolkit(first, &userdata[0]) == 0, "registering the toolkit callback before unregistering");
-    Require(sceNpUnregisterStateCallbackForToolkit() == 0, "unregistering the toolkit callback");
-    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "unregistering the toolkit callback twice");
-    Require(sceNpCheckCallback() == 0, "sceNpCheckCallback failed after unregistering the toolkit callback");
-    Require(toolkitCalls[0].calls == 1, "an unregistered toolkit callback was called");
-}
-
 void CheckGamePresenceCallbacksA() {
     constexpr int CallbackMax = static_cast<int>(0x8055001Du);
     int dummy = 0;
@@ -261,6 +228,53 @@ void CheckGamePresenceCallbacksA() {
     }
     Require(sceNpUnregisterGamePresenceCallbackA(reusedId) == 0, "unregistering reused callback id");
     Require(sceNpUnregisterGamePresenceCallbackA(reusedId) == NotRegistered, "double unregistering reused id");
+}
+
+void CheckToolkitStateCallback() {
+    int userdata = 0;
+    auto* callback = reinterpret_cast<void*>(&StateCallbackA<0>);
+    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "unregister before any register");
+    Require(sceNpRegisterStateCallbackForToolkit(reinterpret_cast<NpStateCallbackForToolkit>(callback), &userdata) == 0, "register with a dummy callback");
+    Require(sceNpRegisterStateCallbackForToolkit(reinterpret_cast<NpStateCallbackForToolkit>(callback), nullptr) == 0, "register again (overwrite)");
+    Require(sceNpUnregisterStateCallbackForToolkit() == 0, "unregister");
+    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "unregister again");
+    Require(sceNpRegisterStateCallbackForToolkit(nullptr, &userdata) == 0, "register with nullptr callback");
+    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "unregister empty slot (callback is null)");
+    Require(sceNpRegisterStateCallbackForToolkit(&ToolkitStateCallback, &userdata) == 0, "register the toolkit callback for delivery");
+    Require(toolkitStateCall.calls == 0, "registering does not invoke the toolkit callback");
+    Require(sceNpCheckCallback() == 0, "check with a pending toolkit callback");
+    Require(SignedOutOnce(toolkitStateCall, &userdata), "the toolkit callback gets SIGNED_OUT once with its user data");
+    Require(sceNpCheckCallback() == 0, "second check with the toolkit slot already delivered");
+    Require(toolkitStateCall.calls == 1, "the toolkit callback got the state again");
+    Require(sceNpRegisterStateCallbackForToolkit(&ToolkitStateCallback, &userdata) == 0, "register again to cancel by unregistering");
+    Require(sceNpUnregisterStateCallbackForToolkit() == 0, "unregister before the check");
+    Require(sceNpCheckCallback() == 0, "check after unregistering before delivery");
+    Require(toolkitStateCall.calls == 1, "unregistering before the check cancelled the delivery");
+    int secondUserdata = 0;
+    Require(sceNpRegisterStateCallbackForToolkit(&ToolkitStateCallback, &userdata) == 0, "register before the replacement");
+    Require(sceNpRegisterStateCallbackForToolkit(&ToolkitStateCallback, &secondUserdata) == 0, "registering again overwrites the pending slot");
+    Require(sceNpCheckCallback() == 0, "check after the replacement");
+    Require(toolkitStateCall.calls == 2 && toolkitStateCall.userId == InitialUserId && toolkitStateCall.state == StateSignedOut &&
+        toolkitStateCall.userdata == &secondUserdata, "the replaced slot delivers once with the new user data");
+    Require(sceNpRegisterStateCallbackForToolkit(nullptr, &userdata) == 0, "register a null callback for delivery");
+    Require(sceNpCheckCallback() == 0, "check with a null toolkit callback");
+    Require(toolkitStateCall.calls == 2, "a null toolkit callback was called");
+    void* const aCallback = reinterpret_cast<void*>(&StateCallbackA<8>);
+    const int aId = sceNpRegisterStateCallbackA(reinterpret_cast<NpStateCallbackA>(aCallback), &userdata);
+    Require(aId >= 1 && aId <= 8, "free state callback slot for the isolation check");
+    Require(sceNpRegisterStateCallbackForToolkit(&ToolkitStateCallback, &secondUserdata) == 0, "register the toolkit callback beside an A callback");
+    Require(sceNpCheckCallback() == 0, "check with the toolkit slot and one A callback");
+    Require(stateCallsA[8].calls == 1 && stateCallsA[8].userdata == &userdata, "the A callback gets its own single delivery");
+    Require(toolkitStateCall.calls == 3 && toolkitStateCall.userdata == &secondUserdata, "the toolkit callback delivers once beside the A callback");
+    Require(legacyStateCall.calls == 1, "the toolkit slot delivered to the legacy callback");
+    Require(sceNpCheckCallback() == 0, "check again after the isolation check");
+    Require(stateCallsA[8].calls == 1 && toolkitStateCall.calls == 3, "a check repeated the toolkit or A delivery");
+    Require(sceNpUnregisterStateCallbackA(aId) == 0, "unregister the A callback of the isolation check");
+    ToolkitSelfUnregister self{};
+    Require(sceNpRegisterStateCallbackForToolkit(&ToolkitSelfUnregisteringCallback, &self) == 0, "register a self-unregistering toolkit callback");
+    Require(sceNpCheckCallback() == 0, "check with a toolkit callback that unregisters itself");
+    Require(self.calls == 1 && self.result == 0, "a toolkit callback must be able to unregister itself");
+    Require(sceNpUnregisterStateCallbackForToolkit() == NotRegistered, "the toolkit callback did not unregister itself");
 }
 
 void CheckRequestTimeouts() {
@@ -1143,8 +1157,8 @@ int main() {
     CheckUserIdQueries();
     CheckStateCallbacksA();
     CheckLegacyStateCallback();
-    CheckToolkitStateCallback();
     CheckGamePresenceCallbacksA();
+    CheckToolkitStateCallback();
     CheckRequestTimeouts();
     CheckAsyncRequestLifecycle();
     CheckWaitAsync();

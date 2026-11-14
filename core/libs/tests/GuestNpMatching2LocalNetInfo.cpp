@@ -23,7 +23,7 @@ extern "C" void NetCtlSetStunServers_nid_no_patch(const sockaddr_in* servers, st
 
 namespace {
 
-constexpr int NotInitialized = static_cast<int>(0x80550C03u);
+constexpr int SignalingNotInitialized = static_cast<int>(0x80550E01u);
 constexpr int InvalidArgument = static_cast<int>(0x80550C0Au);
 constexpr int NetCtlNotConnected = static_cast<int>(0x80412108u);
 constexpr int NetCtlInfoIpAddress = 14;
@@ -165,8 +165,8 @@ int main() {
     NetCtlSetStunServers_nid_no_patch(nullptr, 0, 1);
 
     NpMatching2SignalingNetInfo info = Filled(NetInfoSize);
-    Require(sceNpMatching2SignalingGetLocalNetInfo(nullptr) == NotInitialized, "a null pointer before initialization did not return NOT_INITIALIZED first");
-    Require(sceNpMatching2SignalingGetLocalNetInfo(&info) == NotInitialized && Untouched(info, NetInfoSize), "a call before initialization did not return NOT_INITIALIZED or wrote the answer");
+    Require(sceNpMatching2SignalingGetLocalNetInfo(nullptr) == SignalingNotInitialized, "a null pointer before initialization did not return NOT_INITIALIZED first");
+    Require(sceNpMatching2SignalingGetLocalNetInfo(&info) == SignalingNotInitialized && Untouched(info, NetInfoSize), "a call before initialization did not return NOT_INITIALIZED or wrote the answer");
 
     NpMatching2InitializeParameter init{};
     init.size = 0x30;
@@ -192,7 +192,7 @@ int main() {
 
     Require(sceNpMatching2Terminate() == 0, "sceNpMatching2Terminate failed");
     info = Filled(NetInfoSize);
-    Require(sceNpMatching2SignalingGetLocalNetInfo(&info) == NotInitialized && Untouched(info, NetInfoSize), "a call after termination did not return NOT_INITIALIZED or wrote the answer");
+    Require(sceNpMatching2SignalingGetLocalNetInfo(&info) == SignalingNotInitialized && Untouched(info, NetInfoSize), "a call after termination did not return NOT_INITIALIZED or wrote the answer");
     NetCtlSetStunServers_nid_no_patch(nullptr, 0, 0);
 
     if (failures != 0) return 1;

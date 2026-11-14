@@ -1,4 +1,5 @@
 #include "prx/libc/include/General.hpp"
+#include "prx/libSceNKWebKit/include/RegionExports.hpp"
 #include "prx/libSceNKWebKit/include/WebCoreExports.hpp"
 #include "prx/libSceNKWebKit/src/WebCoreTypes.hpp"
 #include "prx/libSceNKWebKit/src/WtfVector.hpp"
@@ -327,6 +328,68 @@ LengthKind CheckedLengthKind(const LengthAbi& length) {
 
 float LengthValue(const LengthAbi& length) {
     return length.m_isFloat ? length.m_floatValue : static_cast<float>(length.m_intValue);
+}
+
+int ApproxSaturatedAdd(int a, int b) {
+    std::uint32_t ua = static_cast<std::uint32_t>(a);
+    std::uint32_t ub = static_cast<std::uint32_t>(b);
+    std::uint32_t result = ua + ub;
+    if (!((ua ^ ub) >> 31) && ((result ^ ua) >> 31))
+        return static_cast<int>(static_cast<std::uint32_t>(std::numeric_limits<int>::max()) + (ua >> 31));
+    return static_cast<int>(result);
+}
+
+int ApproxSaturatedSub(int a, int b) {
+    std::uint32_t ua = static_cast<std::uint32_t>(a);
+    std::uint32_t ub = static_cast<std::uint32_t>(b);
+    std::uint32_t result = ua - ub;
+    if (((ua ^ ub) >> 31) && ((result ^ ua) >> 31))
+        return static_cast<int>(static_cast<std::uint32_t>(std::numeric_limits<int>::max()) + (ua >> 31));
+    return static_cast<int>(result);
+}
+
+int ApproxLayoutFromDouble(double value) {
+    double scaled = value * 64;
+    if (scaled >= static_cast<double>(std::numeric_limits<int>::max()))
+        return std::numeric_limits<int>::max();
+    if (!(scaled > static_cast<double>(std::numeric_limits<int>::min())))
+        return std::numeric_limits<int>::min();
+    return static_cast<int>(scaled);
+}
+
+int ApproxLayoutRound(int raw) {
+    if (raw > 0)
+        return ApproxSaturatedAdd(raw, 32) / 64;
+    return ApproxSaturatedSub(raw, 31) / 64;
+}
+
+void ApproxSubtractCorner(WebCore::Region& region, unsigned stepLength, WebCore::LayoutPoint corner,
+    WebCore::LayoutPoint ellipsisCenter, WebCore::LayoutSize axes, double fromAngle) {
+    constexpr double pi = 3.14159265358979323846;
+    double toAngle = fromAngle + pi / 2;
+    int arcLengthFactor = ApproxLayoutRound(std::min(axes.m_width.m_value, axes.m_height.m_value));
+    unsigned count = (static_cast<unsigned>(arcLengthFactor) + (stepLength / 2)) / stepLength;
+    constexpr unsigned maximumCount = 20u;
+    count = std::min(maximumCount, count);
+    for (unsigned i = 0; i < count; ++i) {
+        double angle = fromAngle + static_cast<double>(i + 1) * (toAngle - fromAngle) / static_cast<double>(count + 1);
+        WebCore::LayoutPoint ellipsisPoint{
+            WebCore::LayoutUnit{ApproxLayoutFromDouble(static_cast<double>(axes.m_width.m_value) / 64 * std::cos(angle))},
+            WebCore::LayoutUnit{ApproxLayoutFromDouble(static_cast<double>(axes.m_height.m_value) / 64 * std::sin(angle))}};
+        WebCore::LayoutPoint point{
+            WebCore::LayoutUnit{ApproxSaturatedAdd(ellipsisCenter.m_x.m_value, ellipsisPoint.m_x.m_value)},
+            WebCore::LayoutUnit{ApproxSaturatedAdd(ellipsisCenter.m_y.m_value, ellipsisPoint.m_y.m_value)}};
+        int minX = std::min(corner.m_x.m_value, point.m_x.m_value);
+        int minY = std::min(corner.m_y.m_value, point.m_y.m_value);
+        int maxX = std::max(corner.m_x.m_value, point.m_x.m_value);
+        int maxY = std::max(corner.m_y.m_value, point.m_y.m_value);
+        WebCore::LayoutRect cornerLayoutRect{
+            WebCore::LayoutPoint{WebCore::LayoutUnit{minX}, WebCore::LayoutUnit{minY}},
+            WebCore::LayoutSize{WebCore::LayoutUnit{ApproxSaturatedSub(maxX, minX)}, WebCore::LayoutUnit{ApproxSaturatedSub(maxY, minY)}}};
+        WebCore::Region cornerRegion;
+        cornerRegion.m_bounds = _ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(cornerLayoutRect);
+        _ZN7WebCore6Region8subtractERKS0_(&region, cornerRegion);
+    }
 }
 
 }  // namespace
@@ -1056,6 +1119,51 @@ float APS5_VABI _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(const WebCore::L
         return 0.0f;
     }
     return 0.0f;
+}
+
+WebCore::Region APS5_VABI _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(const WebCore::RoundedRect& roundedRect, unsigned stepLength) {
+    constexpr double pi = 3.14159265358979323846;
+    WebCore::Region region;
+    const WebCore::LayoutRect& rect = roundedRect.m_rect;
+    if (rect.m_size.m_width.m_value <= 0 || rect.m_size.m_height.m_value <= 0)
+        return region;
+
+    WebCore::Region rectRegion;
+    rectRegion.m_bounds = _ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(rect);
+    _ZN7WebCore6Region5uniteERKS0_(&region, rectRegion);
+
+    const WebCore::RoundedRect::Radii& radii = roundedRect.m_radii;
+    auto isZero = [](const WebCore::LayoutSize& size) { return !size.m_width.m_value && !size.m_height.m_value; };
+    if (isZero(radii.m_topLeft) && isZero(radii.m_topRight) && isZero(radii.m_bottomLeft) && isZero(radii.m_bottomRight))
+        return region;
+    if (!stepLength)
+        throw std::invalid_argument("WebCore::approximateAsRegion: zero step length divides by zero");
+
+    int x = rect.m_location.m_x.m_value;
+    int y = rect.m_location.m_y.m_value;
+    int maxX = WebCore::ApproxSaturatedAdd(x, rect.m_size.m_width.m_value);
+    int maxY = WebCore::ApproxSaturatedAdd(y, rect.m_size.m_height.m_value);
+    auto point = [](int px, int py) { return WebCore::LayoutPoint{WebCore::LayoutUnit{px}, WebCore::LayoutUnit{py}}; };
+    using WebCore::ApproxSaturatedAdd;
+    using WebCore::ApproxSaturatedSub;
+
+    const WebCore::LayoutSize& bottomRight = radii.m_bottomRight;
+    WebCore::ApproxSubtractCorner(region, stepLength, point(maxX, maxY),
+        point(ApproxSaturatedSub(maxX, bottomRight.m_width.m_value), ApproxSaturatedSub(maxY, bottomRight.m_height.m_value)), bottomRight, 0);
+
+    const WebCore::LayoutSize& bottomLeft = radii.m_bottomLeft;
+    WebCore::ApproxSubtractCorner(region, stepLength, point(x, maxY),
+        point(ApproxSaturatedAdd(x, bottomLeft.m_width.m_value), ApproxSaturatedSub(maxY, bottomLeft.m_height.m_value)), bottomLeft, pi / 2);
+
+    const WebCore::LayoutSize& topLeft = radii.m_topLeft;
+    WebCore::ApproxSubtractCorner(region, stepLength, point(x, y),
+        point(ApproxSaturatedAdd(x, topLeft.m_width.m_value), ApproxSaturatedAdd(y, topLeft.m_height.m_value)), topLeft, pi);
+
+    const WebCore::LayoutSize& topRight = radii.m_topRight;
+    WebCore::ApproxSubtractCorner(region, stepLength, point(maxX, y),
+        point(ApproxSaturatedSub(maxX, topRight.m_width.m_value), ApproxSaturatedAdd(y, topRight.m_height.m_value)), topRight, pi * 3 / 2);
+
+    return region;
 }
 
 }

@@ -74,6 +74,9 @@ double* APS5_VABI _Xp_ldexpx_nid_postfix(double* p, int n, int m);
 double* APS5_VABI _Xp_mulx_nid_postfix(double* p, int n, const double* q, int m, double* ptemp2);
 double* APS5_VABI _Xp_invx_nid_postfix(double* p, int n, double* ptemp4);
 double* APS5_VABI _Xp_sqrtx_nid_postfix(double* p, int n, double* ptemp4);
+float APS5_VABI _ZSt8_XLgammaf_nid_postfix(float x);
+double APS5_VABI _ZSt8_XLgammad_nid_postfix(double x);
+long double APS5_VABI _ZSt8_XLgammae_nid_postfix(long double x);
 
 std::uint16_t* APS5_VABI sceLibcInternalUnknown_1hGmBh83dL8_nid_no_patch(double* value);
 std::uint16_t* APS5_VABI sceLibcInternalUnknown_hrv1BgM68kU_nid_no_patch(double* value);

@@ -4,64 +4,7 @@
 #include "prx/libcairo/include/Matrix.hpp"
 #include "prx/libcairo/include/Surface.hpp"
 
-#include <atomic>
-#include <cstdint>
-#include <vector>
-
 struct CairoPattern;
-
-struct CairoColor {
-    double red;
-    double green;
-    double blue;
-    double alpha;
-    std::uint16_t redShort;
-    std::uint16_t greenShort;
-    std::uint16_t blueShort;
-    std::uint16_t alphaShort;
-};
-
-struct CairoPointDouble {
-    double x;
-    double y;
-};
-
-struct CairoGradientStop {
-    double offset;
-    CairoColor color;
-};
-
-struct CairoMeshPatch {
-    CairoPointDouble points[4][4];
-    CairoColor colors[4];
-};
-
-struct CairoPatternState {
-    std::atomic<int> references{1};
-    int status{};
-    int type{};
-    int filter{1};
-    int extend{3};
-    int dither{};
-    CairoMatrix matrix{1, 0, 0, 1, 0, 0};
-    double opacity{1};
-    CairoColor color{};
-    CairoSurface* surface{};
-    CairoPointDouble points[2]{};
-    double radii[2]{};
-    std::vector<CairoGradientStop> stops;
-    std::vector<CairoMeshPatch> patches;
-    int currentPatch{-1};
-    int currentSide{-2};
-    bool hasControlPoint[4]{};
-    bool hasColor[4]{};
-};
-
-CairoPatternState* CairoPatternInternal(CairoPattern* pattern);
-CairoPattern* CairoPatternBlack();
-CairoPattern* CairoPatternCreateRgba(double red, double green, double blue, double alpha);
-CairoColor CairoColorFromRgba(double red, double green, double blue, double alpha);
-bool CairoColorEqual(const CairoColor& a, const CairoColor& b);
 
 extern "C" {
 CairoPattern* APS5_VABI cairo_pattern_create_for_surface(CairoSurface* surface);

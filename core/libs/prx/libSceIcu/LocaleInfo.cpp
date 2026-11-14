@@ -275,15 +275,6 @@ std::int32_t APS5_VABI uloc_getLineOrientation_nid_postfix(const char* localeId,
     return uloc_getLineOrientation(localeId, error);
 }
 
-std::int8_t APS5_VABI uloc_isRightToLeft_nid_postfix(const char* locale) {
-    IcuBackend::Locale(locale);
-    char script[8];
-    UErrorCode status = U_ZERO_ERROR;
-    const std::int32_t length = uloc_getScript(locale, script, sizeof(script), &status);
-    if (U_FAILURE(status) || status == U_STRING_NOT_TERMINATED_WARNING || length == 0) IcuBackend::CanonicalLocale(locale);
-    return uloc_isRightToLeft(locale);
-}
-
 const char16_t* APS5_VABI uloc_getTableStringWithFallback_nid_postfix(const char* path, const char* locale, const char* tableKey, const char* subTableKey, const char* itemKey, std::int32_t* pLength, std::int32_t* pErrorCode) {
     UErrorCode* error = Status(pErrorCode);
     IcuBackend::Package(path);

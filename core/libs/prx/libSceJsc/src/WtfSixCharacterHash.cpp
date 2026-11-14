@@ -21,16 +21,18 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
  * Derived from Source/WTF/wtf/SixCharacterHash.cpp@c55364d53f971f63a709976f168d932d558b8909
  */
 
-#include "prx/libSceJsc/include/WtfSixCharacterHashExports.hpp"
+#include "prx/libc/include/general/VabiMacros.hpp"
+#include "prx/libSceJsc/include/WtfHelperExports.hpp"
 
 extern "C" {
 
-std::array<char, 7> APS5_VABI _ZN3WTF31integerToSixCharacterHashStringEj(unsigned hash) {
-    static constexpr char table[63] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    std::array<char, 7> buffer;
+Jsc::WtfAbi::SixCharacterHash APS5_VABI _ZN3WTF31integerToSixCharacterHashStringEj(unsigned hash) {
+    static const char table[63] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    Jsc::WtfAbi::SixCharacterHash buffer;
     unsigned accumulator = hash;
     for (unsigned i = 6; i--;) {
         buffer[i] = table[accumulator % 62];

@@ -1,9 +1,15 @@
 #include "prx/libcairo/include/InventoryExports.hpp"
+#include "prx/libcairo/include/Context.hpp"
 #include <cstdlib>
 
 namespace {
 
-using CairoFontOptionsStorage = CairoFontOptionsState;
+struct CairoFontOptionsStorage {
+    cairo_antialias_t antialias;
+    cairo_subpixel_order_t subpixel_order;
+    cairo_hint_style_t hint_style;
+    cairo_hint_metrics_t hint_metrics;
+};
 
 const CairoFontOptionsStorage nilOptions{};
 
@@ -23,15 +29,6 @@ cairo_font_options_t* Nil() {
     return reinterpret_cast<cairo_font_options_t*>(const_cast<CairoFontOptionsStorage*>(&nilOptions));
 }
 
-}
-
-int CairoFontOptionsStatus(const cairo_font_options_t* options) {
-    if (options == nullptr) return 7;
-    return Storage(options) == &nilOptions ? 1 : 0;
-}
-
-const CairoFontOptionsState* CairoFontOptionsRead(const cairo_font_options_t* options) {
-    return Storage(options);
 }
 
 extern "C" {
@@ -70,6 +67,21 @@ void APS5_VABI cairo_font_options_set_hint_metrics(cairo_font_options_t* options
 
 void APS5_VABI cairo_font_options_set_subpixel_order(cairo_font_options_t* options, cairo_subpixel_order_t subpixel_order) {
     if (!Invalid(options)) Storage(options)->subpixel_order = subpixel_order;
+}
+
+void APS5_VABI cairo_set_font_options(CairoContext* context, const cairo_font_options_t* options) {
+    if (options == nullptr) {
+        CairoContextSetFontOptions(context, nullptr);
+        return;
+    }
+    if (Invalid(options)) {
+        CairoContextSetNilFontOptions(context);
+        return;
+    }
+    const CairoFontOptionsStorage& storage = *Storage(options);
+    const CairoFontOptionsFields fields{storage.antialias, storage.subpixel_order,
+                                        storage.hint_style, storage.hint_metrics};
+    CairoContextSetFontOptions(context, &fields);
 }
 
 }

@@ -1,5 +1,4 @@
 #include "prx/libc/include/general/ExportMacros.hpp"
-#include "prx/libSceAudioOut/include/AudioOut2.hpp"
 #include "prx/libSceAudioOut/include/InventoryExports.hpp"
 #include "prx/libSceAudioOut/include/LaterExports.hpp"
 #include "prx/libc/include/General.hpp"
@@ -8,10 +7,6 @@ extern "C" {
 
 int APS5_VABI sceAudioOut2GetSystemDebugState() {
     NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI sceAudioOut2PortSetAttributesEx(AudioOut2PortHandle port, const AudioOut2Attribute* attributes, uint32_t num) {
-    return sceAudioOut2PortSetAttributes(port, attributes, num);
 }
 
 int APS5_VABI sceAudioOut2SetHrtfIdForCronos() {

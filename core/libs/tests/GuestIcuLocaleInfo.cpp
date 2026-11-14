@@ -157,7 +157,6 @@ void CheckStrings() {
         Require(std::string(uloc_getISO3Language_nid_postfix(locale)) == uloc_getISO3Language(locale), what + " ISO3 language");
         Require(std::string(uloc_getISO3Country_nid_postfix(locale)) == uloc_getISO3Country(locale), what + " ISO3 country");
         Require(uloc_getLCID_nid_postfix(locale) == uloc_getLCID(locale), what + " LCID");
-        Require(uloc_isRightToLeft_nid_postfix(locale) == uloc_isRightToLeft(locale), what + " right to left");
         Require(ulocimp_isCanonicalizedLocaleForTest_nid_postfix(locale) == ulocimp_isCanonicalizedLocaleForTest(locale), what + " canonicalized");
         for (int line = 0; line < 2; ++line) {
             std::int32_t status = Ok;
@@ -378,7 +377,6 @@ void CheckDefaults() {
     Require(NotImplemented([&] { uloc_toLanguageTag_nid_postfix(nullptr, chars, 64, 0, &ok); }), "toLanguageTag throws for NULL");
     Require(NotImplemented([&] { uloc_getCharacterOrientation_nid_postfix(nullptr, &ok); }), "getCharacterOrientation throws for NULL");
     Require(NotImplemented([&] { uloc_getLineOrientation_nid_postfix(nullptr, &ok); }), "getLineOrientation throws for NULL");
-    Require(NotImplemented([&] { uloc_isRightToLeft_nid_postfix(nullptr); }), "isRightToLeft throws for NULL");
     Require(NotImplemented([&] { ulocimp_getRegionForSupplementalData_nid_postfix(nullptr, 0, chars, 64, &ok); }), "getRegionForSupplementalData throws for NULL");
     Require(NotImplemented([&] { ulocimp_isCanonicalizedLocaleForTest_nid_postfix(nullptr); }), "isCanonicalizedLocaleForTest throws for NULL");
     Require(NotImplemented([&] { uloc_getTableStringWithFallback_nid_postfix("ICUDATA-lang", nullptr, "Languages", nullptr, "de", nullptr, &ok); }), "getTableStringWithFallback throws for NULL");
@@ -417,7 +415,6 @@ void CheckDefaults() {
         Require(NotImplemented([&] { uloc_getName_nid_postfix(locale, chars, 64, &ok); }), std::string("i-default throws in getName: ") + locale);
         Require(NotImplemented([&] { uloc_addLikelySubtags_nid_postfix(locale, chars, 64, &ok); }), std::string("i-default throws in addLikelySubtags: ") + locale);
         Require(NotImplemented([&] { uloc_toLanguageTag_nid_postfix(locale, chars, 64, 0, &ok); }), std::string("i-default throws in toLanguageTag: ") + locale);
-        Require(NotImplemented([&] { uloc_isRightToLeft_nid_postfix(locale); }), std::string("i-default throws in isRightToLeft: ") + locale);
         Require(NotImplemented([&] { ulocimp_isCanonicalizedLocaleForTest_nid_postfix(locale); }), std::string("i-default throws in isCanonicalizedLocaleForTest: ") + locale);
         Require(NotImplemented([&] { ulocimp_getRegionForSupplementalData_nid_postfix(locale, 1, chars, 64, &ok); }), std::string("i-default throws when the region is inferred: ") + locale);
         std::int32_t status = Ok;
@@ -466,7 +463,6 @@ void CheckDefaults() {
             std::int32_t status = Ok;
             UErrorCode hostStatus = U_ZERO_ERROR;
             Require(uloc_getCharacterOrientation_nid_postfix(locale, &status) == uloc_getCharacterOrientation(locale, &hostStatus) && status == hostStatus, std::string("default orientation ") + fallback + " " + Name(locale));
-            Require(uloc_isRightToLeft_nid_postfix(locale) == uloc_isRightToLeft(locale), std::string("default right to left ") + fallback + " " + Name(locale));
             Require(Name(uloc_getISO3Country_nid_postfix(locale)) == Name(uloc_getISO3Country(locale)), std::string("default ISO3 country ") + fallback + " " + Name(locale));
         }
     }
