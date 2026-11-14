@@ -330,38 +330,54 @@ bool SearchEqual(const char* left, const char* right, std::size_t count) {
     return bounded <= 0 || std::strncmp(left, right, static_cast<std::size_t>(bounded)) == 0;
 }
 
-std::size_t FindText(const String& string, const char* needle, std::size_t position, std::size_t count) {
-    constexpr auto missing = std::numeric_limits<std::size_t>::max();
-    if (!string.text) return missing;
+constexpr auto SearchMissing = std::numeric_limits<std::size_t>::max();
+
+std::optional<std::size_t> FindBounds(const String& string, std::size_t position, std::size_t count) {
+    if (!string.text) return SearchMissing;
     const std::size_t length = string.text->length;
-    if (!count) return position <= length ? position : missing;
-    if (position >= length || count > length - position) return missing;
-    if (!needle) { NotImplemented_nid_no_patch(__func__); return missing; }
+    if (!count) return position <= length ? position : SearchMissing;
+    if (position >= length || count > length - position) return SearchMissing;
+    return std::nullopt;
+}
+
+std::size_t FindScan(const String& string, const char* needle, std::size_t position, std::size_t count) {
     const char* begin = string.text->characters;
     const char* cursor = begin + position;
-    while (cursor < begin + length) {
+    while (cursor < begin + string.text->length) {
         const char* candidate = std::strchr(cursor, static_cast<unsigned char>(*needle));
-        if (!candidate) return missing;
+        if (!candidate) return SearchMissing;
         if (SearchEqual(candidate, needle, count)) return static_cast<std::size_t>(candidate - begin);
         cursor = candidate + 1;
     }
-    return missing;
+    return SearchMissing;
 }
 
-std::size_t ReverseFindText(const String& string, const char* needle, std::size_t position, std::size_t count) {
-    constexpr auto missing = std::numeric_limits<std::size_t>::max();
-    if (!string.text) return missing;
+std::size_t FindText(const String& string, const char* needle, std::size_t position, std::size_t count) {
+    if (const auto bounded = FindBounds(string, position, count)) return *bounded;
+    return FindScan(string, needle, position, count);
+}
+
+std::optional<std::size_t> ReverseFindBounds(const String& string, std::size_t position, std::size_t count) {
+    if (!string.text) return SearchMissing;
     const std::size_t length = string.text->length;
     if (!count) return std::min(position, length);
-    if (count > length) return missing;
-    if (!needle) { NotImplemented_nid_no_patch(__func__); return missing; }
-    std::size_t index = std::min(position, length - count);
+    if (count > length) return SearchMissing;
+    return std::nullopt;
+}
+
+std::size_t ReverseFindScan(const String& string, const char* needle, std::size_t position, std::size_t count) {
+    std::size_t index = std::min(position, string.text->length - count);
     for (;;) {
         const char* candidate = string.text->characters + index;
         if (*candidate == *needle && SearchEqual(candidate, needle, count)) return index;
-        if (!index) return missing;
+        if (!index) return SearchMissing;
         --index;
     }
+}
+
+std::size_t ReverseFindText(const String& string, const char* needle, std::size_t position, std::size_t count) {
+    if (const auto bounded = ReverseFindBounds(string, position, count)) return *bounded;
+    return ReverseFindScan(string, needle, position, count);
 }
 
 std::string_view View(const String& string) {
@@ -2749,10 +2765,18 @@ char APS5_VABI _ZNK3sce4Json6String2atEm(const String* self, std::size_t index) 
     return !self->text ? 0 : index < self->text->length ? self->text->characters[index] : emptyCharacters[0];
 }
 std::size_t APS5_VABI _ZNK3sce4Json6String4findEPKcm(const String* self, const char* needle, std::size_t position) { return FindText(*self, needle, position, needle ? std::strlen(needle) : 0); }
-std::size_t APS5_VABI _ZNK3sce4Json6String4findEPKcmm(const String* self, const char* needle, std::size_t position, std::size_t count) { return FindText(*self, needle, position, count); }
+std::size_t APS5_VABI _ZNK3sce4Json6String4findEPKcmm(const String* self, const char* needle, std::size_t position, std::size_t count) {
+    if (const auto bounded = FindBounds(*self, position, count)) return *bounded;
+    if (!needle) NotImplemented_nid_no_patch(__func__);
+    return FindScan(*self, needle, position, count);
+}
 std::size_t APS5_VABI _ZNK3sce4Json6String4findERKS1_m(const String* self, const String* needle, std::size_t position) { return FindText(*self, Characters(*needle), position, std::strlen(Characters(*needle))); }
 std::size_t APS5_VABI _ZNK3sce4Json6String5rfindEPKcm(const String* self, const char* needle, std::size_t position) { return ReverseFindText(*self, needle, position, needle ? std::strlen(needle) : 0); }
-std::size_t APS5_VABI _ZNK3sce4Json6String5rfindEPKcmm(const String* self, const char* needle, std::size_t position, std::size_t count) { return ReverseFindText(*self, needle, position, count); }
+std::size_t APS5_VABI _ZNK3sce4Json6String5rfindEPKcmm(const String* self, const char* needle, std::size_t position, std::size_t count) {
+    if (const auto bounded = ReverseFindBounds(*self, position, count)) return *bounded;
+    if (!needle) NotImplemented_nid_no_patch(__func__);
+    return ReverseFindScan(*self, needle, position, count);
+}
 std::size_t APS5_VABI _ZNK3sce4Json6String5rfindERKS1_m(const String* self, const String* needle, std::size_t position) { return ReverseFindText(*self, Characters(*needle), position, std::strlen(Characters(*needle))); }
 std::size_t APS5_VABI _ZNK3sce4Json6String4findEcm(const String* self, char character, std::size_t position) { return FindText(*self, &character, position, 1); }
 std::size_t APS5_VABI _ZNK3sce4Json6String5rfindEcm(const String* self, char character, std::size_t position) { return ReverseFindText(*self, &character, position, 1); }

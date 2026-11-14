@@ -7,6 +7,7 @@
 #include <cstring>
 #include <limits>
 #include <initializer_list>
+#include <stdexcept>
 
 using namespace SceJson2;
 
@@ -47,6 +48,18 @@ int main() {
     Require(_ZNK3sce4Json6String4findEPKcmm(&text, nullptr, 0, none) == none && _ZNK3sce4Json6String5rfindEPKcmm(&text, nullptr, none, none) == none, "Oversized counts must be rejected before touching the needle");
     Require(_ZNK3sce4Json6String4findEcm(&text, '\0', 0) == 3 && _ZNK3sce4Json6String4findEcm(&text, 'X', 3) == none && _ZNK3sce4Json6String5rfindEcm(&text, '\0', none) == 3, "Character search must preserve forward C-string and reverse byte semantics");
     Require(_ZNK3sce4Json6String4findEcm(&text, static_cast<char>(0xff), 4) == 5 && _ZNK3sce4Json6String5rfindEcm(&text, static_cast<char>(0xff), none) == 5, "Character search must preserve high-bit byte values");
+    Require(_ZNK3sce4Json6String4findEPKcmm(&missing, nullptr, 0, 1) == none && _ZNK3sce4Json6String5rfindEPKcmm(&missing, nullptr, none, 1) == none &&
+                _ZNK3sce4Json6String4findEPKcmm(&text, nullptr, 6, 1) == none && _ZNK3sce4Json6String4findEPKcmm(&text, nullptr, 5, 2) == none &&
+                _ZNK3sce4Json6String5rfindEPKcmm(&text, nullptr, 0, 7) == none, "Missing storage and rejected ranges must return none before touching the needle");
+    for (std::size_t position : {std::size_t{0}, std::size_t{5}}) {
+        bool forwardThrew = false, reverseThrew = false;
+        try { _ZNK3sce4Json6String4findEPKcmm(&text, nullptr, position, 1); } catch (const std::runtime_error&) { forwardThrew = true; }
+        try { _ZNK3sce4Json6String5rfindEPKcmm(&text, nullptr, position, 1); } catch (const std::runtime_error&) { reverseThrew = true; }
+        Require(forwardThrew && reverseThrew, "An admitted positive count with a null needle must stay unsupported");
+    }
+    Require(_ZNK3sce4Json6String4findEcm(&text, 'X', 0) == 2 && _ZNK3sce4Json6String4findEcm(&text, 'X', 5) == none && _ZNK3sce4Json6String4findEcm(&text, 'a', 6) == none &&
+                _ZNK3sce4Json6String5rfindEcm(&text, 'X', 3) == 2 && _ZNK3sce4Json6String5rfindEcm(&text, 'b', 0) == none && _ZNK3sce4Json6String5rfindEcm(&text, 'a', none) == 0,
+            "Character searches must honor positions in both directions");
     char tailBytes[]{'a', 'b', 'X', '\0'};
     Text tailHeader{tailBytes, 3, 4, 0}; String tail{&tailHeader};
     Require(_ZNK3sce4Json6String4findEPKcmm(&tail, "X", 0, 2) == 2, "Forward candidates must retain native zero-terminated comparison beyond the initial length check");
