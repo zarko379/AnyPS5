@@ -69,4 +69,22 @@ int main() {
     Require((kernelUuidBytes[8] & 0xc0) == 0x80);
     Require((kernelUuidBytes[10] & 0x01) == 0);
     Require(std::memcmp(&kernelUuidBytes[10], first[0].node, sizeof(first[0].node)) == 0);
+    Require(sceKernelCreateUuidV7(nullptr) == SCE_KERNEL_ERROR_EINVAL);
+    Require(sceKernelCreateUuidV7(reinterpret_cast<std::uint8_t*>(0x10)) == SCE_KERNEL_ERROR_EFAULT);
+    const auto unixMilliseconds = [] {
+        return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+    };
+    const auto before = unixMilliseconds();
+    std::array<std::uint8_t, 16> v7First{};
+    std::array<std::uint8_t, 16> v7Second{};
+    Require(sceKernelCreateUuidV7(v7First.data()) == 0 && sceKernelCreateUuidV7(v7Second.data()) == 0);
+    const auto after = unixMilliseconds();
+    for (const auto& bytes : {v7First, v7Second}) {
+        std::uint64_t stamp = 0;
+        for (int index = 0; index < 6; ++index) stamp = (stamp << 8) | bytes[index];
+        Require(stamp + 1000 >= before && stamp <= after + 1000);
+        Require((bytes[6] >> 4) == 7);
+        Require((bytes[8] & 0xc0) == 0x80);
+    }
+    Require(std::memcmp(&v7First[6], &v7Second[6], 10) != 0);
 }

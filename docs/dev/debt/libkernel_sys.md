@@ -8,14 +8,13 @@
 - [sceKernelGetCpuUsage, sceKernelGetThreadName, sceKernelLwfsAllocateBlock, sceKernelLwfsLseek, sceKernelLwfsSetAttribute, sceKernelLwfsWrite, sceKernelSetCompressionAttribute and sceKernelSetFsstParam](../../../core/libs/prx/libkernel_sys/Export.Discovery.cpp) (libkernel_sys) - throw through `NotImplemented_nid_no_patch`; behaviour and the PS5 prototypes are unmeasured. The parameter lists come from a single source, the PS4 OpenOrbis `libkernel.h`, with no second reference: `off_t` and `ssize_t` are taken as 64-bit, the `Lwfs*` and `Set*` parameters are unnamed there (the names here are guesses), and the `Proc_Stats` of `sceKernelGetCpuUsage` is declared as `void*` because its layout is unknown.
 - [Nine unnamed additional exports](../../../core/libs/prx/libkernel_sys/AdditionalExports.cpp) (libkernel_sys, NIDs `pCbBddNl66Y`, `zAloppPJxy0`, `vq2+HyP5U5I`, `z+e0vV-tnH4`, `gJ5gpW45mU0`, `N94a0T4F4+U`, `C49jelxiaVE`, `1WXQlxMpnNA`, `FR0odl35yQY`) - return what firmware 13.42's `system/common/lib/libkernel_sys.sprx` returns, read from disassembly to the return, not measured on a console. The first five are `xor %eax,%eax; ret`, `N94a0T4F4+U` is `mov $0x8002004e,%eax; ret` and `C49jelxiaVE` is `mov $0x20018,%eax; ret`. `1WXQlxMpnNA` stores 1 to a zero-initialised module byte and returns 0, and `FR0odl35yQY` returns that byte zero-extended; no other code in the module touches the byte. None reads an argument, so the declarations are parameterless; the 32-bit loads clear the upper half of `rax`, so they return `std::uint64_t`. Names, intended parameters and callers are unknown.
 
-- [libkernel_sys additional exports](../../../core/libs/prx/libkernel_sys/AdditionalExports.cpp) - 301 callable exports have import-resolution declarations only. Parameter lists, return types and behavior remain unverified. Parameterless `int` declarations are placeholders, not verified ABI prototypes; every entry throws through `NotImplemented_nid_no_patch`. Unresolved names use literal NID aliases; no runtime functionality or data objects are fabricated. Existing providers and exports supplied by open pull requests are excluded. Kernel variant imports already resolve through `libkernel`, then `libc`; existing providers remain unchanged. Six native data exports (`errno`, `__stack_chk_guard`, `_sigintr`, `__progname`, `environ`, and NID `AxgW94umKqU`) require separate storage, layout, TLS and ownership validation and are not added as callable aliases or fabricated globals.
+- [libkernel_sys additional exports](../../../core/libs/prx/libkernel_sys/AdditionalExports.cpp) - 298 callable exports have import-resolution declarations only. Parameter lists, return types and behavior remain unverified. Parameterless `int` declarations are placeholders, not verified ABI prototypes; every entry throws through `NotImplemented_nid_no_patch`. Unresolved names use literal NID aliases; no runtime functionality or data objects are fabricated. Existing providers and exports supplied by open pull requests are excluded. Kernel variant imports already resolve through `libkernel`, then `libc`; existing providers remain unchanged. Six native data exports (`errno`, `__stack_chk_guard`, `_sigintr`, `__progname`, `environ`, and NID `AxgW94umKqU`) require separate storage, layout, TLS and ownership validation and are not added as callable aliases or fabricated globals.
 
 | Name | NID |
 | --- | --- |
 | `__cfi_slowpath` | `Bq2a8HmmUoY` |
 | `__cfi_slowpath_diag` | `-cbfK7bCKQU` |
 | `__freeze` | `nSSPVGJLMjE` |
-| `__sceKernelGetGPI` | `3JYhkiIHkJc` |
 | `__sys_debug_init` | `zdaF5N-Xe2M` |
 | `__sys_dl_get_info` | `YbAunrti+54` |
 | `__sys_dl_get_info_2` | `lCp17SqY3Nc` |
@@ -58,7 +57,6 @@
 | `pthread_setschedother_np` | `ymCrwbFD4fk` |
 | `sceKernelAddDynlibEvent` | `dGFwUPT+BK8` |
 | `sceKernelAddFGCInfo` | `M+vuTJQ3F8Y` |
-| `sceKernelCreateUuidV7` | `Nr+3bRBygw0` |
 | `sceKernelDeleteDynlibEvent` | `0GquoxOD3Aw` |
 | `sceKernelDeleteFGCInfo` | `ZGfk6FwQozw` |
 | `sceKernelEnableDmemAliasing3` | `RbhD-epf6c0` |
@@ -107,7 +105,6 @@
 | `sceKernelKernelHeapGetCount` | `rd23OgUSfZQ` |
 | `sceKernelKernelHeapUsage2` | `pQiLz-exzR4` |
 | `sceKernelMapFlexibleMemoryInternal2` | `dYK287SsmDs` |
-| `sceKernelMapFlexibleMemoryInternal` | `z68xkNPqNRk` |
 | `sceKernelMapNamedFlexibleMemoryInternal2` | `n7I71nQgO3M` |
 | `sceKernelMapNamedSystemFlexibleMemory2` | `QS0AbROQuJM` |
 | `sceKernelMapperGetIndirectBufferInfo` | `kz6S+-e2e74` |
@@ -438,3 +435,4 @@ The following eight candidate spellings are absent from that aerolib revision. T
 - [sceCoredumpInternalGetThreadContextInfo](../../../core/libs/prx/libkernel_sys/Export.Discovery.cpp) (libkernel_sys) forwards to libkernel's `sceCoredumpGetThreadContextInfo(void*, size_t)`: a null buffer or a size other than 144 gives `0x81180000`, anything else `0x81180003` because no coredump handler runs. Deduced from that sibling, not measured on a console
 - [__sceKernelGetGPI](../../../core/libs/prx/libkernel_sys/AdditionalExports.cpp) (libkernel_sys) returns libkernel's `sceKernelGetGPI()`, so it reads the same bits `sceKernelSetGPO` stores. Deduced from the sibling's name and its `uint64_t (void)` prototype (OpenOrbis `libkernel.h`), not measured on a console; the hardware inputs themselves are not modelled
 - [pthread_mutex_init_for_mono](../../../core/libs/prx/libkernel_sys/Export.Discovery.cpp) (libkernel_sys) takes `pthread_mutex_init`'s `(pthread_mutex_t*, const pthread_mutexattr_t*)` and forwards to libkernel's implementation, so a null attribute gives an error-checking mutex. Deduced from that sibling, not measured on a console; whatever the Mono-specific variant changes is unknown
+- [sceKernelCreateUuidV7](../../../core/libs/prx/libkernel_sys/Uuid.cpp) (libkernel_sys) takes the `std::uint8_t*` of its siblings `sceKernelCreateUuidV1` here and libkernel's `sceKernelCreateUuidV4`, with their `SCE_KERNEL_ERROR_EINVAL` for null and `SCE_KERNEL_ERROR_EFAULT` for unwritable memory, and writes the [RFC 9562 section 5.7](https://www.rfc-editor.org/rfc/rfc9562#section-5.7) layout: the big-endian 48-bit Unix time in milliseconds from `CLOCK_REALTIME`, version 7, variant `10` and random `rand_a` and `rand_b`. Deduced from the name and those siblings, not measured on a console; whether the console adds a monotonic counter within one millisecond (an option RFC 9562 section 6.2 allows) is unknown, so two calls in the same millisecond are not ordered
