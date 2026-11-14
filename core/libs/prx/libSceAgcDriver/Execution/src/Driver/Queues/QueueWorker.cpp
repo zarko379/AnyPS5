@@ -20,7 +20,7 @@ namespace {
 std::chrono::milliseconds IdleResultsQuietPeriod() {
     static const std::chrono::milliseconds period = [] {
         const char* value = std::getenv("APS5_IDLE_RESULTS_QUIET_MS");
-        if (value == nullptr) return std::chrono::milliseconds(10);
+        if (value == nullptr) return std::chrono::milliseconds(50);
         return std::chrono::milliseconds(std::max(0, std::atoi(value)));
     }();
     return period;
