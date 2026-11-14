@@ -47,8 +47,8 @@ int APS5_VABI __freeze_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI __sceKernelGetGPI_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
+std::uint64_t APS5_VABI __sceKernelGetGPI_nid_postfix() {
+    return sceKernelGetGPI();
 }
 
 int APS5_VABI __sys_debug_init_nid_postfix() {
@@ -1858,8 +1858,8 @@ int APS5_VABI sceKernelKernelHeapUsage2() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI sceKernelMapFlexibleMemoryInternal() {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceKernelMapFlexibleMemoryInternal(void** addrInOut, std::size_t len, int prot, int flags) {
+    return sceKernelMapFlexibleMemory(addrInOut, len, prot, flags);
 }
 
 int APS5_VABI sceKernelMapFlexibleMemoryInternal2() {

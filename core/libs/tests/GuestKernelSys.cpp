@@ -1,4 +1,5 @@
 #include "prx/libkernel_sys/include/Api.hpp"
+#include "prx/libkernel_sys/include/AdditionalExports.hpp"
 #include "prx/libkernel/include/Api.hpp"
 #include "prx/libSceNet/include/Net.hpp"
 #include "prx/libkernel/Apr/include/AprCommandBuffer.hpp"
@@ -1538,6 +1539,61 @@ static void CheckGetfsstat() {
     }
 }
 
+static void CheckInternalVariants(const std::string& file) {
+    const int fd = sceKernelOpenInternal(file.c_str(), SCE_KERNEL_O_RDONLY, 0);
+    char byte = 0;
+    Require(fd >= 0 && sceKernelRead(fd, &byte, 1) == 1 && byte == 'x' && sceKernelClose(fd) == 0);
+    Require(sceKernelOpenInternal((file + ".missing").c_str(), SCE_KERNEL_O_RDONLY, 0) == static_cast<int>(0x80020002u));
+    constexpr std::size_t length = 0x4000;
+    std::size_t before = 0;
+    std::size_t available = 0;
+    Require(sceKernelAvailableFlexibleMemorySize(&before) == 0);
+    for (const int flags : {0, 0x8000}) {
+        void* flexible = nullptr;
+        Require(sceKernelMapFlexibleMemoryInternal(&flexible, length, 3, flags) == 0 && flexible != nullptr);
+        static_cast<volatile unsigned char*>(flexible)[length - 1] = 1;
+        Require(sceKernelAvailableFlexibleMemorySize(&available) == 0 && available == before - length);
+        Require(sceKernelMunmap(reinterpret_cast<std::uint64_t>(flexible), length) == 0);
+    }
+    void* refusedFlexible = nullptr;
+    Require(sceKernelMapFlexibleMemoryInternal(&refusedFlexible, length, 8, 0) == static_cast<int>(0x80020016u) && refusedFlexible == nullptr);
+    std::int64_t physical = 0;
+    Require(sceKernelAllocateDirectMemory(0, 0x7fffffffffll, length, 0, 0, &physical) == 0);
+    void* refusedDirect = nullptr;
+    Require(sceKernelInternalMapDirectMemory(&refusedDirect, length, 5, 0, physical, 0) == static_cast<int>(0x80020016u) && refusedDirect == nullptr);
+    void* direct = nullptr;
+    Require(sceKernelInternalMapDirectMemory(&direct, length, 3, 0, physical, 0) == 0 && direct != nullptr);
+    static_cast<volatile unsigned char*>(direct)[0] = 7;
+    Require(sceKernelMunmap(reinterpret_cast<std::uint64_t>(direct), length) == 0);
+    void* named = nullptr;
+    Require(sceKernelInternalMapNamedDirectMemory(&named, length, 3, 0, physical, 0, "internal direct") == 0 && named != nullptr);
+    VirtualQueryInfo info{};
+    Require(sceKernelVirtualQuery(named, 0, &info, sizeof(info)) == 0 && std::strcmp(info.name, "internal direct") == 0);
+    void* refusedNamed = nullptr;
+    Require(sceKernelInternalMapNamedDirectMemory(&refusedNamed, length, 5, 0, physical, 0, "refused") == static_cast<int>(0x80020016u) && refusedNamed == nullptr);
+    Require(sceKernelMunmap(reinterpret_cast<std::uint64_t>(named), length) == 0);
+    Require(sceKernelReleaseDirectMemory(physical, length) == 0);
+    std::array<unsigned char, 144> context{};
+    Require(sceCoredumpInternalGetThreadContextInfo(context.data(), context.size()) == static_cast<int>(0x81180003u));
+    Require(sceCoredumpInternalGetThreadContextInfo(context.data(), context.size() - 1) == static_cast<int>(0x81180000u));
+    Require(sceCoredumpInternalGetThreadContextInfo(nullptr, context.size()) == static_cast<int>(0x81180000u));
+    sceKernelSetGPO(0x5A);
+    Require(__sceKernelGetGPI_nid_postfix() == 0x5A && sceKernelGetGPI() == 0x5A);
+    sceKernelSetGPO(0);
+    Require(__sceKernelGetGPI_nid_postfix() == 0);
+    PthreadMutex checked = nullptr;
+    Require(pthread_mutex_init_for_mono_nid_postfix(&checked, nullptr) == 0);
+    Require(pthread_mutex_lock_nid_postfix(&checked) == 0 && pthread_mutex_lock_nid_postfix(&checked) == 11);
+    Require(pthread_mutex_unlock_nid_postfix(&checked) == 0 && pthread_mutex_destroy_nid_postfix(&checked) == 0);
+    PthreadMutexattr attr = nullptr;
+    Require(pthread_mutexattr_init_nid_postfix(&attr) == 0 && pthread_mutexattr_settype_nid_postfix(&attr, 2) == 0);
+    PthreadMutex recursive = nullptr;
+    Require(pthread_mutex_init_for_mono_nid_postfix(&recursive, &attr) == 0);
+    Require(pthread_mutex_lock_nid_postfix(&recursive) == 0 && pthread_mutex_lock_nid_postfix(&recursive) == 0);
+    Require(pthread_mutex_unlock_nid_postfix(&recursive) == 0 && pthread_mutex_unlock_nid_postfix(&recursive) == 0);
+    Require(pthread_mutex_destroy_nid_postfix(&recursive) == 0 && pthread_mutexattr_destroy_nid_postfix(&attr) == 0);
+}
+
 int main() {
 #ifdef _WIN32
     auto hostDirectorySpelling = std::filesystem::current_path().native();
@@ -1582,6 +1638,7 @@ int main() {
     const auto file = (root / "file.txt").string();
     std::ofstream(file).put('x');
     CheckPathconf(root, file);
+    CheckInternalVariants(file);
     const int descriptor = open_nid_postfix(file.c_str(), 0, 0);
     Require(descriptor >= 0);
     ThreadAndSessionTests(descriptor);

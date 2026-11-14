@@ -3,6 +3,7 @@
 #include "SceTypes.hpp"
 #include "prx/libkernel_sys/include/CfiCheckFail.hpp"
 
+#include <cstddef>
 #include <cstdint>
 
 extern "C" {
@@ -10,7 +11,7 @@ extern "C" {
 int APS5_VABI __cfi_slowpath_diag_nid_postfix();
 int APS5_VABI __cfi_slowpath_nid_postfix();
 int APS5_VABI __freeze_nid_postfix();
-int APS5_VABI __sceKernelGetGPI_nid_postfix();
+std::uint64_t APS5_VABI __sceKernelGetGPI_nid_postfix();
 int APS5_VABI __sys_debug_init_nid_postfix();
 int APS5_VABI __sys_dl_get_info_2_nid_postfix();
 int APS5_VABI __sys_dl_get_info_nid_postfix();
@@ -310,7 +311,7 @@ int APS5_VABI sceKernelIsEcoChargeAvailable();
 int APS5_VABI sceKernelIsSpmemAvailable();
 int APS5_VABI sceKernelKernelHeapGetCount();
 int APS5_VABI sceKernelKernelHeapUsage2();
-int APS5_VABI sceKernelMapFlexibleMemoryInternal();
+int APS5_VABI sceKernelMapFlexibleMemoryInternal(void** addrInOut, std::size_t len, int prot, int flags);
 int APS5_VABI sceKernelMapFlexibleMemoryInternal2();
 int APS5_VABI sceKernelMapNamedFlexibleMemoryInternal2();
 int APS5_VABI sceKernelMapNamedSystemFlexibleMemory2();

@@ -250,9 +250,8 @@ int APS5_VABI pthread_multi_np_nid_postfix(void) {
     return 0;
 }
 
-int APS5_VABI pthread_mutex_init_for_mono_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI pthread_mutex_init_for_mono_nid_postfix(PthreadMutex* mutex, const PthreadMutexattr* attr) {
+    return pthread_mutex_init_nid_postfix(mutex, attr);
 }
 
 int APS5_VABI pthread_mutexattr_getgen_np_nid_postfix(const PthreadMutexattr* attr, int* generation) {
@@ -365,9 +364,8 @@ int APS5_VABI sceCoredumpGetStopInfoGpu(void) {
     return 0;
 }
 
-int APS5_VABI sceCoredumpInternalGetThreadContextInfo(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceCoredumpInternalGetThreadContextInfo(void* threadContextInfo, std::size_t threadContextInfoSize) {
+    return sceCoredumpGetThreadContextInfo(threadContextInfo, threadContextInfoSize);
 }
 
 int APS5_VABI sceKernelAddACInfo(void) {
@@ -1266,14 +1264,12 @@ int APS5_VABI sceKernelInternalHeapPrintBacktraceWithModuleInfo(void) {
     return 0;
 }
 
-int APS5_VABI sceKernelInternalMapDirectMemory(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceKernelInternalMapDirectMemory(void** addr, std::size_t len, int prot, int flags, std::int64_t directMemoryStart, std::size_t alignment) {
+    return sceKernelMapDirectMemory(addr, len, prot, flags, directMemoryStart, alignment);
 }
 
-int APS5_VABI sceKernelInternalMapNamedDirectMemory(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceKernelInternalMapNamedDirectMemory(void** addr, std::size_t len, int prot, int flags, std::int64_t directMemoryStart, std::size_t alignment, const char* name) {
+    return sceKernelMapNamedDirectMemory(addr, len, prot, flags, directMemoryStart, alignment, name);
 }
 
 int APS5_VABI sceKernelInternalResumeDirectMemoryRelease(void) {
@@ -1443,9 +1439,8 @@ int APS5_VABI sceKernelOpenEport(void) {
     return static_cast<int>(0x80020001);
 }
 
-int APS5_VABI sceKernelOpenInternal(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceKernelOpenInternal(const char* path, int flags, std::uint16_t mode) {
+    return sceKernelOpen(path, flags, mode);
 }
 
 int APS5_VABI sceKernelOpenSema(void) {
