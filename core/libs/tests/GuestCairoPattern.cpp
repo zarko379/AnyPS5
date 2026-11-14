@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdio>
 #include <limits>
+#include <utility>
 
 namespace {
 
@@ -148,11 +149,20 @@ void CheckMatrixFilterExtend() {
     assert(PatternStatus(pattern) == 5);
     cairo_pattern_destroy(pattern);
 
-    pattern = cairo_pattern_create_linear(0, 0, 1, 0);
-    const CairoMatrix nonFinite{std::numeric_limits<double>::infinity(), 1, 1, 1, 0, 0};
-    cairo_pattern_set_matrix(pattern, &nonFinite);
-    assert(PatternStatus(pattern) == 5);
-    cairo_pattern_destroy(pattern);
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const std::array<std::pair<CairoMatrix, int>, 4> nonFinite{{
+        {{inf, 1, 1, 1, 0, 0}, 0},
+        {{nan, 0, 0, 1, 0, 0}, 0},
+        {{nan, 1, 1, 1, 0, 0}, 5},
+        {{1, 0, 0, 1, inf, nan}, 0},
+    }};
+    for (const auto& [matrix, status] : nonFinite) {
+        pattern = cairo_pattern_create_linear(0, 0, 1, 0);
+        cairo_pattern_set_matrix(pattern, &matrix);
+        assert(PatternStatus(pattern) == status);
+        cairo_pattern_destroy(pattern);
+    }
 }
 
 void CheckMeshConstruction() {

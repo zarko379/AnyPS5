@@ -6,6 +6,7 @@
 
 #include <bit>
 #include <cstddef>
+#include <limits>
 
 static_assert(sizeof(CairoPathData) == sizeof(cairo_path_data_t));
 static_assert(offsetof(CairoPathData, header.length) == offsetof(cairo_path_data_t, header.length));
@@ -229,12 +230,20 @@ void APS5_VABI cairo_rectangle(CairoContext* context, double x, double y, double
 
 void APS5_VABI cairo_arc(CairoContext* context, double xc, double yc, double radius,
                          double angle1, double angle2) {
-    aps5_cairo_arc(Backend(context), xc, yc, radius, angle1, angle2);
+    cairo_t* backend = Backend(context);
+    if (aps5_cairo_status(backend) == CAIRO_STATUS_SUCCESS && !(radius <= 0.0) &&
+        angle2 - angle1 == std::numeric_limits<double>::infinity())
+        NotImplemented_nid_no_patch(__func__);
+    aps5_cairo_arc(backend, xc, yc, radius, angle1, angle2);
 }
 
 void APS5_VABI cairo_arc_negative(CairoContext* context, double xc, double yc, double radius,
                                   double angle1, double angle2) {
-    aps5_cairo_arc_negative(Backend(context), xc, yc, radius, angle1, angle2);
+    cairo_t* backend = Backend(context);
+    if (aps5_cairo_status(backend) == CAIRO_STATUS_SUCCESS && !(radius <= 0.0) &&
+        angle1 - angle2 == std::numeric_limits<double>::infinity())
+        NotImplemented_nid_no_patch(__func__);
+    aps5_cairo_arc_negative(backend, xc, yc, radius, angle1, angle2);
 }
 
 int APS5_VABI cairo_in_fill(CairoContext* context, double x, double y) {

@@ -371,9 +371,39 @@ void CheckArcs() {
     cairo_new_path(context);
     cairo_arc(context, 0, 0, 1, 0, 0);
     ExpectPath(context, {{0, {1, 0}}, {1, {1, 0}}});
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    for (double end : {nan, -inf}) {
+        cairo_new_path(context);
+        cairo_arc(context, 0, 0, 1, 0, end);
+        ExpectPath(context, {{0, {1, 0}}});
+    }
     cairo_new_path(context);
-    cairo_arc(context, 0, 0, 1, 0, std::numeric_limits<double>::infinity());
+    cairo_arc_negative(context, 0, 0, 1, 0, nan);
     ExpectPath(context, {{0, {1, 0}}});
+    cairo_new_path(context);
+    cairo_arc(context, 0, 0, 1, inf, inf);
+    ExpectPath(context, {{0, {0, 0}}, {1, {0, 0}}});
+    cairo_new_path(context);
+    cairo_move_to(context, 2, 3);
+    const std::array<std::array<double, 3>, 4> unbounded{{{1, 0, inf}, {1, -1e308, 1e308}, {nan, -inf, 0}, {-1, 0, inf}}};
+    for (const auto& [radius, start, end] : unbounded) {
+        bool threw = false;
+        try {
+            if (radius < 0)
+                cairo_arc_negative(context, 0, 0, 1, end, start);
+            else
+                cairo_arc(context, 0, 0, radius, start, end);
+        } catch (const std::runtime_error&) {
+            threw = true;
+        }
+        assert(threw);
+        ExpectPath(context, {{0, {2, 3}}});
+    }
+    cairo_new_path(context);
+    cairo_arc(context, 3, 4, 0, 0, inf);
+    cairo_arc_negative(context, 3, 4, -1, inf, 0);
+    ExpectPath(context, {{0, {3, 4}}, {1, {3, 4}}});
 
     cairo_new_path(context);
     cairo_scale(context, 1000, 1000);
@@ -394,6 +424,8 @@ void CheckArcs() {
     cairo_restore(context);
     cairo_arc(context, 0, 0, 1, 0, 1);
     cairo_arc_negative(context, 0, 0, 1, 0, 1);
+    cairo_arc(context, 0, 0, 1, 0, inf);
+    cairo_arc_negative(context, 0, 0, 1, inf, 0);
     path = cairo_copy_path(context);
     assert(path->status == 2 && path->num_data == 0);
     cairo_path_destroy(path);

@@ -12,6 +12,8 @@
 
 - [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) - `cairo_in_fill` on a context without error throws through `NotImplemented_nid_no_patch` when the fill rule is neither winding nor even-odd. Cairo 1.18.0 `cairo-path-in-fill.c` returns 0 for an empty path and 1 for a point on an edge under any rule, but reaches `ASSERT_NOT_REACHED` for any other point, which aborts or returns 0 depending on `NDEBUG`; the guard runs before Cairo, so the empty-path and on-edge answers are not reproduced for such a rule. Not measured on a console.
 
+- [Context.cpp](../../../core/libs/prx/libcairo/Context.cpp) - `cairo_arc` and `cairo_arc_negative` on a context without error and with a radius that is not `<= 0` throw through `NotImplemented_nid_no_patch` when the arc spans an infinite angle (`angle2 - angle1`, or `angle1 - angle2` for the negative arc, is `+inf`). Cairo 1.18.0 built without `_GNU_SOURCE` uses the `ISFINITE` fallback of `cairoint.h`, which lets infinities through `cairo-arc.c` line 191; `fmod` then makes the end angle NaN, `ceil(NaN)` is converted to `int` (undefined) and `segments -= 1` overflows, so the segment loop runs about 2^31 times. Every other non-finite angle reaches Cairo. Not measured on a console.
+
 ### Functional font options
 
 - [FontOptions.cpp](../../../core/libs/prx/libcairo/FontOptions.cpp) implements eight font-option lifecycle, antialias and hint-setting helpers with Cairo-compatible owned state and a protected nil object. Tested on Windows and Linux sanitizers.
