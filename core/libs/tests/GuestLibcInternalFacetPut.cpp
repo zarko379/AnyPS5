@@ -704,6 +704,46 @@ void CheckWidePutAndRepeat() {
     Require(out.failed && out.buffer == nullptr, "wide money_put::_Rep to a null stream buffer fails");
 }
 
+using PutSequenceExport = std::int32_t (APS5_VABI *)(GuestLocale::Streambuf*, const char*, std::int32_t);
+using WidePutSequenceExport = std::int32_t (APS5_VABI *)(GuestLocale::Streambuf*, const std::uint16_t*, std::int32_t);
+
+void CheckStreambufPutSequence() {
+    const auto put = Export<PutSequenceExport>("sXaxl1QGorg");
+    const auto widePut = Export<WidePutSequenceExport>("041c37QfoUc");
+
+    char storage[4] {};
+    char* next = storage;
+    char* end = storage + sizeof(storage);
+    TestStreambuf area{{&g_streambufVtable, {}, &next, {}, &end}, {}, 0, 8};
+    Require(put(&area.buffer, "abcdef", 6) == 6, "xsputn reports every character it put");
+    Require(std::memcmp(storage, "abcd", 4) == 0 && next == end, "xsputn copies into the put area first");
+    Require(area.accepted == "ef" && area.offered == 2, "xsputn overflows the rest one character at a time");
+
+    next = storage;
+    area = TestStreambuf{{&g_streambufVtable, {}, &next, {}, &end}, {}, 0, 0};
+    Require(put(&area.buffer, "123456", 6) == 4 && std::memcmp(storage, "1234", 4) == 0, "xsputn stops at the first eof after filling the put area");
+    Require(area.offered == 1, "xsputn offers one character to a failing overflow");
+
+    auto stream = MakeStream(2);
+    Require(put(&stream.buffer, "xyz", 3) == 2 && stream.accepted == "xy" && stream.offered == 3, "xsputn without a put area stops when overflow returns eof");
+    Require(put(&stream.buffer, "xyz", 0) == 0 && stream.offered == 3, "xsputn of no characters calls nothing");
+    Require(put(&stream.buffer, "xyz", -5) == 0 && stream.offered == 3, "xsputn of a negative count puts nothing");
+    stream = MakeStream(8);
+    const char high[] = {static_cast<char>(0xff)};
+    Require(put(&stream.buffer, high, 1) == 1 && stream.accepted == std::string(1, static_cast<char>(0xff)), "xsputn passes 0xff to overflow as 255, not eof");
+
+    std::uint16_t wideStorage[3] {};
+    std::uint16_t* wideNext = wideStorage;
+    std::uint16_t* wideEnd = wideStorage + 3;
+    WideTestStreambuf wide{{&g_wideStreambufVtable, {}, &wideNext, {}, &wideEnd}, {}, 0, 8};
+    const std::uint16_t five[] = {1, 2, 3, 0xffff, 0x4e2d};
+    Require(widePut(reinterpret_cast<GuestLocale::Streambuf*>(&wide.header), five, 5) == 5, "wide xsputn reports every unit it put");
+    Require(wideStorage[0] == 1 && wideStorage[1] == 2 && wideStorage[2] == 3 && wideNext == wideEnd, "wide xsputn copies into a three-unit put area first");
+    Require(wide.accepted == std::vector<int>{0xffff, 0x4e2d}, "wide xsputn overflows zero-extended units and keeps going after U+FFFF");
+    WideTestStreambuf full{{&g_wideStreambufVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 0};
+    Require(widePut(reinterpret_cast<GuestLocale::Streambuf*>(&full.header), five, 5) == 0 && full.offered == 1, "wide xsputn stops when overflow returns eof");
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -735,6 +775,7 @@ int main(int argc, char** argv) {
     CheckLibcTimePut();
     CheckPutAndRepeat();
     CheckWidePutAndRepeat();
+    CheckStreambufPutSequence();
 
     std::puts("libc internal num_put and time_put put checks passed");
     return 0;

@@ -5,6 +5,7 @@
 #include "SceTypes.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 
 namespace {
@@ -112,6 +113,29 @@ void PutWide(GuestLocale::OutputIterator& out, std::uint16_t character) {
 GuestLocale::OutputIterator RepeatWide(GuestLocale::OutputIterator out, std::uint16_t character, std::size_t count) {
     for (; count > 0; --count) PutWide(out, character);
     return out;
+}
+
+template <typename TBuffer, typename TElement, typename TUnsigned>
+std::int32_t PutSequence(TBuffer* buffer, const TElement* source, std::int32_t count) {
+    if (buffer == nullptr) throw std::invalid_argument("basic_streambuf::xsputn: null stream buffer");
+    const std::int32_t start = count;
+    while (0 < count) {
+        TElement* next = *buffer->putNext;
+        const std::int32_t available = next != nullptr ? static_cast<std::int32_t>(*buffer->putEnd - next) : 0;
+        if (0 < available) {
+            const std::int32_t size = count < available ? count : available;
+            std::memcpy(next, source, static_cast<std::size_t>(size) * sizeof(TElement));
+            source += size;
+            count -= size;
+            *buffer->putNext = next + size;
+        } else if (buffer->vtable->overflow(buffer, static_cast<TUnsigned>(*source)) == -1) {
+            break;
+        } else {
+            ++source;
+            --count;
+        }
+    }
+    return start - count;
 }
 
 }
@@ -272,6 +296,16 @@ GuestLocale::OutputIterator APS5_VABI sceLibcInternalWideMoneyPutRepeat_nid_no_p
     return RepeatWide(out, character, count);
 }
 APS5_EXPORT("6QU40olMkOM", sceLibcInternalWideMoneyPutRepeat_nid_no_patch);
+
+std::int32_t APS5_VABI sceLibcInternalStreambufPutSequence_nid_no_patch(GuestLocale::Streambuf* self, const char* source, std::int32_t count) {
+    return PutSequence<GuestLocale::Streambuf, char, unsigned char>(self, source, count);
+}
+APS5_EXPORT("sXaxl1QGorg", sceLibcInternalStreambufPutSequence_nid_no_patch);
+
+std::int32_t APS5_VABI sceLibcInternalWideStreambufPutSequence_nid_no_patch(GuestLocale::Streambuf* self, const std::uint16_t* source, std::int32_t count) {
+    return PutSequence<WideStreambuf, std::uint16_t, std::uint16_t>(reinterpret_cast<WideStreambuf*>(self), source, count);
+}
+APS5_EXPORT("041c37QfoUc", sceLibcInternalWideStreambufPutSequence_nid_no_patch);
 
 GuestLocale::OutputIterator APS5_VABI sceLibcInternalTimePut_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, const GuestTm* time, char format, char modifier) {
     return reinterpret_cast<const GuestLocale::TimePutVtable*>(self->vtable)->put(self, out, stream, fill, time, format, modifier);
