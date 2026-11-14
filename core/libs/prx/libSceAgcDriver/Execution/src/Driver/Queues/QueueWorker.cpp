@@ -17,7 +17,14 @@ namespace AgcDriver::DriverDetail {
 
 namespace {
 
-constexpr auto IdleResultsQuietPeriod = std::chrono::milliseconds(50);
+std::chrono::milliseconds IdleResultsQuietPeriod() {
+    static const std::chrono::milliseconds period = [] {
+        const char* value = std::getenv("APS5_IDLE_RESULTS_QUIET_MS");
+        if (value == nullptr) return std::chrono::milliseconds(10);
+        return std::chrono::milliseconds(std::max(0, std::atoi(value)));
+    }();
+    return period;
+}
 
 }
 
@@ -225,7 +232,7 @@ void Driver::run(std::uint32_t id) noexcept {
                         const bool storeIdleResults = idleResultsPending();
                         if (storeIdleResults) {
                             queue0Dormant.store(true, std::memory_order_relaxed);
-                            const auto quietUntil = std::chrono::steady_clock::now() + IdleResultsQuietPeriod;
+                            const auto quietUntil = std::chrono::steady_clock::now() + IdleResultsQuietPeriod();
                             const auto idleEpochAtWait = idleEpoch.load(std::memory_order_acquire);
                             changed.wait_until(lock, quietUntil, [&] {
                                 return ready() || idleEpoch.load(std::memory_order_acquire) != idleEpochAtWait;
