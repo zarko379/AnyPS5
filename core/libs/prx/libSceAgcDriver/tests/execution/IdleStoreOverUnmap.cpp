@@ -198,7 +198,7 @@ Outcome Run() {
         mapped = false;
         hold.unlock();
         std::this_thread::sleep_for(IdleStoreWindow);
-        Require(StorageTexture::AnyPending(), "idle store over unmap: the queue's idle store ran while a guest unmap of the surface was in progress");
+        Require(!StorageTexture::AnyPending(), "idle store over unmap: the guest unmap did not retire the pending results of the surface");
     }
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
     while (StorageTexture::AnyPending() && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(std::chrono::milliseconds(1));

@@ -1023,7 +1023,13 @@ void forgetSingleClears(std::uintptr_t address, std::size_t bytes) {
     anySingleClears().store(!singleClears().empty(), std::memory_order_release);
 }
 
+std::atomic<bool>& storageUnmapsWatched() {
+    static std::atomic<bool> watched{false};
+    return watched;
+}
+
 void retireUnmapped(std::uintptr_t address, std::size_t bytes) {
+    if (storageUnmapsWatched().load(std::memory_order_acquire)) static_cast<void>(StorageTexture::DiscardPendingInside(address, bytes));
     forgetSingleClears(address, bytes);
     RetireUnmappedDepth_nid_no_patch(address, bytes);
     std::unique_lock lock(guardedMutex());
@@ -1256,7 +1262,12 @@ void InstallResidentImageReadGuard_nid_no_patch() {
 void UpdateResidentImageUnmapObserver_nid_no_patch() {
     static std::mutex mutex;
     std::lock_guard lock(mutex);
-    GuestAllocations::GuestAllocationsSetUnmapObserver_nid_postfix(anyGuarded().load(std::memory_order_acquire) || anySingleClears().load(std::memory_order_acquire) || HasResidentDepthGuards_nid_no_patch() || DepthPlanesStale() ? &retireUnmapped : nullptr);
+    GuestAllocations::GuestAllocationsSetUnmapObserver_nid_postfix(storageUnmapsWatched().load(std::memory_order_acquire) || anyGuarded().load(std::memory_order_acquire) || anySingleClears().load(std::memory_order_acquire) || HasResidentDepthGuards_nid_no_patch() || DepthPlanesStale() ? &retireUnmapped : nullptr);
+}
+
+void WatchStorageUnmaps_nid_no_patch() {
+    if (storageUnmapsWatched().exchange(true, std::memory_order_acq_rel)) return;
+    UpdateResidentImageUnmapObserver_nid_no_patch();
 }
 
 std::optional<DccKeys> MultisampledCmaskKeys(std::uint8_t code) {
