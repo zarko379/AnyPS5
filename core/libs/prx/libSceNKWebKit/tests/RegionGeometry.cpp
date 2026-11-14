@@ -232,9 +232,54 @@ static void TestAffineTransformMapRegion() {
     _ZN7WebCore6RegionD1Ev(emptyHolder.ptr());
 }
 
+static WebCore::RoundedRect MakeRounded(int x, int y, int w, int h, WebCore::LayoutSize tl, WebCore::LayoutSize tr, WebCore::LayoutSize bl, WebCore::LayoutSize br) {
+    WebCore::RoundedRect rect;
+    rect.m_rect = WebCore::LayoutRect{WebCore::LayoutPoint{x, y}, WebCore::LayoutSize{w, h}};
+    rect.m_radii = WebCore::RoundedRect::Radii{tl, tr, bl, br};
+    return rect;
+}
+
+static void TestApproximateAsRegion() {
+    WebCore::LayoutSize zero{0, 0};
+    WebCore::LayoutSize ten{640, 640};
+    WebCore::Region empty = _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(MakeRounded(0, 0, 0, 640, ten, ten, ten, ten), 4);
+    Require(empty.isEmpty() && _ZNK7WebCore6Region9totalAreaEv(&empty) == 0);
+
+    WebCore::Region square = _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(MakeRounded(64, 128, 640, 320, zero, zero, zero, zero), 0);
+    Require(square.m_bounds.m_location.m_x == 1 && square.m_bounds.m_location.m_y == 2);
+    Require(square.m_bounds.m_size.m_width == 10 && square.m_bounds.m_size.m_height == 5 && !square.m_shape);
+
+    WebCore::Region rounded = _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(MakeRounded(0, 0, 6400, 6400, ten, ten, ten, ten), 4);
+    Require(_ZNK7WebCore6Region9totalAreaEv(&rounded) == 9932);
+    Require(!_ZNK7WebCore6Region8containsERKNS_8IntPointE(&rounded, WebCore::IntPoint{99, 99}));
+    Require(!_ZNK7WebCore6Region8containsERKNS_8IntPointE(&rounded, WebCore::IntPoint{0, 0}));
+    Require(_ZNK7WebCore6Region8containsERKNS_8IntPointE(&rounded, WebCore::IntPoint{95, 95}));
+    Require(_ZNK7WebCore6Region8containsERKNS_8IntPointE(&rounded, WebCore::IntPoint{50, 0}));
+
+    WebCore::Region coarse = _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(MakeRounded(0, 0, 6400, 6400, ten, ten, ten, ten), 1000);
+    Require(_ZNK7WebCore6Region9totalAreaEv(&coarse) == 10000);
+
+    WebCore::Region mixed = _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(
+        MakeRounded(32, -96, 3200, 1920, WebCore::LayoutSize{640, 320}, zero, WebCore::LayoutSize{960, 960}, WebCore::LayoutSize{1280, 64}), 3);
+    Require(_ZNK7WebCore6Region9totalAreaEv(&mixed) == 1505);
+
+    WebCore::Region pill = _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(
+        MakeRounded(0, 0, 6400, 6400, WebCore::LayoutSize{6400, 6400}, WebCore::LayoutSize{6400, 6400}, WebCore::LayoutSize{6400, 6400}, WebCore::LayoutSize{6400, 6400}), 1);
+    Require(_ZNK7WebCore6Region9totalAreaEv(&pill) == 3412);
+
+    bool threw = false;
+    try {
+        _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(MakeRounded(0, 0, 6400, 6400, ten, zero, zero, zero), 0);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+}
+
 int main() {
     TestRegionBasicsAndShape();
     TestRegionGeometryOps();
     TestAffineTransformMapRegion();
+    TestApproximateAsRegion();
     return 0;
 }

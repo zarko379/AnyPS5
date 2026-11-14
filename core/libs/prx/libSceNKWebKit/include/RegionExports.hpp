@@ -494,6 +494,7 @@ extern "C" {
 
 
 void APS5_VABI _ZN7WebCore6Region5Shape9translateERKNS_7IntSizeE(WebCore::Region::Shape* self, const WebCore::IntSize& offset);
+WebCore::Region APS5_VABI _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(const WebCore::RoundedRect& roundedRect, unsigned stepLength);
 void APS5_VABI _ZN7WebCore6Region5uniteERKS0_(WebCore::Region* self, const WebCore::Region& other);
 void APS5_VABI _ZN7WebCore6Region8subtractERKS0_(WebCore::Region* self, const WebCore::Region& other);
 void APS5_VABI _ZN7WebCore6Region9intersectERKS0_(WebCore::Region* self, const WebCore::Region& other);
