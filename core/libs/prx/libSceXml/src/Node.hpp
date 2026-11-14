@@ -11,5 +11,6 @@ void NodeDestroy(XmlNode* self);
 std::uint32_t NodeTypeOf(const XmlNode* self);
 bool NodeHasChildNodes(const XmlNode* self);
 bool NodeHasAttributes(const XmlNode* self);
+XmlString* NodeName(XmlString* result, const XmlNode* self);
 
 }

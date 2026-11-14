@@ -14,9 +14,9 @@ int APS5_VABI _ZNK3sce3Xml3Dom8NodeList4itemEj();
 XmlString* APS5_VABI _ZNK3sce3Xml4Attr8getValueEv(XmlString* result, const XmlHandle* self);
 int APS5_VABI _ZNK3sce3Xml3Dom8NodeListixEj();
 int APS5_VABI _ZNK3sce3Xml3Dom8NodeList8findItemEPKNS0_6StringE();
-int APS5_VABI _ZNK3sce3Xml3Dom8NodeList11isAvailableEv();
+bool APS5_VABI _ZNK3sce3Xml3Dom8NodeList11isAvailableEv(const XmlHandle* self);
 int APS5_VABI _ZNK3sce3Xml3Dom8Document10getXmlMetaEv();
-int APS5_VABI _ZNK3sce3Xml3Dom8NodeList9getLengthEv();
+int APS5_VABI _ZNK3sce3Xml3Dom8NodeList9getLengthEv(const XmlHandle* self);
 bool APS5_VABI _ZNK3sce3Xml4Attr11isAvailableEv(const XmlHandle* self);
 
 }

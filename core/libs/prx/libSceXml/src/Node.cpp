@@ -3,6 +3,7 @@
 #include "prx/libSceXml/src/Document.hpp"
 #include "prx/libSceXml/src/DomReader.hpp"
 
+#include <cstring>
 #include <stdexcept>
 
 namespace XmlDom {
@@ -46,6 +47,16 @@ bool NodeHasChildNodes(const XmlNode* self) {
     const Generation* generation = GenerationOf(self);
     if (generation == nullptr) return false;
     return Reader(generation->buffers).HasChildNodes(OffsetOf(self));
+}
+
+XmlString* NodeName(XmlString* result, const XmlNode* self) {
+    if (result == nullptr || self == nullptr) throw std::invalid_argument("sce::Xml::Dom::Node::getNodeName: null object");
+    const Generation* generation = GenerationOf(self);
+    const char* text = generation != nullptr ? Reader(generation->buffers).NodeName(OffsetOf(self)) : nullptr;
+    if (text != nullptr) const_cast<Generation*>(generation)->lent = true;
+    result->buffer = text;
+    result->size = text != nullptr ? std::strlen(text) : 0;
+    return result;
 }
 
 bool NodeHasAttributes(const XmlNode* self) {

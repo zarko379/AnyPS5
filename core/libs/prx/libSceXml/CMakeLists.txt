@@ -6,6 +6,7 @@ add_library(libSceXml SHARED EXCLUDE_FROM_ALL
     ${CMAKE_CURRENT_SOURCE_DIR}/src/DomReader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/DomParser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Node.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NodeList.cpp
 )
 target_include_directories(libSceXml PRIVATE ${LIBS_INCLUDE_DIR})
 configure_windows_unwind(libSceXml)
