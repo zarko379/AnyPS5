@@ -241,6 +241,13 @@ public:
     OwnedDrawInputProof ArmOwnedDrawInput(std::uint64_t address, std::size_t bytes) const;
     std::shared_ptr<Buffer> ReusableOwnedDrawInput(std::uint64_t address, std::size_t bytes, SnapshotUse use, std::uint32_t* derived, std::size_t from = 0, std::uint32_t* lowest = nullptr);
     void KeepOwnedDrawInput(std::uint64_t address, std::size_t bytes, const OwnedDrawInputProof& proof, std::shared_ptr<Buffer> buffer, SnapshotUse use, std::uint32_t derived, std::size_t from = 0, std::uint32_t lowest = 0);
+    static constexpr std::uint64_t DrawInputStreakBlock = 65536;
+    static constexpr std::uint32_t DrawInputProbeLookups = 32;
+    static constexpr std::uint32_t DrawInputHitShare = 8;
+    static constexpr std::uint32_t DrawInputBypassSpan = 1024;
+    static constexpr std::size_t DrawInputStreakEntries = 65536;
+    bool DrawInputBypassed(std::uint64_t address, SnapshotUse use);
+    void NoteDrawInputLookup(std::uint64_t address, SnapshotUse use, bool reused);
     static constexpr std::size_t ContainingSnapshotProbes = 16;
     void KeepDrawSnapshot(std::uint64_t address, std::size_t bytes, std::uint64_t generation, std::uint64_t registryGeneration, std::shared_ptr<Buffer> buffer, SnapshotUse use = SnapshotUse::Storage, std::uint32_t derived = 0, std::size_t from = 0, std::uint32_t lowest = 0, bool ownedInsertion = false);
     static constexpr std::size_t DrawUploadChunk = std::size_t{1} << 20u;
@@ -1076,6 +1083,13 @@ private:
     void retireUnwrittenSnapshots(const std::array<std::uint64_t, 3>& stamp);
     std::array<DrawSnapshotPool, 2> drawSnapshotPools;
     std::size_t ownedDrawInputs = 0;
+    struct DrawInputStreak {
+        std::uint32_t hits = 0;
+        std::uint32_t lookups = 0;
+        std::uint32_t bypass = 0;
+    };
+    std::unordered_map<std::uint64_t, DrawInputStreak> drawInputStreaks;
+    std::uint64_t drawInputStreakRegistry = 0;
     void eraseDrawSnapshot(std::map<DrawSnapshotKey, DrawSnapshot>::iterator entry);
     struct IndexRange {
         std::uint64_t generation;

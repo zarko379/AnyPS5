@@ -3704,6 +3704,34 @@ std::shared_ptr<Buffer> Recorder::ReusableOwnedDrawInput(std::uint64_t address, 
     return found->second.buffer;
 }
 
+static std::uint64_t DrawInputStreakKey(std::uint64_t address, Recorder::SnapshotUse use) {
+    return (address / Recorder::DrawInputStreakBlock) << 3u | static_cast<std::uint64_t>(use);
+}
+
+bool Recorder::DrawInputBypassed(std::uint64_t address, SnapshotUse use) {
+    const auto registry = GuestAllocations::GuestAllocationsGeneration_nid_postfix();
+    if (registry != drawInputStreakRegistry) {
+        drawInputStreaks.clear();
+        drawInputStreakRegistry = registry;
+        return false;
+    }
+    const auto found = drawInputStreaks.find(DrawInputStreakKey(address, use));
+    if (found == drawInputStreaks.end() || found->second.bypass == 0) return false;
+    --found->second.bypass;
+    return true;
+}
+
+void Recorder::NoteDrawInputLookup(std::uint64_t address, SnapshotUse use, bool reused) {
+    const auto key = DrawInputStreakKey(address, use);
+    if (drawInputStreaks.size() >= DrawInputStreakEntries && !drawInputStreaks.contains(key)) drawInputStreaks.clear();
+    auto& streak = drawInputStreaks[key];
+    if (reused) ++streak.hits;
+    if (++streak.lookups < DrawInputProbeLookups) return;
+    if (streak.hits * DrawInputHitShare < streak.lookups) streak.bypass = DrawInputBypassSpan;
+    streak.hits = 0;
+    streak.lookups = 0;
+}
+
 void Recorder::KeepOwnedDrawInput(std::uint64_t address, std::size_t bytes, const OwnedDrawInputProof& proof, std::shared_ptr<Buffer> buffer, SnapshotUse use, std::uint32_t derived, std::size_t from, std::uint32_t lowest) {
     Require(use != SnapshotUse::Storage, "an owned draw input is a vertex or index buffer");
     if (buffer == nullptr || buffer->Bytes().size() != bytes || !ownedDrawInputHolds(address, bytes, proof)) return;

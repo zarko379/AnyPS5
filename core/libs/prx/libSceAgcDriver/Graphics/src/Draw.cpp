@@ -1474,8 +1474,8 @@ DrawInputCopy CopyDrawInput(const Context& context, Recorder* recorder, std::uin
     Require(from == 0 || (use == Recorder::SnapshotUse::Vertex && from < bytes), "only a vertex input starts past its address");
     DrawInputCopy copy;
     copy.from = from;
-    if (recorder != nullptr && bytes != 0) {
-        GuestMemory::FlushGpuWrites(address, bytes);
+    if (recorder != nullptr && bytes != 0) GuestMemory::FlushGpuWrites(address, bytes);
+    if (recorder != nullptr && bytes != 0 && !recorder->DrawInputBypassed(address, use)) {
 #ifdef _WIN32
         const bool owned = !RuntimeSwitches::Set(RuntimeSwitch::NoOwnedDrawInputs);
 #else
@@ -1483,6 +1483,7 @@ DrawInputCopy CopyDrawInput(const Context& context, Recorder* recorder, std::uin
 #endif
         if (owned && recorder->OwnedDrawInputEntries() != 0) copy.buffer = recorder->ReusableOwnedDrawInput(address, bytes, use, &copy.derived, from, &copy.lowest);
         if (copy.buffer != nullptr) {
+            recorder->NoteDrawInputLookup(address, use, true);
             copy.reused = true;
             return copy;
         }
@@ -1490,6 +1491,7 @@ DrawInputCopy CopyDrawInput(const Context& context, Recorder* recorder, std::uin
         copy.generation = GuestMemory::CollectWrites(address, bytes);
         if (copy.generation != 0) copy.buffer = recorder->ReusableDrawSnapshot(address, bytes, use, &copy.derived, 0, nullptr, from, &copy.lowest);
         else if (owned) copy.owned = recorder->ArmOwnedDrawInput(address, bytes);
+        recorder->NoteDrawInputLookup(address, use, copy.buffer != nullptr);
         if (copy.buffer != nullptr) {
             copy.reused = true;
             return copy;

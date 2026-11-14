@@ -5862,6 +5862,45 @@ void vertexWindowSeriesTests(const Device& device, Recorder& recorder) {
     Require(!stored.reused && std::memcmp(stored.buffer->Bytes().data() + bytes - quad, reinterpret_cast<const void*>(address + bytes - quad), quad) == 0, "a store in the vertex window that served the falling draws was not seen");
 }
 
+void drawInputBypassTests(const Device& device) {
+    using namespace AgcDriver::GuestMemory;
+    using Use = Recorder::SnapshotUse;
+    constexpr std::size_t bytes = 65536;
+    constexpr std::size_t size = 256;
+    void* block = AllocateWatched(bytes, 65536);
+    struct Release {
+        void* block;
+        ~Release() { ReleaseWatched(block, bytes); }
+    } release{block};
+    auto* words = static_cast<std::uint32_t*>(block);
+    for (std::uint32_t i = 0; i < bytes / sizeof(std::uint32_t); ++i) words[i] = i * 13 + 5;
+    const auto& context = device.GetContext();
+    const auto address = reinterpret_cast<std::uint64_t>(block);
+    Recorder cache(context);
+    const auto copyAt = [&](std::size_t offset) {
+        auto copy = CopyDrawInput(context, &cache, address + offset, size, 1, Use::Vertex);
+        Require(std::memcmp(copy.buffer->Bytes().data(), reinterpret_cast<const void*>(address + offset), size) == 0, "a draw input got other bytes than the guest's");
+        KeepDrawInput(&cache, address + offset, copy, Use::Vertex, 0);
+        return copy;
+    };
+    Require(!copyAt(0).reused, "the first copy of a draw input was reused");
+    for (std::uint32_t lookup = 1; lookup < Recorder::DrawInputProbeLookups; ++lookup) Require(copyAt(0).reused, "an unchanged kept draw input was copied again");
+    Require(copyAt(0).reused, "a draw input in a block that mostly hits stopped using the snapshot cache");
+    for (std::uint32_t lookup = 2; lookup < Recorder::DrawInputProbeLookups; ++lookup) Require(!copyAt(size * lookup).reused, "a draw input never copied before was reused");
+    Require(copyAt(0).reused, "a draw input under the hit share before the probe window ended was copied again");
+    Require(!copyAt(0).reused, "a draw input in a block that mostly missed still went through the snapshot cache");
+    Require(!CopyDrawInput(context, &cache, address + bytes - size, size, 1, Use::Index16).reused, "an index input never copied before was reused");
+    for (std::uint32_t skipped = 1; skipped < Recorder::DrawInputBypassSpan; ++skipped) Require(!copyAt(size * (skipped % 128 + 128)).reused, "a bypassed draw input was reused");
+    Require(copyAt(0).reused, "the snapshot cache was not probed again after the bypass span");
+    for (std::uint32_t lookup = 1; lookup < Recorder::DrawInputProbeLookups; ++lookup) Require(!copyAt(size * (lookup + 128)).reused, "a draw input in a block that missed was reused");
+    Require(!copyAt(0).reused, "a draw input in a block that mostly missed again still went through the snapshot cache");
+    words[1] ^= 0xffffffffu;
+    for (std::uint32_t skipped = 1; skipped < Recorder::DrawInputBypassSpan; ++skipped) Require(!copyAt(size * (skipped % 128 + 128)).reused, "a bypassed draw input was reused");
+    Require(!copyAt(0).reused, "a store made while the block bypassed the cache was hidden by its kept snapshot");
+    words[0] ^= 0xffffffffu;
+    Require(!copyAt(0).reused, "a store into a kept draw input was not seen");
+}
+
 void ownedDrawInputTests(const Device& device, Recorder& recorder) {
     using namespace AgcDriver::GuestMemory;
     using Use = Recorder::SnapshotUse;
@@ -16761,6 +16800,7 @@ int main(int argc, char** argv) {
             if (!AgcDriver::GuestMemory::WriteWatched()) return 77;
             drawInputReuseTests(device, recorder);
             vertexWindowSeriesTests(device, recorder);
+            drawInputBypassTests(device);
             std::cout << "Draw input reuse tests passed\n";
             return 0;
         }
@@ -16862,6 +16902,7 @@ int main(int argc, char** argv) {
         drawSnapshotUploadTests(device, recorder);
         drawInputReuseTests(device, recorder);
         if (AgcDriver::GuestMemory::WriteWatched()) vertexWindowSeriesTests(device, recorder);
+        if (AgcDriver::GuestMemory::WriteWatched()) drawInputBypassTests(device);
         drawInputInPlaceTests(device, recorder);
         RunResidentPresentTests(device.GetContext());
         sliceDirtyTests(device, recorder);
