@@ -237,6 +237,37 @@ void CheckSystemErrorDoraise() {
     REQUIRE(rejected);
 }
 
+void CheckSystemMessage(const LibcException::CategoryObject* category, int value, const char* expected) {
+    GuestLocale::String result {};
+    std::memset(&result, 0xcd, sizeof(result));
+    REQUIRE(sceLibcInternalSystemErrorCategoryMessage_nid_no_patch(&result, category, value) == &result);
+    const auto length = std::strlen(expected);
+    REQUIRE(result.reserved == 0 && result.size == length && (result.capacity & 15) == 15);
+    const char* text = result.capacity <= 15 ? result.buffer : result.pointer;
+    REQUIRE(std::memcmp(text, expected, length + 1) == 0);
+    if (result.capacity > 15) _ZdlPv_nid_postfix(result.pointer);
+}
+
+void CheckSystemCategoryMembers() {
+    const auto* system = _ZSt15system_categoryv_nid_postfix();
+    const auto* generic = _ZSt16generic_categoryv_nid_postfix();
+    const auto* future = _ZSt15future_categoryv_nid_postfix();
+    for (int value : {1, 22, 35, 0, 99, 9999}) {
+        const char* mapped = _ZSt13_Syserror_mapi_nid_postfix(value);
+        CheckSystemMessage(system, value, mapped ? mapped : "unknown error");
+    }
+    CheckSystemMessage(future, 1, _ZSt13_Syserror_mapi_nid_postfix(1));
+    CheckSystemMessage(future, 3, _ZSt13_Syserror_mapi_nid_postfix(3));
+    LibcException::ErrorCode condition = sceLibcInternalSystemErrorCategoryCondition_nid_no_patch(system, 22);
+    REQUIRE(condition.reserved == 0 && condition.value == 22 && condition.category == generic);
+    condition = sceLibcInternalSystemErrorCategoryCondition_nid_no_patch(system, 9999);
+    REQUIRE(condition.reserved == 0 && condition.value == 9999 && condition.category == system);
+    condition = sceLibcInternalSystemErrorCategoryCondition_nid_no_patch(future, 9999);
+    REQUIRE(condition.value == 9999 && condition.category == future);
+    condition = sceLibcInternalSystemErrorCategoryCondition_nid_no_patch(future, 2);
+    REQUIRE(condition.value == 2 && condition.category == generic);
+}
+
 }
 
 int main() {
@@ -254,6 +285,7 @@ int main() {
     CheckFutureErrorDoraise();
     CheckFutureCategoryMessage();
     CheckSystemErrorDoraise();
+    CheckSystemCategoryMembers();
 
     std::puts("libc internal exception virtual member checks passed");
     return 0;

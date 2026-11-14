@@ -18,14 +18,21 @@ using PlainWhat = const char* (APS5_VABI *)(const LibcException::ExceptionObject
 using FutureErrorWhat = const char* (APS5_VABI *)(const LibcException::FutureErrorObject*);
 using FutureErrorRaise = void (APS5_VABI *)(const LibcException::FutureErrorObject*);
 using CategoryMessage = GuestLocale::String* (APS5_VABI *)(GuestLocale::String*, const LibcException::CategoryObject*, int);
+using CategoryCondition = LibcException::ErrorCode (APS5_VABI *)(const LibcException::CategoryObject*, int);
 
 constexpr std::size_t WhatSlot = 4;
 constexpr std::size_t DoraiseSlot = 5;
 constexpr std::size_t MessageSlot = 5;
+constexpr std::size_t ObjectMessageSlot = 3;
+constexpr std::size_t ObjectConditionSlot = 4;
 
 template <typename TFunction>
 TFunction Slot(const void* const* table, std::size_t index) {
     return std::bit_cast<TFunction>(table[index]);
+}
+
+const void* const* SystemCategoryTable() {
+    return static_cast<const void* const*>(_ZSt15system_categoryv_nid_postfix()->vtable);
 }
 
 void APS5_VABI DestroySystemError_nid_no_patch(void* object) {
@@ -68,6 +75,16 @@ GuestLocale::String* APS5_VABI sceLibcInternalFutureErrorCategoryMessage_nid_no_
     return Slot<CategoryMessage>(_ZTVSt22_Future_error_category_nid_postfix, MessageSlot)(result, self, value);
 }
 APS5_EXPORT("nWfZplDjbxQ", sceLibcInternalFutureErrorCategoryMessage_nid_no_patch);
+
+GuestLocale::String* APS5_VABI sceLibcInternalSystemErrorCategoryMessage_nid_no_patch(GuestLocale::String* result, const LibcException::CategoryObject* self, int value) {
+    return Slot<CategoryMessage>(SystemCategoryTable(), ObjectMessageSlot)(result, self, value);
+}
+APS5_EXPORT("HpAlvhNKb2Y", sceLibcInternalSystemErrorCategoryMessage_nid_no_patch);
+
+LibcException::ErrorCode APS5_VABI sceLibcInternalSystemErrorCategoryCondition_nid_no_patch(const LibcException::CategoryObject* self, int value) {
+    return Slot<CategoryCondition>(SystemCategoryTable(), ObjectConditionSlot)(self, value);
+}
+APS5_EXPORT("ww3UUl317Ng", sceLibcInternalSystemErrorCategoryCondition_nid_no_patch);
 
 [[noreturn]] void APS5_VABI sceLibcInternalSystemErrorDoraise_nid_no_patch(const LibcException::SystemErrorObject* self) {
     if (!self) throw std::invalid_argument("exception object is null");

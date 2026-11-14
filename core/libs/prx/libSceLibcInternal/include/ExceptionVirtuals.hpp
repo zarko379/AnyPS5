@@ -12,6 +12,8 @@ const char* APS5_VABI sceLibcInternalBadVariantAccessWhat_nid_no_patch(const Lib
 const char* APS5_VABI sceLibcInternalFutureErrorWhat_nid_no_patch(const LibcException::FutureErrorObject* self);
 void APS5_VABI sceLibcInternalFutureErrorDoraise_nid_no_patch(const LibcException::FutureErrorObject* self);
 GuestLocale::String* APS5_VABI sceLibcInternalFutureErrorCategoryMessage_nid_no_patch(GuestLocale::String* result, const LibcException::CategoryObject* self, int value);
+GuestLocale::String* APS5_VABI sceLibcInternalSystemErrorCategoryMessage_nid_no_patch(GuestLocale::String* result, const LibcException::CategoryObject* self, int value);
+LibcException::ErrorCode APS5_VABI sceLibcInternalSystemErrorCategoryCondition_nid_no_patch(const LibcException::CategoryObject* self, int value);
 [[noreturn]] void APS5_VABI sceLibcInternalSystemErrorDoraise_nid_no_patch(const LibcException::SystemErrorObject* self);
 
 }
