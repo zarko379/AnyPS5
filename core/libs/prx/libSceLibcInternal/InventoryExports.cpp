@@ -1008,11 +1008,6 @@ int APS5_VABI libSceLibcInternalInventory_215_nid_no_patch() {
 }
 APS5_EXPORT("66AuqgLnsQE", libSceLibcInternalInventory_215_nid_no_patch);
 
-int APS5_VABI libSceLibcInternalInventory_216_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("1dY2KJfkgMM", libSceLibcInternalInventory_216_nid_no_patch);
-
 void APS5_VABI libSceLibcInternalInventory_217_nid_no_patch(void* self, const void* locinfo) {
     (void)self;
     (void)locinfo;
@@ -1058,11 +1053,6 @@ void APS5_VABI libSceLibcInternalInventory_225_nid_no_patch(void* self) {
     (void)self;
 }
 APS5_EXPORT("MuACiCSA8-s", libSceLibcInternalInventory_225_nid_no_patch);
-
-int APS5_VABI libSceLibcInternalInventory_226_nid_no_patch() {
-    NotImplemented_nid_no_patch(__func__);
-}
-APS5_EXPORT("6QU40olMkOM", libSceLibcInternalInventory_226_nid_no_patch);
 
 void APS5_VABI libSceLibcInternalInventory_227_nid_no_patch(void* self, const void* locinfo) {
     (void)self;

@@ -188,6 +188,8 @@ float APS5_VABI _ZSt8_XLgammaf_nid_postfix(float x);
 double APS5_VABI _ZSt8_XLgammad_nid_postfix(double x);
 long double APS5_VABI _ZSt8_XLgammae_nid_postfix(long double x);
 LibcInternalFormatManipulator APS5_VABI _ZSt11setiosflagsNSt5_IosbIiE9_FmtflagsE_nid_postfix(std::int32_t mask);
+GuestLocale::OutputIterator APS5_VABI _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, const std::uint16_t* source, std::size_t count);
+GuestLocale::OutputIterator APS5_VABI _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_RepES3_wm_nid_postfix(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, std::uint16_t character, std::size_t count);
 GuestLocale::OutputIterator APS5_VABI _ZNKSt8time_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE3putES3_RSt8ios_basewPK2tmcc_nid_postfix(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier);
 [[noreturn]] void APS5_VABI _ZNKSs5_XranEv_nid_postfix(const GuestLocale::String* self);
 [[noreturn]] void APS5_VABI _ZNKSs5_XlenEv_nid_postfix(const GuestLocale::String* self);

@@ -55,6 +55,65 @@ struct WideTimePutVtable {
 
 static_assert(offsetof(WideTimePutVtable, put) == 0x20);
 
+void PutNarrow(GuestLocale::OutputIterator& out, char character) {
+    GuestLocale::Streambuf* buffer = out.buffer;
+    if (buffer == nullptr) {
+        out.failed = true;
+        return;
+    }
+    char* next = *buffer->putNext;
+    if (next != nullptr && static_cast<std::int32_t>(*buffer->putEnd - next) > 0) {
+        *buffer->putNext = next + 1;
+        *next = character;
+        return;
+    }
+    if (buffer->vtable->overflow(buffer, static_cast<unsigned char>(character)) == -1) out.failed = true;
+}
+
+GuestLocale::OutputIterator RepeatNarrow(GuestLocale::OutputIterator out, char character, std::size_t count) {
+    for (; count > 0; --count) PutNarrow(out, character);
+    return out;
+}
+
+struct WideStreambuf;
+
+struct WideStreambufVtable {
+    const void* reserved[4];
+    int (APS5_VABI *overflow)(WideStreambuf* self, int character);
+};
+
+struct WideStreambuf {
+    const WideStreambufVtable* vtable;
+    const void* reserved[7];
+    std::uint16_t** putNext;
+    const void* reservedCounts[3];
+    std::uint16_t** putEnd;
+};
+
+static_assert(offsetof(WideStreambufVtable, overflow) == offsetof(GuestLocale::StreambufVtable, overflow));
+static_assert(offsetof(WideStreambuf, putNext) == offsetof(GuestLocale::Streambuf, putNext));
+static_assert(offsetof(WideStreambuf, putEnd) == offsetof(GuestLocale::Streambuf, putEnd));
+
+void PutWide(GuestLocale::OutputIterator& out, std::uint16_t character) {
+    auto* buffer = reinterpret_cast<WideStreambuf*>(out.buffer);
+    if (buffer == nullptr) {
+        out.failed = true;
+        return;
+    }
+    std::uint16_t* next = *buffer->putNext;
+    if (next != nullptr && static_cast<std::int32_t>(*buffer->putEnd - next) > 0) {
+        *buffer->putNext = next + 1;
+        *next = character;
+        return;
+    }
+    if (buffer->vtable->overflow(buffer, static_cast<int>(character)) == -1) out.failed = true;
+}
+
+GuestLocale::OutputIterator RepeatWide(GuestLocale::OutputIterator out, std::uint16_t character, std::size_t count) {
+    for (; count > 0; --count) PutWide(out, character);
+    return out;
+}
+
 }
 
 extern "C" {
@@ -183,6 +242,36 @@ GuestLocale::OutputIterator APS5_VABI sceLibcInternalTimePutPattern_nid_no_patch
     return LibcTimePutPattern_nid_no_patch(self, out, stream, fill, time, first, last);
 }
 APS5_EXPORT("j9LU8GsuEGw", sceLibcInternalTimePutPattern_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutCopy_nid_no_patch(const GuestLocale::Facet*, GuestLocale::OutputIterator out, const char* source, std::size_t count) {
+    for (; count > 0; --count, ++source) PutNarrow(out, *source);
+    return out;
+}
+APS5_EXPORT("k8zgjeBmpVY", sceLibcInternalNumPutCopy_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalNumPutRepeat_nid_no_patch(const GuestLocale::Facet*, GuestLocale::OutputIterator out, char character, std::size_t count) {
+    return RepeatNarrow(out, character, count);
+}
+APS5_EXPORT("tCihLs4UJxQ", sceLibcInternalNumPutRepeat_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalMoneyPutRepeat_nid_no_patch(GuestLocale::OutputIterator out, char character, std::size_t count) {
+    return RepeatNarrow(out, character, count);
+}
+APS5_EXPORT("1dY2KJfkgMM", sceLibcInternalMoneyPutRepeat_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(const GuestLocale::Facet*, GuestLocale::OutputIterator out, const std::uint16_t* source, std::size_t count) {
+    for (; count > 0; --count, ++source) PutWide(out, *source);
+    return out;
+}
+
+GuestLocale::OutputIterator APS5_VABI _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_RepES3_wm_nid_postfix(const GuestLocale::Facet*, GuestLocale::OutputIterator out, std::uint16_t character, std::size_t count) {
+    return RepeatWide(out, character, count);
+}
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalWideMoneyPutRepeat_nid_no_patch(GuestLocale::OutputIterator out, std::uint16_t character, std::size_t count) {
+    return RepeatWide(out, character, count);
+}
+APS5_EXPORT("6QU40olMkOM", sceLibcInternalWideMoneyPutRepeat_nid_no_patch);
 
 GuestLocale::OutputIterator APS5_VABI sceLibcInternalTimePut_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, char fill, const GuestTm* time, char format, char modifier) {
     return reinterpret_cast<const GuestLocale::TimePutVtable*>(self->vtable)->put(self, out, stream, fill, time, format, modifier);

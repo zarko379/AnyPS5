@@ -571,6 +571,139 @@ void CheckLibcTimePut() {
     facet->vtable->deleteObject(facet);
 }
 
+using NumPutCopyExport = GuestLocale::OutputIterator (APS5_VABI *)(const GuestLocale::Facet*, GuestLocale::OutputIterator, const char*, std::size_t);
+using NumPutRepeatExport = GuestLocale::OutputIterator (APS5_VABI *)(const GuestLocale::Facet*, GuestLocale::OutputIterator, char, std::size_t);
+using MoneyPutRepeatExport = GuestLocale::OutputIterator (APS5_VABI *)(GuestLocale::OutputIterator, char, std::size_t);
+
+void CheckPutAndRepeat() {
+    const auto copy = Export<NumPutCopyExport>("k8zgjeBmpVY");
+    const auto repeat = Export<NumPutRepeatExport>("tCihLs4UJxQ");
+    const auto moneyRepeat = Export<MoneyPutRepeatExport>("1dY2KJfkgMM");
+    GuestLocale::Facet facet{&g_testFacet, 1, 0};
+
+    auto stream = MakeStream(2);
+    GuestLocale::OutputIterator out = copy(&facet, GuestLocale::OutputIterator{false, &stream.buffer}, "abc", 3);
+    Require(stream.accepted == "ab" && stream.offered == 3, "num_put::_Put keeps offering characters after overflow fails");
+    Require(out.failed && out.buffer == &stream.buffer, "num_put::_Put returns a failed iterator after overflow returns eof");
+    out = copy(&facet, GuestLocale::OutputIterator{true, &stream.buffer}, "abc", 0);
+    Require(out.failed && out.buffer == &stream.buffer && stream.offered == 3, "num_put::_Put of no characters returns the iterator unchanged");
+    out = copy(&facet, GuestLocale::OutputIterator{false, nullptr}, "x", 1);
+    Require(out.failed && out.buffer == nullptr, "num_put::_Put to a null stream buffer fails");
+
+    stream = MakeStream(8);
+    out = copy(&facet, GuestLocale::OutputIterator{true, &stream.buffer}, "q", 1);
+    Require(stream.accepted == "q" && out.failed, "num_put::_Put writes through an already failed iterator and keeps it failed");
+
+    char storage[4] {};
+    char* next = storage;
+    char* end = storage + sizeof(storage);
+    TestStreambuf area{{&g_streambufVtable, {}, &next, {}, &end}, {}, 0, 8};
+    out = copy(&facet, GuestLocale::OutputIterator{false, &area.buffer}, "hello", 5);
+    Require(std::memcmp(storage, "hell", 4) == 0 && next == end, "num_put::_Put fills the put area first");
+    Require(area.accepted == "o" && area.offered == 1 && !out.failed, "num_put::_Put overflows once the put area is full");
+
+    stream = MakeStream(8);
+    out = repeat(&facet, GuestLocale::OutputIterator{false, &stream.buffer}, '*', 3);
+    Require(stream.accepted == "***" && !out.failed && out.buffer == &stream.buffer, "num_put::_Rep writes the fill count times");
+    out = repeat(&facet, out, '*', 0);
+    Require(stream.accepted == "***" && !out.failed, "num_put::_Rep of no characters writes nothing");
+    stream = MakeStream(1);
+    out = repeat(&facet, GuestLocale::OutputIterator{false, &stream.buffer}, '-', 3);
+    Require(stream.accepted == "-" && stream.offered == 3 && out.failed, "num_put::_Rep fails when overflow returns eof");
+
+    next = storage;
+    area = TestStreambuf{{&g_streambufVtable, {}, &next, {}, &end}, {}, 0, 8};
+    out = moneyRepeat(GuestLocale::OutputIterator{false, &area.buffer}, '0', 5);
+    Require(std::memcmp(storage, "0000", 4) == 0 && area.accepted == "0" && !out.failed && out.buffer == &area.buffer, "money_put::_Rep writes the character count times through the put area");
+    out = moneyRepeat(GuestLocale::OutputIterator{false, nullptr}, '0', 2);
+    Require(out.failed && out.buffer == nullptr, "money_put::_Rep to a null stream buffer fails");
+    stream = MakeStream(8);
+    out = moneyRepeat(GuestLocale::OutputIterator{false, &stream.buffer}, static_cast<char>(0xff), 1);
+    Require(stream.accepted == std::string(1, static_cast<char>(0xff)) && !out.failed, "money_put::_Rep passes 0xff to overflow as 255, not eof");
+}
+
+struct WideTestHeader;
+
+struct WideTestVtable {
+    const void* reserved[4];
+    int (APS5_VABI *overflow)(WideTestHeader* self, int character);
+};
+
+struct WideTestHeader {
+    const WideTestVtable* vtable;
+    const void* reserved[7];
+    std::uint16_t** putNext;
+    const void* reservedCounts[3];
+    std::uint16_t** putEnd;
+};
+
+static_assert(offsetof(WideTestVtable, overflow) == 0x20);
+static_assert(offsetof(WideTestHeader, putNext) == 0x40);
+static_assert(offsetof(WideTestHeader, putEnd) == 0x60);
+
+struct WideTestStreambuf {
+    WideTestHeader header;
+    std::vector<int> accepted;
+    int offered;
+    int capacity;
+};
+
+int APS5_VABI WideTestOverflow(WideTestHeader* self, int character) {
+    auto* stream = reinterpret_cast<WideTestStreambuf*>(self);
+    ++stream->offered;
+    if (static_cast<int>(stream->accepted.size()) >= stream->capacity) return -1;
+    stream->accepted.push_back(character);
+    return character;
+}
+
+const WideTestVtable g_wideStreambufVtable{{}, WideTestOverflow};
+std::uint16_t* g_noWideBuffer = nullptr;
+
+GuestLocale::OutputIterator WideOut(WideTestStreambuf& stream, bool failed = false) {
+    return GuestLocale::OutputIterator{failed, reinterpret_cast<GuestLocale::Streambuf*>(&stream.header)};
+}
+
+using WideMoneyPutRepeatExport = GuestLocale::OutputIterator (APS5_VABI *)(GuestLocale::OutputIterator, std::uint16_t, std::size_t);
+
+void CheckWidePutAndRepeat() {
+    const auto moneyRepeat = Export<WideMoneyPutRepeatExport>("6QU40olMkOM");
+    GuestLocale::Facet facet{&g_testFacet, 1, 0};
+    const std::uint16_t text[] = {u'a', 0xffff, 0x4e2d};
+
+    WideTestStreambuf stream{{&g_wideStreambufVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 8};
+    GuestLocale::OutputIterator out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(&facet, WideOut(stream), text, 3);
+    Require(stream.accepted == std::vector<int>{0x61, 0xffff, 0x4e2d}, "wide num_put::_Put passes zero-extended units to overflow");
+    Require(!out.failed && out.buffer == WideOut(stream).buffer, "wide num_put::_Put keeps the iterator good when overflow echoes U+FFFF");
+
+    stream = WideTestStreambuf{{&g_wideStreambufVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 1};
+    out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(&facet, WideOut(stream), text, 3);
+    Require(stream.accepted == std::vector<int>{0x61} && stream.offered == 3 && out.failed, "wide num_put::_Put fails when overflow returns eof and keeps offering");
+    out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(&facet, GuestLocale::OutputIterator{false, nullptr}, text, 1);
+    Require(out.failed && out.buffer == nullptr, "wide num_put::_Put to a null stream buffer fails");
+
+    std::uint16_t storage[3] {};
+    std::uint16_t* next = storage;
+    std::uint16_t* end = storage + 3;
+    const std::uint16_t five[] = {1, 2, 3, 4, 5};
+    WideTestStreambuf area{{&g_wideStreambufVtable, {}, &next, {}, &end}, {}, 0, 8};
+    out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(&facet, WideOut(area), five, 5);
+    Require(storage[0] == 1 && storage[1] == 2 && storage[2] == 3 && next == end, "wide num_put::_Put fills a three-unit put area first");
+    Require(area.accepted == std::vector<int>{4, 5} && !out.failed, "wide num_put::_Put overflows once the put area is full");
+
+    stream = WideTestStreambuf{{&g_wideStreambufVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 8};
+    out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_RepES3_wm_nid_postfix(&facet, WideOut(stream, true), 0xffff, 2);
+    Require(stream.accepted == std::vector<int>{0xffff, 0xffff} && out.failed, "wide num_put::_Rep writes through a failed iterator and keeps it failed");
+    out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_RepES3_wm_nid_postfix(&facet, WideOut(stream), u'x', 0);
+    Require(stream.accepted.size() == 2 && !out.failed, "wide num_put::_Rep of no units writes nothing");
+
+    next = storage;
+    area = WideTestStreambuf{{&g_wideStreambufVtable, {}, &next, {}, &end}, {}, 0, 1};
+    out = moneyRepeat(WideOut(area), 0x4e2d, 5);
+    Require(storage[0] == 0x4e2d && storage[2] == 0x4e2d && area.accepted == std::vector<int>{0x4e2d} && area.offered == 2 && out.failed, "wide money_put::_Rep fills the put area, then overflows until eof");
+    out = moneyRepeat(GuestLocale::OutputIterator{false, nullptr}, u'0', 1);
+    Require(out.failed && out.buffer == nullptr, "wide money_put::_Rep to a null stream buffer fails");
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -600,6 +733,8 @@ int main(int argc, char** argv) {
     CheckPatternWalk();
     CheckStreamCtype();
     CheckLibcTimePut();
+    CheckPutAndRepeat();
+    CheckWidePutAndRepeat();
 
     std::puts("libc internal num_put and time_put put checks passed");
     return 0;
