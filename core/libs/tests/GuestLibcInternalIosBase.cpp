@@ -94,6 +94,69 @@ void CheckSetiosflags() {
     Require(Throws([&] { first.function(nullptr, 1); }), "setiosflags rejects a null stream");
 }
 
+const FlagCase ResetCases[] = {
+    {"resetiosflags clears the masked bits", 0xa00, 0xffffffffu, 0xa00u, 0xfffff5ffu},
+    {"resetiosflags clears masked high bits too", static_cast<std::int32_t>(0x80010000u), 0xffffffffu, 0x80010000u, 0x7ffeffffu},
+    {"resetiosflags with every bit", -1, 0x12345678u, 0xffffffffu, 0x0u},
+    {"resetiosflags with no bits", 0, 0x9abcdef0u, 0x0u, 0x9abcdef0u},
+};
+
+void CheckResetiosflags() {
+    const auto first = _ZSt13resetiosflagsNSt5_IosbIiE9_FmtflagsE_nid_postfix(0);
+    Require(first.function != nullptr, "resetiosflags returns a function");
+    Require(first.function != _ZSt11setiosflagsNSt5_IosbIiE9_FmtflagsE_nid_postfix(0).function, "resetiosflags returns its own function");
+    for (const auto& entry : ResetCases) {
+        const LibcInternalFormatManipulator manipulator = _ZSt13resetiosflagsNSt5_IosbIiE9_FmtflagsE_nid_postfix(entry.mask);
+        Require(manipulator.function == first.function, entry.label);
+        Require(manipulator.argument == entry.argument, entry.label);
+        GuardedStream object;
+        object.stream.flags = static_cast<std::int32_t>(entry.flags);
+        object.stream.precision = 6;
+        object.stream.width = 9;
+        object.stream.state = 2;
+        manipulator.function(&object.stream, static_cast<std::int32_t>(manipulator.argument));
+        Require(static_cast<std::uint32_t>(object.stream.flags) == entry.result, entry.label);
+        Require(object.stream.precision == 6 && object.stream.width == 9 && object.stream.state == 2, "resetiosflags writes only the format flags");
+        Require(object.before == 0x12345678 && object.after == 0x87654321, "resetiosflags writes only the stream");
+    }
+    Require(Throws([&] { first.function(nullptr, 1); }), "resetiosflags rejects a null stream");
+}
+
+struct BaseCase {
+    const char* label;
+    std::int32_t base;
+    std::uint32_t flags;
+    std::uint32_t result;
+};
+
+const BaseCase BaseCases[] = {
+    {"setbase 8 selects oct", 8, 0xffffffffu, 0xfffff5ffu},
+    {"setbase 10 selects dec", 10, 0x00000801u, 0x00000201u},
+    {"setbase 16 selects hex", 16, 0x80000200u, 0x80000800u},
+    {"setbase 0 clears the base field", 0, 0x00000e05u, 0x00000005u},
+    {"setbase 2 clears the base field", 2, 0x00000400u, 0x0u},
+    {"setbase -16 clears the base field", -16, 0xfffff000u, 0xfffff000u},
+};
+
+void CheckSetbase() {
+    const auto first = _ZSt7setbasei_nid_postfix(10);
+    Require(first.function != nullptr, "setbase returns a function");
+    for (const auto& entry : BaseCases) {
+        const LibcInternalFormatManipulator manipulator = _ZSt7setbasei_nid_postfix(entry.base);
+        Require(manipulator.function == first.function, entry.label);
+        Require(manipulator.argument == static_cast<std::uint32_t>(entry.base), entry.label);
+        GuardedStream object;
+        object.stream.flags = static_cast<std::int32_t>(entry.flags);
+        object.stream.precision = 6;
+        object.stream.width = 9;
+        manipulator.function(&object.stream, static_cast<std::int32_t>(manipulator.argument));
+        Require(static_cast<std::uint32_t>(object.stream.flags) == entry.result, entry.label);
+        Require(object.stream.precision == 6 && object.stream.width == 9, "setbase writes only the format flags");
+        Require(object.before == 0x12345678 && object.after == 0x87654321, "setbase writes only the stream");
+    }
+    Require(Throws([&] { first.function(nullptr, 8); }), "setbase rejects a null stream");
+}
+
 }
 
 int main() {
@@ -131,6 +194,8 @@ int main() {
     Require(Throws([] { sceLibcInternalIosBaseDeletingDestructor_nid_no_patch(nullptr); }), "a null stream is rejected by the deleting destructor");
 
     CheckSetiosflags();
+    CheckResetiosflags();
+    CheckSetbase();
 
     std::puts("libc internal ios_base destructor checks passed");
     return 0;
