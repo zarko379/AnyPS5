@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include <limits>
 #include <source_location>
 #include <stdexcept>
 #include <string>
@@ -321,6 +322,124 @@ void TestLineEndingStorage() {
     Check(grown.buffer == original && grown.size == 2);
 }
 
+struct RangeCase {
+    const char* text;
+    bool result;
+    long long offset;
+    long long end;
+    long long suffix;
+};
+
+void TestParseRange() {
+    using NKWebKit::WtfAbi::String;
+    using NKWebKit::WtfAbi::StringImpl;
+    constexpr long long int64Max = std::numeric_limits<long long>::max();
+    constexpr long long int64Min = std::numeric_limits<long long>::min();
+    const RangeCase cases[] = {
+        {"bytes=0-499", true, 0, 499, -1},
+        {"BYTES=500-", true, 500, -1, -1},
+        {"bYtEs=-500", true, -1, -1, 500},
+        {"bytes=-abc", true, -1, -1, -1},
+        {"bytes=--5", true, -1, -1, -5},
+        {"bytes=-5-", true, -1, -1, -1},
+        {"bytes=- 7 ", true, -1, -1, 7},
+        {"bytes=-0", true, -1, -1, 0},
+        {"bytes= 10 - 20 ", true, 10, 20, -1},
+        {"bytes=\t10\r-\n20\f", true, 10, 20, -1},
+        {"bytes=+10-+20", true, 10, 20, -1},
+        {"bytes=5-5", true, 5, 5, -1},
+        {"bytes=20-10", false, -1, -1, -1},
+        {"bytes=a-5", false, -1, -1, -1},
+        {"bytes=5-x", false, -1, -1, -1},
+        {"bytes=0-1,2-3", false, -1, -1, -1},
+        {"bytes= -5-", false, -1, -1, -1},
+        {"bytes=1 2-3", false, -1, -1, -1},
+        {"bytes 0-1", false, -1, -1, -1},
+        {"bytes\x1d" "0-1", true, 0, 1, -1},
+        {"bytes=", false, -1, -1, -1},
+        {"bytes=5", false, -1, -1, -1},
+        {"byte", false, -1, -1, -1},
+        {"", false, -1, -1, -1},
+        {"bytes=9223372036854775807-", true, int64Max, -1, -1},
+        {"bytes=9223372036854775808-", false, -1, -1, -1},
+        {"bytes=0-9223372036854775808", false, -1, -1, -1},
+        {"bytes=--9223372036854775808", true, -1, -1, int64Min},
+        {"bytes=-9223372036854775808", true, -1, -1, -1},
+        {"bytes=1\xa0-2", false, -1, -1, -1},
+        {"bytes=\v1-2", true, 1, 2, -1},
+    };
+    for (const auto& test : cases) {
+        ForBothWidths(test.text, [&](StringView view) {
+            StringImpl storage{1, view.length, view.data, view.is8Bit ? 4u : 0u};
+            long long offset = 7;
+            long long end = 8;
+            long long suffix = 9;
+            Check(_ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(String(&storage), offset, end, suffix) == test.result);
+            Check(offset == test.offset && end == test.end && suffix == test.suffix);
+        });
+    }
+
+    long long offset = 7;
+    long long end = 8;
+    long long suffix = 9;
+    Check(!_ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(String(), offset, end, suffix));
+    Check(offset == -1 && end == -1 && suffix == -1);
+
+    auto checkWide = [](std::u16string_view text, bool result, long long expectedOffset, long long expectedEnd, long long expectedSuffix) {
+        StringImpl storage{1, static_cast<unsigned>(text.size()), text.data(), 0};
+        long long wideOffset = 7;
+        long long wideEnd = 8;
+        long long wideSuffix = 9;
+        Check(_ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(String(&storage), wideOffset, wideEnd, wideSuffix) == result);
+        Check(wideOffset == expectedOffset && wideEnd == expectedEnd && wideSuffix == expectedSuffix);
+    };
+    checkWide(u"bytes=　12- 13 ", true, 12, 13, -1);
+    checkWide(u"bytes=- " u"40", true, -1, -1, 40);
+    checkWide(u"bytes=1\u0085-2", false, -1, -1, -1);
+    checkWide(u"bytes=1 -2", false, -1, -1, -1);
+    checkWide(u"bytesĽ" u"1-2", false, -1, -1, -1);
+    checkWide(u"bytes=１-2", false, -1, -1, -1);
+
+    StringImpl invalid{1, 3, nullptr, 4};
+    Throws([&] {
+        long long a = 0;
+        long long b = 0;
+        long long c = 0;
+        _ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(String(&invalid), a, b, c);
+    });
+}
+
+void TestAutofillFieldName() {
+    using NKWebKit::WtfAbi::String;
+    using NKWebKit::WtfAbi::StringImpl;
+    const std::pair<const char*, int> cases[] = {
+        {"off", 0}, {"on", 0}, {"OFF", 0}, {"On", 0}, {"", 0}, {"nme", 0}, {"name ", 0}, {" name", 0},
+        {"name", 1}, {"honorific-prefix", 2}, {"given-name", 3}, {"new-password", 9}, {"current-password", 10},
+        {"address-line1", 14}, {"address-level4", 17}, {"address-level1", 20}, {"postal-code", 23},
+        {"cc-name", 24}, {"cc-type", 33}, {"transaction-amount", 35}, {"bday-year", 40}, {"url", 42},
+        {"photo", 43}, {"tel", 44}, {"tel-local", 48}, {"tel-extension", 51}, {"email", 52}, {"impp", 53},
+        {"section-x", 0}, {"shipping", 0}, {"web-authn", 0},
+    };
+    for (const auto& [text, expected] : cases) {
+        ForBothWidths(text, [&](StringView view) {
+            StringImpl storage{1, view.length, view.data, view.is8Bit ? 4u : 0u};
+            Check(_ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&storage)) == expected);
+        });
+    }
+    for (const char* divergent : {"Name", "EMAIL", "Tel-Local", "webauthn", "WebAuthn", "address\rline1", "cc\rnumber"}) {
+        ForBothWidths(divergent, [&](StringView view) {
+            StringImpl storage{1, view.length, view.data, view.is8Bit ? 4u : 0u};
+            Throws([&] { _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&storage)); });
+        });
+    }
+    std::u16string_view wideName(u"nšme");
+    StringImpl wide{1, static_cast<unsigned>(wideName.size()), wideName.data(), 0};
+    Check(_ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&wide)) == 0);
+    Throws([] { _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String()); });
+    StringImpl invalid{1, 2, nullptr, 4};
+    Throws([&] { _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&invalid)); });
+}
+
 }  // namespace
 
 int main() {
@@ -329,5 +448,7 @@ int main() {
     TestXFrameOptions();
     TestLineEndings();
     TestLineEndingStorage();
+    TestParseRange();
+    TestAutofillFieldName();
     return 0;
 }

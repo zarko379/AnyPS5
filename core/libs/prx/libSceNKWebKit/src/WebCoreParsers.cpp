@@ -260,6 +260,177 @@ ByteVector& Checked(ByteVector* vector) {
     return *vector;
 }
 
+constexpr const char* kAutofillFieldNames[] = {
+    "name", "honorific-prefix", "given-name", "additional-name", "family-name", "honorific-suffix", "nickname",
+    "username", "new-password", "current-password", "organization-title", "organization", "street-address",
+    "address-line1", "address-line2", "address-line3", "address-level4", "address-level3", "address-level2",
+    "address-level1", "country", "country-name", "postal-code", "cc-name", "cc-given-name", "cc-additional-name",
+    "cc-family-name", "cc-number", "cc-exp", "cc-exp-month", "cc-exp-year", "cc-csc", "cc-type",
+    "transaction-currency", "transaction-amount", "language", "bday", "bday-day", "bday-month", "bday-year", "sex",
+    "url", "photo", "tel", "tel-country-code", "tel-national", "tel-area-code", "tel-local", "tel-local-prefix",
+    "tel-local-suffix", "tel-extension", "email", "impp"};
+
+template <typename CharT>
+bool AutofillTokenEquals(const CharT* characters, unsigned length, const char* literal, bool foldLetters) {
+    unsigned literalLength = static_cast<unsigned>(std::strlen(literal));
+    if (literalLength != length) {
+        return false;
+    }
+    for (unsigned i = 0; i < length; ++i) {
+        unsigned character = static_cast<unsigned>(characters[i]);
+        unsigned expected = static_cast<unsigned char>(literal[i]);
+        if (foldLetters ? ((character | 0x20u) != expected) : (character != expected)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename CharT>
+int AutofillFieldNameFor(const CharT* characters, unsigned length) {
+    constexpr int fieldCount = static_cast<int>(sizeof(kAutofillFieldNames) / sizeof(kAutofillFieldNames[0]));
+    for (int i = 0; i < fieldCount; ++i) {
+        if (AutofillTokenEquals(characters, length, kAutofillFieldNames[i], false)) {
+            return i + 1;
+        }
+    }
+    for (int i = 0; i < fieldCount; ++i) {
+        if (AutofillTokenEquals(characters, length, kAutofillFieldNames[i], true)) {
+            throw std::domain_error("autofill field name that differs only in ASCII case is resolved differently by WebKit revisions");
+        }
+    }
+    if (AutofillTokenEquals(characters, length, "webauthn", true)) {
+        throw std::domain_error("webauthn autofill field name is resolved differently by WebKit revisions");
+    }
+    return 0;
+}
+
+template <typename CharT>
+bool RangeIsSpaceOrNewline(CharT character) {
+    return IsFrameOptionsWhitespace(static_cast<char16_t>(character));
+}
+
+template <typename CharT>
+void RangeStripWhiteSpace(const CharT* characters, unsigned& start, unsigned& end) {
+    if (start == end) {
+        return;
+    }
+    unsigned first = start;
+    unsigned last = end - 1;
+    while (first <= last && RangeIsSpaceOrNewline(characters[first])) {
+        ++first;
+        if (first == end) {
+            break;
+        }
+    }
+    if (first > last || first == end) {
+        start = end;
+        return;
+    }
+    while (last > first && RangeIsSpaceOrNewline(characters[last])) {
+        --last;
+    }
+    start = first;
+    end = last + 1;
+}
+
+template <typename CharT>
+bool RangeToInt64Strict(const CharT* characters, unsigned start, unsigned end, long long& result) {
+    constexpr long long integralMax = std::numeric_limits<long long>::max();
+    constexpr long long maxMultiplier = integralMax / 10;
+    unsigned index = start;
+    while (index < end && RangeIsSpaceOrNewline(characters[index])) {
+        ++index;
+    }
+    bool isNegative = false;
+    if (index < end && characters[index] == '-') {
+        ++index;
+        isNegative = true;
+    } else if (index < end && characters[index] == '+') {
+        ++index;
+    }
+    auto isDigit = [](CharT character) {
+        return static_cast<unsigned>(character) >= '0' && static_cast<unsigned>(character) <= '9';
+    };
+    if (index == end || !isDigit(characters[index])) {
+        return false;
+    }
+    unsigned long long value = 0;
+    while (index < end && isDigit(characters[index])) {
+        long long digitValue = static_cast<long long>(characters[index]) - '0';
+        long long signedValue = static_cast<long long>(value);
+        if (signedValue > maxMultiplier || (signedValue == maxMultiplier && digitValue > (integralMax % 10) + (isNegative ? 1 : 0))) {
+            return false;
+        }
+        value = value * 10u + static_cast<unsigned long long>(digitValue);
+        ++index;
+    }
+    if (isNegative) {
+        value = 0u - value;
+    }
+    while (index < end && RangeIsSpaceOrNewline(characters[index])) {
+        ++index;
+    }
+    if (index != end) {
+        return false;
+    }
+    result = static_cast<long long>(value);
+    return true;
+}
+
+template <typename CharT>
+bool ParseRangeCharacters(const CharT* characters, unsigned length, long long& rangeOffset, long long& rangeEnd, long long& rangeSuffixLength) {
+    static constexpr char kBytes[] = "bytes=";
+    constexpr unsigned bytesLength = 6;
+    if (length < bytesLength) {
+        return false;
+    }
+    for (unsigned i = 0; i < bytesLength; ++i) {
+        if ((static_cast<unsigned>(characters[i]) | 0x20u) != static_cast<unsigned char>(kBytes[i])) {
+            return false;
+        }
+    }
+    unsigned dash = bytesLength;
+    while (dash < length && characters[dash] != '-') {
+        ++dash;
+    }
+    if (dash == length) {
+        return false;
+    }
+    if (dash == bytesLength) {
+        unsigned start = dash + 1;
+        unsigned end = length;
+        RangeStripWhiteSpace(characters, start, end);
+        long long value = 0;
+        if (RangeToInt64Strict(characters, start, end, value)) {
+            rangeSuffixLength = value;
+        }
+        return true;
+    }
+    unsigned firstStart = bytesLength;
+    unsigned firstEnd = dash;
+    RangeStripWhiteSpace(characters, firstStart, firstEnd);
+    long long firstBytePos = 0;
+    if (!RangeToInt64Strict(characters, firstStart, firstEnd, firstBytePos)) {
+        return false;
+    }
+    unsigned lastStart = dash + 1;
+    unsigned lastEnd = length;
+    RangeStripWhiteSpace(characters, lastStart, lastEnd);
+    long long lastBytePos = -1;
+    if (lastStart != lastEnd) {
+        if (!RangeToInt64Strict(characters, lastStart, lastEnd, lastBytePos)) {
+            return false;
+        }
+    }
+    if (firstBytePos < 0 || !(lastBytePos == -1 || lastBytePos >= firstBytePos)) {
+        return false;
+    }
+    rangeOffset = firstBytePos;
+    rangeEnd = lastBytePos;
+    return true;
+}
+
 }  // namespace
 
 extern "C" {
@@ -349,6 +520,36 @@ ByteVector APS5_VABI _ZN3WTF26normalizeLineEndingsToCRLFEONS_6VectorIhLm0ENS_15C
 
 ByteVector APS5_VABI _ZN3WTF28normalizeLineEndingsToNativeEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(ByteVector&& from) {
     return _ZN3WTF24normalizeLineEndingsToLFEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(std::move(from));
+}
+
+int APS5_VABI _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(const NKWebKit::WtfAbi::String& value) {
+    const NKWebKit::WtfAbi::StringImpl* impl = value.impl;
+    if (!impl) {
+        throw std::invalid_argument("toAutofillFieldName of a null AtomString");
+    }
+    if (impl->length && !impl->data) {
+        throw std::invalid_argument("toAutofillFieldName of a StringImpl without characters");
+    }
+    if (impl->hashAndFlags & 4) {
+        return AutofillFieldNameFor(static_cast<const unsigned char*>(impl->data), impl->length);
+    }
+    return AutofillFieldNameFor(static_cast<const char16_t*>(impl->data), impl->length);
+}
+
+bool APS5_VABI _ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(
+    const NKWebKit::WtfAbi::String& range, long long& rangeOffset, long long& rangeEnd, long long& rangeSuffixLength) {
+    rangeOffset = rangeEnd = rangeSuffixLength = -1;
+    const NKWebKit::WtfAbi::StringImpl* impl = range.impl;
+    if (!impl) {
+        return false;
+    }
+    if (impl->length && !impl->data) {
+        throw std::invalid_argument("parseRange of a StringImpl without characters");
+    }
+    if (impl->hashAndFlags & 4) {
+        return ParseRangeCharacters(static_cast<const unsigned char*>(impl->data), impl->length, rangeOffset, rangeEnd, rangeSuffixLength);
+    }
+    return ParseRangeCharacters(static_cast<const char16_t*>(impl->data), impl->length, rangeOffset, rangeEnd, rangeSuffixLength);
 }
 
 }

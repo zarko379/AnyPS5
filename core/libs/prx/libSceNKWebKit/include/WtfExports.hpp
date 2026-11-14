@@ -15,6 +15,8 @@ struct SHA1;
 
 extern "C" {
 
+unsigned APS5_VABI _ZN3WTF10SymbolImpl17nextHashForSymbolEv();
+
 [[noreturn]] void APS5_VABI WTFCrash();
 [[noreturn]] void APS5_VABI WTFCrashWithSecurityImplication();
 void APS5_VABI WTFGetBacktrace(void** stack, int* size);

@@ -8906,10 +8906,6 @@ int APS5_VABI _ZN7WebCore11FrameLoader14changeLocationERKN3WTF3URLERKNS1_6String
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN7WebCore11DisplayList14ConcatenateCTMC2ERKNS_15AffineTransformE() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -14268,10 +14264,6 @@ int APS5_VABI _ZN3WTF10StringView16GraphemeClusters8IteratorppEv() {
 }
 
 int APS5_VABI _ZN3WTF10SymbolImpl16createNullSymbolEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3WTF10SymbolImpl17nextHashForSymbolEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -21046,10 +21038,6 @@ int APS5_VABI _ZN7WebCore19UserContentProviderD2Ev() {
 }
 
 int APS5_VABI _ZN7WebCore19serializationForCSSERKNS_5ColorE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE() {
     NotImplemented_nid_no_patch(__func__);
 }
 

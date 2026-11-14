@@ -632,6 +632,15 @@ static void TestGregorianDateTimeFromMilliseconds() {
     Require(threw);
 }
 
+static void TestNextHashForSymbol() {
+    unsigned first = _ZN3WTF10SymbolImpl17nextHashForSymbolEv();
+    unsigned second = _ZN3WTF10SymbolImpl17nextHashForSymbolEv();
+    unsigned third = _ZN3WTF10SymbolImpl17nextHashForSymbolEv();
+    Require(first == 0x80000100u);
+    Require(second == 0x80000200u);
+    Require(third == 0x80000300u);
+}
+
 int main() {
     TestGregorianDateTimeFromMilliseconds();
     TestAdditionalWtf();
@@ -640,6 +649,7 @@ int main() {
     TestTime();
     TestSystem();
     TestString();
+    TestNextHashForSymbol();
     TestWebCorePure();
     TestJscAndPal();
     TestMappedFiles();

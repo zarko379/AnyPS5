@@ -75,6 +75,7 @@
 #include <cstdlib>
 #include <vector>
 #include <algorithm>
+#include <atomic>
 #include <charconv>
 #include <cstring>
 #include <limits>
@@ -1593,6 +1594,17 @@ String APS5_VABI _ZN3WTF14FileSystemImpl40lastComponentOfPathIgnoringTrailingSla
         position = ReverseFind(view, u'/', static_cast<unsigned>(end));
     }
     return Substring(string.impl, static_cast<unsigned>(position + 1), static_cast<unsigned>(end - position));
+}
+
+unsigned APS5_VABI _ZN3WTF10SymbolImpl17nextHashForSymbolEv() {
+    static std::atomic<unsigned> nextHashForSymbol{0};
+    constexpr unsigned flagCount = 8;
+    unsigned current = nextHashForSymbol.load(std::memory_order_relaxed);
+    unsigned next = 0;
+    do {
+        next = (current + (1u << flagCount)) | (1u << 31);
+    } while (!nextHashForSymbol.compare_exchange_weak(current, next, std::memory_order_relaxed));
+    return next;
 }
 
 }
