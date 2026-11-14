@@ -53,6 +53,8 @@ static_assert(offsetof(ByteVector, size) == 12);
 
 extern "C" {
 
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore33stripLeadingAndTrailingHTMLSpacesERKN3WTF6StringE(const NKWebKit::WtfAbi::String& string);
+
 int APS5_VABI _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(const NKWebKit::WtfAbi::String& value);
 bool APS5_VABI _ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(const NKWebKit::WtfAbi::String& range, long long& rangeOffset, long long& rangeEnd, long long& rangeSuffixLength);
 

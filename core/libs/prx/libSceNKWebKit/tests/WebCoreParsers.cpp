@@ -440,6 +440,53 @@ void TestAutofillFieldName() {
     Throws([&] { _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&invalid)); });
 }
 
+void TestStripHTMLSpaces() {
+    using NKWebKit::WtfAbi::String;
+    using NKWebKit::WtfAbi::StringImpl;
+    auto strip = [](const String& value) { return _ZN7WebCore33stripLeadingAndTrailingHTMLSpacesERKN3WTF6StringE(value); };
+    auto text8 = [](const String& value) {
+        return std::string(static_cast<const char*>(value.impl->data), value.impl->length);
+    };
+
+    String null = strip(String());
+    Check(null.impl == nullptr);
+
+    StringImpl emptyStorage{1, 0, "", 4};
+    String empty = strip(String(&emptyStorage));
+    Check(empty.impl && empty.impl->length == 0 && empty.impl != &emptyStorage);
+
+    StringImpl plainStorage{1, 3, "abc", 4};
+    String plain = strip(String(&plainStorage));
+    Check(plain.impl == &plainStorage && plainStorage.refCount == 1);
+
+    const char padded[] = "  \t\nabc\r\f ";
+    StringImpl paddedStorage{1, static_cast<unsigned>(sizeof(padded) - 1), padded, 4};
+    String stripped = strip(String(&paddedStorage));
+    Check(stripped.impl != &paddedStorage && (stripped.impl->hashAndFlags & 4) && text8(stripped) == "abc");
+
+    const char vertical[] = "\v abc";
+    StringImpl verticalStorage{1, static_cast<unsigned>(sizeof(vertical) - 1), vertical, 4};
+    Check(strip(String(&verticalStorage)).impl == &verticalStorage);
+
+    StringImpl spacesStorage{1, 3, "   ", 4};
+    String spaces = strip(String(&spacesStorage));
+    Check(spaces.impl && spaces.impl->length == 0 && spaces.impl != &spacesStorage);
+
+    std::u16string_view unicode(u"\u00a0 x \u3000");
+    StringImpl unicodeStorage{1, static_cast<unsigned>(unicode.size()), unicode.data(), 0};
+    Check(strip(String(&unicodeStorage)).impl == &unicodeStorage);
+
+    std::u16string_view wide(u" \u0101b\n");
+    StringImpl wideStorage{1, static_cast<unsigned>(wide.size()), wide.data(), 0};
+    String wideStripped = strip(String(&wideStorage));
+    Check(wideStripped.impl->length == 2 && !(wideStripped.impl->hashAndFlags & 4));
+    const char16_t* wideData = static_cast<const char16_t*>(wideStripped.impl->data);
+    Check(wideData[0] == u'\u0101' && wideData[1] == u'b');
+
+    StringImpl invalid{1, 2, nullptr, 4};
+    Throws([&] { strip(String(&invalid)); });
+}
+
 }  // namespace
 
 int main() {
@@ -450,5 +497,6 @@ int main() {
     TestLineEndingStorage();
     TestParseRange();
     TestAutofillFieldName();
+    TestStripHTMLSpaces();
     return 0;
 }
