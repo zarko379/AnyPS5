@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <stdexcept>
 #include <vector>
 
 using namespace SceJson2;
@@ -58,6 +59,9 @@ int main() {
     Require(allocatorBytes[0] == first && allocatorBytes[1] == second, "Base allocator destruction must not rewrite the vtable or adjacent bytes");
     _ZN3sce4Json12MemAllocatorD1Ev(allocatorBytes);
     Require(allocatorBytes[0] == first && allocatorBytes[1] == second, "Both non-deleting allocator destructors must leave the complete object unchanged");
+    bool deletingThrew = false;
+    try { _ZN3sce4Json12MemAllocatorD0Ev(allocatorBytes); } catch (const std::logic_error&) { deletingThrew = true; }
+    Require(deletingThrew && allocatorBytes[0] == first && allocatorBytes[1] == second, "The deleting destructor of the abstract base allocator must trap without touching the object");
     constexpr int notInitialized = static_cast<int>(0x80848110);
     Require(InfoState() == notInitialized && _ZN3sce4Json6MallocEm(17) == nullptr, "Allocation entry points must expose missing context before initialization");
     _ZN3sce4Json4FreeEPv(nullptr);

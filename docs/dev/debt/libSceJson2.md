@@ -54,7 +54,7 @@ SDK 5/6 below refer to the application compatibility SDK queried by `sceKernelGe
 
 ### Unknown 3.20 import declarations
 
-- [_ZN3sce4Json12MemAllocatorD0Ev](../../../core/libs/prx/libSceJson2/InventoryExports.cpp) (libSceJson2) - NID `ypazoTrKYhE`; the deleting base allocator destructor traps in the reference. This invalid destruction path remains explicitly unsupported.
+- [_ZN3sce4Json12MemAllocatorD0Ev](../../../core/libs/prx/libSceJson2/InventoryExports.cpp) (libSceJson2) - NID `ypazoTrKYhE`; the deleting base allocator destructor traps in the reference. It throws `std::logic_error` without touching the object, as the `sce::Xml::MemAllocator` deleting destructor does; deduced from the modelled base vtable, whose destructor and allocator slots are all pure, so no complete base object can reach it. Not measured on a console.
 
 - [Counted string searches](../../../core/libs/prx/libSceJson2/Export.cpp) with an admitted positive count and a null needle remain explicitly unsupported; the reference dereferences the invalid pointer. Oversized and zero counts retain their verified results.
 
