@@ -126,6 +126,32 @@ struct alignas(16) TransformationMatrix {
     };
 };
 
+struct OptionalTransformationMatrix {
+    bool m_engaged;
+    std::array<std::uint8_t, 15> m_padding;
+    TransformationMatrix m_value;
+};
+
+struct HitTestLocation {
+    LayoutPoint m_point;
+    IntRect m_boundingBox;
+    FloatPoint m_transformedPoint;
+    FloatQuad m_transformedRect;
+    bool m_isRectBased;
+    bool m_isRectilinear;
+};
+
+struct LengthAbi {
+    union {
+        int m_intValue;
+        float m_floatValue;
+        unsigned m_calculationValueHandle;
+    };
+    bool m_hasQuirk;
+    std::uint8_t m_type;
+    bool m_isFloat;
+};
+
 struct MatrixTransformOperation {
     void* m_vptr;
     std::uint32_t m_refCount;
@@ -252,6 +278,20 @@ static_assert(sizeof(OptionalAffineTransform) == 56);
 static_assert(offsetof(OptionalAffineTransform, m_padding) == 1);
 static_assert(offsetof(OptionalAffineTransform, m_value) == 8);
 static_assert(sizeof(TransformationMatrix) == 128);
+static_assert(sizeof(OptionalTransformationMatrix) == 144);
+static_assert(offsetof(OptionalTransformationMatrix, m_padding) == 1);
+static_assert(offsetof(OptionalTransformationMatrix, m_value) == 16);
+static_assert(std::is_trivially_copyable_v<OptionalTransformationMatrix>);
+static_assert(sizeof(HitTestLocation) == 68);
+static_assert(offsetof(HitTestLocation, m_boundingBox) == 8);
+static_assert(offsetof(HitTestLocation, m_transformedPoint) == 24);
+static_assert(offsetof(HitTestLocation, m_transformedRect) == 32);
+static_assert(offsetof(HitTestLocation, m_isRectBased) == 64);
+static_assert(offsetof(HitTestLocation, m_isRectilinear) == 65);
+static_assert(sizeof(LengthAbi) == 8);
+static_assert(offsetof(LengthAbi, m_hasQuirk) == 4);
+static_assert(offsetof(LengthAbi, m_type) == 5);
+static_assert(offsetof(LengthAbi, m_isFloat) == 6);
 static_assert(sizeof(MatrixTransformOperation) == 64);
 static_assert(offsetof(MatrixTransformOperation, m_a) == 16);
 static_assert(sizeof(Color) == 8);

@@ -749,6 +749,531 @@ static void TestFindIntersection() {
     Require(threw);
 }
 
+static bool SameRect(const WebCore::FloatRect& r, float x, float y, float w, float h) {
+    return r.m_location.m_x == x && r.m_location.m_y == y && r.m_size.m_width == w && r.m_size.m_height == h;
+}
+
+static bool SameIntRect(const WebCore::IntRect& r, int x, int y, int w, int h) {
+    return r.m_location.m_x == x && r.m_location.m_y == y && r.m_size.m_width == w && r.m_size.m_height == h;
+}
+
+static bool SameLayoutRect(const WebCore::LayoutRect& r, int x, int y, int w, int h) {
+    return r.m_location.m_x.m_value == x && r.m_location.m_y.m_value == y
+        && r.m_size.m_width.m_value == w && r.m_size.m_height.m_value == h;
+}
+
+template <typename T>
+static NKWebKit::WtfAbi::Vector<T> BorrowVector(T* data, unsigned size) {
+    NKWebKit::WtfAbi::Vector<T> vector;
+    vector.buffer = data;
+    vector.capacity = size;
+    vector.size = size;
+    return vector;
+}
+
+template <typename T>
+static void ReleaseBorrowed(NKWebKit::WtfAbi::Vector<T>& vector) {
+    vector.buffer = nullptr;
+    vector.capacity = 0;
+    vector.size = 0;
+}
+
+static void TestFitToPoints() {
+    WebCore::FloatRect rect{WebCore::FloatPoint{9.0f, 9.0f}, WebCore::FloatSize{9.0f, 9.0f}};
+    _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_(&rect, WebCore::FloatPoint{3.0f, -1.0f}, WebCore::FloatPoint{1.0f, 4.0f});
+    Require(SameRect(rect, 1.0f, -1.0f, 2.0f, 5.0f));
+
+    _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_S3_(&rect,
+        WebCore::FloatPoint{5.0f, 2.0f}, WebCore::FloatPoint{-1.0f, 7.0f}, WebCore::FloatPoint{2.0f, -3.0f});
+    Require(SameRect(rect, -1.0f, -3.0f, 6.0f, 10.0f));
+
+    _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_S3_S3_(&rect,
+        WebCore::FloatPoint{5.0f, 2.0f}, WebCore::FloatPoint{-1.0f, 7.0f}, WebCore::FloatPoint{2.0f, -3.0f}, WebCore::FloatPoint{8.0f, 0.0f});
+    Require(SameRect(rect, -1.0f, -3.0f, 9.0f, 10.0f));
+
+    float nan = std::numeric_limits<float>::quiet_NaN();
+    _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_(&rect, WebCore::FloatPoint{nan, 0.0f}, WebCore::FloatPoint{1.0f, 2.0f});
+    Require(std::isnan(rect.m_location.m_x) && std::isnan(rect.m_size.m_width) && rect.m_size.m_height == 2.0f);
+    _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_(&rect, WebCore::FloatPoint{1.0f, 0.0f}, WebCore::FloatPoint{nan, 2.0f});
+    Require(SameRect(rect, 1.0f, 0.0f, 0.0f, 2.0f));
+
+    _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_S3_(&rect,
+        WebCore::FloatPoint{1.0f, 0.0f}, WebCore::FloatPoint{nan, 0.0f}, WebCore::FloatPoint{0.0f, 0.0f});
+    Require(rect.m_location.m_x == 0.0f && rect.m_size.m_width == 1.0f);
+
+    _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_S3_S3_(&rect,
+        WebCore::FloatPoint{5.0f, 0.0f}, WebCore::FloatPoint{6.0f, 0.0f}, WebCore::FloatPoint{nan, 0.0f}, WebCore::FloatPoint{1.0f, 0.0f});
+    Require(rect.m_location.m_x == 5.0f && rect.m_size.m_width == 1.0f);
+}
+
+static void TestRoundedRectFromRadii() {
+    WebCore::LayoutRect lr{WebCore::LayoutPoint{64, -128}, WebCore::LayoutSize{6400, 3200}};
+    WebCore::RoundedRect::Radii radii{
+        WebCore::LayoutSize{1, 2}, WebCore::LayoutSize{3, 4}, WebCore::LayoutSize{5, 6}, WebCore::LayoutSize{7, 8}};
+    WebCore::RoundedRect rr1;
+    std::memset(&rr1, 0xAB, sizeof(rr1));
+    _ZN7WebCore11RoundedRectC1ERKNS_10LayoutRectERKNS0_5RadiiE(&rr1, lr, radii);
+    Require(SameLayoutRect(rr1.m_rect, 64, -128, 6400, 3200));
+    Require(rr1.m_radii.m_topLeft.m_width.m_value == 1 && rr1.m_radii.m_topLeft.m_height.m_value == 2);
+    Require(rr1.m_radii.m_topRight.m_width.m_value == 3 && rr1.m_radii.m_topRight.m_height.m_value == 4);
+    Require(rr1.m_radii.m_bottomLeft.m_width.m_value == 5 && rr1.m_radii.m_bottomLeft.m_height.m_value == 6);
+    Require(rr1.m_radii.m_bottomRight.m_width.m_value == 7 && rr1.m_radii.m_bottomRight.m_height.m_value == 8);
+
+    WebCore::RoundedRect rr2;
+    std::memset(&rr2, 0xAB, sizeof(rr2));
+    _ZN7WebCore11RoundedRectC2ERKNS_10LayoutRectERKNS0_5RadiiE(&rr2, lr, radii);
+    Require(std::memcmp(&rr1, &rr2, sizeof(rr1)) == 0);
+}
+
+static void TestEnclosingRects() {
+    constexpr int intMax = std::numeric_limits<int>::max();
+    constexpr int intMin = std::numeric_limits<int>::min();
+
+    WebCore::FloatRect fr{WebCore::FloatPoint{1.5f, -2.25f}, WebCore::FloatSize{3.0f, 4.5f}};
+    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_9FloatRectE(fr), 1, -3, 4, 6));
+    WebCore::FloatRect emptyFractional{WebCore::FloatPoint{0.5f, 0.5f}, WebCore::FloatSize{0.0f, 0.0f}};
+    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_9FloatRectE(emptyFractional), 0, 0, 1, 1));
+    WebCore::FloatRect huge{WebCore::FloatPoint{-3.0e9f, 0.0f}, WebCore::FloatSize{1.0e10f, 1.0f}};
+    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_9FloatRectE(huge), intMin, 0, intMax, 1));
+
+    WebCore::LayoutRect lr{WebCore::LayoutPoint{96, -160}, WebCore::LayoutSize{64, 0}};
+    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(lr), 1, -3, 2, 0));
+    WebCore::LayoutRect lrZeroWidth{WebCore::LayoutPoint{-96, 32}, WebCore::LayoutSize{0, 64}};
+    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(lrZeroWidth), -2, 0, 0, 2));
+    WebCore::LayoutRect lrMin{WebCore::LayoutPoint{intMin, 0}, WebCore::LayoutSize{64, 64}};
+    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(lrMin), intMin / 64, 0, 1, 1));
+    WebCore::LayoutRect lrMax{WebCore::LayoutPoint{intMax - 10, 0}, WebCore::LayoutSize{100, 64}};
+    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(lrMax), intMax / 64, 0, 0, 1));
+
+    WebCore::FloatRect fr2{WebCore::FloatPoint{1.01f, -0.5f}, WebCore::FloatSize{2.0f, 1.0f}};
+    Require(SameLayoutRect(_ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE(fr2), 64, -32, 129, 64));
+    WebCore::FloatRect fr3{WebCore::FloatPoint{-1.0e9f, 1.0e9f}, WebCore::FloatSize{2.0e9f, 0.0f}};
+    Require(SameLayoutRect(_ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE(fr3), intMin, intMax, intMax, 0));
+
+    WebCore::FloatRect fr4{WebCore::FloatPoint{0.3f, 0.6f}, WebCore::FloatSize{1.0f, 1.0f}};
+    Require(SameRect(_ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf(fr4, 2.0f), 0.0f, 0.5f, 1.5f, 1.5f));
+    Require(SameRect(_ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf(fr4, 1.0f), 0.0f, 0.0f, 2.0f, 2.0f));
+}
+
+static void TestMakeMapBetweenRects() {
+    WebCore::FloatRect source{WebCore::FloatPoint{10.0f, 20.0f}, WebCore::FloatSize{100.0f, 50.0f}};
+    WebCore::FloatRect dest{WebCore::FloatPoint{30.0f, 45.0f}, WebCore::FloatSize{200.0f, 25.0f}};
+    WebCore::AffineTransform map = _ZN7WebCore19makeMapBetweenRectsERKNS_9FloatRectES2_(source, dest);
+    Require(map.m_transform[0] == 2.0 && map.m_transform[1] == 0.0 && map.m_transform[2] == 0.0);
+    Require(map.m_transform[3] == 0.5 && map.m_transform[4] == 20.0 && map.m_transform[5] == 25.0);
+
+    WebCore::FloatRect empty{WebCore::FloatPoint{0.0f, 0.0f}, WebCore::FloatSize{0.0f, 4.0f}};
+    WebCore::AffineTransform inf = _ZN7WebCore19makeMapBetweenRectsERKNS_9FloatRectES2_(empty, dest);
+    Require(std::isinf(inf.m_transform[0]) && inf.m_transform[3] == 6.25);
+}
+
+static void TestUnitedBoundingBoxesAndUnionRect() {
+    WebCore::FloatQuad quads[3] = {
+        WebCore::FloatQuad{WebCore::FloatPoint{0.0f, 0.0f}, WebCore::FloatPoint{2.0f, 0.0f}, WebCore::FloatPoint{2.0f, 1.0f}, WebCore::FloatPoint{0.0f, 1.0f}},
+        WebCore::FloatQuad{WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatPoint{5.0f, 5.0f}},
+        WebCore::FloatQuad{WebCore::FloatPoint{-1.0f, 3.0f}, WebCore::FloatPoint{1.0f, 2.0f}, WebCore::FloatPoint{0.0f, 4.0f}, WebCore::FloatPoint{-2.0f, 2.5f}}};
+    auto none = BorrowVector<WebCore::FloatQuad>(quads, 0);
+    Require(SameRect(_ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(none), 0.0f, 0.0f, 0.0f, 0.0f));
+    ReleaseBorrowed(none);
+    auto two = BorrowVector<WebCore::FloatQuad>(quads, 2);
+    Require(SameRect(_ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(two), 0.0f, 0.0f, 5.0f, 5.0f));
+    ReleaseBorrowed(two);
+    auto three = BorrowVector<WebCore::FloatQuad>(quads + 1, 2);
+    Require(SameRect(_ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(three), -2.0f, 2.0f, 7.0f, 3.0f));
+    ReleaseBorrowed(three);
+
+    WebCore::FloatRect rects[3] = {
+        WebCore::FloatRect{WebCore::FloatPoint{0.0f, 0.0f}, WebCore::FloatSize{2.0f, 1.0f}},
+        WebCore::FloatRect{WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatSize{0.0f, 3.0f}},
+        WebCore::FloatRect{WebCore::FloatPoint{-1.0f, 3.0f}, WebCore::FloatSize{1.0f, 1.0f}}};
+    auto rectVector = BorrowVector<WebCore::FloatRect>(rects, 3);
+    Require(SameRect(_ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(rectVector), -1.0f, 0.0f, 3.0f, 4.0f));
+    ReleaseBorrowed(rectVector);
+    auto noRects = BorrowVector<WebCore::FloatRect>(nullptr, 0);
+    Require(SameRect(_ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(noRects), 0.0f, 0.0f, 0.0f, 0.0f));
+
+    auto nullRects = BorrowVector<WebCore::FloatRect>(nullptr, 1);
+    bool threw = false;
+    try {
+        _ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(nullRects);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+    ReleaseBorrowed(nullRects);
+    auto nullQuads = BorrowVector<WebCore::FloatQuad>(nullptr, 2);
+    threw = false;
+    try {
+        _ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(nullQuads);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+    ReleaseBorrowed(nullQuads);
+}
+
+static void TestHitTestLocation() {
+    WebCore::IntRect padded = _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(
+        WebCore::LayoutPoint{172, -77}, 1u, 2u, 3u, 4u);
+    Require(SameIntRect(padded, -2, -3, 7, 5));
+    WebCore::IntRect wrapped = _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(
+        WebCore::LayoutPoint{172, -77}, 0u, 0u, 0u, 0xFFFFFFFFu);
+    Require(SameIntRect(wrapped, 3, -2, 0, 1));
+
+    WebCore::HitTestLocation defaulted;
+    std::memset(&defaulted, 0xAB, sizeof(defaulted));
+    _ZN7WebCore15HitTestLocationC1Ev(&defaulted);
+    Require(defaulted.m_point.m_x.m_value == 0 && defaulted.m_point.m_y.m_value == 0);
+    Require(SameIntRect(defaulted.m_boundingBox, 0, 0, 0, 0));
+    Require(defaulted.m_transformedPoint.m_x == 0.0f && defaulted.m_transformedRect.m_p4.m_y == 0.0f);
+    Require(!defaulted.m_isRectBased && defaulted.m_isRectilinear);
+    WebCore::HitTestLocation defaulted2;
+    std::memset(&defaulted2, 0xCD, sizeof(defaulted2));
+    _ZN7WebCore15HitTestLocationC2Ev(&defaulted2);
+    Require(!defaulted2.m_isRectBased && defaulted2.m_isRectilinear && defaulted2.m_transformedRect.m_p2.m_x == 0.0f);
+
+    WebCore::HitTestLocation fromPoint;
+    std::memset(&fromPoint, 0xAB, sizeof(fromPoint));
+    _ZN7WebCore15HitTestLocationC1ERKNS_10FloatPointE(&fromPoint, WebCore::FloatPoint{2.7f, -1.2f});
+    Require(fromPoint.m_point.m_x.m_value == 172 && fromPoint.m_point.m_y.m_value == -77);
+    Require(SameIntRect(fromPoint.m_boundingBox, 2, -2, 1, 1));
+    Require(fromPoint.m_transformedPoint.m_x == 172.0f / 64.0f && fromPoint.m_transformedPoint.m_y == -77.0f / 64.0f);
+    Require(fromPoint.m_transformedRect.m_p1.m_x == 2.0f && fromPoint.m_transformedRect.m_p1.m_y == -2.0f);
+    Require(fromPoint.m_transformedRect.m_p2.m_x == 3.0f && fromPoint.m_transformedRect.m_p2.m_y == -2.0f);
+    Require(fromPoint.m_transformedRect.m_p3.m_x == 3.0f && fromPoint.m_transformedRect.m_p3.m_y == -1.0f);
+    Require(fromPoint.m_transformedRect.m_p4.m_x == 2.0f && fromPoint.m_transformedRect.m_p4.m_y == -1.0f);
+    Require(!fromPoint.m_isRectBased && fromPoint.m_isRectilinear);
+
+    WebCore::HitTestLocation fromPoint2;
+    std::memset(&fromPoint2, 0xCD, sizeof(fromPoint2));
+    _ZN7WebCore15HitTestLocationC2ERKNS_10FloatPointE(&fromPoint2, WebCore::FloatPoint{2.7f, -1.2f});
+    Require(std::memcmp(&fromPoint, &fromPoint2, 66) == 0);
+
+    WebCore::HitTestLocation huge;
+    _ZN7WebCore15HitTestLocationC1ERKNS_10FloatPointE(&huge, WebCore::FloatPoint{1.0e30f, -1.0e30f});
+    Require(huge.m_point.m_x.m_value == std::numeric_limits<int>::max() && huge.m_point.m_y.m_value == std::numeric_limits<int>::min());
+    Require(huge.m_boundingBox.m_location.m_x == std::numeric_limits<int>::max() / 64);
+    Require(huge.m_boundingBox.m_location.m_y == std::numeric_limits<int>::min() / 64);
+
+    WebCore::HitTestLocation source = fromPoint;
+    source.m_isRectBased = true;
+    source.m_isRectilinear = false;
+    WebCore::HitTestLocation copy;
+    std::memset(&copy, 0xAB, sizeof(copy));
+    _ZN7WebCore15HitTestLocationC1ERKS0_(&copy, source);
+    Require(std::memcmp(&copy, &source, 66) == 0);
+    WebCore::HitTestLocation copy2;
+    std::memset(&copy2, 0xCD, sizeof(copy2));
+    _ZN7WebCore15HitTestLocationC2ERKS0_(&copy2, source);
+    Require(std::memcmp(&copy2, &source, 66) == 0);
+}
+
+static WebCore::LayoutPoint Constrain(WebCore::LayoutRect visible, WebCore::LayoutSize contents, WebCore::LayoutPoint position,
+    WebCore::LayoutPoint origin, int header, int footer) {
+    return _ZN7WebCore14ScrollableArea34constrainScrollPositionForOverhangERKNS_10LayoutRectERKNS_10LayoutSizeERKNS_11LayoutPointES9_ii(
+        visible, contents, position, origin, header, footer);
+}
+
+static void TestScrollableAreaStatics() {
+    WebCore::LayoutRect visible{WebCore::LayoutPoint{0, 0}, WebCore::LayoutSize{51200, 38400}};
+    WebCore::LayoutSize contents{64000, 128000};
+    WebCore::LayoutPoint inside = Constrain(visible, contents, WebCore::LayoutPoint{6400, 3200}, WebCore::LayoutPoint{0, 0}, 0, 0);
+    Require(inside.m_x.m_value == 6400 && inside.m_y.m_value == 3200);
+    WebCore::LayoutPoint pushed = Constrain(visible, contents, WebCore::LayoutPoint{32000, -6400}, WebCore::LayoutPoint{0, 0}, 0, 0);
+    Require(pushed.m_x.m_value == 12800 && pushed.m_y.m_value == 0);
+    WebCore::LayoutPoint emptied = Constrain(visible, contents, WebCore::LayoutPoint{0, 127360}, WebCore::LayoutPoint{0, 0}, 10, 20);
+    Require(emptied.m_x.m_value == 0 && emptied.m_y.m_value == 0);
+    WebCore::LayoutPoint origin = Constrain(visible, contents, WebCore::LayoutPoint{0, 0}, WebCore::LayoutPoint{-6400, 0}, 0, 0);
+    Require(origin.m_x.m_value == 6400 && origin.m_y.m_value == 0);
+    WebCore::LayoutPoint saturated = Constrain(visible, contents, WebCore::LayoutPoint{0, 0}, WebCore::LayoutPoint{0, 0}, 40000000, 0);
+    Require(saturated.m_x.m_value == -51200 && saturated.m_y.m_value == -38400);
+    WebCore::LayoutPoint footer = Constrain(visible, contents, WebCore::LayoutPoint{0, 89600}, WebCore::LayoutPoint{0, 0}, 0, 20);
+    Require(footer.m_x.m_value == 0 && footer.m_y.m_value == 88320);
+
+    float value = -9.0f;
+    float overhang = -9.0f;
+    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(-5.0f, 100.0f, 20.0f, value, overhang);
+    Require(value == 0.0f && overhang == 5.0f);
+    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(90.0f, 100.0f, 20.0f, value, overhang);
+    Require(value == 1.0f && overhang == 10.0f);
+    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(40.0f, 100.0f, 20.0f, value, overhang);
+    Require(value == 0.5f && overhang == 0.0f);
+    value = -9.0f;
+    overhang = -9.0f;
+    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(0.0f, 20.0f, 20.0f, value, overhang);
+    Require(value == 0.0f && overhang == 0.0f);
+    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(0.0f, 10.0f, 20.0f, value, overhang);
+    Require(value == 1.0f && overhang == 10.0f);
+}
+
+static WebCore::LengthAbi MakeLength(std::uint8_t type, bool isFloat, float floatValue, int intValue) {
+    WebCore::LengthAbi length{};
+    if (isFloat) {
+        length.m_floatValue = floatValue;
+    } else {
+        length.m_intValue = intValue;
+    }
+    length.m_hasQuirk = false;
+    length.m_type = type;
+    length.m_isFloat = isFloat;
+    return length;
+}
+
+static void TestLengthValues() {
+    constexpr std::uint8_t automatic = 0;
+    constexpr std::uint8_t relative = 1;
+    constexpr std::uint8_t percent = 2;
+    constexpr std::uint8_t fixed = 3;
+    constexpr std::uint8_t intrinsic = 4;
+    constexpr std::uint8_t fillAvailable = 8;
+    constexpr std::uint8_t fitContent = 9;
+    WebCore::LayoutUnit hundred{6400};
+
+    auto value = [&](const WebCore::LengthAbi& length) {
+        return _ZN7WebCore14valueForLengthERKNS_6LengthENS_10LayoutUnitE(length, hundred).m_value;
+    };
+    Require(value(MakeLength(fixed, false, 0.0f, 10)) == 640);
+    Require(value(MakeLength(fixed, true, 2.5f, 0)) == 160);
+    Require(value(MakeLength(fixed, true, 1.0e30f, 0)) == std::numeric_limits<int>::max());
+    Require(value(MakeLength(percent, false, 0.0f, 50)) == 3200);
+    Require(value(MakeLength(percent, true, 12.5f, 0)) == 800);
+    Require(value(MakeLength(automatic, false, 0.0f, 7)) == 6400);
+    Require(value(MakeLength(fillAvailable, false, 0.0f, 7)) == 6400);
+    Require(value(MakeLength(relative, false, 0.0f, 7)) == 0);
+    Require(value(MakeLength(fitContent, false, 0.0f, 7)) == 0);
+
+    auto floatValue = [](const WebCore::LengthAbi& length, float maximum) {
+        return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(length, maximum);
+    };
+    Require(floatValue(MakeLength(fixed, false, 0.0f, 10), 200.0f) == 10.0f);
+    Require(floatValue(MakeLength(fixed, true, 2.5f, 0), 200.0f) == 2.5f);
+    Require(floatValue(MakeLength(percent, true, 25.0f, 0), 200.0f) == 50.0f);
+    Require(floatValue(MakeLength(percent, false, 0.0f, 30), 10.0f) == 3.0f);
+    Require(floatValue(MakeLength(automatic, false, 0.0f, 0), 200.0f) == 200.0f);
+    Require(floatValue(MakeLength(fillAvailable, false, 0.0f, 0), 7.5f) == 7.5f);
+    Require(floatValue(MakeLength(intrinsic, false, 0.0f, 3), 200.0f) == 0.0f);
+
+    constexpr std::uint8_t undefined = 11;
+    Require(value(MakeLength(undefined, false, 0.0f, 7)) == 0);
+    Require(floatValue(MakeLength(undefined, false, 0.0f, 7), 5.0f) == 0.0f);
+
+    for (std::uint8_t unsupported : {std::uint8_t{10}, std::uint8_t{12}, std::uint8_t{200}}) {
+        bool threw = false;
+        try {
+            value(MakeLength(unsupported, false, 0.0f, 1));
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        Require(threw);
+        threw = false;
+        try {
+            floatValue(MakeLength(unsupported, false, 0.0f, 1), 1.0f);
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        Require(threw);
+    }
+}
+
+static bool MatrixNear(const WebCore::TransformationMatrix& a, const WebCore::TransformationMatrix& b, double eps = 1e-9) {
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            if (!(std::abs(a.m_matrix[i][j] - b.m_matrix[i][j]) <= eps)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static void TestTransformationMatrixScaleRotate() {
+    WebCore::TransformationMatrix scaled;
+    scaled.m_matrix[2][3] = 0.25;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&scaled, 2.0, 3.0, 4.0);
+    Require(scaled.m_matrix[0][0] == 2.0 && scaled.m_matrix[1][1] == 3.0 && scaled.m_matrix[2][2] == 4.0);
+    Require(scaled.m_matrix[2][3] == 1.0 && scaled.m_matrix[3][3] == 1.0);
+
+    WebCore::TransformationMatrix unchanged;
+    unchanged.m_matrix[3][0] = 7.0;
+    WebCore::TransformationMatrix& self = _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&unchanged, 0.0, 0.0, 0.0, 90.0);
+    Require(&self == &unchanged && unchanged.m_matrix[3][0] == 7.0 && unchanged.m_matrix[0][0] == 1.0);
+
+    WebCore::TransformationMatrix aroundZ;
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&aroundZ, 0.0, 0.0, 2.0, 90.0);
+    WebCore::TransformationMatrix eulerZ;
+    _ZN7WebCore20TransformationMatrix8rotate3dEddd(&eulerZ, 0.0, 0.0, 90.0);
+    Require(MatrixNear(aroundZ, eulerZ, 0.0));
+    Require(aroundZ.m_matrix[0][1] == 1.0 && aroundZ.m_matrix[1][0] == -1.0);
+
+    WebCore::TransformationMatrix aroundX;
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&aroundX, 1.0, 0.0, 0.0, 90.0);
+    Require(aroundX.m_matrix[1][2] == 1.0 && aroundX.m_matrix[2][1] == -1.0 && aroundX.m_matrix[0][0] == 1.0);
+
+    WebCore::TransformationMatrix aroundY;
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&aroundY, 0.0, 3.0, 0.0, 90.0);
+    Require(aroundY.m_matrix[0][2] == -1.0 && aroundY.m_matrix[2][0] == 1.0 && aroundY.m_matrix[1][1] == 1.0);
+
+    WebCore::TransformationMatrix diagonal;
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&diagonal, 1.0, 1.0, 0.0, 180.0);
+    WebCore::TransformationMatrix expected;
+    expected.m_matrix[0][0] = 0.0;
+    expected.m_matrix[0][1] = 1.0;
+    expected.m_matrix[1][0] = 1.0;
+    expected.m_matrix[1][1] = 0.0;
+    expected.m_matrix[2][2] = -1.0;
+    Require(MatrixNear(diagonal, expected));
+    Require(diagonal.m_matrix[0][3] == 0.0 && diagonal.m_matrix[3][3] == 1.0);
+}
+
+static void TestTransformationMatrixInverse() {
+    WebCore::TransformationMatrix identity;
+    WebCore::OptionalTransformationMatrix inv = _ZNK7WebCore20TransformationMatrix7inverseEv(&identity);
+    Require(inv.m_engaged && std::memcmp(&inv.m_value, &identity, sizeof(identity)) == 0);
+
+    WebCore::TransformationMatrix translation;
+    translation.m_matrix[3][0] = 5.0;
+    translation.m_matrix[3][2] = -2.0;
+    inv = _ZNK7WebCore20TransformationMatrix7inverseEv(&translation);
+    Require(inv.m_engaged && inv.m_value.m_matrix[3][0] == -5.0 && inv.m_value.m_matrix[3][2] == 2.0);
+    Require(inv.m_value.m_matrix[3][1] == 0.0 && std::signbit(inv.m_value.m_matrix[3][1]));
+    Require(inv.m_value.m_matrix[0][0] == 1.0 && inv.m_value.m_matrix[3][3] == 1.0);
+
+    WebCore::TransformationMatrix general;
+    _ZN7WebCore20TransformationMatrix11translate3dEddd(&general, 3.0, -4.0, 5.0);
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&general, 1.0, 2.0, 3.0, 33.0);
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&general, 2.0, 0.5, 3.0);
+    general.m_matrix[0][3] = 0.01;
+    inv = _ZNK7WebCore20TransformationMatrix7inverseEv(&general);
+    Require(inv.m_engaged);
+    WebCore::TransformationMatrix product = general;
+    _ZN7WebCore20TransformationMatrix8multiplyERKS0_(&product, inv.m_value);
+    Require(MatrixNear(product, WebCore::TransformationMatrix{}, 1e-12));
+
+    WebCore::TransformationMatrix scaled;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&scaled, 2.0, 4.0, 8.0);
+    inv = _ZNK7WebCore20TransformationMatrix7inverseEv(&scaled);
+    Require(inv.m_engaged && inv.m_value.m_matrix[0][0] == 0.5 && inv.m_value.m_matrix[1][1] == 0.25 && inv.m_value.m_matrix[2][2] == 0.125);
+
+    WebCore::TransformationMatrix singular;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&singular, 1.0, 0.0, 1.0);
+    inv = _ZNK7WebCore20TransformationMatrix7inverseEv(&singular);
+    Require(!inv.m_engaged && inv.m_value.m_matrix[0][0] == 0.0 && inv.m_value.m_matrix[3][3] == 0.0);
+
+    WebCore::TransformationMatrix nearSingular;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&nearSingular, 1.0e-3, 1.0e-3, 1.0e-3);
+    inv = _ZNK7WebCore20TransformationMatrix7inverseEv(&nearSingular);
+    Require(!inv.m_engaged);
+}
+
+static void TestTransformationMatrixBlend() {
+    WebCore::TransformationMatrix identity;
+    WebCore::TransformationMatrix both;
+    _ZN7WebCore20TransformationMatrix5blendERKS0_d(&both, identity, 0.3);
+    Require(std::memcmp(&both, &identity, sizeof(both)) == 0);
+
+    WebCore::TransformationMatrix translated;
+    _ZN7WebCore20TransformationMatrix9translateEdd(&translated, 10.0, 20.0);
+    _ZN7WebCore20TransformationMatrix5blendERKS0_d(&translated, identity, 0.25);
+    WebCore::TransformationMatrix expectedTranslate;
+    expectedTranslate.m_matrix[3][0] = 2.5;
+    expectedTranslate.m_matrix[3][1] = 5.0;
+    Require(MatrixNear(translated, expectedTranslate));
+
+    WebCore::TransformationMatrix scaledTo;
+    _ZN7WebCore20TransformationMatrix15scaleNonUniformEdd(&scaledTo, 3.0, 5.0);
+    WebCore::TransformationMatrix scaledFrom;
+    _ZN7WebCore20TransformationMatrix15scaleNonUniformEdd(&scaledFrom, 1.0, 1.0);
+    scaledFrom.m_matrix[3][0] = 4.0;
+    _ZN7WebCore20TransformationMatrix6blend2ERKS0_d(&scaledTo, scaledFrom, 0.5);
+    WebCore::TransformationMatrix expectedScale;
+    expectedScale.m_matrix[0][0] = 2.0;
+    expectedScale.m_matrix[1][1] = 3.0;
+    expectedScale.m_matrix[3][0] = 2.0;
+    Require(MatrixNear(scaledTo, expectedScale));
+
+    WebCore::TransformationMatrix rotatedTo;
+    _ZN7WebCore20TransformationMatrix6rotateEd(&rotatedTo, 90.0);
+    WebCore::TransformationMatrix rotatedFrom;
+    _ZN7WebCore20TransformationMatrix6rotateEd(&rotatedFrom, -90.0);
+    _ZN7WebCore20TransformationMatrix6blend2ERKS0_d(&rotatedTo, rotatedFrom, 0.5);
+    Require(MatrixNear(rotatedTo, identity));
+
+    WebCore::TransformationMatrix flippedTo;
+    _ZN7WebCore20TransformationMatrix15scaleNonUniformEdd(&flippedTo, -1.0, 1.0);
+    WebCore::TransformationMatrix flippedFrom;
+    _ZN7WebCore20TransformationMatrix15scaleNonUniformEdd(&flippedFrom, 1.0, -1.0);
+    _ZN7WebCore20TransformationMatrix6blend2ERKS0_d(&flippedTo, flippedFrom, 0.5);
+    WebCore::TransformationMatrix expectedFlip;
+    expectedFlip.m_matrix[0][0] = 0.0;
+    expectedFlip.m_matrix[0][1] = 1.0;
+    expectedFlip.m_matrix[1][0] = 1.0;
+    expectedFlip.m_matrix[1][1] = 0.0;
+    Require(MatrixNear(flippedTo, expectedFlip));
+
+    WebCore::TransformationMatrix depth;
+    _ZN7WebCore20TransformationMatrix11translate3dEddd(&depth, 0.0, 0.0, 10.0);
+    _ZN7WebCore20TransformationMatrix5blendERKS0_d(&depth, identity, 0.5);
+    WebCore::TransformationMatrix expectedDepth;
+    expectedDepth.m_matrix[3][2] = 5.0;
+    Require(MatrixNear(depth, expectedDepth, 0.0));
+
+    WebCore::TransformationMatrix aroundX;
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&aroundX, 1.0, 0.0, 0.0, 90.0);
+    _ZN7WebCore20TransformationMatrix5blendERKS0_d(&aroundX, identity, 0.5);
+    WebCore::TransformationMatrix expectedHalf;
+    expectedHalf.m_matrix[1][1] = 0.5;
+    expectedHalf.m_matrix[1][2] = 0.5;
+    expectedHalf.m_matrix[2][1] = -0.5;
+    expectedHalf.m_matrix[2][2] = 0.5;
+    Require(MatrixNear(aroundX, expectedHalf));
+
+    WebCore::TransformationMatrix positiveX;
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&positiveX, 1.0, 0.0, 0.0, 90.0);
+    WebCore::TransformationMatrix negativeX;
+    _ZN7WebCore20TransformationMatrix8rotate3dEdddd(&negativeX, 1.0, 0.0, 0.0, -90.0);
+    _ZN7WebCore20TransformationMatrix5blendERKS0_d(&positiveX, negativeX, 0.5);
+    Require(MatrixNear(positiveX, identity));
+
+    WebCore::TransformationMatrix perspectiveTo;
+    _ZN7WebCore20TransformationMatrix16applyPerspectiveEd(&perspectiveTo, 100.0);
+    WebCore::TransformationMatrix perspectiveFrom;
+    _ZN7WebCore20TransformationMatrix16applyPerspectiveEd(&perspectiveFrom, 50.0);
+    _ZN7WebCore20TransformationMatrix6blend4ERKS0_d(&perspectiveTo, perspectiveFrom, 0.5);
+    WebCore::TransformationMatrix expectedPerspective;
+    expectedPerspective.m_matrix[2][3] = -0.015;
+    Require(MatrixNear(perspectiveTo, expectedPerspective, 1e-15));
+
+    WebCore::TransformationMatrix degenerateFrom;
+    degenerateFrom.m_matrix[3][3] = 0.0;
+    degenerateFrom.m_matrix[0][3] = 2.0;
+    WebCore::TransformationMatrix early;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&early, 2.0, 2.0, 2.0);
+    _ZN7WebCore20TransformationMatrix5blendERKS0_d(&early, degenerateFrom, 0.25);
+    Require(std::memcmp(&early, &degenerateFrom, sizeof(early)) == 0);
+    WebCore::TransformationMatrix late;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&late, 2.0, 2.0, 2.0);
+    WebCore::TransformationMatrix lateCopy = late;
+    _ZN7WebCore20TransformationMatrix5blendERKS0_d(&late, degenerateFrom, 0.75);
+    Require(std::memcmp(&late, &lateCopy, sizeof(late)) == 0);
+
+    WebCore::TransformationMatrix flat;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&flat, 1.0, 1.0, 0.0);
+    WebCore::TransformationMatrix flatCopy = flat;
+    _ZN7WebCore20TransformationMatrix6blend4ERKS0_d(&flat, identity, 0.75);
+    Require(std::memcmp(&flat, &flatCopy, sizeof(flat)) == 0);
+
+    WebCore::TransformationMatrix nearSingular;
+    _ZN7WebCore20TransformationMatrix7scale3dEddd(&nearSingular, 1.0e-3, 1.0e-3, 1.0e-3);
+    nearSingular.m_matrix[0][3] = 0.5;
+    bool threw = false;
+    try {
+        _ZN7WebCore20TransformationMatrix5blendERKS0_d(&nearSingular, identity, 0.5);
+    } catch (const std::domain_error&) {
+        threw = true;
+    }
+    Require(threw);
+}
+
 int main() {
     TestFindIntersection();
     TestFloatPoint();
@@ -766,5 +1291,16 @@ int main() {
     TestApplyPerspective();
     TestMatrixTransformOperation();
     TestIntRectScaleOverflowGivesIntMin();
+    TestFitToPoints();
+    TestRoundedRectFromRadii();
+    TestEnclosingRects();
+    TestMakeMapBetweenRects();
+    TestUnitedBoundingBoxesAndUnionRect();
+    TestHitTestLocation();
+    TestScrollableAreaStatics();
+    TestLengthValues();
+    TestTransformationMatrixScaleRotate();
+    TestTransformationMatrixInverse();
+    TestTransformationMatrixBlend();
     return 0;
 }
