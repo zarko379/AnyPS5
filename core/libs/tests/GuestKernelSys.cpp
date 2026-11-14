@@ -1539,6 +1539,55 @@ static void CheckGetfsstat() {
     }
 }
 
+template<class F>
+static std::string CaptureStandardOutput(F print) {
+    int pipeDescriptors[2] = {-1, -1};
+    Require(pipe_nid_postfix(pipeDescriptors) == 0);
+    const int saved = dup_nid_postfix(1);
+    Require(saved >= 0 && dup2_nid_postfix(pipeDescriptors[1], 1) == 1);
+    print();
+    Require(dup2_nid_postfix(saved, 1) == 1 && close_nid_postfix(saved) == 0 && close_nid_postfix(pipeDescriptors[1]) == 0);
+    std::string text;
+    char chunk[256];
+    for (std::int64_t got = 0; (got = read_nid_postfix(pipeDescriptors[0], chunk, sizeof(chunk))) > 0;) text.append(chunk, static_cast<std::size_t>(got));
+    Require(close_nid_postfix(pipeDescriptors[0]) == 0);
+    return text;
+}
+
+static void CheckRtldPrintf() {
+    int result = -1;
+    const auto printed = [&](auto... arguments) {
+        return CaptureStandardOutput([&] { result = rtld_printf_nid_postfix(arguments...); });
+    };
+    Require(printed("a%db%sc%xd%%e", -12, "str", 0xAB) == "a-12bstrcabd%e" && result == 0);
+    Require(printed("%5d|%-5d|%05d|%#x|%#o|%X|%.2s|%10s|%-4s|", 42, 42, -42, 255, 8, 0xBEEF, "hello", "hi", "ab") == "   42|42   |-0042|0xff|010|BEEF|he|        hi|ab  |");
+    Require(printed("%*d|%-*d|%.*s|%#x|%#o", 4, 7, -3, 9, 1, "xyz", 0, 0) == "   7|  9|x|0|0");
+    Require(printed("%p|%llu|%ld|%hhd|%hu|%zd|%jd|%c|%y|%r|%qd", reinterpret_cast<void*>(0x1234), ~0ULL, std::numeric_limits<std::int64_t>::min(), 0x1FF, 0x12345, static_cast<std::int64_t>(-5), static_cast<std::intmax_t>(-6), 'Z', -255, 77, static_cast<std::int64_t>(1) << 40) ==
+            "0x1234|18446744073709551615|-9223372036854775808|-1|9029|-5|-6|Z|-ff|77|1099511627776");
+    Require(printed("%u|%lx|%tx|%hhu", 0xFFFFFFFFu, 0xFFFFFFFFFULL, static_cast<std::ptrdiff_t>(-1), 0x1FF) == "4294967295|fffffffff|ffffffffffffffff|255");
+    Require(printed("%b|%b", 5, "\10\1ONE\2TWO\3THREE", 0, "\20\1A") == "5<ONE,THREE>|0");
+    const unsigned char bytes[16] = {0xDE, 0xAD, 0xBE, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0xFF};
+    Require(printed("%3D|%D", bytes, ":", bytes, "") == "de:ad:be|deadbe000102030405060708090a0bff");
+    int count = 7;
+    long long wide = 7;
+    Require(printed("ab%ncd%lln", &count, &wide) == "abcd" && count == 0 && wide == 0);
+    Require(printed("%w%d%%", 5) == "%w%d%%");
+    Require(printed("%s", static_cast<const char*>(nullptr)) == "(null)");
+    Require(CaptureStandardOutput([&] { result = rtld_printf_nid_postfix(nullptr); }) == "(fmt null)\n" && result == 0);
+    const auto padded = printed("%600s", "");
+    Require(padded.size() == 599 && padded.find_first_not_of(' ') == std::string::npos);
+    Require(printed("%511s%s", "", "xy") == std::string(511, ' ') + "x");
+    bool refused = false;
+    CaptureStandardOutput([&] {
+        try {
+            rtld_printf_nid_postfix("%b", 1, "\0");
+        } catch (const std::invalid_argument&) {
+            refused = true;
+        }
+    });
+    Require(refused);
+}
+
 static void CheckInternalVariants(const std::string& file) {
     const int fd = sceKernelOpenInternal(file.c_str(), SCE_KERNEL_O_RDONLY, 0);
     char byte = 0;
@@ -1639,6 +1688,7 @@ int main() {
     std::ofstream(file).put('x');
     CheckPathconf(root, file);
     CheckInternalVariants(file);
+    CheckRtldPrintf();
     const int descriptor = open_nid_postfix(file.c_str(), 0, 0);
     Require(descriptor >= 0);
     ThreadAndSessionTests(descriptor);
