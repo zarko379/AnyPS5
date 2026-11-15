@@ -212,7 +212,7 @@ private:
     static constexpr VkDeviceSize budget = 512ull * 1024 * 1024;
     // The small tier's own budget (slots of at most half a MiB each): pinned host memory the large
     // tier's budget does not count.
-    static constexpr VkDeviceSize smallBudget = 64ull * 1024 * 1024;
+    static constexpr VkDeviceSize smallBudget = 256ull * 1024 * 1024;
     // Requests of this size and more keep their exact size and go to the large tier.
     static constexpr std::size_t classLimit = std::size_t{1} << 20u;
     static constexpr unsigned deviceClassBits = 3;
