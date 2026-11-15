@@ -30,6 +30,13 @@ public:
     void RecordHeld(VkCommandBuffer commands, VkImage image, VkImageLayout finalLayout);
     void Forget();
     std::uint64_t Generated() const { return generated; }
+    struct Statistics {
+        std::uint64_t measured = 0;
+        std::uint64_t cuts = 0;
+        double meanCostSum = 0.0;
+        double fallbackShareSum = 0.0;
+    };
+    const Statistics& Measured() const { return measuredStatistics; }
 
 private:
     struct Surface {
@@ -76,6 +83,9 @@ private:
     Surface output;
     VkBuffer statistics = VK_NULL_HANDLE;
     VkDeviceMemory statisticsMemory = VK_NULL_HANDLE;
+    std::uint32_t* statisticsWords = nullptr;
+    bool statisticsPending = false;
+    Statistics measuredStatistics;
     VkFormat frameFormat = VK_FORMAT_UNDEFINED;
     VkExtent2D frameExtent{};
     std::uint32_t newest = 0;

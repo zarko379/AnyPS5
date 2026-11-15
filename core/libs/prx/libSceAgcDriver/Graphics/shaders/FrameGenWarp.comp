@@ -5,10 +5,12 @@ layout(binding = 0) uniform sampler2D previous;
 layout(binding = 1) uniform sampler2D current;
 layout(binding = 2, rgba32f) uniform readonly image2D field;
 layout(binding = 3, rgba16f) uniform writeonly image2D result;
-layout(std430, binding = 4) readonly buffer Statistics {
+layout(std430, binding = 4) buffer Statistics {
     uint costSum;
     uint blocks;
+    uint fallbackPixels;
 } statistics;
+shared uint groupFallback;
 layout(push_constant) uniform Parameters {
     ivec2 size;
     ivec2 fieldBlocks;
@@ -26,14 +28,25 @@ float luma(vec3 rgb) {
     return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
 }
 
+void shade(ivec2 pixel);
+
 void main() {
+    if (gl_LocalInvocationIndex == 0u) groupFallback = 0u;
+    barrier();
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-    if (pixel.x >= parameters.size.x || pixel.y >= parameters.size.y) return;
+    bool inside = pixel.x < parameters.size.x && pixel.y < parameters.size.y;
+    if (inside) shade(pixel);
+    barrier();
+    if (gl_LocalInvocationIndex == 0u && groupFallback != 0u) atomicAdd(statistics.fallbackPixels, groupFallback);
+}
+
+void shade(ivec2 pixel) {
     vec2 size = vec2(parameters.size);
     vec2 position = vec2(pixel) + 0.5;
     float meanCost = statistics.blocks == 0u ? 0.0 : float(statistics.costSum) / (4096.0 * float(statistics.blocks));
     if (meanCost > parameters.cutCost) {
         imageStore(result, pixel, textureLod(current, position / size, 0.0));
+        atomicAdd(groupFallback, 1u);
         return;
     }
     vec2 cell = position / parameters.pixelsPerBlock - 0.5;
@@ -54,5 +67,6 @@ void main() {
         }
     }
     float fallback = smoothstep(parameters.mismatch, parameters.mismatch * 3.0, difference);
+    if (fallback > 0.5) atomicAdd(groupFallback, 1u);
     imageStore(result, pixel, mix(0.5 * (before + after), after, fallback));
 }

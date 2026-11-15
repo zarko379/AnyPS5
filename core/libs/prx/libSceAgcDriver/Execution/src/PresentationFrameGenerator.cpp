@@ -119,7 +119,7 @@ PresentationFrameGenerator::PresentationFrameGenerator(const Graphics::Context& 
         smoothSet = allocated[next++];
         for (auto& set : warpSets) set = allocated[next++];
         VkBufferCreateInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-        bufferInfo.size = 2 * sizeof(std::uint32_t);
+        bufferInfo.size = 3 * sizeof(std::uint32_t);
         bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         Graphics::Check(context.Function<PFN_vkCreateBuffer>("vkCreateBuffer")(context.device, &bufferInfo, nullptr, &statistics), "vkCreateBuffer frame generation statistics");
@@ -127,9 +127,12 @@ PresentationFrameGenerator::PresentationFrameGenerator(const Graphics::Context& 
         context.Function<PFN_vkGetBufferMemoryRequirements>("vkGetBufferMemoryRequirements")(context.device, statistics, &requirements);
         VkMemoryAllocateInfo memoryInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
         memoryInfo.allocationSize = requirements.size;
-        memoryInfo.memoryTypeIndex = context.MemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        memoryInfo.memoryTypeIndex = context.MemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         Graphics::Check(context.Function<PFN_vkAllocateMemory>("vkAllocateMemory")(context.device, &memoryInfo, nullptr, &statisticsMemory), "vkAllocateMemory frame generation statistics");
         Graphics::Check(context.Function<PFN_vkBindBufferMemory>("vkBindBufferMemory")(context.device, statistics, statisticsMemory, 0), "vkBindBufferMemory frame generation statistics");
+        void* mapped = nullptr;
+        Graphics::Check(context.Function<PFN_vkMapMemory>("vkMapMemory")(context.device, statisticsMemory, 0, VK_WHOLE_SIZE, 0, &mapped), "vkMapMemory frame generation statistics");
+        statisticsWords = static_cast<std::uint32_t*>(mapped);
     } catch (...) {
         release();
         throw;
@@ -435,6 +438,15 @@ bool PresentationFrameGenerator::RecordCapture(VkCommandBuffer commands, VkImage
     recordPyramid(commands, slot);
     const bool interpolate = generate && previousValid;
     if (interpolate) {
+        if (statisticsPending && statisticsWords != nullptr) {
+            const double blocks = statisticsWords[1];
+            const double meanCost = blocks == 0.0 ? 0.0 : statisticsWords[0] / (4096.0 * blocks);
+            ++measuredStatistics.measured;
+            if (meanCost > CutCost) ++measuredStatistics.cuts;
+            measuredStatistics.meanCostSum += meanCost;
+            measuredStatistics.fallbackShareSum += static_cast<double>(statisticsWords[2]) / (static_cast<double>(frameExtent.width) * frameExtent.height);
+        }
+        statisticsPending = true;
         recordInterpolation(commands, slot);
         barrier(commands, output.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
         barrier(commands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -473,6 +485,7 @@ void PresentationFrameGenerator::RecordHeld(VkCommandBuffer commands, VkImage im
 void PresentationFrameGenerator::Forget() {
     previousValid = false;
     held = false;
+    statisticsPending = false;
 }
 
 }

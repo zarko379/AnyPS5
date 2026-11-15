@@ -696,6 +696,7 @@ void VideoOutDriver::processFlip(FlipRequest& req) {
         const auto plane = overlayPlane();
         if (req.index >= 0 && !req.unregistered) {
             const auto display = DescribeVideoOutBuffer(req.buffer, req.group);
+            presentIssuedAt = std::chrono::steady_clock::now();
             AgcDriverPresentBuffer_nid_postfix(target, display, plane ? &*plane : nullptr, gpuReady, &req);
         } else {
             AgcDriverPresentClear_nid_postfix(target, req.unregistered || req.index == VIDEO_OUT_BUFFER_INDEX_BLACK, plane ? &*plane : nullptr, gpuReady, &req);
@@ -795,7 +796,7 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
         if (window.Handle() == nullptr) return;
         const auto extensions = windowExtensions(window.Handle());
         const AgcDriver::PresentationWindow target{window.Handle(), extensions, &createWindowSurface, &windowDrawableSize, heldWidth, heldHeight, nullptr};
-        static_cast<void>(AgcDriverPresentHeldFrame_nid_postfix(target));
+        if (AgcDriverPresentHeldFrame_nid_postfix(target)) OnMainThread([&] { window.UpdateTitle(); });
     };
     try {
 #if APS5_ENABLE_TIMING_LOG
@@ -861,7 +862,11 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 ModalDialogView dialogView;
                 const bool dialogShown = !keyboardShown && ModalDialogReadView_nid_postfix(dialogView);
                 AgcDriverSetSystemDialog_nid_postfix(dialogShown ? &dialogView : nullptr);
-                if (heldPending) presentHeld();
+                if (heldPending) {
+                    const auto untilHeld = std::chrono::duration_cast<std::chrono::microseconds>(heldDeadline - std::chrono::steady_clock::now()).count();
+                    if (untilHeld > 0) PreciseSleepUs(static_cast<unsigned long long>(untilHeld));
+                    presentHeld();
+                }
                 bool generate = false;
                 if (frameGeneration) {
                     const int refresh = GetDisplayRefreshRate();
@@ -875,15 +880,15 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 }
                 processFlip(*current);
                 if (frameGeneration) {
-                    const auto flipFinished = std::chrono::steady_clock::now();
-                    if (lastFlipFinished != std::chrono::steady_clock::time_point{}) {
-                        const auto interval = flipFinished - lastFlipFinished;
+                    const auto flipPresented = presentIssuedAt;
+                    if (lastFlipFinished != std::chrono::steady_clock::time_point{} && flipPresented > lastFlipFinished) {
+                        const auto interval = flipPresented - lastFlipFinished;
                         flipInterval = flipInterval == std::chrono::steady_clock::duration{} ? interval : (flipInterval * 7 + interval) / 8;
                     }
-                    lastFlipFinished = flipFinished;
+                    lastFlipFinished = flipPresented;
                     if (generate) {
                         heldPending = true;
-                        heldDeadline = flipFinished + flipInterval / 2;
+                        heldDeadline = flipPresented + flipInterval / 2;
                         heldWidth = current->width;
                         heldHeight = current->height;
                     }

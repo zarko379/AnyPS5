@@ -287,6 +287,13 @@ public:
     bool PresentHeldFrame();
     static std::uint64_t HeldFramePresents();
     static std::uint64_t GeneratedFrames();
+    struct FrameGenerationMeasure {
+        std::uint64_t measured;
+        std::uint64_t cuts;
+        double meanCost;
+        double fallbackShare;
+    };
+    static FrameGenerationMeasure FrameGenerationMeasured();
     double FinishPresent();
     void QueuePresent();
     bool PresentsOnOwnQueue() const;

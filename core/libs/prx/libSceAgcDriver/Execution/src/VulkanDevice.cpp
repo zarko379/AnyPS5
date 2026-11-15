@@ -4208,6 +4208,10 @@ bool VulkanDevice::AcquireImage() {
 namespace {
 std::atomic<std::uint64_t> heldFramePresents{0};
 std::atomic<std::uint64_t> generatedFrames{0};
+std::atomic<std::uint64_t> generationMeasured{0};
+std::atomic<std::uint64_t> generationCuts{0};
+std::atomic<double> generationCostSum{0.0};
+std::atomic<double> generationFallbackSum{0.0};
 }
 
 bool VulkanDevice::present(std::uint32_t width, std::uint32_t height, bool opaque, std::span<const std::byte> pixels, const DisplayBuffer* display, const std::shared_ptr<Graphics::StorageTexture>& resident, VkFilter residentFilter, bool dumpFrame, bool residentConvert, const VkClearColorValue* uniform, std::uint32_t residentLayer, bool passthrough, const DisplayBuffer* plane) {
@@ -4464,6 +4468,11 @@ bool VulkanDevice::present(std::uint32_t width, std::uint32_t height, bool opaqu
     if (state->frameGenerator != nullptr) {
         if (state->presentingGuestFrame && !clearOnly && state->surfaceColorSpace != VK_COLOR_SPACE_HDR10_ST2084_EXT) {
             if (state->frameGenerator->RecordCapture(commands, state->images[index], state->surfaceFormat, state->extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, state->generateNextFrame)) generatedFrames.fetch_add(1, std::memory_order_relaxed);
+            const auto& measured = state->frameGenerator->Measured();
+            generationMeasured.store(measured.measured, std::memory_order_relaxed);
+            generationCuts.store(measured.cuts, std::memory_order_relaxed);
+            generationCostSum.store(measured.meanCostSum, std::memory_order_relaxed);
+            generationFallbackSum.store(measured.fallbackShareSum, std::memory_order_relaxed);
         }
         else state->frameGenerator->Forget();
     }
@@ -4629,6 +4638,12 @@ std::uint64_t VulkanDevice::HeldFramePresents() {
 
 std::uint64_t VulkanDevice::GeneratedFrames() {
     return generatedFrames.load(std::memory_order_relaxed);
+}
+
+VulkanDevice::FrameGenerationMeasure VulkanDevice::FrameGenerationMeasured() {
+    const auto measured = generationMeasured.load(std::memory_order_relaxed);
+    const double count = measured == 0 ? 1.0 : static_cast<double>(measured);
+    return {measured, generationCuts.load(std::memory_order_relaxed), generationCostSum.load(std::memory_order_relaxed) / count, generationFallbackSum.load(std::memory_order_relaxed) / count};
 }
 
 bool VulkanDevice::PresentHeldFrame() {

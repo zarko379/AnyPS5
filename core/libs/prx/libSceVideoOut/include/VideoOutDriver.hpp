@@ -269,6 +269,7 @@ private:
 #endif
     std::uint64_t hdrGeneration = 0;
     std::atomic<int> displayRefreshRate{0};
+    std::chrono::steady_clock::time_point presentIssuedAt{};
     std::atomic<std::uint32_t> displayResolution{VIDEO_OUT_RESOLUTION_1080P};
 
     std::jthread presentThread;

@@ -8,6 +8,7 @@ layout(binding = 3, rgba32f) uniform writeonly image2D field;
 layout(std430, binding = 4) buffer Statistics {
     uint costSum;
     uint blocks;
+    uint fallbackPixels;
 } statistics;
 layout(push_constant) uniform Parameters {
     ivec2 size;
