@@ -104,7 +104,7 @@ void TestDsSrc2B64() {
             EXPECT_EQ(inst.source0.kind, RdnaOperandKind::VectorRegister);
             EXPECT_EQ(inst.source0.reg, 6u);
             EXPECT_EQ(inst.destination.kind, RdnaOperandKind::None);
-            ExpectTranslationThrows(inst, std::string(form.name) + " at pc 0: 64-bit DS src2 operations are not modeled, because no public source says whether the offset of B is scaled by 4 or by 8");
+            ExpectTranslationThrows(inst, std::string(form.name) + " at pc 0: 64-bit DS src2 operations are not supported, because no public source says whether the offset of B is scaled by 4 or by 8");
         }
         ExpectThrows({0xD8000000u | (form.opcode << 18u) | (0x80u << 8u), 6u}, "DS src2 operation with the offset taken from the address is not supported");
     }
@@ -208,13 +208,13 @@ void TestScalarMemoryStoresAndAtomics() {
             const std::string location = std::string(form.name) + " at pc 0: ";
             switch (form.kind) {
             case ScalarWrite::Store:
-                ExpectTranslationThrows(inst, location + "scalar memory stores are not modeled: scalar loads are resolved as reads of unchanging memory, and the scalar data cache write-back is not modeled");
+                ExpectTranslationThrows(inst, location + "scalar memory stores are not supported: scalar loads are resolved as reads of unchanging memory, and the scalar data cache write-back is not modeled");
                 break;
             case ScalarWrite::Scratch:
-                ExpectTranslationThrows(inst, location + "scalar scratch stores are not modeled: wave-uniform or swizzled scratch layout required");
+                ExpectTranslationThrows(inst, location + "scalar scratch stores are not supported: wave-uniform or swizzled scratch layout required");
                 break;
             case ScalarWrite::Atomic:
-                ExpectTranslationThrows(inst, location + "scalar memory atomics are not modeled: they act once per wave whatever EXEC holds, and the translation has no single-invocation election for them");
+                ExpectTranslationThrows(inst, location + "scalar memory atomics are not supported: they act once per wave whatever EXEC holds, and the translation has no single-invocation election for them");
                 break;
             }
         }

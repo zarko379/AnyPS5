@@ -126,12 +126,12 @@ bool TranslationContext::sScratchLoad(const RdnaInstruction& /*inst*/) {
 bool TranslationContext::sMemoryWrite(const RdnaInstruction& inst) {
     const std::string location = std::string(scalarMemoryWriteName(inst.op)) + " at pc " + std::to_string(inst.programCounter);
     if (inst.opcodeId >= 0x40u) {
-        throw std::runtime_error(location + ": scalar memory atomics are not modeled: they act once per wave whatever EXEC holds, and the translation has no single-invocation election for them");
+        throw std::runtime_error(location + ": scalar memory atomics are not supported: they act once per wave whatever EXEC holds, and the translation has no single-invocation election for them");
     }
     if (inst.opcodeId >= 0x15u && inst.opcodeId <= 0x17u) {
-        throw std::runtime_error(location + ": scalar scratch stores are not modeled: wave-uniform or swizzled scratch layout required");
+        throw std::runtime_error(location + ": scalar scratch stores are not supported: wave-uniform or swizzled scratch layout required");
     }
-    throw std::runtime_error(location + ": scalar memory stores are not modeled: scalar loads are resolved as reads of unchanging memory, and the scalar data cache write-back is not modeled");
+    throw std::runtime_error(location + ": scalar memory stores are not supported: scalar loads are resolved as reads of unchanging memory, and the scalar data cache write-back is not modeled");
 }
 
 void TranslationContext::TranslateCodeTableLoad(const RdnaInstruction& instruction, const ControlFlowGraph::CodeTableLoad& table) {

@@ -461,7 +461,7 @@ bool TranslationContext::emitMemory(const RdnaInstruction& inst) {
     case RdnaOpcode::DsWriteSrc2B64:
     case RdnaOpcode::DsMinSrc2F64:
     case RdnaOpcode::DsMaxSrc2F64:
-        throw std::runtime_error(std::string(dsSrc2B64Name(inst.op)) + " at pc " + std::to_string(inst.programCounter) + ": 64-bit DS src2 operations are not modeled, because no public source says whether the offset of B is scaled by 4 or by 8");
+        throw std::runtime_error(std::string(dsSrc2B64Name(inst.op)) + " at pc " + std::to_string(inst.programCounter) + ": 64-bit DS src2 operations are not supported, because no public source says whether the offset of B is scaled by 4 or by 8");
     case RdnaOpcode::DsWrxchgRtnB32:
         return dsAtomic(inst, IrOpcode::SharedAtomicSwap32, true);
 
