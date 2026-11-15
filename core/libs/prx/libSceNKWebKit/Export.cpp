@@ -10637,14 +10637,6 @@ int APS5_VABI WKNotificationManagerSetProvider() {
 
 
 
-int APS5_VABI WKPageAreScrollbarAnimationsSuppressed() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageBackgroundExtendsBeyondPage() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKPageBeginPrinting() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -10803,10 +10795,6 @@ int APS5_VABI WKPageGetEstimatedProgress() {
 }
 
 
-int APS5_VABI WKPageGetGapBetweenPages() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKPageGetImageForFindMatch() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -10826,19 +10814,7 @@ int APS5_VABI WKPageGetMediaState() {
 
 
 
-int APS5_VABI WKPageGetPageLength() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKPageGetPageZoomFactor() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageGetPaginationBehavesLikeColumns() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageGetPaginationMode() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -10852,10 +10828,6 @@ int APS5_VABI WKPageGetSamplingProfilerOutput() {
 }
 
 int APS5_VABI WKPageGetScaleFactor() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageGetScrollPinningBehavior() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -10912,10 +10884,6 @@ int APS5_VABI WKPageHasVerticalScrollbar() {
 }
 
 int APS5_VABI WKPageHideFindUI() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageHorizontalRubberBandingIsEnabled() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -11039,22 +11007,6 @@ int APS5_VABI WKPageResumeActiveDOMObjectsAndAnimations() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI WKPageRubberBandsAtBottom() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageRubberBandsAtLeft() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageRubberBandsAtRight() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageRubberBandsAtTop() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKPageRunBeforeUnloadConfirmPanelResultListenerCall() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -11091,10 +11043,6 @@ int APS5_VABI WKPageSetApplicationNameForUserAgent() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI WKPageSetBackgroundExtendsBeyondPage() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKPageSetCaretVisible() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -11111,19 +11059,7 @@ int APS5_VABI WKPageSetCustomUserAgent() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI WKPageSetEnableHorizontalRubberBanding() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetEnableVerticalRubberBanding() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKPageSetFixedLayoutSize() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetGapBetweenPages() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -11183,10 +11119,6 @@ int APS5_VABI WKPageSetPageInjectedBundleClient() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI WKPageSetPageLength() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKPageSetPageLoaderClient() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -11211,39 +11143,7 @@ int APS5_VABI WKPageSetPageZoomFactor() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI WKPageSetPaginationBehavesLikeColumns() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetPaginationMode() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetRubberBandsAtBottom() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetRubberBandsAtLeft() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetRubberBandsAtRight() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetRubberBandsAtTop() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI WKPageSetScaleFactor() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetScrollPinningBehavior() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageSetSuppressScrollbarAnimations() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -11292,10 +11192,6 @@ int APS5_VABI WKPageUseFixedLayout() {
 }
 
 int APS5_VABI WKPageValidateCommand() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI WKPageVerticalRubberBandingIsEnabled() {
     NotImplemented_nid_no_patch(__func__);
 }
 
