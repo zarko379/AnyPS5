@@ -409,37 +409,6 @@ void TestParseRange() {
     });
 }
 
-void TestAutofillFieldName() {
-    using NKWebKit::WtfAbi::String;
-    using NKWebKit::WtfAbi::StringImpl;
-    const std::pair<const char*, int> cases[] = {
-        {"off", 0}, {"on", 0}, {"OFF", 0}, {"On", 0}, {"", 0}, {"nme", 0}, {"name ", 0}, {" name", 0},
-        {"name", 1}, {"honorific-prefix", 2}, {"given-name", 3}, {"new-password", 9}, {"current-password", 10},
-        {"address-line1", 14}, {"address-level4", 17}, {"address-level1", 20}, {"postal-code", 23},
-        {"cc-name", 24}, {"cc-type", 33}, {"transaction-amount", 35}, {"bday-year", 40}, {"url", 42},
-        {"photo", 43}, {"tel", 44}, {"tel-local", 48}, {"tel-extension", 51}, {"email", 52}, {"impp", 53},
-        {"section-x", 0}, {"shipping", 0}, {"web-authn", 0},
-    };
-    for (const auto& [text, expected] : cases) {
-        ForBothWidths(text, [&](StringView view) {
-            StringImpl storage{1, view.length, view.data, view.is8Bit ? 4u : 0u};
-            Check(_ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&storage)) == expected);
-        });
-    }
-    for (const char* divergent : {"Name", "EMAIL", "Tel-Local", "webauthn", "WebAuthn", "address\rline1", "cc\rnumber"}) {
-        ForBothWidths(divergent, [&](StringView view) {
-            StringImpl storage{1, view.length, view.data, view.is8Bit ? 4u : 0u};
-            Throws([&] { _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&storage)); });
-        });
-    }
-    std::u16string_view wideName(u"nšme");
-    StringImpl wide{1, static_cast<unsigned>(wideName.size()), wideName.data(), 0};
-    Check(_ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&wide)) == 0);
-    Throws([] { _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String()); });
-    StringImpl invalid{1, 2, nullptr, 4};
-    Throws([&] { _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(String(&invalid)); });
-}
-
 void TestStripHTMLSpaces() {
     using NKWebKit::WtfAbi::String;
     using NKWebKit::WtfAbi::StringImpl;
@@ -496,7 +465,6 @@ int main() {
     TestLineEndings();
     TestLineEndingStorage();
     TestParseRange();
-    TestAutofillFieldName();
     TestStripHTMLSpaces();
     return 0;
 }

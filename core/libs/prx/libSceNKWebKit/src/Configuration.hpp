@@ -19,6 +19,7 @@ public:
     bool isPinnedToRightSide = true;
     bool isPinnedToTopSide = true;
     bool isPinnedToBottomSide = true;
+    bool addsVisitedLinks = true;
 };
 class Preferences : public ObjectOf<ObjectType::Preferences> {};
 class HTTPCookieStore final : public ObjectOf<ObjectType::HTTPCookieStore> {};

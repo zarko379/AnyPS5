@@ -762,22 +762,6 @@ static bool SameLayoutRect(const WebCore::LayoutRect& r, int x, int y, int w, in
         && r.m_size.m_width.m_value == w && r.m_size.m_height.m_value == h;
 }
 
-template <typename T>
-static NKWebKit::WtfAbi::Vector<T> BorrowVector(T* data, unsigned size) {
-    NKWebKit::WtfAbi::Vector<T> vector;
-    vector.buffer = data;
-    vector.capacity = size;
-    vector.size = size;
-    return vector;
-}
-
-template <typename T>
-static void ReleaseBorrowed(NKWebKit::WtfAbi::Vector<T>& vector) {
-    vector.buffer = nullptr;
-    vector.capacity = 0;
-    vector.size = 0;
-}
-
 static void TestFitToPoints() {
     WebCore::FloatRect rect{WebCore::FloatPoint{9.0f, 9.0f}, WebCore::FloatSize{9.0f, 9.0f}};
     _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_(&rect, WebCore::FloatPoint{3.0f, -1.0f}, WebCore::FloatPoint{1.0f, 4.0f});
@@ -865,28 +849,6 @@ static void TestMakeMapBetweenRects() {
     WebCore::FloatRect empty{WebCore::FloatPoint{0.0f, 0.0f}, WebCore::FloatSize{0.0f, 4.0f}};
     WebCore::AffineTransform inf = _ZN7WebCore19makeMapBetweenRectsERKNS_9FloatRectES2_(empty, dest);
     Require(std::isinf(inf.m_transform[0]) && inf.m_transform[3] == 6.25);
-}
-
-static void TestUnionRect() {
-    WebCore::FloatRect rects[3] = {
-        WebCore::FloatRect{WebCore::FloatPoint{0.0f, 0.0f}, WebCore::FloatSize{2.0f, 1.0f}},
-        WebCore::FloatRect{WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatSize{0.0f, 3.0f}},
-        WebCore::FloatRect{WebCore::FloatPoint{-1.0f, 3.0f}, WebCore::FloatSize{1.0f, 1.0f}}};
-    auto rectVector = BorrowVector<WebCore::FloatRect>(rects, 3);
-    Require(SameRect(_ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(rectVector), -1.0f, 0.0f, 3.0f, 4.0f));
-    ReleaseBorrowed(rectVector);
-    auto noRects = BorrowVector<WebCore::FloatRect>(nullptr, 0);
-    Require(SameRect(_ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(noRects), 0.0f, 0.0f, 0.0f, 0.0f));
-
-    auto nullRects = BorrowVector<WebCore::FloatRect>(nullptr, 1);
-    bool threw = false;
-    try {
-        _ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(nullRects);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    Require(threw);
-    ReleaseBorrowed(nullRects);
 }
 
 static void TestHitTestLocation() {
@@ -1362,7 +1324,6 @@ int main() {
     TestRoundedRectFromRadii();
     TestEnclosingRects();
     TestMakeMapBetweenRects();
-    TestUnionRect();
     TestHitTestLocation();
     TestScrollableAreaStatics();
     TestTransformationMatrixScaleRotate();

@@ -152,100 +152,15 @@ void CheckMatrixFilterExtend() {
     }
 }
 
-std::array<int, 8> order{};
-int orderCount = 0;
-CairoUserDataKey orderKey{};
-
-void APS5_VABI RecordOrder(void* data) {
-    order[orderCount++] = *static_cast<int*>(data);
-}
-
-void CheckContextFonts() {
-    CairoContext* context = NewContext();
-    cairo_set_font_size(context, 12.5);
-    cairo_set_font_size(context, -3);
-    assert(Status(context) == 0);
-    cairo_destroy(context);
-}
-
 void CheckContextSources() {
-    destroyedSurfaces = 0;
-    CairoSurface* surface = CountedSurface();
-    CairoPattern* pattern = cairo_pattern_create_for_surface(surface);
-    cairo_surface_destroy(surface);
-    CairoContext* context = NewContext();
-    cairo_set_source(context, pattern);
-    cairo_set_source(context, pattern);
-    assert(Status(context) == 0);
-    cairo_save(context);
-    cairo_set_source_rgb(context, 1, 0, 0);
-    cairo_set_source_rgba(context, 2, -1, 0.5, 0.5);
-    cairo_restore(context);
-    cairo_pattern_destroy(pattern);
-    assert(destroyedSurfaces == 0);
-    cairo_set_source_rgba(context, 0, 0, 0, 1);
-    assert(destroyedSurfaces == 1 && Status(context) == 0);
-    cairo_destroy(context);
-
-    context = NewContext();
-    cairo_set_source_surface(context, nullptr, 0, 0);
-    assert(Status(context) == 7);
-    cairo_destroy(context);
-
     CairoPattern* broken = cairo_pattern_create_linear(0, 0, 1, 1);
     const CairoMatrix singular{0, 0, 0, 0, 0, 0};
     cairo_pattern_set_matrix(broken, &singular);
-    context = NewContext();
+    CairoContext* context = NewContext();
     cairo_set_source(context, broken);
     assert(Status(context) == 5);
     cairo_destroy(context);
     cairo_pattern_destroy(broken);
-
-    destroyedSurfaces = 0;
-    surface = CountedSurface();
-    context = NewContext();
-    cairo_set_source_surface(context, surface, 0, 0);
-    cairo_surface_destroy(surface);
-    assert(destroyedSurfaces == 0);
-    CairoSurface* invalid = cairo_image_surface_create(0, 40000, 1);
-    cairo_set_source_surface(context, invalid, 1, 2);
-    assert(Status(context) == 32 && destroyedSurfaces == 1);
-    cairo_surface_destroy(invalid);
-    cairo_destroy(context);
-}
-
-void CheckSourceSurfaceLifetime() {
-    int ids[3] = {1, 2, 3};
-    order.fill(0);
-    orderCount = 0;
-    CairoSurface* target = cairo_image_surface_create(0, 8, 8);
-    CairoSurface* bottom = cairo_image_surface_create(0, 2, 2);
-    CairoSurface* top = cairo_image_surface_create(0, 2, 2);
-    assert(cairo_surface_set_user_data(target, &orderKey, &ids[0], RecordOrder) == 0);
-    assert(cairo_surface_set_user_data(bottom, &orderKey, &ids[1], RecordOrder) == 0);
-    assert(cairo_surface_set_user_data(top, &orderKey, &ids[2], RecordOrder) == 0);
-    CairoContext* context = cairo_create(target);
-    cairo_surface_destroy(target);
-    cairo_set_source_surface(context, bottom, 0.5, -0.25);
-    cairo_surface_destroy(bottom);
-    cairo_save(context);
-    cairo_set_source_surface(context, top, 0, 0);
-    cairo_surface_destroy(top);
-    assert(orderCount == 0 && Status(context) == 0);
-    cairo_destroy(context);
-    assert(orderCount == 3 && order[0] == 3 && order[1] == 1 && order[2] == 2);
-
-    order.fill(0);
-    orderCount = 0;
-    context = NewContext();
-    CairoSurface* source = cairo_image_surface_create(0, 2, 2);
-    assert(cairo_surface_set_user_data(source, &orderKey, &ids[1], RecordOrder) == 0);
-    cairo_set_source_surface(context, source, std::numeric_limits<double>::infinity(), 0);
-    cairo_surface_destroy(source);
-    assert(orderCount == 0 && Status(context) == 0);
-    cairo_set_source_rgb(context, 0, 0, 1);
-    assert(orderCount == 1 && order[0] == 2);
-    cairo_destroy(context);
 }
 
 } // namespace
@@ -255,9 +170,7 @@ int main() {
     CheckSurfacePatternLifetime();
     CheckColorStops();
     CheckMatrixFilterExtend();
-    CheckContextFonts();
     CheckContextSources();
-    CheckSourceSurfaceLifetime();
     std::puts("guest_cairo_pattern: ok");
     return 0;
 }

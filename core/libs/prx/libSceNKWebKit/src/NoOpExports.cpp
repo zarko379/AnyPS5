@@ -536,13 +536,4 @@ void APS5_VABI WKPageLoadWebArchiveDataWithUserData() {
 void APS5_VABI WKPageSetPaginationLineGridEnabled() {
 }
 
-void APS5_VABI WKResourceCacheManagerClearCacheForAllOrigins() {
-}
-
-void APS5_VABI WKResourceCacheManagerClearCacheForOrigin() {
-}
-
-void APS5_VABI WKResourceCacheManagerGetCacheOrigins() {
-}
-
 }

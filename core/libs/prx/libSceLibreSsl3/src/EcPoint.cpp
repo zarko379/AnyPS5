@@ -47,21 +47,9 @@ void ReadBignum(const Bignum* number, mbedtls_mpi& out, const char* function) {
     }
 }
 
-bool SameParameters(const mbedtls_ecp_group& first, const mbedtls_ecp_group& second) {
-    return mbedtls_mpi_cmp_mpi(&first.P, &second.P) == 0 && mbedtls_mpi_cmp_mpi(&first.A, &second.A) == 0 &&
-        mbedtls_mpi_cmp_mpi(&first.B, &second.B) == 0 && mbedtls_ecp_point_cmp(&first.G, &second.G) == 0 &&
-        mbedtls_mpi_cmp_mpi(&first.N, &second.N) == 0 && first.MBEDTLS_PRIVATE(h) == second.MBEDTLS_PRIVATE(h);
-}
-
 } // namespace
 
 extern "C" {
-
-int APS5_VABI EC_GROUP_cmp_nid_postfix(const EcGroup* first, const EcGroup* second, BignumContext*) {
-    if (first == nullptr || second == nullptr) APS5_INVALID_ARG_EX;
-    if (first->curve.nid != 0 && second->curve.nid != 0 && first->curve.nid != second->curve.nid) return 1;
-    return SameParameters(first->group, second->group) ? 0 : 1;
-}
 
 EcPoint* APS5_VABI EC_POINT_dup_nid_postfix(const EcPoint* source, const EcGroup* group) {
     if (source == nullptr) return nullptr;

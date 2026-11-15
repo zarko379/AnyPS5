@@ -1,6 +1,5 @@
 #include "prx/libSceIcu/CharacterProperties.hpp"
 #include <unicode/uchar.h>
-#include <unicode/ucpmap.h>
 #include <unicode/udata.h>
 #include <unicode/uset.h>
 #include "uprops.h"
@@ -203,63 +202,6 @@ void CheckNameEnumeration() {
     Require(collector.records.empty(), "a null status calls nothing, as in ICU");
 }
 
-std::uint32_t APS5_VABI GuestUppercaseFilter(const void* context, std::uint32_t value) {
-    return value == *static_cast<const std::uint32_t*>(context) ? 1 : 0;
-}
-
-uint32_t U_CALLCONV HostUppercaseFilter(const void* context, uint32_t value) {
-    return value == *static_cast<const std::uint32_t*>(context) ? 1 : 0;
-}
-
-void CheckPropertyMaps() {
-    for (std::int32_t property = UCHAR_INT_START; property < UCHAR_INT_LIMIT; ++property) {
-        UErrorCode hostStatus = U_ZERO_ERROR;
-        const UCPMap* host = u_getIntPropertyMap(static_cast<UProperty>(property), &hostStatus);
-        Require(U_SUCCESS(hostStatus) && host, "integer property maps load");
-        for (std::int32_t c = -1; c <= 0x110000; c += 11) Require(ucpmap_get_nid_postfix(host, c) == ucpmap_get(host, c), "map values match ICU");
-        for (std::int32_t option = UCPMAP_RANGE_NORMAL; option <= UCPMAP_RANGE_FIXED_ALL_SURROGATES; ++option) {
-            std::int32_t start = 0;
-            while (true) {
-                std::uint32_t guestValue = 0xDEAD;
-                uint32_t hostValue = 0xBEEF;
-                const std::int32_t guestEnd = ucpmap_getRange_nid_postfix(host, start, option, 7, nullptr, nullptr, &guestValue);
-                const std::int32_t hostEnd = ucpmap_getRange(host, start, static_cast<UCPMapRangeOption>(option), 7, nullptr, nullptr, &hostValue);
-                Require(guestEnd == hostEnd && (guestEnd < 0 || guestValue == hostValue), "map ranges match ICU");
-                if (guestEnd < 0) break;
-                start = guestEnd + 1;
-            }
-        }
-    }
-    UErrorCode hostStatus = U_ZERO_ERROR;
-    const UCPMap* hostCategory = u_getIntPropertyMap(UCHAR_GENERAL_CATEGORY, &hostStatus);
-    const UCPMap* category = hostCategory;
-    Require(ucpmap_get_nid_postfix(category, 0x41) == U_UPPERCASE_LETTER && ucpmap_get_nid_postfix(category, 0x110000) == 0, "general category map values");
-    const std::uint32_t uppercase = U_UPPERCASE_LETTER;
-    std::int32_t start = 0;
-    std::int32_t filteredRanges = 0;
-    std::int32_t plainRanges = 0;
-    while (true) {
-        std::uint32_t guestValue = 0;
-        uint32_t hostValue = 0;
-        const std::int32_t guestEnd = ucpmap_getRange_nid_postfix(category, start, UCPMAP_RANGE_NORMAL, 0, GuestUppercaseFilter, &uppercase, &guestValue);
-        const std::int32_t hostEnd = ucpmap_getRange(hostCategory, start, UCPMAP_RANGE_NORMAL, 0, HostUppercaseFilter, &uppercase, &hostValue);
-        Require(guestEnd == hostEnd && (guestEnd < 0 || guestValue == hostValue), "filtered map ranges match ICU");
-        if (guestEnd < 0) break;
-        Require(guestValue <= 1, "the filter result is the range value");
-        start = guestEnd + 1;
-        ++filteredRanges;
-    }
-    for (start = 0; start >= 0; ++plainRanges) {
-        const std::int32_t end = ucpmap_getRange_nid_postfix(category, start, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr);
-        start = end < 0 ? -1 : end + 1;
-    }
-    Require(filteredRanges > 100 && filteredRanges < plainRanges, "the filter merges ranges by uppercase or not");
-    Require(ucpmap_getRange_nid_postfix(category, 0x41, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr) == 0x5A, "a null value pointer is allowed");
-    Require(ucpmap_getRange_nid_postfix(category, 0x110000, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr) == -1, "a start beyond U+10FFFF has no range");
-    Require(Throws<std::invalid_argument>([] { ucpmap_get_nid_postfix(nullptr, 0x41); }), "a null map throws in ucpmap_get");
-    Require(Throws<std::invalid_argument>([] { ucpmap_getRange_nid_postfix(nullptr, 0, UCPMAP_RANGE_NORMAL, 0, nullptr, nullptr, nullptr); }), "a null map throws in ucpmap_getRange");
-}
-
 std::vector<std::int32_t> guestAdded;
 std::vector<std::int32_t> hostAdded;
 USet* const guestSet = reinterpret_cast<USet*>(&guestAdded);
@@ -294,7 +236,6 @@ int main() {
     CheckCharacterNames();
     CheckClosure();
     CheckNameEnumeration();
-    CheckPropertyMaps();
     CheckNameCharacters();
     return 0;
 }

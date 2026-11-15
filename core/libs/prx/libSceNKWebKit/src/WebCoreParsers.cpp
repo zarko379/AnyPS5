@@ -260,51 +260,6 @@ ByteVector& Checked(ByteVector* vector) {
     return *vector;
 }
 
-constexpr const char* kAutofillFieldNames[] = {
-    "name", "honorific-prefix", "given-name", "additional-name", "family-name", "honorific-suffix", "nickname",
-    "username", "new-password", "current-password", "organization-title", "organization", "street-address",
-    "address-line1", "address-line2", "address-line3", "address-level4", "address-level3", "address-level2",
-    "address-level1", "country", "country-name", "postal-code", "cc-name", "cc-given-name", "cc-additional-name",
-    "cc-family-name", "cc-number", "cc-exp", "cc-exp-month", "cc-exp-year", "cc-csc", "cc-type",
-    "transaction-currency", "transaction-amount", "language", "bday", "bday-day", "bday-month", "bday-year", "sex",
-    "url", "photo", "tel", "tel-country-code", "tel-national", "tel-area-code", "tel-local", "tel-local-prefix",
-    "tel-local-suffix", "tel-extension", "email", "impp"};
-
-template <typename CharT>
-bool AutofillTokenEquals(const CharT* characters, unsigned length, const char* literal, bool foldLetters) {
-    unsigned literalLength = static_cast<unsigned>(std::strlen(literal));
-    if (literalLength != length) {
-        return false;
-    }
-    for (unsigned i = 0; i < length; ++i) {
-        unsigned character = static_cast<unsigned>(characters[i]);
-        unsigned expected = static_cast<unsigned char>(literal[i]);
-        if (foldLetters ? ((character | 0x20u) != expected) : (character != expected)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-template <typename CharT>
-int AutofillFieldNameFor(const CharT* characters, unsigned length) {
-    constexpr int fieldCount = static_cast<int>(sizeof(kAutofillFieldNames) / sizeof(kAutofillFieldNames[0]));
-    for (int i = 0; i < fieldCount; ++i) {
-        if (AutofillTokenEquals(characters, length, kAutofillFieldNames[i], false)) {
-            return i + 1;
-        }
-    }
-    for (int i = 0; i < fieldCount; ++i) {
-        if (AutofillTokenEquals(characters, length, kAutofillFieldNames[i], true)) {
-            throw std::domain_error("autofill field name that differs only in ASCII case is resolved differently by WebKit revisions");
-        }
-    }
-    if (AutofillTokenEquals(characters, length, "webauthn", true)) {
-        throw std::domain_error("webauthn autofill field name is resolved differently by WebKit revisions");
-    }
-    return 0;
-}
-
 template <typename CharT>
 bool RangeIsSpaceOrNewline(CharT character) {
     return IsFrameOptionsWhitespace(static_cast<char16_t>(character));
@@ -546,20 +501,6 @@ ByteVector APS5_VABI _ZN3WTF26normalizeLineEndingsToCRLFEONS_6VectorIhLm0ENS_15C
 
 ByteVector APS5_VABI _ZN3WTF28normalizeLineEndingsToNativeEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(ByteVector&& from) {
     return _ZN3WTF24normalizeLineEndingsToLFEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(std::move(from));
-}
-
-int APS5_VABI _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(const NKWebKit::WtfAbi::String& value) {
-    const NKWebKit::WtfAbi::StringImpl* impl = value.impl;
-    if (!impl) {
-        throw std::invalid_argument("toAutofillFieldName of a null AtomString");
-    }
-    if (impl->length && !impl->data) {
-        throw std::invalid_argument("toAutofillFieldName of a StringImpl without characters");
-    }
-    if (impl->hashAndFlags & 4) {
-        return AutofillFieldNameFor(static_cast<const unsigned char*>(impl->data), impl->length);
-    }
-    return AutofillFieldNameFor(static_cast<const char16_t*>(impl->data), impl->length);
 }
 
 bool APS5_VABI _ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(

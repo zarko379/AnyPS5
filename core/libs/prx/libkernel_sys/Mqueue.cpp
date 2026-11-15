@@ -264,8 +264,8 @@ std::int64_t APS5_VABI kmq_timedreceive_nid_postfix(int descriptor, char* buffer
     queue.writable.notify_one();
     if (queue.receivers == 0 && !queue.messages.empty()) queue.notifier = NoNotifier;
     lock.unlock();
-    if (!entry.bytes.empty()) std::memcpy(buffer, entry.bytes.data(), entry.bytes.size());
-    if (priority != nullptr) *priority = entry.priority;
+    if (!entry.bytes.empty() && !GuestCopyOut_nid_no_patch(buffer, entry.bytes.data(), entry.bytes.size())) return Fail(GuestEfault);
+    if (priority != nullptr && !GuestCopyOut_nid_no_patch(priority, &entry.priority, sizeof(entry.priority))) return Fail(GuestEfault);
     return static_cast<std::int64_t>(entry.bytes.size());
 }
 

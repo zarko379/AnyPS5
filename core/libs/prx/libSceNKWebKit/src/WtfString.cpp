@@ -1637,3 +1637,15 @@ NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String28numberToStringFixedPrecisionE
 }
 
 }
+
+namespace NKWebKit::WtfAbi {
+
+StringView ViewOf(const StringImpl* impl) {
+    return View(impl);
+}
+
+char16_t CodeUnitAt(const StringView& view, unsigned index) {
+    return Unit(view, index);
+}
+
+}  // namespace NKWebKit::WtfAbi

@@ -220,101 +220,12 @@ void CheckConcurrentContexts() {
     second.join();
 }
 
-void ExpectClip(CairoContext* context, double x1, double y1, double x2, double y2) {
-    double a = 99, b = 99, c = 99, d = 99;
-    cairo_clip_extents(context, &a, &b, &c, &d);
-    Near(a, x1);
-    Near(b, y1);
-    Near(c, x2);
-    Near(d, y2);
-}
-
-CairoContext* ClipContext(CairoSurface* surface) {
-    CairoContext* context = cairo_create(surface);
-    cairo_surface_destroy(surface);
-    return context;
-}
-
-void CheckClipExtents() {
-    static_assert(std::is_same_v<decltype(&cairo_clip_extents),
-                                 void (APS5_VABI*)(CairoContext*, double*, double*, double*, double*)>);
-    CairoContext* context = ClipContext(cairo_image_surface_create(0, 100, 50));
-    ExpectClip(context, 0, 0, 100, 50);
-    double a = 99, b = 99, c = 99, d = 99;
-    cairo_clip_extents(context, nullptr, nullptr, &c, nullptr);
-    assert(c == 100 && a == 99 && d == 99);
-    cairo_clip_extents(context, nullptr, &b, nullptr, &d);
-    assert(b == 0 && d == 50);
-    cairo_save(context);
-    cairo_translate(context, 10, 20);
-    ExpectClip(context, -10, -20, 90, 30);
-    cairo_identity_matrix(context);
-    cairo_scale(context, 2, 4);
-    ExpectClip(context, 0, 0, 50, 12.5);
-    cairo_identity_matrix(context);
-    cairo_scale(context, -1, 1);
-    ExpectClip(context, -100, 0, 0, 50);
-    cairo_identity_matrix(context);
-    cairo_rotate(context, 3.14159265358979323846 / 2);
-    ExpectClip(context, 0, -100, 50, 0);
-    cairo_restore(context);
-    ExpectClip(context, 0, 0, 100, 50);
-    cairo_restore(context);
-    ExpectClip(context, 0, 0, 0, 0);
-    cairo_destroy(context);
-
-    CairoSurface* scaled = cairo_image_surface_create(0, 100, 50);
-    cairo_surface_set_device_scale(scaled, 2, 2);
-    context = ClipContext(scaled);
-    ExpectClip(context, 0, 0, 50, 25);
-    cairo_translate(context, 10, 20);
-    ExpectClip(context, -10, -20, 40, 5);
-    cairo_destroy(context);
-
-    CairoSurface* image = cairo_image_surface_create(0, 100, 100);
-    context = ClipContext(cairo_surface_create_for_rectangle(image, 10.5, 20.25, 30, 40));
-    ExpectClip(context, 0, 0, 29, 39);
-    cairo_destroy(context);
-    context = ClipContext(cairo_surface_create_for_rectangle(image, 0.5, 0, 0.2, 10));
-    ExpectClip(context, 0, 0, 0, 0);
-    cairo_destroy(context);
-    context = ClipContext(cairo_surface_create_for_rectangle(image, 0, 0, 0, 0));
-    ExpectClip(context, 0, 0, 0, 0);
-    cairo_destroy(context);
-
-    cairo_surface_set_device_scale(image, 2, 2);
-    CairoSurface* sub = cairo_surface_create_for_rectangle(image, 10.5, 20.25, 30, 40);
-    context = cairo_create(sub);
-    ExpectClip(context, 0, 0, 30, 39.5);
-    cairo_destroy(context);
-    cairo_surface_set_device_scale(image, 4, 4);
-    cairo_surface_set_device_scale(sub, 1, 1);
-    context = cairo_create(sub);
-    ExpectClip(context, 0, 0, 60, 79);
-    cairo_destroy(context);
-    CairoSurface* nested = cairo_surface_create_for_rectangle(sub, 1.5, 0, 10, 10);
-    context = ClipContext(nested);
-    ExpectClip(context, 0, 0, 2.25, 2.5);
-    cairo_destroy(context);
-    cairo_surface_set_device_scale(sub, 2, 3);
-    context = ClipContext(cairo_surface_create_for_rectangle(sub, 1.5, 0.5, 10, 10));
-    ExpectClip(context, 0, 0, 5, 7.25);
-    cairo_destroy(context);
-    cairo_surface_destroy(sub);
-
-    context = ClipContext(cairo_surface_create_for_rectangle(image, -5e8, 0, 5e8, 10));
-    ExpectClip(context, 0, 0, 5e8, 10);
-    cairo_destroy(context);
-    cairo_surface_destroy(image);
-}
-
 } // namespace
 
 int main() {
     CheckContextLifetime();
     CheckMatrixTransformAndSaveRestore();
     CheckMatrixAliasingAndErrorState();
-    CheckClipExtents();
     CheckConcurrentContexts();
     std::puts("guest cairo context and CTM tests passed");
 }

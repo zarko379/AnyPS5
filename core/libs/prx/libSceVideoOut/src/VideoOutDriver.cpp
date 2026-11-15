@@ -811,6 +811,7 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
             dialogInput.emplace();
             imeTextInput->SetClipboardProvider(&readHostClipboard);
         });
+        bool windowCloseSeen = false;
         while (!token.stop_requested()) {
             {
                 std::unique_lock lock(flipQueue->mutex);
@@ -831,6 +832,7 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
             const bool quit = OnMainThread([&] {
                 SDL_Event event;
                 while (SDL_PollEvent(&event)) {
+                    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE) windowCloseSeen = true;
                     if (event.type == SDL_QUIT) return true;
                     padInput->HandleEvent(event, window);
                     if (window.Handle() != nullptr) {
@@ -845,7 +847,7 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 return false;
             });
             if (quit) {
-                LibcRunReportQuitRequested_nid_no_patch();
+                LibcRunReportQuitRequested_nid_no_patch(windowCloseSeen);
                 LibcRequestExit_nid_postfix(0);
                 throw ProcessShutdown{};
             }

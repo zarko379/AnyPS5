@@ -206,20 +206,6 @@ void TestDup() {
     EC_GROUP_free_nid_postfix(group);
 }
 
-void TestGroupCompare() {
-    EcGroup* first = EC_GROUP_new_by_curve_name_nid_postfix(Secp256r1);
-    EcGroup* second = EC_GROUP_new_by_curve_name_nid_postfix(Secp256r1);
-    EcGroup* other = EC_GROUP_new_by_curve_name_nid_postfix(Secp384r1);
-    Require(EC_GROUP_cmp_nid_postfix(first, second, nullptr) == 0);
-    Require(EC_GROUP_cmp_nid_postfix(first, first, nullptr) == 0);
-    Require(EC_GROUP_cmp_nid_postfix(first, other, nullptr) == 1);
-    Require(EC_GROUP_cmp_nid_postfix(other, second, nullptr) == 1);
-    RequireErrors({});
-    RequireInvalid([&] { EC_GROUP_cmp_nid_postfix(nullptr, first, nullptr); });
-    RequireInvalid([&] { EC_GROUP_cmp_nid_postfix(first, nullptr, nullptr); });
-    for (EcGroup* each : {first, second, other}) EC_GROUP_free_nid_postfix(each);
-}
-
 } // namespace
 
 int main() {
@@ -227,7 +213,6 @@ int main() {
     TestGetAffine();
     TestSetAffine();
     TestDup();
-    TestGroupCompare();
     std::puts("LibreSSL3 EC point tests passed");
     return 0;
 }

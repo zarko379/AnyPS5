@@ -309,19 +309,7 @@ const void* APS5_VABI WKURLCreateWithBaseURL(const void* baseURLRef, const char*
 
 namespace {
 
-class SecurityOrigin final : public NKWebKit::ObjectOf<NKWebKit::ObjectType::SecurityOrigin> {
-public:
-    SecurityOrigin(const NKWebKit::String& protocol, const NKWebKit::String& host, std::optional<std::uint16_t> port)
-        : protocol(protocol.characters), host(host.characters), port(port), protocolNull(protocol.null), hostNull(host.null) {}
-    SecurityOrigin(std::u16string protocol, std::u16string host, std::optional<std::uint16_t> port)
-        : protocol(std::move(protocol)), host(std::move(host)), port(port), protocolNull(false), hostNull(false) {}
-
-    std::u16string protocol;
-    std::u16string host;
-    std::optional<std::uint16_t> port;
-    bool protocolNull;
-    bool hostNull;
-};
+using NKWebKit::SecurityOrigin;
 
 const void* CopyOriginString(std::u16string text) {
     return NKWebKit::ToRef(NKWebKit::Make<NKWebKit::String>(std::move(text)));
@@ -431,7 +419,7 @@ const void* APS5_VABI WKSecurityOriginCreateFromDatabaseIdentifier(const void* i
     auto protocol = text.substr(0, separator1);
     auto host = text.substr(separator1 + 1, separator2 - separator1 - 1);
     if (port && IsDefaultPortForProtocol(*port, protocol)) port = std::nullopt;
-    return NKWebKit::ToRef(NKWebKit::Make<SecurityOrigin>(std::move(protocol), std::move(host), port));
+    return NKWebKit::ToRef(NKWebKit::Make<SecurityOrigin>(NKWebKit::String(std::move(protocol)), NKWebKit::String(std::move(host)), port));
 }
 
 const void* APS5_VABI WKSecurityOriginCopyDatabaseIdentifier(const void* origin) {

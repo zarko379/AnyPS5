@@ -3,7 +3,6 @@
 #include "prx/libSceIcu/Script.hpp"
 #include "prx/libc/include/General.hpp"
 #include <unicode/uchar.h>
-#include <unicode/ucpmap.h>
 #include <unicode/uscript.h>
 #include <unicode/uset.h>
 #include "uprops.h"
@@ -30,16 +29,6 @@ UBool U_CALLCONV ForwardCharName(void* context, UChar32 code, UCharNameChoice na
     return forward->fn(forward->context, code, nameChoice, name, length);
 }
 
-struct ValueFilterForward {
-    GuestMapValueFilter fn;
-    const void* context;
-};
-
-uint32_t U_CALLCONV ForwardValueFilter(const void* context, uint32_t value) {
-    const auto* forward = static_cast<const ValueFilterForward*>(context);
-    return forward->fn(forward->context, value);
-}
-
 static_assert(offsetof(GuestSetAdder, add) == offsetof(USetAdder, add) && offsetof(GuestSetAdder, removeRange) == offsetof(USetAdder, removeRange) && sizeof(GuestSetAdder) == sizeof(USetAdder));
 
 thread_local const GuestSetAdder* activeAdder = nullptr;
@@ -48,12 +37,6 @@ void U_CALLCONV ForwardAdd(USet*, UChar32 c) {
     const GuestSetAdder* adder = activeAdder;
     if (!adder->add) APS5_INVALID_ARG_EX;
     adder->add(adder->set, c);
-}
-
-const UCPMap* Map(const UCPMap* map) {
-    IcuBackend::RequireObject(map);
-    IcuBackend::Ensure();
-    return map;
 }
 
 }
@@ -75,15 +58,6 @@ std::int32_t APS5_VABI u_getFC_NFKC_Closure_nid_postfix(std::int32_t c, char16_t
 void APS5_VABI u_enumCharNames_nid_postfix(std::int32_t start, std::int32_t limit, GuestCharNamesCallback fn, void* context, std::int32_t nameChoice, std::int32_t* status) {
     CharNamesForward forward{fn, context};
     u_enumCharNames(start, limit, fn ? ForwardCharName : nullptr, &forward, static_cast<UCharNameChoice>(nameChoice), Status(status));
-}
-
-std::uint32_t APS5_VABI ucpmap_get_nid_postfix(const UCPMap* map, std::int32_t c) {
-    return ucpmap_get(Map(map), c);
-}
-
-std::int32_t APS5_VABI ucpmap_getRange_nid_postfix(const UCPMap* map, std::int32_t start, std::int32_t option, std::uint32_t surrogateValue, GuestMapValueFilter filter, const void* context, std::uint32_t* value) {
-    const ValueFilterForward forward{filter, context};
-    return ucpmap_getRange(Map(map), start, static_cast<UCPMapRangeOption>(option), surrogateValue, filter ? ForwardValueFilter : nullptr, &forward, value);
 }
 
 std::int32_t APS5_VABI uscript_getCode_nid_postfix(const char* nameOrAbbrOrLocale, std::int32_t* fillIn, std::int32_t capacity, std::int32_t* status) {

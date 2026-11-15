@@ -2,6 +2,8 @@
 
 #include "SceTypes.hpp"
 #include "prx/libSceNKWebKit/src/WebCoreTypes.hpp"
+#include "prx/libSceNKWebKit/include/WtfValueExports.hpp"
+#include "prx/libSceNKWebKit/src/WtfStringAbi.hpp"
 #include "prx/libSceNKWebKit/src/WtfVector.hpp"
 #include <cstddef>
 #include <cstdint>
@@ -29,7 +31,6 @@ WebCore::IntRect APS5_VABI _ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(cons
 WebCore::LayoutRect APS5_VABI _ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE(const WebCore::FloatRect& rect);
 WebCore::FloatRect APS5_VABI _ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf(const WebCore::FloatRect& rect, float deviceScaleFactor);
 WebCore::AffineTransform APS5_VABI _ZN7WebCore19makeMapBetweenRectsERKNS_9FloatRectES2_(const WebCore::FloatRect& source, const WebCore::FloatRect& dest);
-WebCore::FloatRect APS5_VABI _ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(const NKWebKit::WtfAbi::Vector<WebCore::FloatRect>& rects);
 WebCore::IntRect APS5_VABI _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(const WebCore::LayoutPoint& point, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding);
 void APS5_VABI _ZN7WebCore15HitTestLocationC1Ev(WebCore::HitTestLocation* self);
 void APS5_VABI _ZN7WebCore15HitTestLocationC2Ev(WebCore::HitTestLocation* self);
@@ -94,6 +95,11 @@ WebCore::TransformationMatrix& APS5_VABI _ZN7WebCore20TransformationMatrix9trans
 void APS5_VABI _ZN7WebCore20TransformationMatrixC1ERKNS_15AffineTransformE( WebCore::TransformationMatrix* self, const WebCore::AffineTransform& t);
 void APS5_VABI _ZN7WebCore20TransformationMatrixC2ERKNS_15AffineTransformE( WebCore::TransformationMatrix* self, const WebCore::AffineTransform& t);
 void APS5_VABI _ZN7WebCore27setPresentingApplicationPIDEi(int pid);
+WebCore::AutofillFieldName APS5_VABI _ZN7WebCore19toAutofillFieldNameERKN3WTF10AtomStringE(const NKWebKit::WtfAbi::AtomString& value);
+int APS5_VABI _ZN7WebCore24presentingApplicationPIDEv();
+unsigned APS5_VABI _ZN7WebCore25TextureMapperBackingStore25calculateExposedTileEdgesERKNS_9FloatRectES3_(const WebCore::FloatRect& totalRect, const WebCore::FloatRect& tileRect);
+bool APS5_VABI _ZN7WebCore8SVGTests27hasFeatureForLegacyBindingsERKN3WTF6StringES4_(const NKWebKit::WtfAbi::String& feature, const NKWebKit::WtfAbi::String& version);
+WebCore::FloatRect APS5_VABI _ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(const NKWebKit::WtfAbi::Vector<WebCore::FloatRect>& rects);
 bool APS5_VABI _ZN7WebCore24redirectChainAllowsReuseENS_24RedirectChainCacheStatusENS_28ReuseExpiredRedirectionOrNotE(WebCore::RedirectChainCacheStatus status, int reuseExpiredRedirection);
 bool APS5_VABI _ZN7WebCore30isStatusCodeCacheableByDefaultEi(int statusCode);
 bool APS5_VABI _ZN7WebCore32isStatusCodePotentiallyCacheableEi(int statusCode);
