@@ -112,6 +112,10 @@ int APS5_VABI posix_spawnp_nid_postfix(std::int32_t* processId, const char* file
 void APS5_VABI makecontext_nid_postfix(UserUcontext* context, void (APS5_VABI* start)(), int count, ...);
 int APS5_VABI signalcontext_nid_postfix(UserUcontext* context, int signal, void (APS5_VABI* handler)(std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t, std::uint64_t));
 int APS5_VABI __kernel_rem_pio2_nid_postfix(double* x, double* y, int e0, int nx, int prec);
+double APS5_VABI __kernel_sin_nid_postfix(double x, double y, int iy);
+double APS5_VABI __kernel_cos_nid_postfix(double x, double y);
+float APS5_VABI __kernel_sindf_nid_postfix(double x);
+float APS5_VABI __kernel_cosdf_nid_postfix(double x);
 
 [[noreturn]] void APS5_VABI verrc_nid_postfix(int status, int code, const char* format, VaList* args);
 [[noreturn]] void APS5_VABI verr_nid_postfix(int status, const char* format, VaList* args);
