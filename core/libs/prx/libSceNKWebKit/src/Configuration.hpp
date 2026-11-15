@@ -33,6 +33,17 @@ public:
     double gapBetweenPages = 0;
     bool suppressScrollbarAnimations = false;
     std::uint32_t scrollPinningBehavior = 0;
+    double textZoomFactor = 1;
+    double pageZoomFactor = 1;
+    double pageScaleFactor = 1;
+    float intrinsicDeviceScaleFactor = 1;
+    std::optional<float> customDeviceScaleFactor;
+    bool useFixedLayout = false;
+    std::int32_t fixedLayoutWidth = 0;
+    std::int32_t fixedLayoutHeight = 0;
+    bool controlledByAutomation = false;
+    bool mediaCaptureEnabled = true;
+    std::optional<std::u16string> customTextEncodingName;
 };
 class Preferences : public ObjectOf<ObjectType::Preferences> {};
 class HTTPCookieStore final : public ObjectOf<ObjectType::HTTPCookieStore> {};
