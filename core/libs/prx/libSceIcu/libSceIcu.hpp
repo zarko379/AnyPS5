@@ -65,3 +65,4 @@
 #include "RecoveredSignatures.hpp"
 #include "Copy.hpp"
 #include "Hashtable.hpp"
+#include "CoreClasses.hpp"

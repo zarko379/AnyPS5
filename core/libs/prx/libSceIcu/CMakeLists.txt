@@ -35,7 +35,7 @@ if(BUILD_TESTING)
 endif()
 
 include(Backend.cmake)
-add_library(libSceIcu_icu68 OBJECT EXCLUDE_FROM_ALL Backend.cpp Defaults.cpp CharacterProperties.cpp CaseMap.cpp Collation.cpp StringSearch.cpp Idna.cpp EnumerationSources.cpp BreakIterator.cpp NumberFormat.cpp TextFormat.cpp NumberFormatter.cpp DateFormat.cpp ResourceBundle.cpp LocaleInfo.cpp Currency.cpp Converter.cpp Trie.cpp DataMemory.cpp DataSwapper.cpp Text.cpp IcuData.cpp)
+add_library(libSceIcu_icu68 OBJECT EXCLUDE_FROM_ALL Backend.cpp Defaults.cpp CharacterProperties.cpp CaseMap.cpp Collation.cpp StringSearch.cpp Idna.cpp EnumerationSources.cpp BreakIterator.cpp NumberFormat.cpp TextFormat.cpp NumberFormatter.cpp DateFormat.cpp ResourceBundle.cpp LocaleInfo.cpp Currency.cpp Converter.cpp Trie.cpp DataMemory.cpp DataSwapper.cpp Text.cpp IcuData.cpp CoreClasses.cpp)
 target_include_directories(libSceIcu_icu68 PRIVATE ${LIBS_INCLUDE_DIR})
 target_link_libraries(libSceIcu_icu68 PRIVATE icu_i18n_backend icu_common_backend libkernel libc)
 set_target_properties(libSceIcu_icu68 PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -73,6 +73,18 @@ if(BUILD_TESTING)
     set_tests_properties(guest_icu_script_code PROPERTIES TIMEOUT 60)
     if(WIN32)
         set_tests_properties(guest_icu_script_code PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
+    endif()
+
+    add_test_executable(guest_icu_core_classes_tests ${LIBS_INCLUDE_DIR}/tests/GuestIcuCoreClasses.cpp IcuData.cpp)
+    target_include_directories(guest_icu_core_classes_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(guest_icu_core_classes_tests PRIVATE libSceIcu icu_i18n_backend icu_common_backend)
+    add_dependencies(guest_icu_core_classes_tests icu_backend_data)
+    configure_windows_unwind(guest_icu_core_classes_tests)
+    add_test(NAME guest_icu_core_classes COMMAND guest_icu_core_classes_tests)
+    set_tests_properties(guest_icu_core_classes PROPERTIES TIMEOUT 60)
+    if(WIN32)
+        set_tests_properties(guest_icu_core_classes PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
     endif()
 
