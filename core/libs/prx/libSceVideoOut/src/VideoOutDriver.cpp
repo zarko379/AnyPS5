@@ -782,7 +782,8 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
 #if APS5_ENABLE_TIMING_LOG
     std::unique_ptr<FrameTimingLog> timingLog;
 #endif
-    const bool frameGeneration = AgcDriverFrameGenerationRequested_nid_postfix();
+    bool frameGeneration = false;
+    int generationRefresh = 0;
     bool heldPending = false;
     std::chrono::steady_clock::time_point heldDeadline{};
     std::chrono::steady_clock::time_point lastFlipFinished{};
@@ -800,6 +801,7 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
 #if APS5_ENABLE_TIMING_LOG
         timingLog = std::make_unique<FrameTimingLog>();
 #endif
+        frameGeneration = AgcDriverFrameGenerationRequested_nid_postfix();
         OnMainThread([&] {
             padInput.emplace();
             mouseInput.emplace();
@@ -863,6 +865,10 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 bool generate = false;
                 if (frameGeneration) {
                     const int refresh = GetDisplayRefreshRate();
+                    if (refresh != generationRefresh) {
+                        generationRefresh = refresh;
+                        std::fprintf(stderr, "[videoout] frame generation follows the window's display at %d Hz: frames are generated while flips come slower than %.1f a second%c", refresh, refresh > 0 ? refresh / 2.0 : 30.0, 10);
+                    }
                     const auto displayPeriod = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1.0 / static_cast<double>(refresh > 0 ? refresh : 60)));
                     generate = flipInterval > 2 * displayPeriod;
                     AgcDriverSetFrameGeneration_nid_postfix(generate);
