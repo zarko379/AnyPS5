@@ -18,6 +18,27 @@ const char* globalWaveSyncName(RdnaOpcode opcode) {
     }
 }
 
+const char* dsSrc2B64Name(RdnaOpcode opcode) {
+    switch (opcode) {
+    case RdnaOpcode::DsAddSrc2U64: return "ds_add_src2_u64";
+    case RdnaOpcode::DsSubSrc2U64: return "ds_sub_src2_u64";
+    case RdnaOpcode::DsRsubSrc2U64: return "ds_rsub_src2_u64";
+    case RdnaOpcode::DsIncSrc2U64: return "ds_inc_src2_u64";
+    case RdnaOpcode::DsDecSrc2U64: return "ds_dec_src2_u64";
+    case RdnaOpcode::DsMinSrc2I64: return "ds_min_src2_i64";
+    case RdnaOpcode::DsMaxSrc2I64: return "ds_max_src2_i64";
+    case RdnaOpcode::DsMinSrc2U64: return "ds_min_src2_u64";
+    case RdnaOpcode::DsMaxSrc2U64: return "ds_max_src2_u64";
+    case RdnaOpcode::DsAndSrc2B64: return "ds_and_src2_b64";
+    case RdnaOpcode::DsOrSrc2B64: return "ds_or_src2_b64";
+    case RdnaOpcode::DsXorSrc2B64: return "ds_xor_src2_b64";
+    case RdnaOpcode::DsWriteSrc2B64: return "ds_write_src2_b64";
+    case RdnaOpcode::DsMinSrc2F64: return "ds_min_src2_f64";
+    case RdnaOpcode::DsMaxSrc2F64: return "ds_max_src2_f64";
+    default: throw std::logic_error("opcode is not a 64-bit DS src2 instruction");
+    }
+}
+
 }
 
 bool TranslationContext::emitMemory(const RdnaInstruction& inst) {
@@ -363,6 +384,22 @@ bool TranslationContext::emitMemory(const RdnaInstruction& inst) {
         return dsSrc2(inst, IrOpcode::SharedAtomicFMax32);
     case RdnaOpcode::DsAddSrc2F32:
         return dsSrc2(inst, IrOpcode::SharedAtomicFAdd32);
+    case RdnaOpcode::DsAddSrc2U64:
+    case RdnaOpcode::DsSubSrc2U64:
+    case RdnaOpcode::DsRsubSrc2U64:
+    case RdnaOpcode::DsIncSrc2U64:
+    case RdnaOpcode::DsDecSrc2U64:
+    case RdnaOpcode::DsMinSrc2I64:
+    case RdnaOpcode::DsMaxSrc2I64:
+    case RdnaOpcode::DsMinSrc2U64:
+    case RdnaOpcode::DsMaxSrc2U64:
+    case RdnaOpcode::DsAndSrc2B64:
+    case RdnaOpcode::DsOrSrc2B64:
+    case RdnaOpcode::DsXorSrc2B64:
+    case RdnaOpcode::DsWriteSrc2B64:
+    case RdnaOpcode::DsMinSrc2F64:
+    case RdnaOpcode::DsMaxSrc2F64:
+        throw std::runtime_error(std::string(dsSrc2B64Name(inst.op)) + " at pc " + std::to_string(inst.programCounter) + ": 64-bit DS src2 operations are not modeled, because no public source says whether the offset of B is scaled by 4 or by 8");
     case RdnaOpcode::DsWrxchgRtnB32:
         return dsAtomic(inst, IrOpcode::SharedAtomicSwap32, true);
 
