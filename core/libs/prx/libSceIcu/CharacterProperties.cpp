@@ -77,10 +77,6 @@ void APS5_VABI u_enumCharNames_nid_postfix(std::int32_t start, std::int32_t limi
     u_enumCharNames(start, limit, fn ? ForwardCharName : nullptr, &forward, static_cast<UCharNameChoice>(nameChoice), Status(status));
 }
 
-const UCPMap* APS5_VABI u_getIntPropertyMap_nid_postfix(std::int32_t property, std::int32_t* status) {
-    return u_getIntPropertyMap(static_cast<UProperty>(property), RequiredStatus(status));
-}
-
 std::uint32_t APS5_VABI ucpmap_get_nid_postfix(const UCPMap* map, std::int32_t c) {
     return ucpmap_get(Map(map), c);
 }

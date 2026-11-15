@@ -35,25 +35,6 @@ CairoContext* Guest(cairo_t* context) {
 
 }
 
-void CairoContextSetFontOptions(CairoContext* context, const CairoFontOptionsFields* options) {
-    if (!options) {
-        aps5_cairo_set_font_options(Backend(context), nullptr);
-        return;
-    }
-    cairo_font_options_t* backend = aps5_cairo_font_options_create();
-    aps5_cairo_font_options_set_antialias(backend, static_cast<cairo_antialias_t>(options->antialias));
-    aps5_cairo_font_options_set_subpixel_order(backend,
-                                               static_cast<cairo_subpixel_order_t>(options->subpixelOrder));
-    aps5_cairo_font_options_set_hint_style(backend, static_cast<cairo_hint_style_t>(options->hintStyle));
-    aps5_cairo_font_options_set_hint_metrics(backend, static_cast<cairo_hint_metrics_t>(options->hintMetrics));
-    aps5_cairo_set_font_options(Backend(context), backend);
-    aps5_cairo_font_options_destroy(backend);
-}
-
-void CairoContextSetNilFontOptions(CairoContext* context) {
-    aps5_cairo_set_font_options(Backend(context), aps5_cairo_font_options_copy(nullptr));
-}
-
 extern "C" {
 
 CairoContext* APS5_VABI cairo_create(CairoSurface* target) {
@@ -195,10 +176,6 @@ void APS5_VABI cairo_set_operator(CairoContext* context, int operation) {
 
 int APS5_VABI cairo_get_operator(CairoContext* context) {
     return aps5_cairo_get_operator(Backend(context));
-}
-
-void APS5_VABI cairo_set_source(CairoContext* context, CairoPattern* source) {
-    aps5_cairo_set_source(Backend(context), reinterpret_cast<cairo_pattern_t*>(source));
 }
 
 void APS5_VABI cairo_set_source_rgb(CairoContext* context, double red, double green, double blue) {

@@ -156,7 +156,6 @@ void CheckStrings() {
         }
         Require(std::string(uloc_getISO3Language_nid_postfix(locale)) == uloc_getISO3Language(locale), what + " ISO3 language");
         Require(std::string(uloc_getISO3Country_nid_postfix(locale)) == uloc_getISO3Country(locale), what + " ISO3 country");
-        Require(uloc_getLCID_nid_postfix(locale) == uloc_getLCID(locale), what + " LCID");
         Require(ulocimp_isCanonicalizedLocaleForTest_nid_postfix(locale) == ulocimp_isCanonicalizedLocaleForTest(locale), what + " canonicalized");
         for (int line = 0; line < 2; ++line) {
             std::int32_t status = Ok;
@@ -245,38 +244,6 @@ void CheckLists() {
     Require(length == hostLength && length > 10, "known canonicalized locales count");
     for (std::int32_t item = 0; item < length; ++item) Require(std::strcmp(known[item], hostKnown[item]) == 0, "known canonicalized locales");
     Require(Throws<std::invalid_argument>([] { ulocimp_getKnownCanonicalizedLocaleForTest_nid_postfix(nullptr); }), "a NULL length throws");
-    std::vector<std::uint32_t> ids = {0x409, 0x407, 0x804, 0x0c04, 0x7c04, 0x10407, 0x92, 0x492, 0x0, 0xffff, 0x40a, 0xc0a, 0x1404, 0x81a, 0x7c1a, 0x45e, 0x20c, 0x46b, 0x7f, 0x400, 0x800};
-    for (std::uint32_t id = 0; id < 0x500; id += 3) ids.push_back(id);
-    for (std::uint32_t id : ids) {
-        for (std::int32_t capacity : {0, 2, 5, 64}) {
-            std::vector<char> buffer(static_cast<std::size_t>(capacity) + 2, 'x');
-            std::vector<char> hostBuffer(static_cast<std::size_t>(capacity) + 2, 'x');
-            for (std::int32_t incoming : {Ok, static_cast<std::int32_t>(U_STRING_NOT_TERMINATED_WARNING), static_cast<std::int32_t>(U_INVALID_FORMAT_ERROR)}) {
-                std::int32_t status = incoming;
-                UErrorCode hostStatus = static_cast<UErrorCode>(incoming);
-                const std::int32_t result = uloc_getLocaleForLCID_nid_postfix(id, capacity ? buffer.data() : nullptr, capacity, &status);
-                const std::int32_t hostResult = uloc_getLocaleForLCID(id, capacity ? hostBuffer.data() : nullptr, capacity, &hostStatus);
-                Require(result == hostResult && status == hostStatus && buffer == hostBuffer, "getLocaleForLCID " + std::to_string(id) + " " + std::to_string(capacity));
-            }
-        }
-        char probe[64];
-        UErrorCode probeStatus = U_ZERO_ERROR;
-        const bool known = uloc_getLocaleForLCID(id, probe, sizeof(probe), &probeStatus) >= 0;
-        if (known) {
-            Require(Throws<std::invalid_argument>([id] { std::int32_t ok = Ok; uloc_getLocaleForLCID_nid_postfix(id, nullptr, 4, &ok); }), "getLocaleForLCID throws for a NULL buffer it copies into");
-            Require(Throws<std::invalid_argument>([id] { std::int32_t ok = Ok; char buffer[4]; uloc_getLocaleForLCID_nid_postfix(id, buffer, -1, &ok); }), "getLocaleForLCID throws for a negative capacity it copies with");
-        } else {
-            std::int32_t status = Ok;
-            Require(uloc_getLocaleForLCID_nid_postfix(id, nullptr, 4, &status) == -1 && status == U_ILLEGAL_ARGUMENT_ERROR, "getLocaleForLCID reports an unknown LCID without copying");
-        }
-    }
-    for (const auto& [id, expected] : {std::pair<std::uint32_t, const char*>{0x0c04, "zh_Hant_HK"}, {0x0404, "zh_Hant_TW"}, {0x1404, "zh_Hant_MO"}, {0x7c04, "zh_Hant"}, {0x0492, "ckb_Arab_IQ"}}) {
-        char name[32] = "";
-        std::int32_t status = Ok;
-        Require(uloc_getLocaleForLCID_nid_postfix(id, name, sizeof(name), &status) == static_cast<std::int32_t>(std::strlen(expected)) && status == Ok && std::strcmp(name, expected) == 0, std::string("getLocaleForLCID uses ICU's table, not Windows: ") + expected);
-    }
-    Require(uloc_getLCID_nid_postfix("en_US") == 0x409 && uloc_getLCID_nid_postfix("de@collation=phonebook") == 0x10407 && uloc_getLCID_nid_postfix(nullptr) == 0 && uloc_getLCID_nid_postfix("e") == 0, "getLCID uses ICU's table");
-    Require(Throws<std::invalid_argument>([] { uloc_getLocaleForLCID_nid_postfix(0x409, nullptr, 0, nullptr); }), "getLocaleForLCID throws for a NULL status");
 }
 
 const char* const DisplayLocales[] = {"en", "de", "fr_CA", "ja", "zh_Hant", "", "ar", "sr_Latn", "en_GB", "es_MX"};
@@ -426,8 +393,6 @@ void CheckDefaults() {
         hostStatus = U_ZERO_ERROR;
         Require(ulocimp_getRegionForSupplementalData_nid_postfix(locale, 0, chars, 64, &status) == ulocimp_getRegionForSupplementalData(locale, 0, host, 64, &hostStatus) && status == hostStatus, std::string("getRegionForSupplementalData without inference never canonicalizes: ") + locale);
     }
-    Require(NotImplemented([&] { uloc_getLCID_nid_postfix("i-default@collation=phonebook"); }), "getLCID throws where it canonicalizes i-default");
-    Require(uloc_getLCID_nid_postfix("i-default@calendar=x") == uloc_getLCID("i-default@calendar=x"), "getLCID without a collation keyword never canonicalizes");
     for (const char* locale : {"en_US", "de", "ar_EG", "i-default", "zh_Hant_TW", "ja@calendar=japanese"}) {
         for (const char* display : {"en", "de", "ja", "", "ar"}) {
             const std::string what = std::string("no default ") + locale + " in " + display;

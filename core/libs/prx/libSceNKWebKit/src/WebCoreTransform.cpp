@@ -1,5 +1,6 @@
 #include "prx/libc/include/General.hpp"
 #include "prx/libSceNKWebKit/include/WebCoreExports.hpp"
+#include "prx/libSceNKWebKit/include/WebCoreLayoutExports.hpp"
 #include "prx/libSceNKWebKit/src/WebCoreTypes.hpp"
 #include <algorithm>
 #include <array>
@@ -543,6 +544,15 @@ bool Decompose4(const TransformationMatrix& tm, Decomposed4& decomp) {
         return true;
     }
     return Decompose4Matrix(tm.m_matrix, decomp);
+}
+
+Length ToLength(const LengthAbi& length) {
+    Length result;
+    std::memcpy(&result, &length, sizeof(int));
+    result.m_type = static_cast<LengthType>(length.m_type);
+    result.m_hasQuirk = length.m_hasQuirk;
+    result.m_isFloat = length.m_isFloat;
+    return result;
 }
 
 }  // namespace
@@ -1380,17 +1390,17 @@ bool APS5_VABI _ZNK7WebCore22SkewTransformOperation5applyERNS_20TransformationMa
 
 double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1xERKNS_9FloatSizeE(
     const WebCore::TranslateTransformOperation* self, const WebCore::FloatSize& borderBoxSize) {
-    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(self->m_x, borderBoxSize.m_width);
+    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(WebCore::ToLength(self->m_x), borderBoxSize.m_width);
 }
 
 double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1yERKNS_9FloatSizeE(
     const WebCore::TranslateTransformOperation* self, const WebCore::FloatSize& borderBoxSize) {
-    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(self->m_y, borderBoxSize.m_height);
+    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(WebCore::ToLength(self->m_y), borderBoxSize.m_height);
 }
 
 double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1zERKNS_9FloatSizeE(
     const WebCore::TranslateTransformOperation* self, const WebCore::FloatSize&) {
-    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(self->m_z, 1.0f);
+    return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(WebCore::ToLength(self->m_z), 1.0f);
 }
 
 bool APS5_VABI _ZNK7WebCore27TranslateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
@@ -1404,7 +1414,7 @@ bool APS5_VABI _ZNK7WebCore27TranslateTransformOperation5applyERNS_20Transformat
 
 bool APS5_VABI _ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
     const WebCore::PerspectiveTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize&) {
-    float perspective = _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(self->m_p, 1.0f);
+    float perspective = _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(WebCore::ToLength(self->m_p), 1.0f);
     _ZN7WebCore20TransformationMatrix16applyPerspectiveEd(&transform, static_cast<double>(perspective));
     return false;
 }

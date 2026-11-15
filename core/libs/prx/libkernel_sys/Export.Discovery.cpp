@@ -16,6 +16,7 @@
 #include "prx/libkernel/DirectMemory/DirectMemory.hpp"
 #include "prx/libkernel/Semaphore/include/Ksem.hpp"
 #include <cstddef>
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
@@ -868,8 +869,11 @@ int APS5_VABI sceKernelGetKnobs(void) {
 
 int APS5_VABI sceKernelGetKqueueFromEqueue(KernelEqueue eq, int* kq) {
     if (!kq) return SCE_KERNEL_ERROR_EINVAL;
-    *kq = static_cast<int>(static_cast<std::uint32_t>(eq));
-    return 0;
+    const int descriptor = static_cast<int>(static_cast<std::uint32_t>(eq));
+    const int savedErrno = errno;
+    const bool written = GuestCopyOut_nid_no_patch(kq, &descriptor, sizeof(descriptor));
+    errno = savedErrno;
+    return written ? 0 : SCE_KERNEL_ERROR_EINVAL;
 }
 
 int APS5_VABI sceKernelGetMemoryPstate(void) {

@@ -49,13 +49,6 @@ const WideNumPutVtable& WideNumPut(const GuestLocale::Facet* self) {
     return *reinterpret_cast<const WideNumPutVtable*>(self->vtable);
 }
 
-struct WideTimePutVtable {
-    GuestLocale::FacetVtable facet;
-    GuestLocale::OutputIterator (APS5_VABI *put)(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier);
-};
-
-static_assert(offsetof(WideTimePutVtable, put) == 0x20);
-
 void PutNarrow(GuestLocale::OutputIterator& out, char character) {
     GuestLocale::Streambuf* buffer = out.buffer;
     if (buffer == nullptr) {
@@ -312,8 +305,19 @@ GuestLocale::OutputIterator APS5_VABI sceLibcInternalTimePut_nid_no_patch(const 
 }
 APS5_EXPORT("qkuA-unH7PU", sceLibcInternalTimePut_nid_no_patch);
 
-GuestLocale::OutputIterator APS5_VABI _ZNKSt8time_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE3putES3_RSt8ios_basewPK2tmcc_nid_postfix(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier) {
-    return reinterpret_cast<const WideTimePutVtable*>(self->vtable)->put(self, out, stream, fill, time, format, modifier);
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalWideTimePutPattern_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, const std::uint16_t* first, const std::uint16_t* last) {
+    return LibcWideTimePutPattern_nid_no_patch(self, out, stream, fill, time, first, last);
 }
+APS5_EXPORT("Sc0lXhQG5Ko", sceLibcInternalWideTimePutPattern_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalWideTimePut_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier) {
+    return reinterpret_cast<const GuestLocale::WideTimePutVtable*>(self->vtable)->put(self, out, stream, fill, time, format, modifier);
+}
+APS5_EXPORT("Nt6eyVKm+Z4", sceLibcInternalWideTimePut_nid_no_patch);
+
+GuestLocale::OutputIterator APS5_VABI sceLibcInternalWideTimePutDoPut_nid_no_patch(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier) {
+    return LibcWideTimePutDoPut_nid_no_patch(self, out, stream, fill, time, format, modifier);
+}
+APS5_EXPORT("Fr7j8dMsy4s", sceLibcInternalWideTimePutDoPut_nid_no_patch);
 
 }

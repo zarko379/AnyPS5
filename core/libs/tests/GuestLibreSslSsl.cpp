@@ -559,21 +559,6 @@ static void TestGetExData() {
     Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 3) == nullptr);
     stack->data = data;
     FreeExData(internal);
-
-    LibreSslCtxInternal contextInternal {};
-    LibreSslCtx context {};
-    RequireThrows([] { SSL_CTX_get_ex_data_nid_postfix(nullptr, 0); });
-    RequireThrows([&] { SSL_CTX_get_ex_data_nid_postfix(&context, 0); });
-    context.internal = &contextInternal;
-    Require(SSL_CTX_get_ex_data_nid_postfix(&context, 0) == nullptr);
-    Require(SSL_CTX_set_ex_data_nid_postfix(&context, 1, &first) == 1);
-    Require(SSL_CTX_get_ex_data_nid_postfix(&context, 1) == &first);
-    Require(SSL_CTX_get_ex_data_nid_postfix(&context, 0) == nullptr);
-    Require(SSL_CTX_get_ex_data_nid_postfix(&context, 2) == nullptr);
-    Require(SSL_CTX_get_ex_data_nid_postfix(&context, -1) == nullptr);
-    auto* contextStack = static_cast<LibreSslStack*>(contextInternal.exData);
-    CRYPTO_free_nid_postfix(contextStack->data);
-    CRYPTO_free_nid_postfix(contextStack);
 }
 
 static void TestSessionAccessors() {

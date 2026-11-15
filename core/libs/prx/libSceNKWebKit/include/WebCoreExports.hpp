@@ -29,7 +29,6 @@ WebCore::IntRect APS5_VABI _ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(cons
 WebCore::LayoutRect APS5_VABI _ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE(const WebCore::FloatRect& rect);
 WebCore::FloatRect APS5_VABI _ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf(const WebCore::FloatRect& rect, float deviceScaleFactor);
 WebCore::AffineTransform APS5_VABI _ZN7WebCore19makeMapBetweenRectsERKNS_9FloatRectES2_(const WebCore::FloatRect& source, const WebCore::FloatRect& dest);
-WebCore::FloatRect APS5_VABI _ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(const NKWebKit::WtfAbi::Vector<WebCore::FloatQuad>& quads);
 WebCore::FloatRect APS5_VABI _ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(const NKWebKit::WtfAbi::Vector<WebCore::FloatRect>& rects);
 WebCore::IntRect APS5_VABI _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(const WebCore::LayoutPoint& point, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding);
 void APS5_VABI _ZN7WebCore15HitTestLocationC1Ev(WebCore::HitTestLocation* self);
@@ -40,8 +39,6 @@ void APS5_VABI _ZN7WebCore15HitTestLocationC1ERKNS_10FloatPointE(WebCore::HitTes
 void APS5_VABI _ZN7WebCore15HitTestLocationC2ERKNS_10FloatPointE(WebCore::HitTestLocation* self, const WebCore::FloatPoint& point);
 WebCore::LayoutPoint APS5_VABI _ZN7WebCore14ScrollableArea34constrainScrollPositionForOverhangERKNS_10LayoutRectERKNS_10LayoutSizeERKNS_11LayoutPointES9_ii(const WebCore::LayoutRect& visibleContentRect, const WebCore::LayoutSize& totalContentsSize, const WebCore::LayoutPoint& scrollPosition, const WebCore::LayoutPoint& scrollOrigin, int headerHeight, int footerHeight);
 void APS5_VABI _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(float currentPosition, float totalSize, float visibleSize, float& doubleValue, float& overhangAmount);
-WebCore::LayoutUnit APS5_VABI _ZN7WebCore14valueForLengthERKNS_6LengthENS_10LayoutUnitE(const WebCore::LengthAbi& length, WebCore::LayoutUnit maximumValue);
-float APS5_VABI _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(const WebCore::LengthAbi& length, float maximumValue);
 WebCore::TransformationMatrix& APS5_VABI _ZN7WebCore20TransformationMatrix7scale3dEddd(WebCore::TransformationMatrix* self, double sx, double sy, double sz);
 WebCore::TransformationMatrix& APS5_VABI _ZN7WebCore20TransformationMatrix8rotate3dEdddd(WebCore::TransformationMatrix* self, double x, double y, double z, double angle);
 WebCore::OptionalTransformationMatrix APS5_VABI _ZNK7WebCore20TransformationMatrix7inverseEv(const WebCore::TransformationMatrix* self);
@@ -67,6 +64,7 @@ void APS5_VABI _ZN7WebCore15AffineTransformC1Edddddd(WebCore::AffineTransform* s
 void APS5_VABI _ZN7WebCore15AffineTransformC2Edddddd(WebCore::AffineTransform* self, double a, double b, double c, double d, double e, double f);
 WebCore::AffineTransform& APS5_VABI _ZN7WebCore15AffineTransform15scaleNonUniformEdd( WebCore::AffineTransform* self, double sx, double sy);
 WebCore::AffineTransform& APS5_VABI _ZN7WebCore15AffineTransform4skewEdd( WebCore::AffineTransform* self, double angleX, double angleY);
+WebCore::VelocityData APS5_VABI _ZN7WebCore22HistoricalVelocityData18velocityForNewDataENS_10FloatPointEdN3WTF13MonotonicTimeE( WebCore::HistoricalVelocityData* self, WebCore::FloatPoint newPosition, double scale, WTF::MonotonicTime timestamp);
 void APS5_VABI _ZN7WebCore15AffineTransform5blendERKS0_d( WebCore::AffineTransform* self, const WebCore::AffineTransform& from, double progress);
 WebCore::AffineTransform& APS5_VABI _ZN7WebCore15AffineTransform5flipXEv(WebCore::AffineTransform* self);
 WebCore::AffineTransform& APS5_VABI _ZN7WebCore15AffineTransform5flipYEv(WebCore::AffineTransform* self);
@@ -119,6 +117,7 @@ void APS5_VABI _ZN7WebCore7IntRectC1ERKNS_10LayoutRectE(WebCore::IntRect* self, 
 void APS5_VABI _ZN7WebCore7IntRectC1ERKNS_9FloatRectE(WebCore::IntRect* self, const WebCore::FloatRect& r);
 void APS5_VABI _ZN7WebCore7IntRectC2ERKNS_10LayoutRectE(WebCore::IntRect* self, const WebCore::LayoutRect& r);
 void APS5_VABI _ZN7WebCore7IntRectC2ERKNS_9FloatRectE(WebCore::IntRect* self, const WebCore::FloatRect& r);
+WebCore::IntSize APS5_VABI _ZN7WebCore18ImageBufferBackend20calculateBackendSizeERKNS_9FloatSizeEf(const WebCore::FloatSize& size, float resolutionScale);
 void APS5_VABI _ZN7WebCore7IntSizeC1ERKNS_9FloatSizeE(WebCore::IntSize* self, const WebCore::FloatSize& s);
 void APS5_VABI _ZN7WebCore7IntSizeC2ERKNS_9FloatSizeE(WebCore::IntSize* self, const WebCore::FloatSize& s);
 std::uint64_t APS5_VABI _ZN7WebCore7Process10identifierEv();

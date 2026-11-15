@@ -3,20 +3,8 @@
 
 namespace {
 
-char LowerCharacter(char character) {
-    return static_cast<char>(_Tolower_nid_postfix(static_cast<unsigned char>(character), nullptr));
-}
-
-char UpperCharacter(char character) {
-    return static_cast<char>(_Toupper_nid_postfix(static_cast<unsigned char>(character), nullptr));
-}
-
 std::uint16_t LowerWide(std::uint16_t character) {
     return static_cast<std::uint16_t>(_Towlower_nid_postfix(character, nullptr));
-}
-
-std::uint16_t UpperWide(std::uint16_t character) {
-    return static_cast<std::uint16_t>(_Towupper_nid_postfix(character, nullptr));
 }
 
 std::uint16_t WidenCharacter(char character) {
@@ -38,36 +26,12 @@ const TCharacter* ConvertRange(TCharacter* first, const TCharacter* last, TConve
 
 extern "C" {
 
-char APS5_VABI _ZNKSt5ctypeIcE10do_tolowerEc_nid_postfix(const GuestLocale::Facet*, char character) {
-    return LowerCharacter(character);
-}
-
-const char* APS5_VABI _ZNKSt5ctypeIcE10do_tolowerEPcPKc_nid_postfix(const GuestLocale::Facet*, char* first, const char* last) {
-    return ConvertRange(first, last, LowerCharacter);
-}
-
-char APS5_VABI _ZNKSt5ctypeIcE10do_toupperEc_nid_postfix(const GuestLocale::Facet*, char character) {
-    return UpperCharacter(character);
-}
-
-const char* APS5_VABI _ZNKSt5ctypeIcE10do_toupperEPcPKc_nid_postfix(const GuestLocale::Facet*, char* first, const char* last) {
-    return ConvertRange(first, last, UpperCharacter);
-}
-
 std::uint16_t APS5_VABI _ZNKSt5ctypeIwE10do_tolowerEw_nid_postfix(const GuestLocale::Facet*, std::uint16_t character) {
     return LowerWide(character);
 }
 
 const std::uint16_t* APS5_VABI _ZNKSt5ctypeIwE10do_tolowerEPwPKw_nid_postfix(const GuestLocale::Facet*, std::uint16_t* first, const std::uint16_t* last) {
     return ConvertRange(first, last, LowerWide);
-}
-
-std::uint16_t APS5_VABI _ZNKSt5ctypeIwE10do_toupperEw_nid_postfix(const GuestLocale::Facet*, std::uint16_t character) {
-    return UpperWide(character);
-}
-
-const std::uint16_t* APS5_VABI _ZNKSt5ctypeIwE10do_toupperEPwPKw_nid_postfix(const GuestLocale::Facet*, std::uint16_t* first, const std::uint16_t* last) {
-    return ConvertRange(first, last, UpperWide);
 }
 
 std::uint16_t APS5_VABI _ZNKSt5ctypeIwE8do_widenEc_nid_postfix(const GuestLocale::Facet*, char character) {

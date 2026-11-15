@@ -249,22 +249,6 @@ void SetLocationAndSizeFromEdges(FloatRect& rect, float left, float top, float r
     rect.m_size = FloatSize{right - left, bottom - top};
 }
 
-FloatRect QuadBoundingBox(const FloatQuad& quad) {
-    float left = Min4(quad.m_p1.m_x, quad.m_p2.m_x, quad.m_p3.m_x, quad.m_p4.m_x);
-    float top = Min4(quad.m_p1.m_y, quad.m_p2.m_y, quad.m_p3.m_y, quad.m_p4.m_y);
-    float right = Max4(quad.m_p1.m_x, quad.m_p2.m_x, quad.m_p3.m_x, quad.m_p4.m_x);
-    float bottom = Max4(quad.m_p1.m_y, quad.m_p2.m_y, quad.m_p3.m_y, quad.m_p4.m_y);
-    return FloatRect{FloatPoint{left, top}, FloatSize{right - left, bottom - top}};
-}
-
-void UniteEvenIfEmpty(FloatRect& rect, const FloatRect& other) {
-    float minX = std::min(rect.m_location.m_x, other.m_location.m_x);
-    float minY = std::min(rect.m_location.m_y, other.m_location.m_y);
-    float maxX = std::max(rect.m_location.m_x + rect.m_size.m_width, other.m_location.m_x + other.m_size.m_width);
-    float maxY = std::max(rect.m_location.m_y + rect.m_size.m_height, other.m_location.m_y + other.m_size.m_height);
-    SetLocationAndSizeFromEdges(rect, minX, minY, maxX, maxY);
-}
-
 template <typename T>
 const T* VectorElements(const NKWebKit::WtfAbi::Vector<T>& vector) {
     if (!vector.buffer && vector.size) {
@@ -299,35 +283,6 @@ void ConstructHitTestLocation(HitTestLocation* self, const LayoutPoint& point) {
     self->m_transformedRect = QuadFromIntRect(self->m_boundingBox);
     self->m_isRectBased = false;
     self->m_isRectilinear = true;
-}
-
-enum class LengthKind : std::uint8_t {
-    Auto,
-    Relative,
-    Percent,
-    Fixed,
-    Intrinsic,
-    MinIntrinsic,
-    MinContent,
-    MaxContent,
-    FillAvailable,
-    FitContent,
-    Calculated,
-    Undefined
-};
-
-LengthKind CheckedLengthKind(const LengthAbi& length) {
-    if (length.m_type == static_cast<std::uint8_t>(LengthKind::Calculated)) {
-        throw std::invalid_argument("Calculated Length needs the CalculationValue map");
-    }
-    if (length.m_type > static_cast<std::uint8_t>(LengthKind::Undefined)) {
-        throw std::invalid_argument("Length type out of range");
-    }
-    return static_cast<LengthKind>(length.m_type);
-}
-
-float LengthValue(const LengthAbi& length) {
-    return length.m_isFloat ? length.m_floatValue : static_cast<float>(length.m_intValue);
 }
 
 int ApproxSaturatedAdd(int a, int b) {
@@ -966,19 +921,6 @@ WebCore::AffineTransform APS5_VABI _ZN7WebCore19makeMapBetweenRectsERKNS_9FloatR
     return transform;
 }
 
-WebCore::FloatRect APS5_VABI _ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(
-    const NKWebKit::WtfAbi::Vector<WebCore::FloatQuad>& quads) {
-    const WebCore::FloatQuad* elements = WebCore::VectorElements(quads);
-    if (!quads.size) {
-        return WebCore::FloatRect{};
-    }
-    WebCore::FloatRect result = WebCore::QuadBoundingBox(elements[0]);
-    for (unsigned i = 1; i < quads.size; ++i) {
-        WebCore::UniteEvenIfEmpty(result, WebCore::QuadBoundingBox(elements[i]));
-    }
-    return result;
-}
-
 WebCore::FloatRect APS5_VABI _ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(
     const NKWebKit::WtfAbi::Vector<WebCore::FloatRect>& rects) {
     const WebCore::FloatRect* elements = WebCore::VectorElements(rects);
@@ -1074,51 +1016,6 @@ void APS5_VABI _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfff
     } else {
         doubleValue = 0.0f;
     }
-}
-
-WebCore::LayoutUnit APS5_VABI _ZN7WebCore14valueForLengthERKNS_6LengthENS_10LayoutUnitE(
-    const WebCore::LengthAbi& length, WebCore::LayoutUnit maximumValue) {
-    switch (WebCore::CheckedLengthKind(length)) {
-    case WebCore::LengthKind::Fixed:
-        return WebCore::LayoutFromFloat(WebCore::LengthValue(length));
-    case WebCore::LengthKind::Percent:
-        return WebCore::LayoutFromFloat(static_cast<float>(WebCore::LayoutToFloat(maximumValue) * WebCore::LengthValue(length) / 100.0f));
-    case WebCore::LengthKind::FillAvailable:
-    case WebCore::LengthKind::Auto:
-        return maximumValue;
-    case WebCore::LengthKind::Relative:
-    case WebCore::LengthKind::Intrinsic:
-    case WebCore::LengthKind::MinIntrinsic:
-    case WebCore::LengthKind::MinContent:
-    case WebCore::LengthKind::MaxContent:
-    case WebCore::LengthKind::FitContent:
-    case WebCore::LengthKind::Calculated:
-    case WebCore::LengthKind::Undefined:
-        return WebCore::LayoutUnit{0};
-    }
-    return WebCore::LayoutUnit{0};
-}
-
-float APS5_VABI _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(const WebCore::LengthAbi& length, float maximumValue) {
-    switch (WebCore::CheckedLengthKind(length)) {
-    case WebCore::LengthKind::Fixed:
-        return WebCore::LengthValue(length);
-    case WebCore::LengthKind::Percent:
-        return static_cast<float>(maximumValue * WebCore::LengthValue(length) / 100.0f);
-    case WebCore::LengthKind::FillAvailable:
-    case WebCore::LengthKind::Auto:
-        return maximumValue;
-    case WebCore::LengthKind::Relative:
-    case WebCore::LengthKind::Intrinsic:
-    case WebCore::LengthKind::MinIntrinsic:
-    case WebCore::LengthKind::MinContent:
-    case WebCore::LengthKind::MaxContent:
-    case WebCore::LengthKind::FitContent:
-    case WebCore::LengthKind::Calculated:
-    case WebCore::LengthKind::Undefined:
-        return 0.0f;
-    }
-    return 0.0f;
 }
 
 WebCore::Region APS5_VABI _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(const WebCore::RoundedRect& roundedRect, unsigned stepLength) {

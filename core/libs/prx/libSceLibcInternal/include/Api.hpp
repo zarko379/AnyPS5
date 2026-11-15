@@ -29,16 +29,13 @@ struct LibcUtimbuf {
 
 using ThreadDestructorFunction = void (APS5_VABI*)(void*);
 
-struct LibcInternalFormatManipulator {
-    void (APS5_VABI* function)(GuestLocale::IosBase* stream, std::int32_t mask);
-    std::uint64_t argument;
-};
-
-static_assert(sizeof(LibcInternalFormatManipulator) == 16);
-static_assert(offsetof(LibcInternalFormatManipulator, argument) == 8);
-
 extern "C" {
 
+bool APS5_VABI sceLibcInternalWideCtypeDoIs_nid_no_patch(const GuestLocale::Facet* self, short mask, char16_t character);
+const char16_t* APS5_VABI sceLibcInternalWideCtypeDoIsRange_nid_no_patch(const GuestLocale::Facet* self, const char16_t* first, const char16_t* last, short* destination);
+const char16_t* APS5_VABI sceLibcInternalWideCtypeDoScanNot_nid_no_patch(const GuestLocale::Facet* self, short mask, const char16_t* first, const char16_t* last);
+char16_t APS5_VABI sceLibcInternalWideCtypeDoToupper_nid_no_patch(const GuestLocale::Facet* self, char16_t character);
+const char16_t* APS5_VABI sceLibcInternalWideCtypeDoToupperRange_nid_no_patch(const GuestLocale::Facet* self, char16_t* first, const char16_t* last);
 int APS5_VABI sigblock_nid_postfix(int mask);
 int APS5_VABI sigsetmask_nid_postfix(int mask);
 
@@ -184,12 +181,8 @@ void APS5_VABI _ZNSt23_Generic_error_categoryD0Ev_nid_postfix(void* self);
 void APS5_VABI _ZNSt18bad_variant_accessD1Ev_nid_postfix(void* self);
 void APS5_VABI _ZNSt18bad_variant_accessD0Ev_nid_postfix(void* self);
 [[noreturn]] void APS5_VABI sceLibcInternalXoverflowError_nid_no_patch(const char* message);
-LibcInternalFormatManipulator APS5_VABI _ZSt11setiosflagsNSt5_IosbIiE9_FmtflagsE_nid_postfix(std::int32_t mask);
-LibcInternalFormatManipulator APS5_VABI _ZSt13resetiosflagsNSt5_IosbIiE9_FmtflagsE_nid_postfix(std::int32_t mask);
-LibcInternalFormatManipulator APS5_VABI _ZSt7setbasei_nid_postfix(std::int32_t base);
 GuestLocale::OutputIterator APS5_VABI _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, const std::uint16_t* source, std::size_t count);
 GuestLocale::OutputIterator APS5_VABI _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_RepES3_wm_nid_postfix(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, std::uint16_t character, std::size_t count);
-GuestLocale::OutputIterator APS5_VABI _ZNKSt8time_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE3putES3_RSt8ios_basewPK2tmcc_nid_postfix(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier);
 [[noreturn]] void APS5_VABI _ZNKSs5_XranEv_nid_postfix(const GuestLocale::String* self);
 [[noreturn]] void APS5_VABI _ZNKSs5_XlenEv_nid_postfix(const GuestLocale::String* self);
 [[noreturn]] void APS5_VABI _ZNKSbIwSt11char_traitsIwESaIwEE5_XranEv_nid_postfix(const GuestLocale::String* self);

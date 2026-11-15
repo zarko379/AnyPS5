@@ -7,16 +7,6 @@
 
 struct CairoContext;
 
-struct CairoFontOptionsFields {
-    int antialias;
-    int subpixelOrder;
-    int hintStyle;
-    int hintMetrics;
-};
-
-void CairoContextSetFontOptions(CairoContext* context, const CairoFontOptionsFields* options);
-void CairoContextSetNilFontOptions(CairoContext* context);
-
 extern "C" {
 CairoContext* APS5_VABI cairo_create(CairoSurface* target);
 CairoContext* APS5_VABI cairo_reference(CairoContext* context);
@@ -58,7 +48,6 @@ int APS5_VABI cairo_get_operator(CairoContext* context);
 void APS5_VABI cairo_rectangle(CairoContext* context, double x, double y,
                                double width, double height);
 
-void APS5_VABI cairo_set_source(CairoContext* context, CairoPattern* source);
 void APS5_VABI cairo_set_source_rgb(CairoContext* context, double red, double green, double blue);
 void APS5_VABI cairo_set_source_rgba(CairoContext* context, double red, double green, double blue,
                                      double alpha);

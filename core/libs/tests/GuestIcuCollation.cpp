@@ -1,7 +1,7 @@
 #include "prx/libSceIcu/Collation.hpp"
 #include "prx/libSceIcu/Defaults.hpp"
 #include "prx/libSceIcu/Set.hpp"
-#include "prx/libSceIcu/Numeric.hpp"
+#include "prx/libSceIcu/include/LegacyExports.hpp"
 #include <unicode/ucol.h>
 #include <unicode/udata.h>
 #include <unicode/uiter.h>

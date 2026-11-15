@@ -10,8 +10,6 @@ const char* APS5_VABI uloc_getISO3Language_nid_postfix(const char* localeID);
 const char* APS5_VABI uloc_getISO3Country_nid_postfix(const char* localeID);
 const char* const* APS5_VABI uloc_getISOLanguages_nid_postfix();
 const char* const* APS5_VABI uloc_getISOCountries_nid_postfix();
-std::uint32_t APS5_VABI uloc_getLCID_nid_postfix(const char* localeID);
-std::int32_t APS5_VABI uloc_getLocaleForLCID_nid_postfix(std::uint32_t hostID, char* locale, std::int32_t localeCapacity, std::int32_t* status);
 const char* APS5_VABI uloc_toUnicodeLocaleKey_nid_postfix(const char* keyword);
 const char* APS5_VABI uloc_toUnicodeLocaleType_nid_postfix(const char* keyword, const char* value);
 const char* APS5_VABI uloc_toLegacyKey_nid_postfix(const char* keyword);

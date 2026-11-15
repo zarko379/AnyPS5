@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #ifdef _WIN32
@@ -22,6 +23,7 @@
 extern "C" {
 extern GuestLocale::Implementation* _ZSt21_sceLibcClassicLocale_nid_postfix;
 extern std::uint64_t _ZNSt5ctypeIcE2idE_nid_postfix;
+extern std::uint64_t _ZNSt5ctypeIwE2idE_nid_postfix;
 }
 
 namespace {
@@ -442,52 +444,6 @@ void CheckTimePutForwarding() {
     Require(stream.accepted == "<EY><_F>" && out.failed, "time_put::put(spec, mod) returns what do_put returns");
 }
 
-struct WideTimeCall {
-    const GuestLocale::Facet* self;
-    GuestLocale::Streambuf* buffer;
-    bool failed;
-    GuestLocale::IosBase* stream;
-    std::uint16_t fill;
-    const GuestTm* time;
-    char format;
-    char modifier;
-};
-
-WideTimeCall g_wideTimeCall{};
-int g_wideTimeCalls = 0;
-
-GuestLocale::OutputIterator APS5_VABI RecordWideTimePut(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier) {
-    ++g_wideTimeCalls;
-    g_wideTimeCall = WideTimeCall{self, out.buffer, out.failed, stream, fill, time, format, modifier};
-    return GuestLocale::OutputIterator{!out.failed, out.buffer};
-}
-
-struct RecordingWideTimePutVtable {
-    GuestLocale::FacetVtable facet;
-    GuestLocale::OutputIterator (APS5_VABI *put)(const GuestLocale::Facet*, GuestLocale::OutputIterator, GuestLocale::IosBase*, std::uint16_t, const GuestTm*, char, char);
-};
-
-const RecordingWideTimePutVtable g_recordingWideTimePut{g_testFacet, RecordWideTimePut};
-
-void CheckWideTimePutForwarding() {
-    GuestLocale::Facet facet{&g_recordingWideTimePut.facet, 1, 0};
-    GuestLocale::IosBase ios{};
-    GuestTm time{};
-    auto stream = MakeStream(0);
-    g_wideTimeCalls = 0;
-    GuestLocale::OutputIterator out = _ZNKSt8time_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE3putES3_RSt8ios_basewPK2tmcc_nid_postfix(
-        &facet, GuestLocale::OutputIterator{false, &stream.buffer}, &ios, 0x20ac, &time, 'Y', 'E');
-    Require(g_wideTimeCalls == 1, "time_put<wchar_t>::put(spec, mod) calls do_put once");
-    Require(g_wideTimeCall.self == &facet && g_wideTimeCall.stream == &ios && g_wideTimeCall.time == &time, "time_put<wchar_t>::put passes the facet, stream and time");
-    Require(g_wideTimeCall.fill == 0x20ac, "time_put<wchar_t>::put passes the 16-bit fill");
-    Require(g_wideTimeCall.format == 'Y' && g_wideTimeCall.modifier == 'E', "time_put<wchar_t>::put passes the specifier and modifier");
-    Require(g_wideTimeCall.buffer == &stream.buffer && !g_wideTimeCall.failed, "time_put<wchar_t>::put passes the output iterator");
-    Require(out.failed && out.buffer == &stream.buffer, "time_put<wchar_t>::put returns what do_put returns");
-    out = _ZNKSt8time_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE3putES3_RSt8ios_basewPK2tmcc_nid_postfix(&facet, out, &ios, 0xffff, nullptr, '\0', '\0');
-    Require(g_wideTimeCalls == 2 && g_wideTimeCall.failed && g_wideTimeCall.fill == 0xffff && g_wideTimeCall.time == nullptr, "time_put<wchar_t>::put passes a failed iterator, the top fill and a null time");
-    Require(g_wideTimeCall.format == '\0' && g_wideTimeCall.modifier == '\0' && !out.failed, "time_put<wchar_t>::put passes empty specifiers");
-}
-
 void CheckPatternWalk() {
     GuestLocale::Facet facet{&g_recordingTimePut.facet, 1, 0};
     GuestLocale::Implementation** classic = &_ZSt21_sceLibcClassicLocale_nid_postfix;
@@ -622,44 +578,44 @@ void CheckPutAndRepeat() {
     Require(stream.accepted == std::string(1, static_cast<char>(0xff)) && !out.failed, "money_put::_Rep passes 0xff to overflow as 255, not eof");
 }
 
-struct WideTestHeader;
+struct WideAreaHeader;
 
-struct WideTestVtable {
+struct WideAreaVtable {
     const void* reserved[4];
-    int (APS5_VABI *overflow)(WideTestHeader* self, int character);
+    int (APS5_VABI *overflow)(WideAreaHeader* self, int character);
 };
 
-struct WideTestHeader {
-    const WideTestVtable* vtable;
+struct WideAreaHeader {
+    const WideAreaVtable* vtable;
     const void* reserved[7];
     std::uint16_t** putNext;
     const void* reservedCounts[3];
     std::uint16_t** putEnd;
 };
 
-static_assert(offsetof(WideTestVtable, overflow) == 0x20);
-static_assert(offsetof(WideTestHeader, putNext) == 0x40);
-static_assert(offsetof(WideTestHeader, putEnd) == 0x60);
+static_assert(offsetof(WideAreaVtable, overflow) == 0x20);
+static_assert(offsetof(WideAreaHeader, putNext) == 0x40);
+static_assert(offsetof(WideAreaHeader, putEnd) == 0x60);
 
-struct WideTestStreambuf {
-    WideTestHeader header;
+struct WideAreaStreambuf {
+    WideAreaHeader header;
     std::vector<int> accepted;
     int offered;
     int capacity;
 };
 
-int APS5_VABI WideTestOverflow(WideTestHeader* self, int character) {
-    auto* stream = reinterpret_cast<WideTestStreambuf*>(self);
+int APS5_VABI WideAreaOverflow(WideAreaHeader* self, int character) {
+    auto* stream = reinterpret_cast<WideAreaStreambuf*>(self);
     ++stream->offered;
     if (static_cast<int>(stream->accepted.size()) >= stream->capacity) return -1;
     stream->accepted.push_back(character);
     return character;
 }
 
-const WideTestVtable g_wideStreambufVtable{{}, WideTestOverflow};
+const WideAreaVtable g_wideAreaVtable{{}, WideAreaOverflow};
 std::uint16_t* g_noWideBuffer = nullptr;
 
-GuestLocale::OutputIterator WideOut(WideTestStreambuf& stream, bool failed = false) {
+GuestLocale::OutputIterator WideOut(WideAreaStreambuf& stream, bool failed = false) {
     return GuestLocale::OutputIterator{failed, reinterpret_cast<GuestLocale::Streambuf*>(&stream.header)};
 }
 
@@ -670,12 +626,12 @@ void CheckWidePutAndRepeat() {
     GuestLocale::Facet facet{&g_testFacet, 1, 0};
     const std::uint16_t text[] = {u'a', 0xffff, 0x4e2d};
 
-    WideTestStreambuf stream{{&g_wideStreambufVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 8};
+    WideAreaStreambuf stream{{&g_wideAreaVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 8};
     GuestLocale::OutputIterator out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(&facet, WideOut(stream), text, 3);
     Require(stream.accepted == std::vector<int>{0x61, 0xffff, 0x4e2d}, "wide num_put::_Put passes zero-extended units to overflow");
     Require(!out.failed && out.buffer == WideOut(stream).buffer, "wide num_put::_Put keeps the iterator good when overflow echoes U+FFFF");
 
-    stream = WideTestStreambuf{{&g_wideStreambufVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 1};
+    stream = WideAreaStreambuf{{&g_wideAreaVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 1};
     out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(&facet, WideOut(stream), text, 3);
     Require(stream.accepted == std::vector<int>{0x61} && stream.offered == 3 && out.failed, "wide num_put::_Put fails when overflow returns eof and keeps offering");
     out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(&facet, GuestLocale::OutputIterator{false, nullptr}, text, 1);
@@ -685,19 +641,19 @@ void CheckWidePutAndRepeat() {
     std::uint16_t* next = storage;
     std::uint16_t* end = storage + 3;
     const std::uint16_t five[] = {1, 2, 3, 4, 5};
-    WideTestStreambuf area{{&g_wideStreambufVtable, {}, &next, {}, &end}, {}, 0, 8};
+    WideAreaStreambuf area{{&g_wideAreaVtable, {}, &next, {}, &end}, {}, 0, 8};
     out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_PutES3_PKwm_nid_postfix(&facet, WideOut(area), five, 5);
     Require(storage[0] == 1 && storage[1] == 2 && storage[2] == 3 && next == end, "wide num_put::_Put fills a three-unit put area first");
     Require(area.accepted == std::vector<int>{4, 5} && !out.failed, "wide num_put::_Put overflows once the put area is full");
 
-    stream = WideTestStreambuf{{&g_wideStreambufVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 8};
+    stream = WideAreaStreambuf{{&g_wideAreaVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 8};
     out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_RepES3_wm_nid_postfix(&facet, WideOut(stream, true), 0xffff, 2);
     Require(stream.accepted == std::vector<int>{0xffff, 0xffff} && out.failed, "wide num_put::_Rep writes through a failed iterator and keeps it failed");
     out = _ZNKSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE4_RepES3_wm_nid_postfix(&facet, WideOut(stream), u'x', 0);
     Require(stream.accepted.size() == 2 && !out.failed, "wide num_put::_Rep of no units writes nothing");
 
     next = storage;
-    area = WideTestStreambuf{{&g_wideStreambufVtable, {}, &next, {}, &end}, {}, 0, 1};
+    area = WideAreaStreambuf{{&g_wideAreaVtable, {}, &next, {}, &end}, {}, 0, 1};
     out = moneyRepeat(WideOut(area), 0x4e2d, 5);
     Require(storage[0] == 0x4e2d && storage[2] == 0x4e2d && area.accepted == std::vector<int>{0x4e2d} && area.offered == 2 && out.failed, "wide money_put::_Rep fills the put area, then overflows until eof");
     out = moneyRepeat(GuestLocale::OutputIterator{false, nullptr}, u'0', 1);
@@ -735,13 +691,234 @@ void CheckStreambufPutSequence() {
     std::uint16_t wideStorage[3] {};
     std::uint16_t* wideNext = wideStorage;
     std::uint16_t* wideEnd = wideStorage + 3;
-    WideTestStreambuf wide{{&g_wideStreambufVtable, {}, &wideNext, {}, &wideEnd}, {}, 0, 8};
+    WideAreaStreambuf wide{{&g_wideAreaVtable, {}, &wideNext, {}, &wideEnd}, {}, 0, 8};
     const std::uint16_t five[] = {1, 2, 3, 0xffff, 0x4e2d};
     Require(widePut(reinterpret_cast<GuestLocale::Streambuf*>(&wide.header), five, 5) == 5, "wide xsputn reports every unit it put");
     Require(wideStorage[0] == 1 && wideStorage[1] == 2 && wideStorage[2] == 3 && wideNext == wideEnd, "wide xsputn copies into a three-unit put area first");
     Require(wide.accepted == std::vector<int>{0xffff, 0x4e2d}, "wide xsputn overflows zero-extended units and keeps going after U+FFFF");
-    WideTestStreambuf full{{&g_wideStreambufVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 0};
+    WideAreaStreambuf full{{&g_wideAreaVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 0};
     Require(widePut(reinterpret_cast<GuestLocale::Streambuf*>(&full.header), five, 5) == 0 && full.offered == 1, "wide xsputn stops when overflow returns eof");
+}
+
+struct WideTestStreambuf {
+    GuestLocale::Streambuf buffer;
+    std::u16string accepted;
+    std::vector<int> offered;
+    int capacity;
+};
+
+int APS5_VABI WideTestOverflow(GuestLocale::Streambuf* self, int character) {
+    auto* stream = reinterpret_cast<WideTestStreambuf*>(self);
+    stream->offered.push_back(character);
+    if (static_cast<int>(stream->accepted.size()) >= stream->capacity) return -1;
+    stream->accepted += static_cast<char16_t>(character);
+    return character;
+}
+
+const GuestLocale::StreambufVtable g_wideStreambufVtable{{}, WideTestOverflow};
+
+WideTestStreambuf MakeWideStream(int capacity) {
+    return WideTestStreambuf{{&g_wideStreambufVtable, {}, &g_noBuffer, {}, &g_noBuffer}, {}, {}, capacity};
+}
+
+struct WideTimeCall {
+    const GuestLocale::Facet* self;
+    GuestLocale::IosBase* stream;
+    std::uint16_t fill;
+    const GuestTm* time;
+};
+
+WideTimeCall g_wideTimeCall{};
+
+GuestLocale::OutputIterator APS5_VABI RecordWideTimePut(const GuestLocale::Facet* self, GuestLocale::OutputIterator out, GuestLocale::IosBase* stream, std::uint16_t fill, const GuestTm* time, char format, char modifier) {
+    ++g_timeCalls;
+    g_wideTimeCall = WideTimeCall{self, stream, fill, time};
+    auto* buffer = reinterpret_cast<WideTestStreambuf*>(out.buffer);
+    buffer->accepted += u'<';
+    buffer->accepted += modifier != '\0' ? static_cast<char16_t>(static_cast<unsigned char>(modifier)) : u'_';
+    buffer->accepted += format != '\0' ? static_cast<char16_t>(static_cast<unsigned char>(format)) : u'0';
+    buffer->accepted += u'>';
+    return GuestLocale::OutputIterator{out.failed || format == 'F', out.buffer};
+}
+
+const GuestLocale::WideTimePutVtable g_recordingWideTimePut{g_testFacet, RecordWideTimePut};
+
+using WideTimePutExport = GuestLocale::OutputIterator (APS5_VABI*)(const GuestLocale::Facet*, GuestLocale::OutputIterator, GuestLocale::IosBase*, std::uint16_t, const GuestTm*, char, char);
+using WideTimePutPatternExport = GuestLocale::OutputIterator (APS5_VABI*)(const GuestLocale::Facet*, GuestLocale::OutputIterator, GuestLocale::IosBase*, std::uint16_t, const GuestTm*, const std::uint16_t*, const std::uint16_t*);
+
+constexpr std::uint16_t g_wideFill = 0x263a;
+
+GuestLocale::OutputIterator PutWidePatternInto(WideTestStreambuf& stream, const GuestLocale::Facet* facet, GuestLocale::Implementation** locale, const std::u16string& pattern) {
+    GuestLocale::IosBase ios{};
+    ios.locale = locale;
+    GuestTm time{};
+    g_timeCalls = 0;
+    g_wideTimeCall = {};
+    const auto* first = reinterpret_cast<const std::uint16_t*>(pattern.data());
+    const GuestLocale::OutputIterator out = Export<WideTimePutPatternExport>("Sc0lXhQG5Ko")(facet, GuestLocale::OutputIterator{false, &stream.buffer}, &ios, g_wideFill, &time, first, first + pattern.size());
+    Require(out.buffer == &stream.buffer, "time_put<wchar_t>::put returns the output iterator");
+    if (g_timeCalls != 0) Require(g_wideTimeCall.self == facet && g_wideTimeCall.stream == &ios && g_wideTimeCall.fill == g_wideFill && g_wideTimeCall.time == &time, "time_put<wchar_t>::put passes the facet, stream, fill and time to do_put");
+    return out;
+}
+
+std::u16string PutWidePattern(const GuestLocale::Facet* facet, GuestLocale::Implementation** locale, const std::u16string& pattern, bool* failed = nullptr) {
+    auto stream = MakeWideStream(64);
+    const GuestLocale::OutputIterator out = PutWidePatternInto(stream, facet, locale, pattern);
+    if (failed != nullptr) *failed = out.failed;
+    else Require(!out.failed, "time_put<wchar_t>::put keeps a good iterator");
+    return stream.accepted;
+}
+
+void CheckWideTimePutForwarding() {
+    const auto put = Export<WideTimePutExport>("Nt6eyVKm+Z4");
+    GuestLocale::Facet facet{&g_recordingWideTimePut.facet, 1, 0};
+    GuestLocale::IosBase ios{};
+    GuestTm time{};
+    auto stream = MakeWideStream(0);
+    g_timeCalls = 0;
+    GuestLocale::OutputIterator out = put(&facet, GuestLocale::OutputIterator{false, &stream.buffer}, &ios, g_wideFill, &time, 'Y', 'E');
+    Require(g_timeCalls == 1 && g_wideTimeCall.self == &facet && g_wideTimeCall.stream == &ios && g_wideTimeCall.fill == g_wideFill && g_wideTimeCall.time == &time, "time_put<wchar_t>::put(spec, mod) calls do_put once with its arguments and the 16-bit fill");
+    Require(stream.accepted == u"<EY>" && !out.failed && out.buffer == &stream.buffer, "time_put<wchar_t>::put(spec, mod) passes the specifier and modifier");
+    out = put(&facet, out, &ios, g_wideFill, &time, 'F', '\0');
+    Require(stream.accepted == u"<EY><_F>" && out.failed, "time_put<wchar_t>::put(spec, mod) returns what do_put returns");
+}
+
+void CheckWidePatternWalk() {
+    GuestLocale::Facet facet{&g_recordingWideTimePut.facet, 1, 0};
+    GuestLocale::Implementation** classic = &_ZSt21_sceLibcClassicLocale_nid_postfix;
+    Require(PutWidePattern(&facet, classic, u"") == u"" && g_timeCalls == 0, "an empty wide pattern writes nothing");
+    Require(PutWidePattern(&facet, classic, u"plain é中Ａ") == u"plain é中Ａ" && g_timeCalls == 0, "wide literal elements are copied with their 16-bit value");
+    Require(PutWidePattern(&facet, classic, u"a%Yb%Ec%Od%%e") == u"a<_Y>b<Ec><Od><_%>e" && g_timeCalls == 4, "each wide conversion calls do_put in pattern order");
+    Require(PutWidePattern(&facet, classic, u"%Qx%#y") == u"<Qx><#y>", "Q and # are modifiers in a wide pattern");
+    Require(PutWidePattern(&facet, classic, u"x%") == u"x%" && g_timeCalls == 0, "a trailing wide percent is copied");
+    Require(PutWidePattern(&facet, classic, u"x%E") == u"x%E" && g_timeCalls == 0, "a trailing wide modifier is copied with its percent");
+    Require(PutWidePattern(&facet, classic, u"%EE") == u"<EE>", "a modifier can be the specifier in a wide pattern");
+    bool failed = false;
+    Require(PutWidePattern(&facet, classic, u"%Fz", &failed) == u"<_F>z" && failed, "the iterator do_put returns is used for the rest of the wide pattern");
+}
+
+void CheckWideClassicNarrow() {
+    GuestLocale::Facet facet{&g_recordingWideTimePut.facet, 1, 0};
+    GuestLocale::Implementation** classic = &_ZSt21_sceLibcClassicLocale_nid_postfix;
+    Require(PutWidePattern(&facet, classic, u"ĥY") == u"ĥY" && g_timeCalls == 0, "without a ctype<wchar_t> an element above ASCII is not a percent");
+    Require(PutWidePattern(&facet, classic, u"%ř") == u"<_0>" && g_timeCalls == 1, "without a ctype<wchar_t> a specifier above ASCII narrows to the null default");
+}
+
+std::u16string g_wideNarrowCalls;
+
+char APS5_VABI TestWideNarrow(const GuestLocale::Facet*, std::uint16_t character, char fallback) {
+    g_wideNarrowCalls += fallback == '\0' ? static_cast<char16_t>(character) : u'?';
+    switch (character) {
+    case u'!': return '%';
+    case u'q': return 'E';
+    case u'z': return 'd';
+    case u'%': return 'p';
+    default: return static_cast<char>(character);
+    }
+}
+
+const GuestLocale::WideCtypeVtable g_testWideCtype{g_testFacet, {}, {}, {}, TestWideNarrow, nullptr};
+
+void CheckWideStreamCtype() {
+    GuestLocale::Facet facet{&g_recordingWideTimePut.facet, 1, 0};
+    Require(_ZNSt5ctypeIwE2idE_nid_postfix != 0, "time_put<wchar_t>::put looks up ctype<wchar_t> through its locale id");
+    GuestLocale::Facet ctype{&g_testWideCtype.facet, 1, 0};
+    std::vector<GuestLocale::Facet*> facets(_ZNSt5ctypeIwE2idE_nid_postfix + 1);
+    facets.back() = &ctype;
+    GuestLocale::Implementation custom{{nullptr, 1, 0}, facets.data(), facets.size(), 0, false, "C"};
+    GuestLocale::Implementation* customPointer = &custom;
+    g_wideNarrowCalls.clear();
+    Require(PutWidePattern(&facet, &customPointer, u"1!qz2%Y!") == u"1<Ed>2%Y!", "the stream's ctype<wchar_t> narrows the pattern and literal elements keep their value");
+    Require(g_wideNarrowCalls == u"1!qz2%Y!", "narrow is called once per examined element with a null default");
+    Require(PutWidePattern(&facet, &customPointer, u"a!q") == u"a!q", "a trailing modifier is copied as its original elements");
+}
+
+void CheckWideStreamWrite() {
+    GuestLocale::Facet facet{&g_recordingWideTimePut.facet, 1, 0};
+    GuestLocale::Implementation** classic = &_ZSt21_sceLibcClassicLocale_nid_postfix;
+    std::array<std::uint16_t, 3> area{0, 0, 0x5a5a};
+    char* next = reinterpret_cast<char*>(area.data());
+    char* end = reinterpret_cast<char*>(area.data() + 2);
+    auto stream = MakeWideStream(64);
+    stream.buffer.putNext = &next;
+    stream.buffer.putEnd = &end;
+    GuestLocale::OutputIterator out = PutWidePatternInto(stream, &facet, classic, u"éＡ耀");
+    Require(!out.failed && area[0] == 0x00e9 && area[1] == 0xff21 && area[2] == 0x5a5a && next == end, "wide literal elements fill the stream's put area while it has room");
+    Require(stream.offered == std::vector<int>{0x8000} && stream.accepted == u"耀", "an element that does not fit goes to overflow zero-extended");
+    auto shortStream = MakeWideStream(2);
+    out = PutWidePatternInto(shortStream, &facet, classic, u"abcd");
+    Require(out.failed && shortStream.accepted == u"ab" && shortStream.offered == std::vector<int>{'a', 'b', 'c', 'd'}, "an overflow of -1 marks the iterator failed and later elements are still offered");
+    GuestLocale::IosBase ios{};
+    ios.locale = classic;
+    GuestTm time{};
+    const std::u16string pattern = u"x";
+    const auto* first = reinterpret_cast<const std::uint16_t*>(pattern.data());
+    out = Export<WideTimePutPatternExport>("Sc0lXhQG5Ko")(&facet, GuestLocale::OutputIterator{false, nullptr}, &ios, g_wideFill, &time, first, first + pattern.size());
+    Require(out.failed && out.buffer == nullptr, "a null stream buffer marks the iterator failed");
+}
+
+GuestTm MakeWideDoPutTime() {
+    GuestTm time{};
+    time.tm_year = 126;
+    time.tm_mon = 10;
+    time.tm_mday = 14;
+    time.tm_hour = 9;
+    time.tm_min = 5;
+    time.tm_sec = 7;
+    time.tm_wday = 6;
+    time.tm_yday = 317;
+    return time;
+}
+
+std::u16string WideDoPut(const GuestTm& time, char format, char modifier) {
+    auto stream = MakeWideStream(256);
+    const GuestLocale::OutputIterator out = Export<WideTimePutExport>("Fr7j8dMsy4s")(nullptr, GuestLocale::OutputIterator{false, &stream.buffer}, nullptr, g_wideFill, &time, format, modifier);
+    Require(!out.failed && out.buffer == &stream.buffer, "time_put<wchar_t>::do_put returns a good iterator over the same buffer");
+    return stream.accepted;
+}
+
+void RequireWideDoPutThrows(char format, char modifier) {
+    const GuestTm time = MakeWideDoPutTime();
+    auto stream = MakeWideStream(256);
+    try {
+        Export<WideTimePutExport>("Fr7j8dMsy4s")(nullptr, GuestLocale::OutputIterator{false, &stream.buffer}, nullptr, g_wideFill, &time, format, modifier);
+    } catch (const std::runtime_error& error) {
+        Require(std::string(error.what()).find("LibcWideTimePutDoPut") != std::string::npos && stream.accepted.empty(), "an unsettled do_put throws before writing");
+        return;
+    }
+    Require(false, "an unsettled do_put must throw");
+}
+
+void CheckWideTimePutDoPut() {
+    const GuestTm time = MakeWideDoPutTime();
+    Require(WideDoPut(time, 'Y', '\0') == u"2026", "do_put writes one conversion without its leading marker and reads neither the facet, the stream nor the fill");
+    Require(WideDoPut(time, 'y', 'E') == u"26" && WideDoPut(time, 'd', 'O') == u"14", "do_put puts the modifier before the specifier");
+    std::array<std::uint16_t, 2> area{};
+    char* next = reinterpret_cast<char*>(area.data());
+    char* end = reinterpret_cast<char*>(area.data() + area.size());
+    auto stream = MakeWideStream(1);
+    stream.buffer.putNext = &next;
+    stream.buffer.putEnd = &end;
+    const GuestLocale::OutputIterator out = Export<WideTimePutExport>("Fr7j8dMsy4s")(nullptr, GuestLocale::OutputIterator{false, &stream.buffer}, nullptr, g_wideFill, &time, 'Y', '\0');
+    Require(out.failed && area[0] == u'2' && area[1] == u'0' && stream.accepted == u"2" && stream.offered == std::vector<int>{'2', '6'}, "do_put writes through the put area and overflow, and a failed write marks the iterator");
+    RequireWideDoPutThrows('\xe9', '\0');
+    RequireWideDoPutThrows('d', '\x80');
+    RequireWideDoPutThrows('c', '\0');
+    const GuestLocale::WideTimePutVtable vtable{g_testFacet, Export<WideTimePutExport>("Fr7j8dMsy4s")};
+    const GuestLocale::Facet facet{&vtable.facet, 1, 0};
+    GuestLocale::IosBase ios{};
+    ios.locale = &_ZSt21_sceLibcClassicLocale_nid_postfix;
+    auto patternStream = MakeWideStream(64);
+    const std::u16string pattern = u"%Y-%m-%d %H:%M:%S %Ey 中 %";
+    const auto* first = reinterpret_cast<const std::uint16_t*>(pattern.data());
+    const GuestLocale::OutputIterator patternOut = Export<WideTimePutPatternExport>("Sc0lXhQG5Ko")(&facet, GuestLocale::OutputIterator{false, &patternStream.buffer}, &ios, g_wideFill, &time, first, first + pattern.size());
+    Require(!patternOut.failed && patternStream.accepted == u"2026-11-14 09:05:07 26 中 %", "the wide pattern formats through do_put");
+#ifndef _WIN32
+    Require(setenv_nid_postfix("TZ", "ABCDEFGHIJKLMNO0", 1) == 0, "set a zone with a 15-letter name");
+    Require(WideDoPut(time, 'Z', '\0') == u"ABCDEFGHIJKLMNO", "do_put retries with a larger buffer when the first leaves no room for the terminator");
+    Require(setenv_nid_postfix("TZ", "ABCDEFGHIJKLMNOP0", 1) == 0, "set a zone with a 16-letter name");
+    RequireWideDoPutThrows('Z', '\0');
+#endif
 }
 
 }
@@ -769,13 +946,18 @@ int main(int argc, char** argv) {
     CheckLibcNumPut();
     CheckBaseDoPut();
     CheckTimePutForwarding();
-    CheckWideTimePutForwarding();
     CheckPatternWalk();
     CheckStreamCtype();
     CheckLibcTimePut();
     CheckPutAndRepeat();
     CheckWidePutAndRepeat();
     CheckStreambufPutSequence();
+    CheckWideTimePutForwarding();
+    CheckWidePatternWalk();
+    CheckWideClassicNarrow();
+    CheckWideStreamCtype();
+    CheckWideStreamWrite();
+    CheckWideTimePutDoPut();
 
     std::puts("libc internal num_put and time_put put checks passed");
     return 0;

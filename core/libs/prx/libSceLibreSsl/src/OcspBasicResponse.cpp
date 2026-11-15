@@ -6,6 +6,7 @@
 #include <atomic>
 #include <limits>
 #include "prx/libSceLibreSsl/libSceLibreSsl.hpp"
+#include "prx/libSceLibreSsl/include/OcspResponse.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/General.hpp"
 
@@ -79,6 +80,14 @@ const Stack* Responses(const void* basicResponse, const char* function) {
 }
 
 } // namespace
+
+LibreSslStack* LibreSslStackNew_nid_no_patch() {
+    return NewCertificateStack();
+}
+
+bool LibreSslStackPush_nid_no_patch(LibreSslStack* stack, void* element) {
+    return PushCertificate(stack, static_cast<LibreSslX509*>(element));
+}
 
 extern "C" {
 

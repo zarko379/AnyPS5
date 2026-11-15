@@ -185,25 +185,6 @@ const char* const* APS5_VABI uloc_getISOCountries_nid_postfix() {
     return uloc_getISOCountries();
 }
 
-std::uint32_t APS5_VABI uloc_getLCID_nid_postfix(const char* localeID) {
-    IcuBackend::Ensure();
-    if (localeID && std::strchr(localeID, '@')) {
-        bool ok = false;
-        if (!KeywordValue(localeID, "collation", ok).empty() && ok) IcuBackend::CanonicalLocale(localeID);
-    }
-    return uloc_getLCID(localeID);
-}
-
-std::int32_t APS5_VABI uloc_getLocaleForLCID_nid_postfix(std::uint32_t hostID, char* locale, std::int32_t localeCapacity, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (localeCapacity < 0 || (!locale && localeCapacity > 0)) {
-        char probe[ULOC_FULLNAME_CAPACITY];
-        UErrorCode probeStatus = U_ZERO_ERROR;
-        if (uloc_getLocaleForLCID(hostID, probe, sizeof(probe), &probeStatus) >= 0) APS5_INVALID_ARG_EX;
-    }
-    return uloc_getLocaleForLCID(hostID, locale, localeCapacity, error);
-}
-
 const char* APS5_VABI uloc_toUnicodeLocaleKey_nid_postfix(const char* keyword) {
     IcuBackend::Ensure();
     return uloc_toUnicodeLocaleKey(static_cast<const char*>(IcuBackend::RequireObject(keyword)));

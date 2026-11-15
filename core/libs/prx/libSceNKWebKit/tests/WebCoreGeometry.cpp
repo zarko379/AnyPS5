@@ -867,21 +867,7 @@ static void TestMakeMapBetweenRects() {
     Require(std::isinf(inf.m_transform[0]) && inf.m_transform[3] == 6.25);
 }
 
-static void TestUnitedBoundingBoxesAndUnionRect() {
-    WebCore::FloatQuad quads[3] = {
-        WebCore::FloatQuad{WebCore::FloatPoint{0.0f, 0.0f}, WebCore::FloatPoint{2.0f, 0.0f}, WebCore::FloatPoint{2.0f, 1.0f}, WebCore::FloatPoint{0.0f, 1.0f}},
-        WebCore::FloatQuad{WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatPoint{5.0f, 5.0f}},
-        WebCore::FloatQuad{WebCore::FloatPoint{-1.0f, 3.0f}, WebCore::FloatPoint{1.0f, 2.0f}, WebCore::FloatPoint{0.0f, 4.0f}, WebCore::FloatPoint{-2.0f, 2.5f}}};
-    auto none = BorrowVector<WebCore::FloatQuad>(quads, 0);
-    Require(SameRect(_ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(none), 0.0f, 0.0f, 0.0f, 0.0f));
-    ReleaseBorrowed(none);
-    auto two = BorrowVector<WebCore::FloatQuad>(quads, 2);
-    Require(SameRect(_ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(two), 0.0f, 0.0f, 5.0f, 5.0f));
-    ReleaseBorrowed(two);
-    auto three = BorrowVector<WebCore::FloatQuad>(quads + 1, 2);
-    Require(SameRect(_ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(three), -2.0f, 2.0f, 7.0f, 3.0f));
-    ReleaseBorrowed(three);
-
+static void TestUnionRect() {
     WebCore::FloatRect rects[3] = {
         WebCore::FloatRect{WebCore::FloatPoint{0.0f, 0.0f}, WebCore::FloatSize{2.0f, 1.0f}},
         WebCore::FloatRect{WebCore::FloatPoint{5.0f, 5.0f}, WebCore::FloatSize{0.0f, 3.0f}},
@@ -901,15 +887,6 @@ static void TestUnitedBoundingBoxesAndUnionRect() {
     }
     Require(threw);
     ReleaseBorrowed(nullRects);
-    auto nullQuads = BorrowVector<WebCore::FloatQuad>(nullptr, 2);
-    threw = false;
-    try {
-        _ZN7WebCore19unitedBoundingBoxesERKN3WTF6VectorINS_9FloatQuadELm0ENS0_15CrashOnOverflowELm16ENS0_10FastMallocEEE(nullQuads);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    Require(threw);
-    ReleaseBorrowed(nullQuads);
 }
 
 static void TestHitTestLocation() {
@@ -1017,62 +994,6 @@ static WebCore::LengthAbi MakeLength(std::uint8_t type, bool isFloat, float floa
     length.m_type = type;
     length.m_isFloat = isFloat;
     return length;
-}
-
-static void TestLengthValues() {
-    constexpr std::uint8_t automatic = 0;
-    constexpr std::uint8_t relative = 1;
-    constexpr std::uint8_t percent = 2;
-    constexpr std::uint8_t fixed = 3;
-    constexpr std::uint8_t intrinsic = 4;
-    constexpr std::uint8_t fillAvailable = 8;
-    constexpr std::uint8_t fitContent = 9;
-    WebCore::LayoutUnit hundred{6400};
-
-    auto value = [&](const WebCore::LengthAbi& length) {
-        return _ZN7WebCore14valueForLengthERKNS_6LengthENS_10LayoutUnitE(length, hundred).m_value;
-    };
-    Require(value(MakeLength(fixed, false, 0.0f, 10)) == 640);
-    Require(value(MakeLength(fixed, true, 2.5f, 0)) == 160);
-    Require(value(MakeLength(fixed, true, 1.0e30f, 0)) == std::numeric_limits<int>::max());
-    Require(value(MakeLength(percent, false, 0.0f, 50)) == 3200);
-    Require(value(MakeLength(percent, true, 12.5f, 0)) == 800);
-    Require(value(MakeLength(automatic, false, 0.0f, 7)) == 6400);
-    Require(value(MakeLength(fillAvailable, false, 0.0f, 7)) == 6400);
-    Require(value(MakeLength(relative, false, 0.0f, 7)) == 0);
-    Require(value(MakeLength(fitContent, false, 0.0f, 7)) == 0);
-
-    auto floatValue = [](const WebCore::LengthAbi& length, float maximum) {
-        return _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(length, maximum);
-    };
-    Require(floatValue(MakeLength(fixed, false, 0.0f, 10), 200.0f) == 10.0f);
-    Require(floatValue(MakeLength(fixed, true, 2.5f, 0), 200.0f) == 2.5f);
-    Require(floatValue(MakeLength(percent, true, 25.0f, 0), 200.0f) == 50.0f);
-    Require(floatValue(MakeLength(percent, false, 0.0f, 30), 10.0f) == 3.0f);
-    Require(floatValue(MakeLength(automatic, false, 0.0f, 0), 200.0f) == 200.0f);
-    Require(floatValue(MakeLength(fillAvailable, false, 0.0f, 0), 7.5f) == 7.5f);
-    Require(floatValue(MakeLength(intrinsic, false, 0.0f, 3), 200.0f) == 0.0f);
-
-    constexpr std::uint8_t undefined = 11;
-    Require(value(MakeLength(undefined, false, 0.0f, 7)) == 0);
-    Require(floatValue(MakeLength(undefined, false, 0.0f, 7), 5.0f) == 0.0f);
-
-    for (std::uint8_t unsupported : {std::uint8_t{10}, std::uint8_t{12}, std::uint8_t{200}}) {
-        bool threw = false;
-        try {
-            value(MakeLength(unsupported, false, 0.0f, 1));
-        } catch (const std::invalid_argument&) {
-            threw = true;
-        }
-        Require(threw);
-        threw = false;
-        try {
-            floatValue(MakeLength(unsupported, false, 0.0f, 1), 1.0f);
-        } catch (const std::invalid_argument&) {
-            threw = true;
-        }
-        Require(threw);
-    }
 }
 
 static bool MatrixNear(const WebCore::TransformationMatrix& a, const WebCore::TransformationMatrix& b, double eps = 1e-9) {
@@ -1391,6 +1312,35 @@ static void TestTransformOperationApply() {
     Require(std::memcmp(&untouched, &expected3d, sizeof(untouched)) == 0);
 }
 
+static bool BackendSizeIs(float width, float height, float scale, int expectedWidth, int expectedHeight) {
+    WebCore::FloatSize size{width, height};
+    WebCore::IntSize result = _ZN7WebCore18ImageBufferBackend20calculateBackendSizeERKNS_9FloatSizeEf(size, scale);
+    return result.m_width == expectedWidth && result.m_height == expectedHeight;
+}
+
+static void TestCalculateBackendSize() {
+    Require(BackendSizeIs(10.2f, 5.1f, 2.0f, 21, 11));
+    Require(BackendSizeIs(100.0f, 50.0f, 1.0f, 100, 50));
+    Require(BackendSizeIs(0.1f, 0.1f, 1.0f, 1, 1));
+    Require(BackendSizeIs(-0.5f, 4.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(0.0f, 10.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(10.0f, -3.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(10.0f, 10.0f, 0.0f, 0, 0));
+    Require(BackendSizeIs(10.0f, 10.0f, -1.0f, 0, 0));
+    Require(BackendSizeIs(3e9f, 10.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(10.0f, 2147483648.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(std::numeric_limits<float>::quiet_NaN(), 10.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(10.0f, std::numeric_limits<float>::infinity(), 1.0f, 0, 0));
+    Require(BackendSizeIs(1073741824.0f, 1.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(1073741823.0f, 1.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(536870912.0f, 1.0f, 1.0f, 536870912, 1));
+    Require(BackendSizeIs(1.0f, 1000000000.0f, 1.0f, 1, 1000000000));
+    Require(BackendSizeIs(70000.0f, 70000.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(32768.0f, 32767.0f, 1.0f, 32768, 32767));
+    Require(BackendSizeIs(32768.0f, 32768.0f, 1.0f, 0, 0));
+    Require(BackendSizeIs(1.0f, 1073741824.0f, 1.0f, 0, 0));
+}
+
 int main() {
     TestFindIntersection();
     TestFloatPoint();
@@ -1412,13 +1362,13 @@ int main() {
     TestRoundedRectFromRadii();
     TestEnclosingRects();
     TestMakeMapBetweenRects();
-    TestUnitedBoundingBoxesAndUnionRect();
+    TestUnionRect();
     TestHitTestLocation();
     TestScrollableAreaStatics();
-    TestLengthValues();
     TestTransformationMatrixScaleRotate();
     TestTransformationMatrixInverse();
     TestTransformationMatrixBlend();
     TestTransformOperationApply();
+    TestCalculateBackendSize();
     return 0;
 }
