@@ -42,6 +42,12 @@
 
 - [JSC::Yarr::parseFlags](../../../core/libs/prx/libSceJsc/src/YarrFlags.cpp) (libSceJsc) - not compared with a console module; the console JavaScriptCore version is unverified. It follows the PS5 11.x [YarrFlags.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/JavaScriptCore/yarr/YarrFlags.cpp#L34-L60) and the flag table of its [YarrFlags.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/JavaScriptCore/yarr/YarrFlags.h#L35-L56): `d g i m s u v y` set bits 0 to 7, and an unknown or repeated code unit or both `u` and `v` give no value. The `std::optional<OptionSet<Flags>>` result is the 16-bit set at byte 0 and the engaged flag at byte 2, 4 bytes in the return register; the 16-byte `StringView` is passed by value. A null character pointer with a nonzero length throws where WebKit faults. Closes when: compared with a console module.
 
+- [JSC::FreeList::initializeList and initializeBump](../../../core/libs/prx/libSceJsc/src/JscFreeList.cpp) (libSceJsc) - not measured on a console; the console JavaScriptCore version and the 40-byte layout (scrambled head, secret, payload end, then 32-bit remaining, original size and cell size from byte 24) are unverified. They follow pinned [FreeList.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/heap/FreeList.cpp#L49-L66) on the members of [FreeList.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/heap/FreeList.h#L99-L104): the list form stores the head XOR the secret, the secret and the byte count and clears the bump fields; the bump form clears head and secret and stores the end and the remaining count twice. Neither touches the cell size. libSceJsc exports no constructor, so the object comes from guest code. A null `this` throws where WebKit faults.
+
+- [JSC::ClassInfo::hasStaticSetterOrReadonlyProperties](../../../core/libs/prx/libSceJsc/src/JscClassInfo.cpp) (libSceJsc) - not measured on a console; the console JavaScriptCore version is unverified, and only the parent pointer at byte 8 and the static table pointer at byte 16 of [ClassInfo.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/ClassInfo.h#L192-L205) and the flag at byte 8 of [Lookup.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/Lookup.h#L107-L114) `HashTable` are read. It follows pinned [Structure.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/Structure.cpp#L1384-L1393): it walks this class and its parents and returns true at the first static table whose flag is set. A null `this` throws where WebKit faults.
+
+- [JSC::JSCell::getCallData and getConstructData](../../../core/libs/prx/libSceJsc/src/JscCell.cpp) (libSceJsc) - not measured on a console; the console JavaScriptCore version and the 24-byte `CallData` (type byte at 0, union from byte 8, returned through the hidden result pointer) are unverified. They follow pinned [JSCell.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSCell.cpp#L91-L99), which returns `{ }`, on [CallData.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/CallData.h#L41-L54): type `None` and a null native function. The second union word, which `{ }` leaves unspecified, is written as 0. The cell is not read.
+
 ### Known export names; ABI prototypes unverified
 
 - The 130 throwing JavaScriptCore, Inspector, WTF and bmalloc exports in [Export.cpp](../../../core/libs/prx/libSceJsc/Export.cpp) are present in the PS5 3.20 `libSceJsc` export inventory from [PS5-3.20_Libs](https://github.com/DNNDHH/PS5-3.20_Libs). Each is named after the symbol the [verified NID name database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) gives for its NID, and the NID of that name matches. Prototypes and behavior are unverified; each uses the no-parameter import-resolution convention and throws through `NotImplemented_nid_no_patch`. These declarations make no ABI or behavior claim.
@@ -74,7 +80,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 307 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 302 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -215,10 +221,8 @@
 | `_ZN3JSC4callEPNS_14JSGlobalObjectENS_7JSValueERKNS_8CallDataES2_RKNS_7ArgListERN3WTF8NakedPtrINS_9ExceptionEEE` | `GrQSJl-p+c0` |
 | `_ZN3JSC4callEPNS_14JSGlobalObjectENS_7JSValueES2_RKNS_7ArgListEPKc` | `B2zNei739Gs` |
 | `_ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE` | `NwUvd0AYGDI` |
-| `_ZN3JSC6JSCell11getCallDataEPS0_` | `JeH+i51Qf2I` |
 | `_ZN3JSC6JSCell12dumpToStreamEPKS0_RN3WTF11PrintStreamE` | `13Vdz0yQpSw` |
 | `_ZN3JSC6JSCell13estimatedSizeEPS0_RNS_2VME` | `g7U6yKITcyw` |
-| `_ZN3JSC6JSCell16getConstructDataEPS0_` | `9gXDUNzVOiM` |
 | `_ZN3JSC6JSCell17customHasInstanceEPNS_8JSObjectEPNS_14JSGlobalObjectENS_7JSValueE` | `C7KVLWk-IVk` |
 | `_ZN3JSC6JSCell7destroyEPS0_` | `85S6tE7Yj9Q` |
 | `_ZN3JSC6RegExp12dumpToStreamEPKNS_6JSCellERN3WTF11PrintStreamE` | `6Zl8YABX-mc` |
@@ -238,8 +242,6 @@
 | `_ZN3JSC7JSScope6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE` | `45yMcIUmYUQ` |
 | `_ZN3JSC7Options14dumpAllOptionsEP7__sFILENS0_9DumpLevelEPKc` | `pd0OULBpdtQ` |
 | `_ZN3JSC7Options9setOptionEPKc` | `PZZ887t9Ia4` |
-| `_ZN3JSC8FreeList14initializeBumpEPcj` | `4FTNJKyJYaE` |
-| `_ZN3JSC8FreeList14initializeListEPNS_8FreeCellEmj` | `Q2lC2jg+CZk` |
 | `_ZN3JSC8JSObject10putByIndexEPNS_6JSCellEPNS_14JSGlobalObjectEjNS_7JSValueEb` | `S6FZEnyltoU` |
 | `_ZN3JSC8JSObject11analyzeHeapEPNS_6JSCellERNS_12HeapAnalyzerE` | `EqL+-BktuAA` |
 | `_ZN3JSC8JSObject12isExtensibleEPS0_PNS_14JSGlobalObjectE` | `rKaPnExi-70` |
@@ -373,7 +375,6 @@
 | `_ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE` | `Hm5HSXOiUr0` |
 | `_ZNK3JSC8JSObject43anyObjectInChainMayInterceptIndexedAccessesERNS_2VME` | `wSQv7alS9b4` |
 | `_ZNK3JSC8Profiler8Database4toJSEPNS_14JSGlobalObjectE` | `Ipo19kq3hWA` |
-| `_ZNK3JSC9ClassInfo35hasStaticSetterOrReadonlyPropertiesEv` | `iGxZRUg9NPM` |
 | `_ZNK3WTF10StackTrace4dumpERNS_11PrintStreamEPKc` | `gfTs2aPeHoM` |
 | `_ZNK3WTF10StringImpl10tryGetUtf8ENS_14ConversionModeE` | `cz5x0BcGOZ8` |
 | `_ZNK3WTF10StringImpl18tryGetUtf8ForRangeEjjNS_14ConversionModeE` | `PcudeTUiShQ` |

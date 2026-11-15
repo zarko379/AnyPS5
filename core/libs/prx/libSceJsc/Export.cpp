@@ -1241,19 +1241,11 @@ int APS5_VABI _ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN3JSC6JSCell11getCallDataEPS0_() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN3JSC6JSCell12dumpToStreamEPKS0_RN3WTF11PrintStreamE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
 int APS5_VABI _ZN3JSC6JSCell13estimatedSizeEPS0_RNS_2VME() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3JSC6JSCell16getConstructDataEPS0_() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -1330,14 +1322,6 @@ int APS5_VABI _ZN3JSC7Options14dumpAllOptionsEP7__sFILENS0_9DumpLevelEPKc() {
 }
 
 int APS5_VABI _ZN3JSC7Options9setOptionEPKc() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3JSC8FreeList14initializeBumpEPcj() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3JSC8FreeList14initializeListEPNS_8FreeCellEmj() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -1874,10 +1858,6 @@ int APS5_VABI _ZNK3JSC8JSObject43anyObjectInChainMayInterceptIndexedAccessesERNS
 }
 
 int APS5_VABI _ZNK3JSC8Profiler8Database4toJSEPNS_14JSGlobalObjectE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZNK3JSC9ClassInfo35hasStaticSetterOrReadonlyPropertiesEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 

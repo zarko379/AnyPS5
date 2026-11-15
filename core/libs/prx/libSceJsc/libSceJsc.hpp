@@ -7,6 +7,7 @@
 #include "prx/libSceJsc/include/Api.hpp"
 #include "prx/libSceJsc/include/WtfSha1Exports.hpp"
 #include "prx/libSceJsc/include/InventoryExports.hpp"
+#include "prx/libSceJsc/include/JscRuntimeExports.hpp"
 #include "prx/libSceJsc/include/PlacementNewExports.hpp"
 #include "prx/libSceJsc/include/ProtoCallFrameExports.hpp"
 #include "prx/libSceJsc/include/WtfCpuTimeExports.hpp"
