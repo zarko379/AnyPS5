@@ -19,6 +19,7 @@ target_sources(libSceIcu PRIVATE TerminateBuffer.cpp)
 target_sources(libSceIcu PRIVATE CodePointTrie.cpp)
 target_sources(libSceIcu PRIVATE LanguageTag.cpp)
 target_sources(libSceIcu PRIVATE Script.cpp)
+target_sources(libSceIcu PRIVATE Hashtable.cpp)
 
 if(BUILD_TESTING)
     add_test_executable(guest_icu_language_tag_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/LanguageTag.cpp)
@@ -72,6 +73,18 @@ if(BUILD_TESTING)
     set_tests_properties(guest_icu_script_code PROPERTIES TIMEOUT 60)
     if(WIN32)
         set_tests_properties(guest_icu_script_code PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
+    endif()
+
+    add_test_executable(guest_icu_hashtable_tests ${LIBS_INCLUDE_DIR}/tests/GuestIcuHashtable.cpp IcuData.cpp)
+    target_include_directories(guest_icu_hashtable_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(guest_icu_hashtable_tests PRIVATE libSceIcu icu_i18n_backend icu_common_backend)
+    add_dependencies(guest_icu_hashtable_tests icu_backend_data)
+    configure_windows_unwind(guest_icu_hashtable_tests)
+    add_test(NAME guest_icu_hashtable COMMAND guest_icu_hashtable_tests)
+    set_tests_properties(guest_icu_hashtable PROPERTIES TIMEOUT 60)
+    if(WIN32)
+        set_tests_properties(guest_icu_hashtable PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceIcu>")
     endif()
 

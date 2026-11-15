@@ -64,3 +64,4 @@
 #include "DataSwapper.hpp"
 #include "RecoveredSignatures.hpp"
 #include "Copy.hpp"
+#include "Hashtable.hpp"
