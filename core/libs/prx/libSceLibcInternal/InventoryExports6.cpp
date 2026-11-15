@@ -551,11 +551,6 @@ int APS5_VABI _ZNSt8time_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEED2Ev_
     return 0;
 }
 
-int APS5_VABI _ZNSt8_LocinfoC1EiPKc_nid_postfix() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI _ZNSt8time_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEEC2Em_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
     return 0;

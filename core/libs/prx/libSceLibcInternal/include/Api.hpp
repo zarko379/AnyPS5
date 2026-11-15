@@ -161,6 +161,12 @@ int APS5_VABI __std_init_once_complete_clr_nid_postfix(void** once, unsigned lon
 void APS5_VABI sceLibcInternalLocinfoBaseConstructor_nid_no_patch(void* self, const char* localeName);
 void APS5_VABI sceLibcInternalLocinfoBaseDestructor_nid_no_patch(void* self);
 void APS5_VABI sceLibcInternalLocimpBaseCopyConstructor_nid_no_patch(void* self, const void* source);
+void APS5_VABI _ZNSt6locale5facet7_IncrefEv_nid_postfix(GuestLocale::Facet* self);
+GuestLocale::Facet* APS5_VABI _ZNSt6locale5facet7_DecrefEv_nid_postfix(GuestLocale::Facet* self);
+void APS5_VABI _ZNSt8_LocinfoC1EiPKc_nid_postfix(GuestLocale::LocinfoStorage* self, int category, const char* localeName);
+void APS5_VABI sceLibcInternalLocinfoCategoryBaseConstructor_nid_no_patch(void* self, int category, const char* localeName);
+void APS5_VABI sceLibcInternalLocinfoStringConstructor_nid_no_patch(void* self, const GuestLocale::String* localeName);
+void APS5_VABI sceLibcInternalLocinfoStringBaseConstructor_nid_no_patch(void* self, const GuestLocale::String* localeName);
 int APS5_VABI _Mtxinit_nid_postfix(PthreadMutex* mutex, const char* name);
 int APS5_VABI _ZNSt8__sce_v236_Mtx_init_with_default_name_overrideEPP13pthread_mutexiPKc_nid_postfix(void** mutex, int type, const char* name);
 int APS5_VABI _Mtxlock_nid_postfix(PthreadMutex* mutex);

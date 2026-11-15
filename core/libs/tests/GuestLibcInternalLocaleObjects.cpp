@@ -9,6 +9,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#include <thread>
+#include <vector>
 
 namespace {
 
@@ -91,6 +93,107 @@ void CheckLocimpCopy() {
     Require(Throws([&] { sceLibcInternalLocimpBaseCopyConstructor_nid_no_patch(&emptyCopy, nullptr); }), "a null source is rejected");
 }
 
+template <typename Construct>
+void CheckLocinfoForm(Construct construct, const char* form) {
+    alignas(16) std::array<std::byte, 80> bytes;
+    bytes.fill(std::byte{0x5a});
+    construct(bytes.data() + 8);
+    for (std::size_t index = 0; index < bytes.size(); ++index) {
+        if (bytes[index] != (index >= 8 && index < 72 ? std::byte{} : std::byte{0x5a})) {
+            std::fprintf(stderr, "libc internal locale objects: %s does not build the C object in place\n", form);
+            std::abort();
+        }
+    }
+    sceLibcInternalLocinfoBaseDestructor_nid_no_patch(bytes.data() + 8);
+}
+
+GuestLocale::String InlineString(const char* text) {
+    GuestLocale::String string{};
+    string.size = std::strlen(text);
+    string.capacity = GuestLocale::StringInlineCapacity;
+    std::memcpy(string.buffer, text, string.size + 1);
+    return string;
+}
+
+GuestLocale::String HeapString(char* text, std::size_t capacity) {
+    GuestLocale::String string{};
+    string.size = std::strlen(text);
+    string.capacity = capacity;
+    string.pointer = text;
+    return string;
+}
+
+void CheckLocinfoVariants() {
+    for (const int category : {0, 1, 0x3f, 0x7fffffff, -1}) {
+        CheckLocinfoForm([&](void* storage) { _ZNSt8_LocinfoC1EiPKc_nid_postfix(static_cast<GuestLocale::LocinfoStorage*>(storage), category, "C"); }, "the category C1 constructor");
+        CheckLocinfoForm([&](void* storage) { sceLibcInternalLocinfoCategoryBaseConstructor_nid_no_patch(storage, category, "C"); }, "the category C2 constructor");
+    }
+    alignas(16) std::array<std::byte, 64> storage{};
+    Require(Throws([&] { _ZNSt8_LocinfoC1EiPKc_nid_postfix(reinterpret_cast<GuestLocale::LocinfoStorage*>(storage.data()), 0x3f, "POSIX"); }), "the category C1 constructor rejects an unsupported name");
+    Require(Throws([&] { _ZNSt8_LocinfoC1EiPKc_nid_postfix(reinterpret_cast<GuestLocale::LocinfoStorage*>(storage.data()), 0, nullptr); }), "the category C1 constructor rejects a null name");
+    Require(Throws([] { _ZNSt8_LocinfoC1EiPKc_nid_postfix(nullptr, 0x3f, "C"); }), "the category C1 constructor rejects a null object");
+    Require(Throws([&] { sceLibcInternalLocinfoCategoryBaseConstructor_nid_no_patch(storage.data(), 1, ""); }), "the category C2 constructor rejects an unsupported name");
+    Require(Throws([] { sceLibcInternalLocinfoCategoryBaseConstructor_nid_no_patch(nullptr, 1, "C"); }), "the category C2 constructor rejects a null object");
+
+    const GuestLocale::String inlineName = InlineString("C");
+    char heapText[32] = "C";
+    const GuestLocale::String heapName = HeapString(heapText, GuestLocale::StringInlineCapacity + 1);
+    CheckLocinfoForm([&](void* object) { sceLibcInternalLocinfoStringConstructor_nid_no_patch(object, &inlineName); }, "the string C1 constructor with an inline name");
+    CheckLocinfoForm([&](void* object) { sceLibcInternalLocinfoStringConstructor_nid_no_patch(object, &heapName); }, "the string C1 constructor with an allocated name");
+    CheckLocinfoForm([&](void* object) { sceLibcInternalLocinfoStringBaseConstructor_nid_no_patch(object, &inlineName); }, "the string C2 constructor with an inline name");
+    CheckLocinfoForm([&](void* object) { sceLibcInternalLocinfoStringBaseConstructor_nid_no_patch(object, &heapName); }, "the string C2 constructor with an allocated name");
+
+    GuestLocale::String embedded = InlineString("C");
+    embedded.size = 3;
+    embedded.buffer[2] = 'x';
+    embedded.buffer[3] = 0;
+    CheckLocinfoForm([&](void* object) { sceLibcInternalLocinfoStringConstructor_nid_no_patch(object, &embedded); }, "the string constructor reading the name up to its first null");
+
+    GuestLocale::String inlineOther = InlineString("POSIX");
+    char heapOther[32] = "C.UTF-8";
+    const GuestLocale::String heapOtherName = HeapString(heapOther, 16);
+    GuestLocale::String inlineDisguised = InlineString("xx");
+    inlineDisguised.pointer = heapText;
+    Require(Throws([&] { sceLibcInternalLocinfoStringConstructor_nid_no_patch(storage.data(), &inlineOther); }), "the string C1 constructor rejects an unsupported inline name");
+    Require(Throws([&] { sceLibcInternalLocinfoStringConstructor_nid_no_patch(storage.data(), &heapOtherName); }), "the string C1 constructor reads an allocated name past the inline capacity");
+    Require(Throws([&] { sceLibcInternalLocinfoStringBaseConstructor_nid_no_patch(storage.data(), &inlineDisguised); }), "the string C2 constructor reads an inline name from the buffer");
+    Require(Throws([&] { sceLibcInternalLocinfoStringConstructor_nid_no_patch(storage.data(), nullptr); }), "the string C1 constructor rejects a null string");
+    Require(Throws([&] { sceLibcInternalLocinfoStringBaseConstructor_nid_no_patch(storage.data(), nullptr); }), "the string C2 constructor rejects a null string");
+    Require(Throws([&] { sceLibcInternalLocinfoStringConstructor_nid_no_patch(nullptr, &inlineName); }), "the string C1 constructor rejects a null object");
+}
+
+void CheckFacetReferences() {
+    GuestLocale::Facet facet{};
+    facet.references = 1;
+    facet.reserved = 0xa5a5a5a5u;
+    _ZNSt6locale5facet7_IncrefEv_nid_postfix(&facet);
+    Require(facet.references == 2 && facet.reserved == 0xa5a5a5a5u, "_Incref adds one reference and touches nothing else");
+    Require(_ZNSt6locale5facet7_DecrefEv_nid_postfix(&facet) == nullptr && facet.references == 1, "_Decref above one returns null");
+    Require(_ZNSt6locale5facet7_DecrefEv_nid_postfix(&facet) == &facet && facet.references == 0, "_Decref to zero returns the facet");
+    Require(_ZNSt6locale5facet7_DecrefEv_nid_postfix(&facet) == nullptr && facet.references == 0xffffffffu, "_Decref from zero wraps and returns null");
+    _ZNSt6locale5facet7_IncrefEv_nid_postfix(&facet);
+    Require(facet.references == 0, "_Incref from the maximum count wraps to zero");
+    Require(facet.vtable == nullptr && facet.reserved == 0xa5a5a5a5u, "the vtable and padding are untouched");
+
+    GuestLocale::Facet shared{};
+    shared.references = 1;
+    constexpr int Threads = 4;
+    constexpr int Rounds = 20000;
+    std::vector<std::thread> workers;
+    for (int index = 0; index < Threads; ++index) workers.emplace_back([&] { for (int round = 0; round < Rounds; ++round) _ZNSt6locale5facet7_IncrefEv_nid_postfix(&shared); });
+    for (std::thread& worker : workers) worker.join();
+    Require(shared.references == 1u + Threads * Rounds, "concurrent _Incref calls are not lost");
+    workers.clear();
+    std::array<int, Threads> lastReleases{};
+    for (int index = 0; index < Threads; ++index) workers.emplace_back([&, index] { for (int round = 0; round < Rounds; ++round) lastReleases[index] += _ZNSt6locale5facet7_DecrefEv_nid_postfix(&shared) == &shared; });
+    for (std::thread& worker : workers) worker.join();
+    Require(shared.references == 1 && lastReleases == std::array<int, Threads>{}, "concurrent _Decref calls are not lost");
+    Require(_ZNSt6locale5facet7_DecrefEv_nid_postfix(&shared) == &shared, "the last reference is released once");
+
+    Require(Throws([] { _ZNSt6locale5facet7_IncrefEv_nid_postfix(nullptr); }), "_Incref rejects a null facet");
+    Require(Throws([] { _ZNSt6locale5facet7_DecrefEv_nid_postfix(nullptr); }), "_Decref rejects a null facet");
+}
+
 }
 
 int main() {
@@ -103,6 +206,8 @@ int main() {
 
     CheckLocinfo();
     CheckLocimpCopy();
+    CheckFacetReferences();
+    CheckLocinfoVariants();
 
     std::puts("libc internal _Locinfo and _Locimp base-object checks passed");
     return 0;
