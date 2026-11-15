@@ -1,0 +1,98 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(binding = 0, r32f) uniform readonly image2D previous;
+layout(binding = 1, r32f) uniform readonly image2D current;
+layout(binding = 2, rgba32f) uniform readonly image2D guide;
+layout(binding = 3, rgba32f) uniform writeonly image2D field;
+layout(std430, binding = 4) buffer Statistics {
+    uint costSum;
+    uint blocks;
+} statistics;
+layout(push_constant) uniform Parameters {
+    ivec2 size;
+    ivec2 blocks;
+    ivec2 guideBlocks;
+    int radius;
+    uint hasGuide;
+    float motionBias;
+    uint bilateral;
+} parameters;
+
+const int BlockSize = 8;
+
+float sampleAt(bool fromCurrent, ivec2 position) {
+    ivec2 clamped = clamp(position, ivec2(0), parameters.size - 1);
+    return fromCurrent ? imageLoad(current, clamped).r : imageLoad(previous, clamped).r;
+}
+
+float forwardCost(ivec2 origin, ivec2 offset) {
+    float sum = 0.0;
+    for (int y = 0; y < BlockSize; ++y) {
+        for (int x = 0; x < BlockSize; ++x) {
+            ivec2 position = origin + ivec2(x, y);
+            sum += abs(sampleAt(false, position) - sampleAt(true, position + offset));
+        }
+    }
+    return sum / float(BlockSize * BlockSize);
+}
+
+float bilateralCost(ivec2 origin, ivec2 offset) {
+    float sum = 0.0;
+    for (int y = 0; y < BlockSize; ++y) {
+        for (int x = 0; x < BlockSize; ++x) {
+            ivec2 position = origin + ivec2(x, y);
+            sum += abs(sampleAt(false, position - offset) - sampleAt(true, position + offset));
+        }
+    }
+    return sum / float(BlockSize * BlockSize);
+}
+
+float cost(ivec2 origin, ivec2 offset) {
+    float matched = parameters.bilateral != 0u ? bilateralCost(origin, offset) : forwardCost(origin, offset);
+    return matched + parameters.motionBias * length(vec2(offset));
+}
+
+ivec2 guideAt(ivec2 block) {
+    vec2 value = imageLoad(guide, clamp(block, ivec2(0), parameters.guideBlocks - 1)).xy;
+    return parameters.bilateral != 0u ? ivec2(round(value * 0.5)) : ivec2(round(value * 2.0));
+}
+
+void main() {
+    ivec2 block = ivec2(gl_GlobalInvocationID.xy);
+    if (block.x >= parameters.blocks.x || block.y >= parameters.blocks.y) return;
+    ivec2 origin = block * BlockSize;
+    ivec2 best = ivec2(0);
+    float bestCost = cost(origin, best);
+    if (parameters.hasGuide != 0u) {
+        ivec2 center = parameters.bilateral != 0u ? block : block / 2;
+        for (int y = -1; y <= 1; ++y) {
+            for (int x = -1; x <= 1; ++x) {
+                ivec2 candidate = guideAt(center + ivec2(x, y));
+                float candidateCost = cost(origin, candidate);
+                if (candidateCost < bestCost) {
+                    bestCost = candidateCost;
+                    best = candidate;
+                }
+            }
+        }
+    }
+    ivec2 around = best;
+    for (int y = -parameters.radius; y <= parameters.radius; ++y) {
+        for (int x = -parameters.radius; x <= parameters.radius; ++x) {
+            ivec2 offset = around + ivec2(x, y);
+            if (offset == around) continue;
+            float candidateCost = cost(origin, offset);
+            if (candidateCost < bestCost) {
+                bestCost = candidateCost;
+                best = offset;
+            }
+        }
+    }
+    float matched = bestCost - parameters.motionBias * length(vec2(best));
+    imageStore(field, block, vec4(vec2(best), matched, 0.0));
+    if (parameters.bilateral != 0u) {
+        atomicAdd(statistics.costSum, uint(clamp(matched, 0.0, 1.0) * 4096.0));
+        atomicAdd(statistics.blocks, 1u);
+    }
+}

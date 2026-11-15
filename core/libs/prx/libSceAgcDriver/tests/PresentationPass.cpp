@@ -5,6 +5,7 @@
 #include "prx/libSceAgcDriver/Execution/include/PqToSdr.hpp"
 #include "prx/libSceAgcDriver/Execution/include/PresentationScaler.hpp"
 #include "prx/libSceAgcDriver/Execution/include/PresentationUpscaler.hpp"
+#include "prx/libSceAgcDriver/Execution/include/PresentationFrameGenerator.hpp"
 #include "prx/libSceAgcDriver/Execution/include/UpscaleMode.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/ColorTargetLayout.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/Resources.hpp"
@@ -1315,6 +1316,132 @@ int fsrCost(const Device& device) {
     return 0;
 }
 
+struct FramePixels {
+    VkExtent2D extent;
+    std::vector<std::uint8_t> bgra;
+    std::uint8_t At(std::uint32_t x, std::uint32_t y, std::uint32_t channel = 1) const { return bgra[(static_cast<std::size_t>(y) * extent.width + x) * 4 + channel]; }
+};
+
+FramePixels frameWithSquare(VkExtent2D extent, std::uint32_t left, std::uint32_t top, std::uint32_t side) {
+    FramePixels frame{extent, std::vector<std::uint8_t>(static_cast<std::size_t>(extent.width) * extent.height * 4)};
+    for (std::uint32_t y = 0; y < extent.height; ++y) {
+        for (std::uint32_t x = 0; x < extent.width; ++x) {
+            const bool inside = x >= left && x < left + side && y >= top && y < top + side;
+            const auto shade = static_cast<std::uint8_t>(inside ? 180 + ((x - left) * 7 + (y - top) * 3) % 60 : 40 + ((x / 16 + y / 16) % 2) * 4);
+            auto* texel = &frame.bgra[(static_cast<std::size_t>(y) * extent.width + x) * 4];
+            texel[0] = texel[1] = texel[2] = shade;
+            texel[3] = 255;
+        }
+    }
+    return frame;
+}
+
+FramePixels noiseFrame(VkExtent2D extent, std::uint32_t seed) {
+    FramePixels frame{extent, std::vector<std::uint8_t>(static_cast<std::size_t>(extent.width) * extent.height * 4)};
+    std::uint32_t state = seed;
+    for (std::size_t i = 0; i < frame.bgra.size(); i += 4) {
+        state = state * 1664525u + 1013904223u;
+        const auto shade = static_cast<std::uint8_t>(state >> 24u);
+        frame.bgra[i] = frame.bgra[i + 1] = frame.bgra[i + 2] = shade;
+        frame.bgra[i + 3] = 255;
+    }
+    return frame;
+}
+
+FramePixels captureFrame(const Context& context, AgcDriver::PresentationFrameGenerator& generator, const FramePixels& frame, bool generate, bool* generated, bool held = false) {
+    const auto bytes = frame.bgra.size();
+    Image presented(context, VK_FORMAT_B8G8R8A8_UNORM, frame.extent, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    Buffer upload(context, bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer readback(context, bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    std::memcpy(upload.Bytes().data(), frame.bgra.data(), bytes);
+    CommandBatch batch(context);
+    const auto commands = batch.Handle();
+    if (held) {
+        generator.RecordHeld(commands, presented.Handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    } else {
+        transition(context, commands, presented.Handle(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, VK_ACCESS_TRANSFER_WRITE_BIT);
+        VkBufferImageCopy copy{};
+        copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        copy.imageExtent = {frame.extent.width, frame.extent.height, 1};
+        context.Function<PFN_vkCmdCopyBufferToImage>("vkCmdCopyBufferToImage")(commands, upload.Handle(), presented.Handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+        transition(context, commands, presented.Handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+        const bool wrote = generator.RecordCapture(commands, presented.Handle(), VK_FORMAT_B8G8R8A8_UNORM, frame.extent, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, generate);
+        if (generated != nullptr) *generated = wrote;
+    }
+    transition(context, commands, presented.Handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+    readImage(context, commands, presented, readback);
+    batch.SubmitAndWait();
+    const auto read = bytesOf(readback, bytes);
+    FramePixels result{frame.extent, std::vector<std::uint8_t>(bytes)};
+    std::memcpy(result.bgra.data(), read.data(), bytes);
+    return result;
+}
+
+double brightCentroidX(const FramePixels& frame) {
+    double sum = 0.0;
+    double weight = 0.0;
+    for (std::uint32_t y = 0; y < frame.extent.height; ++y) {
+        for (std::uint32_t x = 0; x < frame.extent.width; ++x) {
+            const double value = frame.At(x, y);
+            if (value < 135.0) continue;
+            sum += x * (value - 40.0);
+            weight += value - 40.0;
+        }
+    }
+    return weight == 0.0 ? -1.0 : sum / weight;
+}
+
+int maxDifference(const FramePixels& left, const FramePixels& right) {
+    int largest = 0;
+    for (std::size_t i = 0; i < left.bgra.size(); ++i) largest = std::max(largest, std::abs(static_cast<int>(left.bgra[i]) - static_cast<int>(right.bgra[i])));
+    return largest;
+}
+
+void frameGenerationTests(const Context& context) {
+    Require(AgcDriver::PresentationFrameGenerator::Supports(context, VK_FORMAT_B8G8R8A8_UNORM), "the device cannot sample, copy and blit B8G8R8A8 frames and store RGBA16F results");
+    const VkExtent2D extent{640, 360};
+    const auto first = frameWithSquare(extent, 200, 140, 64);
+    const auto second = frameWithSquare(extent, 240, 140, 64);
+    {
+        AgcDriver::PresentationFrameGenerator generator(context);
+        bool generated = true;
+        const auto shown = captureFrame(context, generator, first, true, &generated);
+        Require(!generated && maxDifference(shown, first) == 0 && !generator.HoldsFrame(), "the first frame was replaced although no earlier frame was held");
+        const auto middle = captureFrame(context, generator, second, true, &generated);
+        Require(generated && generator.HoldsFrame(), "a frame pair did not generate the frame between them");
+        const double expected = brightCentroidX(frameWithSquare(extent, 220, 140, 64));
+        const double centroid = brightCentroidX(middle);
+        std::printf("  frame generation: square moved from x=200 to x=240, generated centroid %.2f (halfway %.2f)\n", centroid, expected);
+        Require(std::abs(centroid - expected) <= 3.0, "the generated frame did not put the square halfway: centroid " + std::to_string(centroid) + ", expected " + std::to_string(expected));
+        const auto real = captureFrame(context, generator, second, false, nullptr, true);
+        Require(maxDifference(real, second) == 0 && !generator.HoldsFrame(), "the held real frame was not presented unchanged");
+        Require(generator.Generated() == 1, "the generated frame count is not one");
+    }
+    {
+        AgcDriver::PresentationFrameGenerator generator(context);
+        bool generated = false;
+        static_cast<void>(captureFrame(context, generator, first, true, &generated));
+        const auto still = captureFrame(context, generator, first, true, &generated);
+        Require(generated && maxDifference(still, first) <= 1, "a static pair generated a frame that differs from it by " + std::to_string(maxDifference(still, first)));
+    }
+    {
+        AgcDriver::PresentationFrameGenerator generator(context);
+        bool generated = false;
+        const auto before = noiseFrame(extent, 1);
+        const auto after = noiseFrame(extent, 2);
+        static_cast<void>(captureFrame(context, generator, before, true, &generated));
+        const auto cut = captureFrame(context, generator, after, true, &generated);
+        Require(generated && maxDifference(cut, after) <= 1, "a scene cut blended the two frames instead of showing the new one");
+    }
+    {
+        AgcDriver::PresentationFrameGenerator generator(context);
+        bool generated = true;
+        static_cast<void>(captureFrame(context, generator, first, true, &generated));
+        static_cast<void>(captureFrame(context, generator, second, false, &generated));
+        Require(!generated && !generator.HoldsFrame(), "a capture without generation held a frame");
+    }
+}
+
 void fsrTests(const Context& context) {
     if (!floatTargets(context)) throw std::runtime_error("the device cannot render, sample and blit R32G32B32A32_SFLOAT images");
     easuTests(context);
@@ -1330,11 +1457,12 @@ int main(int argc, char** argv) {
     try {
         const bool fsr = argc == 2 && std::string_view(argv[1]) == "--fsr";
         const bool fsrCostMode = argc == 2 && std::string_view(argv[1]) == "--fsr-cost";
+        const bool frameGeneration = argc == 2 && std::string_view(argv[1]) == "--frame-generation";
         if (fsr) {
             upscaleModeTests();
             stageExtentTests();
             exitDependencyTests();
-        } else if (!fsrCostMode) {
+        } else if (!fsrCostMode && !frameGeneration) {
             letterboxBandTests();
         }
         std::unique_ptr<Device> device;
@@ -1346,6 +1474,11 @@ int main(int argc, char** argv) {
             return VulkanTestSkipped;
         }
         if (fsrCostMode) return fsrCost(*device);
+        if (frameGeneration) {
+            frameGenerationTests(device->GetContext());
+            std::cout << "frame generation tests passed\n";
+            return 0;
+        }
         if (fsr) {
             fsrTests(device->GetContext());
             std::cout << "FSR 1 upscale mode, EASU, RCAS, default path and HDR10 tests passed\n";

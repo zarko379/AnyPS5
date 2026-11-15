@@ -1,0 +1,41 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(binding = 0, rgba32f) uniform readonly image2D raw;
+layout(binding = 1, rgba32f) uniform writeonly image2D smoothed;
+layout(push_constant) uniform Parameters {
+    ivec2 blocks;
+} parameters;
+
+float median9(float values[9]) {
+    for (int i = 0; i < 5; ++i) {
+        int lowest = i;
+        for (int j = i + 1; j < 9; ++j) {
+            if (values[j] < values[lowest]) lowest = j;
+        }
+        float kept = values[i];
+        values[i] = values[lowest];
+        values[lowest] = kept;
+    }
+    return values[4];
+}
+
+void main() {
+    ivec2 block = ivec2(gl_GlobalInvocationID.xy);
+    if (block.x >= parameters.blocks.x || block.y >= parameters.blocks.y) return;
+    float xs[9];
+    float ys[9];
+    float costs[9];
+    int n = 0;
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            vec4 cell = imageLoad(raw, clamp(block + ivec2(x, y), ivec2(0), parameters.blocks - 1));
+            xs[n] = cell.x;
+            ys[n] = cell.y;
+            costs[n] = cell.z;
+            ++n;
+        }
+    }
+    vec4 own = imageLoad(raw, block);
+    imageStore(smoothed, block, vec4(median9(xs), median9(ys), max(own.z, median9(costs)), 0.0));
+}

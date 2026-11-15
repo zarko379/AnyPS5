@@ -1,0 +1,58 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(binding = 0) uniform sampler2D previous;
+layout(binding = 1) uniform sampler2D current;
+layout(binding = 2, rgba32f) uniform readonly image2D field;
+layout(binding = 3, rgba16f) uniform writeonly image2D result;
+layout(std430, binding = 4) readonly buffer Statistics {
+    uint costSum;
+    uint blocks;
+} statistics;
+layout(push_constant) uniform Parameters {
+    ivec2 size;
+    ivec2 fieldBlocks;
+    float pixelsPerBlock;
+    float pixelsPerUnit;
+    float cutCost;
+    float mismatch;
+} parameters;
+
+vec4 cellAt(ivec2 cell) {
+    return imageLoad(field, clamp(cell, ivec2(0), parameters.fieldBlocks - 1));
+}
+
+float luma(vec3 rgb) {
+    return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= parameters.size.x || pixel.y >= parameters.size.y) return;
+    vec2 size = vec2(parameters.size);
+    vec2 position = vec2(pixel) + 0.5;
+    float meanCost = statistics.blocks == 0u ? 0.0 : float(statistics.costSum) / (4096.0 * float(statistics.blocks));
+    if (meanCost > parameters.cutCost) {
+        imageStore(result, pixel, textureLod(current, position / size, 0.0));
+        return;
+    }
+    vec2 cell = position / parameters.pixelsPerBlock - 0.5;
+    ivec2 base = ivec2(floor(cell));
+    vec4 before = vec4(0.0);
+    vec4 after = vec4(0.0);
+    float difference = 1e9;
+    for (int i = 0; i < 4; ++i) {
+        vec4 motion = cellAt(base + ivec2(i & 1, i >> 1));
+        vec2 offset = motion.xy * parameters.pixelsPerUnit;
+        vec4 candidateBefore = textureLod(previous, (position - offset) / size, 0.0);
+        vec4 candidateAfter = textureLod(current, (position + offset) / size, 0.0);
+        float candidate = abs(luma(candidateBefore.rgb) - luma(candidateAfter.rgb)) + 0.25 * motion.z;
+        if (candidate < difference) {
+            difference = candidate;
+            before = candidateBefore;
+            after = candidateAfter;
+        }
+    }
+    float fallback = smoothstep(parameters.mismatch, parameters.mismatch * 3.0, difference);
+    imageStore(result, pixel, mix(0.5 * (before + after), after, fallback));
+}

@@ -265,6 +265,11 @@ set(agcDepthTransferShaderHeaders)
 agc_embedded_shader(DepthToStorage.comp DepthToStorage DEPTH_TO_STORAGE_SPV agcDepthTransferShaderHeaders)
 set(agcStagingCopyBackBoundShaderHeaders)
 agc_embedded_shader(StagingCopyBackBound.comp StagingCopyBackBound STAGING_COPY_BACK_BOUND_SPV agcStagingCopyBackBoundShaderHeaders)
+set(agcFrameGenerationShaderHeaders)
+agc_embedded_shader(FrameGenLuma.comp FrameGenLuma FRAME_GEN_LUMA_SPV agcFrameGenerationShaderHeaders)
+agc_embedded_shader(FrameGenMotion.comp FrameGenMotion FRAME_GEN_MOTION_SPV agcFrameGenerationShaderHeaders)
+agc_embedded_shader(FrameGenSmooth.comp FrameGenSmooth FRAME_GEN_SMOOTH_SPV agcFrameGenerationShaderHeaders)
+agc_embedded_shader(FrameGenWarp.comp FrameGenWarp FRAME_GEN_WARP_SPV agcFrameGenerationShaderHeaders)
 foreach(agcPresentationStage IN ITEMS Vert Frag)
     string(TOLOWER "${agcPresentationStage}" agcPresentationExtension)
     string(TOUPPER "${agcPresentationStage}" agcPresentationSymbol)
@@ -438,6 +443,7 @@ set(agcDriverSources
         ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/PresentationScaler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/PresentationPass.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/PresentationUpscaler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/PresentationFrameGenerator.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/PerformanceOverlay.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/KeyboardOverlay.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/PadStatusOverlay.cpp
@@ -504,6 +510,7 @@ set(agcDriverSources
         ${agcPresentationShaderHeaders}
         ${agcDepthTransferShaderHeaders}
         ${agcStagingCopyBackBoundShaderHeaders}
+        ${agcFrameGenerationShaderHeaders}
         ${CMAKE_CURRENT_SOURCE_DIR}/Eq/src/Event.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Eq/src/Query.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Resource/src/Lifecycle.cpp
