@@ -128,6 +128,7 @@ Derived from Source/WTF/wtf/text/StringView.cpp@c55364d53f971f63a709976f168d932d
  */
 
 #include "prx/libSceJsc/include/WtfUrlExports.hpp"
+#include "prx/libSceJsc/src/WtfCharacters.hpp"
 
 #include <cstdint>
 #include <limits>
@@ -182,11 +183,6 @@ bool ProtocolIs(const URL& url, const char* protocol) {
         if (!protocol[index] || !IsASCIIAlphaCaselessEqual(StringCharacterAt(url.string, index), protocol[index])) return false;
     }
     return !protocol[schemeEnd];
-}
-
-bool IsSpaceOrNewline(char16_t character) {
-    if (character <= 0xFF) return character <= ' ' && (character == ' ' || (character <= 0xD && character >= 0x9));
-    return character == 0x1680 || (character >= 0x2000 && character <= 0x200A) || character == 0x2028 || character == 0x205F || character == 0x3000;
 }
 
 OptionalUInt16 ParseUInt16(const StringView& view) {

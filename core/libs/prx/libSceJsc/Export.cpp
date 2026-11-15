@@ -221,10 +221,6 @@ int APS5_VABI _ZN3JSC22JSFinalizationRegistry9deadCountERKN3WTF6LockerINS_10JSCe
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZNK3WTF6String12toUIntStrictEPbi() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN3WTF20ParallelHelperClientC1EONS_6RefPtrINS_18ParallelHelperPoolENS_13DumbPtrTraitsIS2_EEEE() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -282,10 +278,6 @@ int APS5_VABI _ZN3JSC22resetSuperSamplerStateEv() {
 }
 
 int APS5_VABI _ZN3JSC7JSProxy9setTargetERNS_2VMEPNS_14JSGlobalObjectE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZNK3WTF8JSONImpl9ArrayBase3endEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -465,10 +457,6 @@ int APS5_VABI _ZN9Inspector25DebuggerBackendDispatcher13setBreakpointElON3WTF6Re
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN3WTF10StringImpl8utf8ImplEPKDsjRPcmNS_14ConversionModeE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN7bmalloc9Allocator16allocateSlowCaseEmNS_13FailureActionE() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -611,10 +599,6 @@ int APS5_VABI _ZN3JSC2VM18generatorSpaceSlowEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZNK3WTF8JSONImpl9ArrayBase6lengthEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN3JSC8Debugger17resolveBreakpointERNS_10BreakpointEPNS_14SourceProviderE() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -656,10 +640,6 @@ int APS5_VABI _ZN9Inspector15ScriptCallStack6appendERKNS_15ScriptCallFrameE() {
 }
 
 int APS5_VABI _ZN3JSC16callCustomSetterEPNS_14JSGlobalObjectENS_7JSValueEbPNS_8JSObjectES2_S2_() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZNK3WTF8JSONImpl5Value8asStringERNS_6StringE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -1494,10 +1474,6 @@ int APS5_VABI _ZN3WTF10StringImpl7replaceEPS0_S1_() {
 }
 
 int APS5_VABI _ZN3WTF10StringImpl7replaceEjjPS0_() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3WTF10nullStringEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 
