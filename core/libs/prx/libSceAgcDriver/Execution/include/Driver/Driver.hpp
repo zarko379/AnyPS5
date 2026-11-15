@@ -90,6 +90,8 @@ public:
     void UnregisterVideoOutput(std::uint32_t handle, const std::shared_ptr<IVideoOutput>& output);
     void AttachWindow(const PresentationWindow& window);
     void Present(const PresentationWindow& window, const DisplayBuffer* buffer, const DisplayBuffer* plane, bool opaque, void (*gpuReady)(void*), void* context);
+    bool PresentHeld(const PresentationWindow& window);
+    void SetFrameGeneration(bool generate);
     void TracePresent(std::uint32_t width, std::uint32_t height);
     void ReleaseWindow(void* window);
     void RegisterShader(const Shader* shader);

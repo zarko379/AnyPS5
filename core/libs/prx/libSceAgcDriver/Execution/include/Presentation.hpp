@@ -31,6 +31,9 @@ struct PresentationWindow {
 extern "C" void AgcDriverAttachWindow_nid_postfix(const AgcDriver::PresentationWindow& window);
 extern "C" void AgcDriverPresentClear_nid_postfix(const AgcDriver::PresentationWindow& window, bool opaque, const AgcDriver::DisplayBuffer* plane, void (*gpuReady)(void*), void* context);
 extern "C" void AgcDriverPresentBuffer_nid_postfix(const AgcDriver::PresentationWindow& window, const AgcDriver::DisplayBuffer& buffer, const AgcDriver::DisplayBuffer* plane, void (*gpuReady)(void*), void* context);
+extern "C" bool AgcDriverPresentHeldFrame_nid_postfix(const AgcDriver::PresentationWindow& window);
+extern "C" void AgcDriverSetFrameGeneration_nid_postfix(bool generate);
+extern "C" bool AgcDriverFrameGenerationRequested_nid_postfix();
 extern "C" void AgcDriverReleaseWindow_nid_postfix(void* window);
 extern "C" void AgcDriverTogglePerformanceOverlay_nid_postfix();
 extern "C" void AgcDriverSetSystemOverlay_nid_postfix(const ImeKeyboardView* view);

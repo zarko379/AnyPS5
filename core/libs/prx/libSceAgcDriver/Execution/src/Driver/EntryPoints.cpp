@@ -240,6 +240,18 @@ extern "C" void AgcDriverPresentBuffer_nid_postfix(const AgcDriver::Presentation
     AgcDriver::PresentBuffer(window, buffer, plane, gpuReady, context);
 }
 
+extern "C" bool AgcDriverPresentHeldFrame_nid_postfix(const AgcDriver::PresentationWindow& window) {
+    return AgcDriver::DriverDetail::Driver::Get().PresentHeld(window);
+}
+
+extern "C" void AgcDriverSetFrameGeneration_nid_postfix(bool generate) {
+    AgcDriver::DriverDetail::Driver::Get().SetFrameGeneration(generate);
+}
+
+extern "C" bool AgcDriverFrameGenerationRequested_nid_postfix() {
+    return AgcDriver::VulkanDevice::FrameGenerationRequested();
+}
+
 extern "C" void AgcDriverReleaseWindow_nid_postfix(void* window) {
     AgcDriver::ReleaseWindow(window);
 }

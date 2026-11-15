@@ -280,6 +280,13 @@ public:
     bool PresentClear(std::uint32_t width, std::uint32_t height, bool opaque, const DisplayBuffer* plane = nullptr);
     void PresentPixels(std::uint32_t width, std::uint32_t height, std::span<const std::byte> pixels);
     bool PresentDisplayBuffer(const DisplayBuffer& buffer, const DisplayBuffer* plane = nullptr);
+    static bool FrameGenerationRequested();
+    void SetFrameGeneration(bool generate);
+    bool HoldsGeneratedFrame() const;
+    void ForgetGeneratedFrame();
+    bool PresentHeldFrame();
+    static std::uint64_t HeldFramePresents();
+    static std::uint64_t GeneratedFrames();
     double FinishPresent();
     void QueuePresent();
     bool PresentsOnOwnQueue() const;

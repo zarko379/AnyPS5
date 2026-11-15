@@ -200,6 +200,54 @@ void Driver::Present(const PresentationWindow& window, const DisplayBuffer* buff
     }
 }
 
+bool Driver::PresentHeld(const PresentationWindow& window) {
+    PerformanceTimer timing("Driver.PresentHeld");
+    CheckFailure();
+    static const std::size_t inFlight = VulkanDevice::FlipInFlight();
+    std::shared_ptr<VulkanDevice> presenting;
+    try {
+        {
+            GuestMemory::TagGpuLockSite(GuestMemory::GpuLockSite::Present);
+            std::lock_guard lock(GuestMemory::GpuMutex());
+            if (device == nullptr || device->Window() != window.context || !device->HoldsGeneratedFrame() || !device->Presentable()) return false;
+            presenting = device;
+        }
+        if (inFlight != 0) presenting->RetirePresents(inFlight);
+        if (!presenting->AcquireImage()) {
+            GuestMemory::TagGpuLockSite(GuestMemory::GpuLockSite::Present);
+            std::lock_guard lock(GuestMemory::GpuMutex());
+            presenting->ForgetGeneratedFrame();
+            return false;
+        }
+        bool submitted = false;
+        bool queueUnlocked = false;
+        {
+            GuestMemory::TagGpuLockSite(GuestMemory::GpuLockSite::Present);
+            std::lock_guard lock(GuestMemory::GpuMutex());
+            submitted = presenting->PresentHeldFrame();
+            if (submitted) {
+                if (presenting->PresentsOnOwnQueue()) queueUnlocked = true;
+                else presenting->QueuePresent();
+            }
+        }
+        if (queueUnlocked) presenting->QueuePresent();
+        if (submitted) static_cast<void>(presenting->FinishPresent());
+        CheckFailure();
+        return submitted;
+    } catch (const ProcessShutdown&) {
+        throw;
+    } catch (...) {
+        ReportFailure(std::current_exception());
+        throw;
+    }
+}
+
+void Driver::SetFrameGeneration(bool generate) {
+    GuestMemory::TagGpuLockSite(GuestMemory::GpuLockSite::Present);
+    std::lock_guard lock(GuestMemory::GpuMutex());
+    if (device != nullptr) device->SetFrameGeneration(generate);
+}
+
 void Driver::reportPresents(double waitedMs, std::size_t inFlight) {
     static std::vector<double> waits;
     static VulkanDevice::PresentStatistics previous{};
@@ -221,6 +269,7 @@ void Driver::reportPresents(double waitedMs, std::size_t inFlight) {
     const double perFlip = flips != 0 ? 1.0 / static_cast<double>(flips) : 0.0;
     const auto serial = flipSerial.load();
     AgcDriver::ProfilePrint_nid_no_patch( "[present] %llu presents over 10 s (%llu dropped: no free swapchain image; %zu may trail on the GPU); %s p50 %.2f ms, p90 %.2f ms, max %.2f ms over %zu; per frame, presented or dropped: GPU busy %.1f ms, idle gaps %.1f ms (%llu batches without a completion record); per flip: %.1f batches recorded (%.1f unsignaled at the flip); per present: %.1f batches ahead of the blit, %.1f after it; after the flip packet: last submit %.1f ms, blit submit %.1f ms; in-place reads overwritten before execution: %llu of %llu checked; waits for the display keys' writer outside the GPU mutex: %llu, %.1f ms\n", static_cast<unsigned long long>(presents), static_cast<unsigned long long>(dropped), inFlight, inFlight != 0 ? "inflight_wait" : "render_fence_wait", percentile(0.5), percentile(0.9), waits.empty() ? 0.0 : waits.back(), waits.size(), (counts.gpuBusyMs - previous.gpuBusyMs) * perFrame, (counts.gpuGapMs - previous.gpuGapMs) * perFrame, static_cast<unsigned long long>(counts.gpuUnread - previous.gpuUnread), static_cast<double>(serial - windowSerial) * perFlip, static_cast<double>(flipBatchesUnsignaled.load() - previousUnsignaled) * perFlip, static_cast<double>(counts.batchesAheadOfBlit - previous.batchesAheadOfBlit) * perPresent, static_cast<double>(counts.batchesAfterFlip - previous.batchesAfterFlip) * perPresent, (counts.lastSubmitAfterFlipMs - previous.lastSubmitAfterFlipMs) * perPresent, (counts.blitSubmitAfterFlipMs - previous.blitSubmitAfterFlipMs) * perPresent, static_cast<unsigned long long>(counts.readsOverwritten - previous.readsOverwritten), static_cast<unsigned long long>(counts.readsChecked - previous.readsChecked), static_cast<unsigned long long>(counts.keyWriterWaits - previous.keyWriterWaits), counts.keyWriterWaitMs - previous.keyWriterWaitMs);
+    if (VulkanDevice::FrameGenerationRequested()) AgcDriver::ProfilePrint_nid_no_patch("[framegen] %llu frames generated, %llu held real frames presented (cumulative)%c", static_cast<unsigned long long>(VulkanDevice::GeneratedFrames()), static_cast<unsigned long long>(VulkanDevice::HeldFramePresents()), 10);
     previous = counts;
     previousFlips = flipsCounted.load();
     previousUnsignaled = flipBatchesUnsignaled.load();

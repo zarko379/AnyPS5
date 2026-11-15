@@ -42,6 +42,7 @@
 #include "prx/libSceAgcDriver/Execution/include/PresentationPass.hpp"
 #include "prx/libSceAgcDriver/Execution/include/PresentationScaler.hpp"
 #include "prx/libSceAgcDriver/Execution/include/PresentationUpscaler.hpp"
+#include "prx/libSceAgcDriver/Execution/include/PresentationFrameGenerator.hpp"
 #include "prx/libSceAgcDriver/Execution/include/Screenshot.hpp"
 #include "prx/libSceAgcDriver/Execution/include/SubmissionSnapshots.hpp"
 #include "prx/libSceAgcDriver/TraceRevision.hpp"
@@ -746,6 +747,8 @@ struct VulkanDevice::State {
     std::unique_ptr<PresentationPass> planePass;
     std::unique_ptr<PerformanceOverlay> overlay;
     std::unique_ptr<PresentationUpscaler> upscaler;
+    std::unique_ptr<PresentationFrameGenerator> frameGenerator;
+    bool generateNextFrame = false;
     std::unique_ptr<PerformanceOverlay> keyboard;
     std::unique_ptr<PerformanceOverlay> padStatus;
     VkFormat surfaceFormat = VK_FORMAT_B8G8R8A8_UNORM;
@@ -1221,6 +1224,7 @@ struct VulkanDevice::State {
             colorTransfer.reset();
             overlay.reset();
             upscaler.reset();
+            frameGenerator.reset();
             planePass.reset();
             keyboard.reset();
             padStatus.reset();
@@ -2746,7 +2750,8 @@ VulkanDevice::VulkanDevice(const PresentationWindow* window, bool compileOnly) :
             swapchain.imageColorSpace = state->surfaceColorSpace;
             swapchain.imageExtent = state->extent;
             swapchain.imageArrayLayers = 1;
-            swapchain.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            require(!FrameGenerationRequested() || (surface.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0, "ANYPS5_FRAME_GENERATION=1 needs swapchain images that can be copied from, which this surface does not offer");
+            swapchain.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | (FrameGenerationRequested() ? VK_IMAGE_USAGE_TRANSFER_SRC_BIT : 0u);
             swapchain.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
             swapchain.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
             swapchain.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -2779,6 +2784,11 @@ VulkanDevice::VulkanDevice(const PresentationWindow* window, bool compileOnly) :
         if (upscale.fsr) {
             state->upscaler = std::make_unique<PresentationUpscaler>(graphicsContext(), state->presentSlots.size(), upscale.sharpness);
             std::fprintf(stderr, "[present] ANYPS5_UPSCALE=fsr: FSR 1 EASU and RCAS when the window is larger than the display buffer, the normal scaler otherwise; RCAS sharpness %.2f\n", static_cast<double>(upscale.sharpness));
+        }
+        if (FrameGenerationRequested()) {
+            require(PresentationFrameGenerator::Supports(graphicsContext(), state->surfaceFormat), "ANYPS5_FRAME_GENERATION=1 needs a swapchain format that can be sampled, copied and blitted and RGBA16F storage images");
+            state->frameGenerator = std::make_unique<PresentationFrameGenerator>(graphicsContext());
+            std::fprintf(stderr, "[present] ANYPS5_FRAME_GENERATION=1: frames generated between the title's flips when they are slower than half the display rate\n");
         }
     }
     if (state->float32FlushToZeroCandidate) {
@@ -3708,7 +3718,8 @@ void VulkanDevice::recreateSwapchain(std::uint32_t width, std::uint32_t height, 
     create.imageColorSpace = state->surfaceColorSpace;
     create.imageExtent = {width, height};
     create.imageArrayLayers = 1;
-    create.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    require(!FrameGenerationRequested() || (surface.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0, "ANYPS5_FRAME_GENERATION=1 needs swapchain images that can be copied from, which this surface does not offer");
+    create.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | (FrameGenerationRequested() ? VK_IMAGE_USAGE_TRANSFER_SRC_BIT : 0u);
     create.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     create.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     create.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -3720,6 +3731,7 @@ void VulkanDevice::recreateSwapchain(std::uint32_t width, std::uint32_t height, 
     if (state->swapchain != VK_NULL_HANDLE) state->retiredSwapchains.push_back({state->swapchain, std::move(state->rendered)});
     state->swapchain = replacement;
     state->extent = create.imageExtent;
+    if (state->frameGenerator != nullptr) state->frameGenerator->Forget();
     auto getImages = state->DeviceFunction<PFN_vkGetSwapchainImagesKHR>("vkGetSwapchainImagesKHR");
     std::uint32_t count = 0;
     check(getImages(state->device, replacement, &count, nullptr), "vkGetSwapchainImagesKHR resize");
@@ -4193,6 +4205,11 @@ bool VulkanDevice::AcquireImage() {
     return true;
 }
 
+namespace {
+std::atomic<std::uint64_t> heldFramePresents{0};
+std::atomic<std::uint64_t> generatedFrames{0};
+}
+
 bool VulkanDevice::present(std::uint32_t width, std::uint32_t height, bool opaque, std::span<const std::byte> pixels, const DisplayBuffer* display, const std::shared_ptr<Graphics::StorageTexture>& resident, VkFilter residentFilter, bool dumpFrame, bool residentConvert, const VkClearColorValue* uniform, std::uint32_t residentLayer, bool passthrough, const DisplayBuffer* plane) {
     PerformanceTimer timing("Vulkan.Present");
     APS5_LOG_OUT_DEBUG("present begin width=%u height=%u opaque=%u pixels=%zu", width, height, static_cast<unsigned>(opaque), pixels.size());
@@ -4444,6 +4461,12 @@ bool VulkanDevice::present(std::uint32_t width, std::uint32_t height, bool opaqu
         pipelineBarrier(commands, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
         Graphics::Recorder::CountBarriers(CommandClass::PresentBlit);
     }
+    if (state->frameGenerator != nullptr) {
+        if (state->presentingGuestFrame && !clearOnly && state->surfaceColorSpace != VK_COLOR_SPACE_HDR10_ST2084_EXT) {
+            if (state->frameGenerator->RecordCapture(commands, state->images[index], state->surfaceFormat, state->extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, state->generateNextFrame)) generatedFrames.fetch_add(1, std::memory_order_relaxed);
+        }
+        else state->frameGenerator->Forget();
+    }
     if (slot.queries != VK_NULL_HANDLE) state->DeviceFunction<PFN_vkCmdWriteTimestamp>("vkCmdWriteTimestamp")(commands, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, slot.queries, 1);
     check(state->DeviceFunction<PFN_vkEndCommandBuffer>("vkEndCommandBuffer")(commands), "vkEndCommandBuffer");
     APS5_LOG_CHARS_OUT_DEBUG("Presentation command buffer recorded");
@@ -4576,6 +4599,91 @@ double VulkanDevice::RetirePresents(std::size_t keepInFlight) {
 
 double VulkanDevice::FinishPresent() {
     return RetirePresents(0);
+}
+
+bool VulkanDevice::FrameGenerationRequested() {
+    static const bool requested = [] {
+        const char* value = std::getenv("ANYPS5_FRAME_GENERATION");
+        if (value == nullptr || *value == '\0' || std::string_view(value) == "0") return false;
+        if (std::string_view(value) != "1") throw std::runtime_error("ANYPS5_FRAME_GENERATION must be 0 or 1");
+        return true;
+    }();
+    return requested;
+}
+
+void VulkanDevice::SetFrameGeneration(bool generate) {
+    state->generateNextFrame = generate;
+}
+
+bool VulkanDevice::HoldsGeneratedFrame() const {
+    return state->frameGenerator != nullptr && state->frameGenerator->HoldsFrame();
+}
+
+void VulkanDevice::ForgetGeneratedFrame() {
+    if (state->frameGenerator != nullptr) state->frameGenerator->Forget();
+}
+
+std::uint64_t VulkanDevice::HeldFramePresents() {
+    return heldFramePresents.load(std::memory_order_relaxed);
+}
+
+std::uint64_t VulkanDevice::GeneratedFrames() {
+    return generatedFrames.load(std::memory_order_relaxed);
+}
+
+bool VulkanDevice::PresentHeldFrame() {
+    if (!HoldsGeneratedFrame() || state->swapchain == VK_NULL_HANDLE || state->extent.width == 0 || state->extent.height == 0) return false;
+    require(!state->queuePending, "the previous presentation was not queued");
+    if (!state->imageAcquired && !AcquireImage()) {
+        state->frameGenerator->Forget();
+        return false;
+    }
+    state->imageAcquired = false;
+    const auto index = state->acquiredIndex;
+    require(index < state->images.size() && index < state->rendered.size(), "acquired image index is out of range");
+    if (state->presentSlots[state->presentCursor].inFlight) RetirePresents(state->presentSlots.size() - 1);
+    auto& slot = state->presentSlots[state->presentCursor];
+    require(!slot.inFlight, "presentation slot is still in flight");
+    auto commands = slot.commands;
+    check(state->DeviceFunction<PFN_vkResetCommandBuffer>("vkResetCommandBuffer")(commands, 0), "vkResetCommandBuffer held frame");
+    VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    check(state->DeviceFunction<PFN_vkBeginCommandBuffer>("vkBeginCommandBuffer")(commands, &begin), "vkBeginCommandBuffer held frame");
+    if (slot.queries != VK_NULL_HANDLE) {
+        state->DeviceFunction<PFN_vkCmdResetQueryPool>("vkCmdResetQueryPool")(commands, slot.queries, 0, 2);
+        state->DeviceFunction<PFN_vkCmdWriteTimestamp>("vkCmdWriteTimestamp")(commands, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, slot.queries, 0);
+    }
+    state->frameGenerator->RecordHeld(commands, state->images[index], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    if (slot.queries != VK_NULL_HANDLE) state->DeviceFunction<PFN_vkCmdWriteTimestamp>("vkCmdWriteTimestamp")(commands, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, slot.queries, 1);
+    check(state->DeviceFunction<PFN_vkEndCommandBuffer>("vkEndCommandBuffer")(commands), "vkEndCommandBuffer held frame");
+    VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &commands;
+    submit.signalSemaphoreCount = 1;
+    submit.pSignalSemaphores = &state->rendered[index];
+    check(state->DeviceFunction<PFN_vkResetFences>("vkResetFences")(state->device, 1, &slot.fence), "vkResetFences held frame");
+    check(state->DeviceFunction<PFN_vkQueueSubmit>("vkQueueSubmit")(state->queue, 1, &submit, slot.fence), "vkQueueSubmit held frame");
+    const auto submittedAt = std::chrono::steady_clock::now();
+    {
+        std::lock_guard lock(state->presentMutex);
+        slot.kept.reset();
+        slot.keptPlane.reset();
+        slot.imageIndex = index;
+        slot.inFlight = true;
+        slot.shared = false;
+        slot.dumpRecorded = false;
+        slot.dumpScreenshot = false;
+        slot.recorderSerial = state->lastPresentSerial;
+        slot.previousSerial = state->lastPresentSerial;
+        slot.submittedAt = submittedAt;
+        slot.blitBytes = static_cast<std::uint64_t>(state->extent.width) * state->extent.height * 4;
+        state->presentCursor = (state->presentCursor + 1) % state->presentSlots.size();
+        state->queuePending = true;
+        state->queueGuestFrame = false;
+        state->queueIndex = index;
+    }
+    heldFramePresents.fetch_add(1, std::memory_order_relaxed);
+    return true;
 }
 
 void VulkanDevice::QueuePresent() {

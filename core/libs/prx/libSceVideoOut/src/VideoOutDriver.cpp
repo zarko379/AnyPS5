@@ -782,6 +782,20 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
 #if APS5_ENABLE_TIMING_LOG
     std::unique_ptr<FrameTimingLog> timingLog;
 #endif
+    const bool frameGeneration = AgcDriverFrameGenerationRequested_nid_postfix();
+    bool heldPending = false;
+    std::chrono::steady_clock::time_point heldDeadline{};
+    std::chrono::steady_clock::time_point lastFlipFinished{};
+    std::chrono::steady_clock::duration flipInterval{};
+    std::uint32_t heldWidth = 0;
+    std::uint32_t heldHeight = 0;
+    const auto presentHeld = [&] {
+        heldPending = false;
+        if (window.Handle() == nullptr) return;
+        const auto extensions = windowExtensions(window.Handle());
+        const AgcDriver::PresentationWindow target{window.Handle(), extensions, &createWindowSurface, &windowDrawableSize, heldWidth, heldHeight, nullptr};
+        static_cast<void>(AgcDriverPresentHeldFrame_nid_postfix(target));
+    };
     try {
 #if APS5_ENABLE_TIMING_LOG
         timingLog = std::make_unique<FrameTimingLog>();
@@ -797,7 +811,12 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
         while (!token.stop_requested()) {
             {
                 std::unique_lock lock(flipQueue->mutex);
-                flipQueue->changed.WaitUntil(lock, TimedWait::DeadlineNanos(PRESENT_POLL_MICROS), [&] { return token.stop_requested() || flipQueue->failure || !flipQueue->requests.empty(); });
+                std::uint64_t pollMicros = PRESENT_POLL_MICROS;
+                if (heldPending) {
+                    const auto untilHeld = std::chrono::duration_cast<std::chrono::microseconds>(heldDeadline - std::chrono::steady_clock::now()).count();
+                    pollMicros = std::min<std::uint64_t>(pollMicros, static_cast<std::uint64_t>(std::max<std::int64_t>(0, untilHeld)));
+                }
+                flipQueue->changed.WaitUntil(lock, TimedWait::DeadlineNanos(pollMicros), [&] { return token.stop_requested() || flipQueue->failure || !flipQueue->requests.empty(); });
                 if (flipQueue->failure) std::rethrow_exception(flipQueue->failure);
                 if (token.stop_requested()) break;
                 if (!flipQueue->requests.empty()) {
@@ -840,7 +859,29 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 ModalDialogView dialogView;
                 const bool dialogShown = !keyboardShown && ModalDialogReadView_nid_postfix(dialogView);
                 AgcDriverSetSystemDialog_nid_postfix(dialogShown ? &dialogView : nullptr);
+                if (heldPending) presentHeld();
+                bool generate = false;
+                if (frameGeneration) {
+                    const int refresh = GetDisplayRefreshRate();
+                    const auto displayPeriod = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1.0 / static_cast<double>(refresh > 0 ? refresh : 60)));
+                    generate = flipInterval > 2 * displayPeriod;
+                    AgcDriverSetFrameGeneration_nid_postfix(generate);
+                }
                 processFlip(*current);
+                if (frameGeneration) {
+                    const auto flipFinished = std::chrono::steady_clock::now();
+                    if (lastFlipFinished != std::chrono::steady_clock::time_point{}) {
+                        const auto interval = flipFinished - lastFlipFinished;
+                        flipInterval = flipInterval == std::chrono::steady_clock::duration{} ? interval : (flipInterval * 7 + interval) / 8;
+                    }
+                    lastFlipFinished = flipFinished;
+                    if (generate) {
+                        heldPending = true;
+                        heldDeadline = flipFinished + flipInterval / 2;
+                        heldWidth = current->width;
+                        heldHeight = current->height;
+                    }
+                }
                 int windowWidth = 0;
                 int windowHeight = 0;
                 if (window.Handle() != nullptr) OnMainThread([&] { SDL_GetWindowSize(window.Handle(), &windowWidth, &windowHeight); });
@@ -860,6 +901,7 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 timingLog->Enqueue(current->timing->Capture(current->outputHandle, current->index, current->flipArg, finished, interval));
 #endif
             }
+            if (heldPending && std::chrono::steady_clock::now() >= heldDeadline) presentHeld();
             if (current) {
                 current.reset();
                 flipQueue->changed.NotifyAll();
