@@ -66,3 +66,4 @@
 #include "Copy.hpp"
 #include "Hashtable.hpp"
 #include "CoreClasses.hpp"
+#include "Edits.hpp"
