@@ -409,17 +409,17 @@ void APS5_VABI _ZN6icu_6820CheckedArrayByteSink6AppendEPKci_nid_postfix(Icu::Che
         self->overflowed = 1;
         return;
     }
-    self->appended += n;
     const std::int32_t available = self->capacity - self->size;
-    if (n > available) {
-        n = available;
-        self->overflowed = 1;
-    }
-    if (n > 0 && bytes != self->outbuf + self->size) {
+    const std::int32_t copied = n > available ? available : n;
+    const bool copies = copied > 0 && bytes != self->outbuf + self->size;
+    if (copies) {
         Object(bytes);
-        std::memmove(Object(self->outbuf) + self->size, bytes, static_cast<std::size_t>(n));
+        Object(self->outbuf);
     }
-    self->size += n;
+    self->appended += n;
+    if (n > available) self->overflowed = 1;
+    if (copies) std::memmove(self->outbuf + self->size, bytes, static_cast<std::size_t>(copied));
+    self->size += copied;
 }
 
 void APS5_VABI _ZN6icu_6820CheckedArrayByteSinkD0Ev_nid_postfix(void* self) {
