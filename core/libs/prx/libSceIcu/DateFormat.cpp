@@ -81,11 +81,13 @@ void IntervalFormat(const UDateIntervalFormat* formatter) {
 extern "C" {
 
 void* APS5_VABI ucal_open_nid_postfix(const char16_t* zoneID, std::int32_t len, const char* locale, std::int32_t type, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    IcuBackend::Zone(zoneID, len);
-    CalendarLocale(locale, type);
-    return ucal_open(zoneID, len, locale, static_cast<UCalendarType>(type), error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> void* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        IcuBackend::Zone(zoneID, len);
+        CalendarLocale(locale, type);
+        return ucal_open(zoneID, len, locale, static_cast<UCalendarType>(type), error);
+    });
 }
 
 void APS5_VABI ucal_close_nid_postfix(void* cal) {
@@ -94,25 +96,30 @@ void APS5_VABI ucal_close_nid_postfix(void* cal) {
 }
 
 void* APS5_VABI ucal_clone_nid_postfix(const void* cal, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    return ucal_clone(static_cast<const UCalendar*>(Object(cal)), error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> void* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        return ucal_clone(static_cast<const UCalendar*>(Object(cal)), error);
+    });
 }
 
 std::int32_t APS5_VABI ucal_getTimeZoneDisplayName_nid_postfix(const void* cal, std::int32_t type, const char* locale, char16_t* result, std::int32_t resultLength, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return -1;
-    Object(cal);
-    if (DisplayNameType(type)) {
-        IcuBackend::Locale(locale);
-        IcuBackend::LocaleData(ZoneTree, locale);
-    }
-    return ucal_getTimeZoneDisplayName(static_cast<const UCalendar*>(cal), static_cast<UCalendarDisplayNameType>(type), locale, result, resultLength, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return -1;
+        Object(cal);
+        if (DisplayNameType(type)) {
+            IcuBackend::Locale(locale);
+            IcuBackend::LocaleData(ZoneTree, locale);
+        }
+        return ucal_getTimeZoneDisplayName(static_cast<const UCalendar*>(cal), static_cast<UCalendarDisplayNameType>(type), locale, result, resultLength, error);
+    });
 }
 
 void APS5_VABI ucal_setGregorianChange_nid_postfix(void* cal, double date, std::int32_t* pErrorCode) {
-    IcuBackend::Ensure();
-    ucal_setGregorianChange(static_cast<UCalendar*>(cal), date, Status(pErrorCode));
+    IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) {
+        ucal_setGregorianChange(static_cast<UCalendar*>(cal), date, Status(local));
+    });
 }
 
 std::int32_t APS5_VABI ucal_getAttribute_nid_postfix(const void* cal, std::int32_t attr) {
@@ -122,28 +129,37 @@ std::int32_t APS5_VABI ucal_getAttribute_nid_postfix(const void* cal, std::int32
 }
 
 void APS5_VABI ucal_setMillis_nid_postfix(void* cal, double dateTime, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return;
-    ucal_setMillis(static_cast<UCalendar*>(Object(cal)), dateTime, error);
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return;
+        ucal_setMillis(static_cast<UCalendar*>(Object(cal)), dateTime, error);
+    });
 }
 
 std::int32_t APS5_VABI ucal_get_nid_postfix(const void* cal, std::int32_t field, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return -1;
-    Object(cal);
-    if (field < 0 || field >= UCAL_FIELD_COUNT) APS5_INVALID_ARG_EX;
-    return ucal_get(static_cast<const UCalendar*>(cal), static_cast<UCalendarDateFields>(field), error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return -1;
+        Object(cal);
+        if (field < 0 || field >= UCAL_FIELD_COUNT) APS5_INVALID_ARG_EX;
+        return ucal_get(static_cast<const UCalendar*>(cal), static_cast<UCalendarDateFields>(field), error);
+    });
 }
 
 std::int32_t APS5_VABI ucal_getCanonicalTimeZoneID_nid_postfix(const char16_t* id, std::int32_t len, char16_t* result, std::int32_t resultCapacity, std::int8_t* isSystemID, std::int32_t* status) {
     IcuBackend::Ensure();
-    return ucal_getCanonicalTimeZoneID(id, len, result, resultCapacity, reinterpret_cast<UBool*>(isSystemID), reinterpret_cast<UErrorCode*>(status));
+    if (!status) return ucal_getCanonicalTimeZoneID(id, len, result, resultCapacity, reinterpret_cast<UBool*>(isSystemID), nullptr);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        return ucal_getCanonicalTimeZoneID(id, len, result, resultCapacity, reinterpret_cast<UBool*>(isSystemID), reinterpret_cast<UErrorCode*>(local));
+    });
 }
 
 std::int32_t APS5_VABI ucal_getDayOfWeekType_nid_postfix(const void* cal, std::int32_t dayOfWeek, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return UCAL_WEEKDAY;
-    return ucal_getDayOfWeekType(static_cast<const UCalendar*>(Object(cal)), static_cast<UCalendarDaysOfWeek>(dayOfWeek), error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return UCAL_WEEKDAY;
+        return ucal_getDayOfWeekType(static_cast<const UCalendar*>(Object(cal)), static_cast<UCalendarDaysOfWeek>(dayOfWeek), error);
+    });
 }
 
 void* APS5_VABI udat_open_nid_postfix(std::int32_t timeStyle, std::int32_t dateStyle, const char* locale, const char16_t* tzID, std::int32_t tzIDLength, const char16_t* pattern, std::int32_t patternLength, std::int32_t* status) {
@@ -190,11 +206,11 @@ std::int32_t APS5_VABI udat_toPattern_nid_postfix(const void* fmt, std::int8_t l
 
 std::int32_t APS5_VABI udat_getSymbols_nid_postfix(const void* fmt, std::int32_t type, std::int32_t symbolIndex, char16_t* result, std::int32_t resultLength, std::int32_t* status) {
     IcuBackend::Ensure();
-    if (fmt) {
-        IcuBackend::RequireStatus(status);
+    if (!fmt) return udat_getSymbols(nullptr, static_cast<UDateFormatSymbolType>(type), symbolIndex, result, resultLength, nullptr);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
         if (type != UDAT_LOCALIZED_CHARS && symbolIndex < 0) APS5_INVALID_ARG_EX;
-    }
-    return udat_getSymbols(static_cast<const UDateFormat*>(fmt), static_cast<UDateFormatSymbolType>(type), symbolIndex, result, resultLength, reinterpret_cast<UErrorCode*>(status));
+        return udat_getSymbols(static_cast<const UDateFormat*>(fmt), static_cast<UDateFormatSymbolType>(type), symbolIndex, result, resultLength, reinterpret_cast<UErrorCode*>(local));
+    });
 }
 
 std::int32_t APS5_VABI udat_countSymbols_nid_postfix(const void* fmt, std::int32_t type) {
@@ -207,12 +223,14 @@ const void* APS5_VABI udat_getCalendar_nid_postfix(const void* fmt) {
 }
 
 void* APS5_VABI udatpg_open_nid_postfix(const char* locale, std::int32_t* pErrorCode) {
-    UErrorCode* error = Status(pErrorCode);
-    if (U_FAILURE(*error)) return nullptr;
-    IcuBackend::Locale(locale);
-    IcuBackend::LocaleData(nullptr, locale);
-    IcuBackend::PatternGenerator();
-    return udatpg_open(locale, error);
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> void* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        IcuBackend::Locale(locale);
+        IcuBackend::LocaleData(nullptr, locale);
+        IcuBackend::PatternGenerator();
+        return udatpg_open(locale, error);
+    });
 }
 
 void APS5_VABI udatpg_close_nid_postfix(void* dtpg) {
@@ -221,9 +239,11 @@ void APS5_VABI udatpg_close_nid_postfix(void* dtpg) {
 }
 
 std::int32_t APS5_VABI udatpg_getBestPatternWithOptions_nid_postfix(void* dtpg, const char16_t* skeleton, std::int32_t length, std::int32_t options, char16_t* bestPattern, std::int32_t capacity, std::int32_t* pErrorCode) {
-    UErrorCode* error = Status(pErrorCode);
-    if (U_SUCCESS(*error) && !(skeleton == nullptr && length != 0)) Object(dtpg);
-    return udatpg_getBestPatternWithOptions(static_cast<UDateTimePatternGenerator*>(dtpg), skeleton, length, static_cast<UDateTimePatternMatchOptions>(options), bestPattern, capacity, error);
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error) && !(skeleton == nullptr && length != 0)) Object(dtpg);
+        return udatpg_getBestPatternWithOptions(static_cast<UDateTimePatternGenerator*>(dtpg), skeleton, length, static_cast<UDateTimePatternMatchOptions>(options), bestPattern, capacity, error);
+    });
 }
 
 std::int32_t APS5_VABI udatpg_getBestPattern_nid_postfix(void* dtpg, const char16_t* skeleton, std::int32_t length, char16_t* bestPattern, std::int32_t capacity, std::int32_t* pErrorCode) {
@@ -231,32 +251,37 @@ std::int32_t APS5_VABI udatpg_getBestPattern_nid_postfix(void* dtpg, const char1
 }
 
 std::int32_t APS5_VABI udatpg_getFieldDisplayName_nid_postfix(const void* dtpg, std::int32_t field, std::int32_t width, char16_t* fieldName, std::int32_t capacity, std::int32_t* pErrorCode) {
-    UErrorCode* error = Status(pErrorCode);
-    if (U_SUCCESS(*error) && !BadBuffer(fieldName, capacity)) {
-        Object(dtpg);
-        if (field < 0 || field >= UDATPG_FIELD_COUNT || width < 0 || width > UDATPG_NARROW) APS5_INVALID_ARG_EX;
-    }
-    return udatpg_getFieldDisplayName(static_cast<const UDateTimePatternGenerator*>(dtpg), static_cast<UDateTimePatternField>(field), static_cast<UDateTimePGDisplayWidth>(width), fieldName, capacity, error);
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error) && !BadBuffer(fieldName, capacity)) {
+            Object(dtpg);
+            if (field < 0 || field >= UDATPG_FIELD_COUNT || width < 0 || width > UDATPG_NARROW) APS5_INVALID_ARG_EX;
+        }
+        return udatpg_getFieldDisplayName(static_cast<const UDateTimePatternGenerator*>(dtpg), static_cast<UDateTimePatternField>(field), static_cast<UDateTimePGDisplayWidth>(width), fieldName, capacity, error);
+    });
 }
 
 std::int32_t APS5_VABI udatpg_getSkeleton_nid_postfix(void* unusedDtpg, const char16_t* pattern, std::int32_t length, char16_t* skeleton, std::int32_t capacity, std::int32_t* pErrorCode) {
-    IcuBackend::Ensure();
-    return udatpg_getSkeleton(static_cast<UDateTimePatternGenerator*>(unusedDtpg), pattern, length, skeleton, capacity, Status(pErrorCode));
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> std::int32_t {
+        return udatpg_getSkeleton(static_cast<UDateTimePatternGenerator*>(unusedDtpg), pattern, length, skeleton, capacity, Status(local));
+    });
 }
 
 UDateIntervalFormat* APS5_VABI udtitvfmt_open_nid_postfix(const char* locale, const char16_t* skeleton, std::int32_t skeletonLength, const char16_t* tzID, std::int32_t tzIDLength, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    bool needsDefault = false;
-    if (!BadText(skeleton, skeletonLength) && !BadText(tzID, tzIDLength)) {
-        IcuBackend::Locale(locale);
-        needsDefault = IcuBackend::LocaleData(nullptr, locale);
-        IcuBackend::Zone(tzID, tzIDLength);
-        IcuBackend::PatternGenerator();
-    }
-    UDateIntervalFormat* formatter = udtitvfmt_open(locale, skeleton, skeletonLength, tzID, tzIDLength, error);
-    IcuBackend::Track(formatter, needsDefault);
-    return formatter;
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UDateIntervalFormat* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        bool needsDefault = false;
+        if (!BadText(skeleton, skeletonLength) && !BadText(tzID, tzIDLength)) {
+            IcuBackend::Locale(locale);
+            needsDefault = IcuBackend::LocaleData(nullptr, locale);
+            IcuBackend::Zone(tzID, tzIDLength);
+            IcuBackend::PatternGenerator();
+        }
+        UDateIntervalFormat* formatter = udtitvfmt_open(locale, skeleton, skeletonLength, tzID, tzIDLength, error);
+        IcuBackend::Track(formatter, needsDefault);
+        return formatter;
+    });
 }
 
 void APS5_VABI udtitvfmt_close_nid_postfix(UDateIntervalFormat* formatter) {
@@ -266,11 +291,15 @@ void APS5_VABI udtitvfmt_close_nid_postfix(UDateIntervalFormat* formatter) {
 }
 
 UFormattedDateInterval* APS5_VABI udtitvfmt_openResult_nid_postfix(std::int32_t* ec) {
-    return udtitvfmt_openResult(Status(ec));
+    return IcuBackend::WithGuestStatus(ec, __func__, [&](std::int32_t* local) -> UFormattedDateInterval* {
+        return udtitvfmt_openResult(Status(local));
+    });
 }
 
 const UFormattedValue* APS5_VABI udtitvfmt_resultAsValue_nid_postfix(const UFormattedDateInterval* uresult, std::int32_t* ec) {
-    return udtitvfmt_resultAsValue(uresult, Status(ec));
+    return IcuBackend::WithGuestStatus(ec, __func__, [&](std::int32_t* local) -> const UFormattedValue* {
+        return udtitvfmt_resultAsValue(uresult, Status(local));
+    });
 }
 
 void APS5_VABI udtitvfmt_closeResult_nid_postfix(UFormattedDateInterval* uresult) {
@@ -279,19 +308,23 @@ void APS5_VABI udtitvfmt_closeResult_nid_postfix(UFormattedDateInterval* uresult
 }
 
 void APS5_VABI udtitvfmt_formatToResult_nid_postfix(const UDateIntervalFormat* formatter, double fromDate, double toDate, UFormattedDateInterval* result, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_SUCCESS(*error) && ValidResult(result)) IntervalFormat(formatter);
-    udtitvfmt_formatToResult(formatter, fromDate, toDate, result, error);
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error) && ValidResult(result)) IntervalFormat(formatter);
+        udtitvfmt_formatToResult(formatter, fromDate, toDate, result, error);
+    });
 }
 
 void APS5_VABI udtitvfmt_formatCalendarToResult_nid_postfix(const UDateIntervalFormat* formatter, void* fromCalendar, void* toCalendar, UFormattedDateInterval* result, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_SUCCESS(*error) && ValidResult(result)) {
-        IntervalFormat(formatter);
-        IcuBackend::RequireObject(fromCalendar);
-        IcuBackend::RequireObject(toCalendar);
-    }
-    udtitvfmt_formatCalendarToResult(formatter, static_cast<UCalendar*>(fromCalendar), static_cast<UCalendar*>(toCalendar), result, error);
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error) && ValidResult(result)) {
+            IntervalFormat(formatter);
+            IcuBackend::RequireObject(fromCalendar);
+            IcuBackend::RequireObject(toCalendar);
+        }
+        udtitvfmt_formatCalendarToResult(formatter, static_cast<UCalendar*>(fromCalendar), static_cast<UCalendar*>(toCalendar), result, error);
+    });
 }
 
 double APS5_VABI uprv_getUTCtime_nid_postfix() {

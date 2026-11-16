@@ -39,13 +39,15 @@ void Relative(const URelativeDateTimeFormatter* formatter, std::int32_t unit) {
 extern "C" {
 
 UListFormatter* APS5_VABI ulistfmt_openForType_nid_postfix(const char* locale, std::int32_t type, std::int32_t width, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    if (ListStyle(type, width)) {
-        IcuBackend::Locale(locale);
-        IcuBackend::LocaleData(nullptr, locale);
-    }
-    return ulistfmt_openForType(locale, static_cast<UListFormatterType>(type), static_cast<UListFormatterWidth>(width), error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UListFormatter* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        if (ListStyle(type, width)) {
+            IcuBackend::Locale(locale);
+            IcuBackend::LocaleData(nullptr, locale);
+        }
+        return ulistfmt_openForType(locale, static_cast<UListFormatterType>(type), static_cast<UListFormatterWidth>(width), error);
+    });
 }
 
 void APS5_VABI ulistfmt_close_nid_postfix(UListFormatter* listfmt) {
@@ -54,11 +56,15 @@ void APS5_VABI ulistfmt_close_nid_postfix(UListFormatter* listfmt) {
 }
 
 UFormattedList* APS5_VABI ulistfmt_openResult_nid_postfix(std::int32_t* ec) {
-    return ulistfmt_openResult(Status(ec));
+    return IcuBackend::WithGuestStatus(ec, __func__, [&](std::int32_t* local) -> UFormattedList* {
+        return ulistfmt_openResult(Status(local));
+    });
 }
 
 const UFormattedValue* APS5_VABI ulistfmt_resultAsValue_nid_postfix(const UFormattedList* uresult, std::int32_t* ec) {
-    return ulistfmt_resultAsValue(uresult, Status(ec));
+    return IcuBackend::WithGuestStatus(ec, __func__, [&](std::int32_t* local) -> const UFormattedValue* {
+        return ulistfmt_resultAsValue(uresult, Status(local));
+    });
 }
 
 void APS5_VABI ulistfmt_closeResult_nid_postfix(UFormattedList* uresult) {
@@ -67,19 +73,23 @@ void APS5_VABI ulistfmt_closeResult_nid_postfix(UFormattedList* uresult) {
 }
 
 std::int32_t APS5_VABI ulistfmt_format_nid_postfix(const UListFormatter* listfmt, const char16_t* const strings[], const std::int32_t* stringLengths, std::int32_t stringCount, char16_t* result, std::int32_t resultCapacity, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_SUCCESS(*error) && !BadBuffer(result, resultCapacity) && !BadStrings(strings, stringCount)) IcuBackend::RequireObject(listfmt);
-    return ulistfmt_format(listfmt, strings, stringLengths, stringCount, result, resultCapacity, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error) && !BadBuffer(result, resultCapacity) && !BadStrings(strings, stringCount)) IcuBackend::RequireObject(listfmt);
+        return ulistfmt_format(listfmt, strings, stringLengths, stringCount, result, resultCapacity, error);
+    });
 }
 
 void APS5_VABI ulistfmt_formatStringsToResult_nid_postfix(const UListFormatter* listfmt, const char16_t* const strings[], const std::int32_t* stringLengths, std::int32_t stringCount, UFormattedList* uresult, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_SUCCESS(*error)) {
-        UErrorCode probe = U_ZERO_ERROR;
-        ulistfmt_resultAsValue(uresult, &probe);
-        if (U_SUCCESS(probe) && !BadStrings(strings, stringCount)) IcuBackend::RequireObject(listfmt);
-    }
-    ulistfmt_formatStringsToResult(listfmt, strings, stringLengths, stringCount, uresult, error);
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error)) {
+            UErrorCode probe = U_ZERO_ERROR;
+            ulistfmt_resultAsValue(uresult, &probe);
+            if (U_SUCCESS(probe) && !BadStrings(strings, stringCount)) IcuBackend::RequireObject(listfmt);
+        }
+        ulistfmt_formatStringsToResult(listfmt, strings, stringLengths, stringCount, uresult, error);
+    });
 }
 
 const char16_t* APS5_VABI ufmtval_getString_nid_postfix(const UFormattedValue* ufmtval, std::int32_t* pLength, std::int32_t* ec) {
@@ -107,32 +117,40 @@ void APS5_VABI uldn_close_nid_postfix(ULocaleDisplayNames* ldn) {
 }
 
 std::int32_t APS5_VABI uldn_localeDisplayName_nid_postfix(const ULocaleDisplayNames* ldn, const char* locale, char16_t* result, std::int32_t maxResultSize, std::int32_t* pErrorCode) {
-    UErrorCode* error = Status(pErrorCode);
-    if (U_FAILURE(*error)) return 0;
-    IcuBackend::CheckTracked(ldn);
-    if (ldn && locale && !BadBuffer(result, maxResultSize)) IcuBackend::LocaleObject(locale);
-    return uldn_localeDisplayName(ldn, locale, result, maxResultSize, error);
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return 0;
+        IcuBackend::CheckTracked(ldn);
+        if (ldn && locale && !BadBuffer(result, maxResultSize)) IcuBackend::LocaleObject(locale);
+        return uldn_localeDisplayName(ldn, locale, result, maxResultSize, error);
+    });
 }
 
 std::int32_t APS5_VABI uldn_scriptDisplayName_nid_postfix(const ULocaleDisplayNames* ldn, const char* script, char16_t* result, std::int32_t maxResultSize, std::int32_t* pErrorCode) {
-    UErrorCode* error = Status(pErrorCode);
-    if (U_FAILURE(*error)) return 0;
-    IcuBackend::CheckTracked(ldn);
-    return uldn_scriptDisplayName(ldn, script, result, maxResultSize, error);
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return 0;
+        IcuBackend::CheckTracked(ldn);
+        return uldn_scriptDisplayName(ldn, script, result, maxResultSize, error);
+    });
 }
 
 std::int32_t APS5_VABI uldn_regionDisplayName_nid_postfix(const ULocaleDisplayNames* ldn, const char* region, char16_t* result, std::int32_t maxResultSize, std::int32_t* pErrorCode) {
-    UErrorCode* error = Status(pErrorCode);
-    if (U_FAILURE(*error)) return 0;
-    IcuBackend::CheckTracked(ldn);
-    return uldn_regionDisplayName(ldn, region, result, maxResultSize, error);
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return 0;
+        IcuBackend::CheckTracked(ldn);
+        return uldn_regionDisplayName(ldn, region, result, maxResultSize, error);
+    });
 }
 
 std::int32_t APS5_VABI uldn_keyValueDisplayName_nid_postfix(const ULocaleDisplayNames* ldn, const char* key, const char* value, char16_t* result, std::int32_t maxResultSize, std::int32_t* pErrorCode) {
-    UErrorCode* error = Status(pErrorCode);
-    if (U_FAILURE(*error)) return 0;
-    IcuBackend::CheckTracked(ldn);
-    return uldn_keyValueDisplayName(ldn, key, value, result, maxResultSize, error);
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return 0;
+        IcuBackend::CheckTracked(ldn);
+        return uldn_keyValueDisplayName(ldn, key, value, result, maxResultSize, error);
+    });
 }
 
 URelativeDateTimeFormatter* APS5_VABI ureldatefmt_open_nid_postfix(const char* locale, void* nfToAdopt, std::int32_t width, std::int32_t capitalizationContext, std::int32_t* status) {
@@ -159,9 +177,11 @@ void APS5_VABI ureldatefmt_close_nid_postfix(URelativeDateTimeFormatter* reldate
 }
 
 std::int32_t APS5_VABI ureldatefmt_formatNumeric_nid_postfix(const URelativeDateTimeFormatter* reldatefmt, double offset, std::int32_t unit, char16_t* result, std::int32_t resultCapacity, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_SUCCESS(*error) && !BadBuffer(result, resultCapacity)) Relative(reldatefmt, unit);
-    return ureldatefmt_formatNumeric(reldatefmt, offset, static_cast<URelativeDateTimeUnit>(unit), result, resultCapacity, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error) && !BadBuffer(result, resultCapacity)) Relative(reldatefmt, unit);
+        return ureldatefmt_formatNumeric(reldatefmt, offset, static_cast<URelativeDateTimeUnit>(unit), result, resultCapacity, error);
+    });
 }
 
 std::int32_t APS5_VABI ureldatefmt_format_nid_postfix(const URelativeDateTimeFormatter* reldatefmt, double offset, std::int32_t unit, char16_t* result, std::int32_t resultCapacity, std::int32_t* status) {

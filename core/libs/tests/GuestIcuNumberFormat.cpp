@@ -797,6 +797,45 @@ void CheckGuestStatusPointers() {
     ReadOnlyStatusPage page;
     Require(uplrules_openForType_nid_postfix("en", UPLURAL_TYPE_COUNT, page.Failing()) == nullptr, "uplrules_openForType returns first on a read-only failed status");
     Require(RejectsStatus([&] { uplrules_openForType_nid_postfix("en", UPLURAL_TYPE_COUNT, page.Passing()); }), "uplrules_openForType rejects a read-only status it must fail");
+
+    std::int32_t* unreadable = UnreadableStatus();
+    char16_t buffer[2] = {u'a', u'b'};
+    Require(RejectsStatus([&] { unumsys_open_nid_postfix("en", unreadable); }), "unumsys_open rejects an unreadable status");
+    Require(RejectsStatus([&] { unumsys_openByName_nid_postfix("latn", unreadable); }), "unumsys_openByName rejects an unreadable status");
+    Require(RejectsStatus([&] { ufieldpositer_open_nid_postfix(unreadable); }), "ufieldpositer_open rejects an unreadable status");
+    Require(RejectsStatus([&] { unum_open_nid_postfix(UNUM_DECIMAL, nullptr, 0, "en", nullptr, unreadable); }), "unum_open rejects an unreadable status");
+    Require(RejectsStatus([&] { unum_clone_nid_postfix(nullptr, unreadable); }), "unum_clone rejects an unreadable status");
+    Require(RejectsStatus([&] { unum_formatDouble_nid_postfix(nullptr, 1.0, buffer, 2, nullptr, unreadable); }), "unum_formatDouble rejects an unreadable status");
+    Require(RejectsStatus([&] { unum_formatDoubleForFields_nid_postfix(nullptr, 1.0, nullptr, 1, nullptr, unreadable); }), "unum_formatDoubleForFields rejects an unreadable status");
+    Require(RejectsStatus([&] { unum_formatDecimal_nid_postfix(nullptr, "1", 1, nullptr, 1, nullptr, unreadable); }), "unum_formatDecimal rejects an unreadable status");
+    Require(RejectsStatus([&] { unum_getTextAttribute_nid_postfix(nullptr, UNUM_POSITIVE_PREFIX, buffer, 2, unreadable); }), "unum_getTextAttribute rejects an unreadable status");
+    Require(RejectsStatus([&] { unum_setTextAttribute_nid_postfix(nullptr, UNUM_POSITIVE_PREFIX, u"+", 1, unreadable); }), "unum_setTextAttribute rejects an unreadable status");
+    Require(RejectsStatus([&] { unum_getSymbol_nid_postfix(nullptr, UNUM_DECIMAL_SEPARATOR_SYMBOL, buffer, 2, unreadable); }), "unum_getSymbol rejects an unreadable status");
+    Require(RejectsStatus([&] { uplrules_selectWithFormat_nid_postfix(nullptr, 1.0, nullptr, nullptr, 1, unreadable); }), "uplrules_selectWithFormat rejects an unreadable status");
+    Require(RejectsStatus([&] { uplrules_getKeywords_nid_postfix(nullptr, unreadable); }), "uplrules_getKeywords rejects an unreadable status");
+
+    Require(unumsys_open_nid_postfix("en", page.Failing()) == nullptr, "unumsys_open returns first on a read-only failed status");
+    Require(unumsys_openByName_nid_postfix("latn", page.Failing()) == nullptr, "unumsys_openByName returns first on a read-only failed status");
+    Require(ufieldpositer_open_nid_postfix(page.Failing()) == nullptr, "ufieldpositer_open returns first on a read-only failed status");
+    Require(unum_open_nid_postfix(UNUM_DECIMAL, nullptr, 0, "en", nullptr, page.Failing()) == nullptr, "unum_open returns first on a read-only failed status");
+    Require(unum_clone_nid_postfix(nullptr, page.Failing()) == nullptr, "unum_clone returns first on a read-only failed status");
+    Require(unum_formatDouble_nid_postfix(nullptr, 1.0, buffer, 2, nullptr, page.Failing()) == -1, "unum_formatDouble returns first on a read-only failed status");
+    Require(unum_formatDoubleForFields_nid_postfix(nullptr, 1.0, nullptr, 1, nullptr, page.Failing()) == -1, "unum_formatDoubleForFields returns first on a read-only failed status");
+    Require(unum_formatDecimal_nid_postfix(nullptr, "1", 1, nullptr, 1, nullptr, page.Failing()) == -1, "unum_formatDecimal returns first on a read-only failed status");
+    Require(unum_getTextAttribute_nid_postfix(nullptr, UNUM_POSITIVE_PREFIX, buffer, 2, page.Failing()) == -1, "unum_getTextAttribute returns first on a read-only failed status");
+    unum_setTextAttribute_nid_postfix(nullptr, UNUM_POSITIVE_PREFIX, u"+", 1, page.Failing());
+    Require(unum_getSymbol_nid_postfix(nullptr, UNUM_DECIMAL_SEPARATOR_SYMBOL, buffer, 2, page.Failing()) == 0, "unum_getSymbol returns first on a read-only failed status");
+    Require(uplrules_selectWithFormat_nid_postfix(nullptr, 1.0, nullptr, nullptr, 1, page.Failing()) == 0, "uplrules_selectWithFormat returns first on a read-only failed status");
+    Require(uplrules_getKeywords_nid_postfix(nullptr, page.Failing()) == nullptr, "uplrules_getKeywords returns first on a read-only failed status");
+
+    Require(RejectsStatus([&] { unumsys_openByName_nid_postfix("bogus", page.Passing()); }), "unumsys_openByName rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { unum_open_nid_postfix(-2, nullptr, 0, "en", nullptr, page.Passing()); }), "unum_open rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { unum_formatDoubleForFields_nid_postfix(nullptr, 1.0, nullptr, 1, nullptr, page.Passing()); }), "unum_formatDoubleForFields rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { unum_formatDecimal_nid_postfix(nullptr, "1", 1, nullptr, 1, nullptr, page.Passing()); }), "unum_formatDecimal rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { unum_getSymbol_nid_postfix(nullptr, UNUM_DECIMAL_SEPARATOR_SYMBOL, buffer, 2, page.Passing()); }), "unum_getSymbol rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { uplrules_selectWithFormat_nid_postfix(nullptr, 1.0, nullptr, nullptr, 1, page.Passing()); }), "uplrules_selectWithFormat rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { uplrules_getKeywords_nid_postfix(nullptr, page.Passing()); }), "uplrules_getKeywords rejects a read-only status it must fail");
+    Require(unum_getSymbol_nid_postfix(nullptr, UNUM_DECIMAL_SEPARATOR_SYMBOL, buffer, 2, nullptr) == 0, "unum_getSymbol returns 0 for a null status as ICU does");
     Require(page.Unchanged(), "a read-only status is never written");
 }
 

@@ -551,6 +551,38 @@ void CheckGuestStatusPointers() {
     Require(ufmtval_getString_nid_postfix(nullptr, nullptr, page.Failing()) == nullptr, "ufmtval_getString returns first on a read-only failed status");
     Require(RejectsStatus([&] { ureldatefmt_format_nid_postfix(nullptr, 0.0, 0, nullptr, 1, page.Passing()); }), "ureldatefmt_format rejects a read-only status it must fail");
     Require(RejectsStatus([&] { ufmtval_getString_nid_postfix(nullptr, nullptr, page.Passing()); }), "ufmtval_getString rejects a read-only status it must fail");
+
+    Require(RejectsStatus([&] { ulistfmt_openForType_nid_postfix("en", ULISTFMT_TYPE_AND, ULISTFMT_WIDTH_WIDE, unreadable); }), "ulistfmt_openForType rejects an unreadable status");
+    Require(RejectsStatus([&] { ulistfmt_openResult_nid_postfix(unreadable); }), "ulistfmt_openResult rejects an unreadable status");
+    Require(RejectsStatus([&] { ulistfmt_resultAsValue_nid_postfix(nullptr, unreadable); }), "ulistfmt_resultAsValue rejects an unreadable status");
+    Require(RejectsStatus([&] { ulistfmt_format_nid_postfix(nullptr, nullptr, nullptr, 0, nullptr, 1, unreadable); }), "ulistfmt_format rejects an unreadable status");
+    Require(RejectsStatus([&] { ulistfmt_formatStringsToResult_nid_postfix(nullptr, nullptr, nullptr, 0, nullptr, unreadable); }), "ulistfmt_formatStringsToResult rejects an unreadable status");
+    Require(RejectsStatus([&] { uldn_localeDisplayName_nid_postfix(nullptr, "de", nullptr, 0, unreadable); }), "uldn_localeDisplayName rejects an unreadable status");
+    Require(RejectsStatus([&] { uldn_scriptDisplayName_nid_postfix(nullptr, "Latn", nullptr, 0, unreadable); }), "uldn_scriptDisplayName rejects an unreadable status");
+    Require(RejectsStatus([&] { uldn_regionDisplayName_nid_postfix(nullptr, "DE", nullptr, 0, unreadable); }), "uldn_regionDisplayName rejects an unreadable status");
+    Require(RejectsStatus([&] { uldn_keyValueDisplayName_nid_postfix(nullptr, "calendar", "gregorian", nullptr, 0, unreadable); }), "uldn_keyValueDisplayName rejects an unreadable status");
+    Require(RejectsStatus([&] { ureldatefmt_formatNumeric_nid_postfix(nullptr, 0.0, 0, nullptr, 1, unreadable); }), "ureldatefmt_formatNumeric rejects an unreadable status");
+
+    Require(ulistfmt_openForType_nid_postfix("en", ULISTFMT_TYPE_AND, ULISTFMT_WIDTH_WIDE, page.Failing()) == nullptr, "ulistfmt_openForType returns first on a read-only failed status");
+    Require(ulistfmt_openResult_nid_postfix(page.Failing()) == nullptr, "ulistfmt_openResult returns first on a read-only failed status");
+    Require(ulistfmt_resultAsValue_nid_postfix(nullptr, page.Failing()) == nullptr, "ulistfmt_resultAsValue returns first on a read-only failed status");
+    Require(ulistfmt_format_nid_postfix(nullptr, nullptr, nullptr, 0, nullptr, 1, page.Failing()) == -1, "ulistfmt_format returns first on a read-only failed status");
+    ulistfmt_formatStringsToResult_nid_postfix(nullptr, nullptr, nullptr, 0, nullptr, page.Failing());
+    Require(uldn_localeDisplayName_nid_postfix(nullptr, "de", nullptr, 0, page.Failing()) == 0, "uldn_localeDisplayName returns first on a read-only failed status");
+    Require(uldn_scriptDisplayName_nid_postfix(nullptr, "Latn", nullptr, 0, page.Failing()) == 0, "uldn_scriptDisplayName returns first on a read-only failed status");
+    Require(uldn_regionDisplayName_nid_postfix(nullptr, "DE", nullptr, 0, page.Failing()) == 0, "uldn_regionDisplayName returns first on a read-only failed status");
+    Require(uldn_keyValueDisplayName_nid_postfix(nullptr, "calendar", "gregorian", nullptr, 0, page.Failing()) == 0, "uldn_keyValueDisplayName returns first on a read-only failed status");
+    Require(ureldatefmt_formatNumeric_nid_postfix(nullptr, 0.0, 0, nullptr, 1, page.Failing()) == 0, "ureldatefmt_formatNumeric returns first on a read-only failed status");
+
+    Require(RejectsStatus([&] { ulistfmt_openForType_nid_postfix("en", 7, ULISTFMT_WIDTH_WIDE, page.Passing()); }), "ulistfmt_openForType rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { ulistfmt_resultAsValue_nid_postfix(nullptr, page.Passing()); }), "ulistfmt_resultAsValue rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { ulistfmt_format_nid_postfix(nullptr, nullptr, nullptr, 0, nullptr, 1, page.Passing()); }), "ulistfmt_format rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { ulistfmt_formatStringsToResult_nid_postfix(nullptr, nullptr, nullptr, 0, nullptr, page.Passing()); }), "ulistfmt_formatStringsToResult rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { uldn_localeDisplayName_nid_postfix(nullptr, "de", nullptr, 0, page.Passing()); }), "uldn_localeDisplayName rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { uldn_scriptDisplayName_nid_postfix(nullptr, "Latn", nullptr, 0, page.Passing()); }), "uldn_scriptDisplayName rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { uldn_regionDisplayName_nid_postfix(nullptr, "DE", nullptr, 0, page.Passing()); }), "uldn_regionDisplayName rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { uldn_keyValueDisplayName_nid_postfix(nullptr, "calendar", "gregorian", nullptr, 0, page.Passing()); }), "uldn_keyValueDisplayName rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { ureldatefmt_formatNumeric_nid_postfix(nullptr, 0.0, 0, nullptr, 1, page.Passing()); }), "ureldatefmt_formatNumeric rejects a read-only status it must fail");
     Require(page.Unchanged(), "a read-only status is never written");
 }
 

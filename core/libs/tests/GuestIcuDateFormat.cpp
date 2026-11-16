@@ -770,6 +770,61 @@ void CheckGuestStatusPointers() {
     Require(RejectsStatus([&] { udat_format_nid_postfix(nullptr, 0.0, nullptr, 1, nullptr, page.Passing()); }), "udat_format rejects a read-only status it must fail");
     Require(RejectsStatus([&] { udat_formatForFields_nid_postfix(nullptr, 0.0, nullptr, 1, nullptr, page.Passing()); }), "udat_formatForFields rejects a read-only status it must fail");
     Require(RejectsStatus([&] { udat_toPattern_nid_postfix(nullptr, 0, nullptr, 1, page.Passing()); }), "udat_toPattern rejects a read-only status it must fail");
+
+    std::int32_t openStatus = Ok;
+    void* months = udat_open_nid_postfix(UDAT_PATTERN, UDAT_PATTERN, "en_US", u"UTC", -1, u"MMMM", -1, &openStatus);
+    Require(months != nullptr && openStatus <= Ok, "a month format opens");
+    Require(RejectsStatus([&] { ucal_open_nid_postfix(u"UTC", 3, "en", UCAL_GREGORIAN, unreadable); }), "ucal_open rejects an unreadable status");
+    Require(RejectsStatus([&] { ucal_clone_nid_postfix(nullptr, unreadable); }), "ucal_clone rejects an unreadable status");
+    Require(RejectsStatus([&] { ucal_getTimeZoneDisplayName_nid_postfix(nullptr, UCAL_STANDARD, "en", buffer, 2, unreadable); }), "ucal_getTimeZoneDisplayName rejects an unreadable status");
+    Require(RejectsStatus([&] { ucal_setGregorianChange_nid_postfix(nullptr, 0.0, unreadable); }), "ucal_setGregorianChange rejects an unreadable status");
+    Require(RejectsStatus([&] { ucal_setMillis_nid_postfix(nullptr, 0.0, unreadable); }), "ucal_setMillis rejects an unreadable status");
+    Require(RejectsStatus([&] { ucal_get_nid_postfix(nullptr, UCAL_YEAR, unreadable); }), "ucal_get rejects an unreadable status");
+    Require(RejectsStatus([&] { ucal_getCanonicalTimeZoneID_nid_postfix(u"UTC", 3, buffer, 2, nullptr, unreadable); }), "ucal_getCanonicalTimeZoneID rejects an unreadable status");
+    Require(RejectsStatus([&] { ucal_getDayOfWeekType_nid_postfix(nullptr, UCAL_MONDAY, unreadable); }), "ucal_getDayOfWeekType rejects an unreadable status");
+    Require(RejectsStatus([&] { udat_getSymbols_nid_postfix(months, UDAT_MONTHS, 0, buffer, 2, unreadable); }), "udat_getSymbols rejects an unreadable status");
+    Require(RejectsStatus([&] { udatpg_open_nid_postfix("en", unreadable); }), "udatpg_open rejects an unreadable status");
+    Require(RejectsStatus([&] { udatpg_getBestPatternWithOptions_nid_postfix(nullptr, u"yMd", 3, 0, buffer, 2, unreadable); }), "udatpg_getBestPatternWithOptions rejects an unreadable status");
+    Require(RejectsStatus([&] { udatpg_getBestPattern_nid_postfix(nullptr, u"yMd", 3, buffer, 2, unreadable); }), "udatpg_getBestPattern rejects an unreadable status");
+    Require(RejectsStatus([&] { udatpg_getFieldDisplayName_nid_postfix(nullptr, 0, 0, buffer, 2, unreadable); }), "udatpg_getFieldDisplayName rejects an unreadable status");
+    Require(RejectsStatus([&] { udatpg_getSkeleton_nid_postfix(nullptr, u"yMd", 3, buffer, 2, unreadable); }), "udatpg_getSkeleton rejects an unreadable status");
+    Require(RejectsStatus([&] { udtitvfmt_open_nid_postfix("en", u"yMd", 3, u"UTC", 3, unreadable); }), "udtitvfmt_open rejects an unreadable status");
+    Require(RejectsStatus([&] { udtitvfmt_openResult_nid_postfix(unreadable); }), "udtitvfmt_openResult rejects an unreadable status");
+    Require(RejectsStatus([&] { udtitvfmt_resultAsValue_nid_postfix(nullptr, unreadable); }), "udtitvfmt_resultAsValue rejects an unreadable status");
+    Require(RejectsStatus([&] { udtitvfmt_formatToResult_nid_postfix(nullptr, 0.0, 0.0, nullptr, unreadable); }), "udtitvfmt_formatToResult rejects an unreadable status");
+    Require(RejectsStatus([&] { udtitvfmt_formatCalendarToResult_nid_postfix(nullptr, nullptr, nullptr, nullptr, unreadable); }), "udtitvfmt_formatCalendarToResult rejects an unreadable status");
+
+    Require(ucal_open_nid_postfix(u"UTC", 3, "en", UCAL_GREGORIAN, page.Failing()) == nullptr, "ucal_open returns first on a read-only failed status");
+    Require(ucal_clone_nid_postfix(nullptr, page.Failing()) == nullptr, "ucal_clone returns first on a read-only failed status");
+    Require(ucal_getTimeZoneDisplayName_nid_postfix(nullptr, UCAL_STANDARD, "en", buffer, 2, page.Failing()) == -1, "ucal_getTimeZoneDisplayName returns first on a read-only failed status");
+    ucal_setGregorianChange_nid_postfix(nullptr, 0.0, page.Failing());
+    ucal_setMillis_nid_postfix(nullptr, 0.0, page.Failing());
+    Require(ucal_get_nid_postfix(nullptr, UCAL_YEAR, page.Failing()) == -1, "ucal_get returns first on a read-only failed status");
+    Require(ucal_getCanonicalTimeZoneID_nid_postfix(u"UTC", 3, buffer, 2, nullptr, page.Failing()) == 0, "ucal_getCanonicalTimeZoneID returns first on a read-only failed status");
+    Require(ucal_getDayOfWeekType_nid_postfix(nullptr, UCAL_MONDAY, page.Failing()) == UCAL_WEEKDAY, "ucal_getDayOfWeekType returns first on a read-only failed status");
+    Require(udat_getSymbols_nid_postfix(months, UDAT_MONTHS, 10, buffer, 2, page.Failing()) == 8, "udat_getSymbols preflights on a read-only failed status without writing it");
+    Require(udatpg_open_nid_postfix("en", page.Failing()) == nullptr, "udatpg_open returns first on a read-only failed status");
+    Require(udatpg_getBestPatternWithOptions_nid_postfix(nullptr, u"yMd", 3, 0, buffer, 2, page.Failing()) == 0, "udatpg_getBestPatternWithOptions returns first on a read-only failed status");
+    Require(udatpg_getBestPattern_nid_postfix(nullptr, u"yMd", 3, buffer, 2, page.Failing()) == 0, "udatpg_getBestPattern returns first on a read-only failed status");
+    Require(udatpg_getFieldDisplayName_nid_postfix(nullptr, 0, 0, buffer, 2, page.Failing()) == -1, "udatpg_getFieldDisplayName returns first on a read-only failed status");
+    Require(udatpg_getSkeleton_nid_postfix(nullptr, u"yMd", 3, buffer, 2, page.Failing()) == 0, "udatpg_getSkeleton returns first on a read-only failed status");
+    Require(udtitvfmt_open_nid_postfix("en", u"yMd", 3, u"UTC", 3, page.Failing()) == nullptr, "udtitvfmt_open returns first on a read-only failed status");
+    Require(udtitvfmt_openResult_nid_postfix(page.Failing()) == nullptr, "udtitvfmt_openResult returns first on a read-only failed status");
+    Require(udtitvfmt_resultAsValue_nid_postfix(nullptr, page.Failing()) == nullptr, "udtitvfmt_resultAsValue returns first on a read-only failed status");
+    udtitvfmt_formatToResult_nid_postfix(nullptr, 0.0, 0.0, nullptr, page.Failing());
+    udtitvfmt_formatCalendarToResult_nid_postfix(nullptr, nullptr, nullptr, nullptr, page.Failing());
+
+    Require(RejectsStatus([&] { ucal_setGregorianChange_nid_postfix(nullptr, 0.0, page.Passing()); }), "ucal_setGregorianChange rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { ucal_getCanonicalTimeZoneID_nid_postfix(nullptr, 0, buffer, 2, nullptr, page.Passing()); }), "ucal_getCanonicalTimeZoneID rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { udat_getSymbols_nid_postfix(months, UDAT_MONTHS, 10, buffer, 2, page.Passing()); }), "udat_getSymbols rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { udatpg_getBestPatternWithOptions_nid_postfix(nullptr, nullptr, 1, 0, buffer, 2, page.Passing()); }), "udatpg_getBestPatternWithOptions rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { udatpg_getFieldDisplayName_nid_postfix(nullptr, 0, 0, nullptr, 1, page.Passing()); }), "udatpg_getFieldDisplayName rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { udatpg_getSkeleton_nid_postfix(nullptr, nullptr, 1, buffer, 2, page.Passing()); }), "udatpg_getSkeleton rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { udtitvfmt_resultAsValue_nid_postfix(nullptr, page.Passing()); }), "udtitvfmt_resultAsValue rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { udtitvfmt_formatToResult_nid_postfix(nullptr, 0.0, 0.0, nullptr, page.Passing()); }), "udtitvfmt_formatToResult rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { udtitvfmt_formatCalendarToResult_nid_postfix(nullptr, nullptr, nullptr, nullptr, page.Passing()); }), "udtitvfmt_formatCalendarToResult rejects a read-only status it must fail");
+    Require(ucal_getCanonicalTimeZoneID_nid_postfix(u"UTC", 3, buffer, 2, nullptr, nullptr) == 0, "ucal_getCanonicalTimeZoneID returns 0 for a null status as ICU does");
+    udat_close_nid_postfix(months);
     Require(page.Unchanged(), "a read-only status is never written");
 }
 

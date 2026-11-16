@@ -663,6 +663,25 @@ void CheckGuestStatusPointers() {
     Require(ucol_getTailoredSet_nid_postfix(nullptr, page.Failing()) == nullptr, "ucol_getTailoredSet returns first on a read-only failed status");
     Require(ucol_open_nid_postfix("en", page.Failing()) == nullptr, "ucol_open returns first on a read-only failed status");
     ucol_setAttribute_nid_postfix(nullptr, UCOL_STRENGTH, UCOL_PRIMARY, page.Failing());
+
+    UCollator* collator = Open("en");
+    Require(RejectsStatus([&] { ucol_strcollUTF8_nid_postfix(collator, "a", 1, "b", 1, unreadable); }), "ucol_strcollUTF8 rejects an unreadable status");
+    Require(RejectsStatus([&] { ucol_strcollIter_nid_postfix(collator, nullptr, nullptr, unreadable); }), "ucol_strcollIter rejects an unreadable status");
+    Require(RejectsStatus([&] { ucol_getKeywordValues_nid_postfix("collation", unreadable); }), "ucol_getKeywordValues rejects an unreadable status");
+    Require(RejectsStatus([&] { ucol_getKeywordValuesForLocale_nid_postfix("collation", "en", 0, unreadable); }), "ucol_getKeywordValuesForLocale rejects an unreadable status");
+    Require(RejectsStatus([&] { uprv_sortArray_nid_postfix(nullptr, 0, 4, nullptr, nullptr, 0, unreadable); }), "uprv_sortArray rejects an unreadable status");
+
+    Require(ucol_strcollUTF8_nid_postfix(nullptr, "a", 1, "b", 1, page.Failing()) == Equal, "ucol_strcollUTF8 returns first on a read-only failed status");
+    Require(ucol_strcollIter_nid_postfix(nullptr, nullptr, nullptr, page.Failing()) == Equal, "ucol_strcollIter returns first on a read-only failed status");
+    Require(ucol_getKeywordValues_nid_postfix("collation", page.Failing()) == nullptr, "ucol_getKeywordValues returns first on a read-only failed status");
+    Require(ucol_getKeywordValuesForLocale_nid_postfix("collation", "en", 0, page.Failing()) == nullptr, "ucol_getKeywordValuesForLocale returns first on a read-only failed status");
+    uprv_sortArray_nid_postfix(nullptr, -1, 0, nullptr, nullptr, 0, page.Failing());
+    Require(RejectsStatus([&] { ucol_strcollUTF8_nid_postfix(collator, nullptr, 1, "b", 1, page.Passing()); }), "ucol_strcollUTF8 rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { ucol_strcollIter_nid_postfix(nullptr, nullptr, nullptr, page.Passing()); }), "ucol_strcollIter rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { ucol_getKeywordValues_nid_postfix("calendar", page.Passing()); }), "ucol_getKeywordValues rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { uprv_sortArray_nid_postfix(nullptr, -1, 0, nullptr, nullptr, 0, page.Passing()); }), "uprv_sortArray rejects a read-only status it must fail");
+    Require(ucol_strcollIter_nid_postfix(collator, nullptr, nullptr, nullptr) == Equal, "ucol_strcollIter returns equal for a null status as ICU does");
+    ucol_close_nid_postfix(collator);
     Require(page.Unchanged(), "a read-only failed status is never written");
 }
 

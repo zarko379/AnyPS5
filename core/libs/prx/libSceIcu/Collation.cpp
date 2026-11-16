@@ -164,9 +164,11 @@ std::int32_t APS5_VABI ucol_strcoll_nid_postfix(const UCollator* collator, const
 }
 
 std::int32_t APS5_VABI ucol_strcollUTF8_nid_postfix(const UCollator* collator, const char* source, std::int32_t sourceLength, const char* target, std::int32_t targetLength, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return UCOL_EQUAL;
-    return ucol_strcollUTF8(Collator(collator), source, sourceLength, target, targetLength, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return UCOL_EQUAL;
+        return ucol_strcollUTF8(Collator(collator), source, sourceLength, target, targetLength, error);
+    });
 }
 
 std::int32_t APS5_VABI ucol_strcollIter_nid_postfix(const UCollator* collator, UCharIterator* source, UCharIterator* target, std::int32_t* status) {
@@ -175,7 +177,10 @@ std::int32_t APS5_VABI ucol_strcollIter_nid_postfix(const UCollator* collator, U
     UCharIterator right;
     UCharIterator* hostSource = Bridge(left, source);
     UCharIterator* hostTarget = target == source ? hostSource : Bridge(right, target);
-    return ucol_strcollIter(collator, hostSource, hostTarget, reinterpret_cast<UErrorCode*>(status));
+    if (!status) return ucol_strcollIter(collator, hostSource, hostTarget, nullptr);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        return ucol_strcollIter(collator, hostSource, hostTarget, reinterpret_cast<UErrorCode*>(local));
+    });
 }
 
 std::int32_t APS5_VABI ucol_getStrength_nid_postfix(const UCollator* collator) {
@@ -238,24 +243,34 @@ USet* APS5_VABI ucol_getTailoredSet_nid_postfix(const UCollator* collator, std::
 }
 
 UEnumeration* APS5_VABI ucol_getKeywordValues_nid_postfix(const char* keyword, std::int32_t* status) {
-    return IcuBackend::GuestEnumeration(ucol_getKeywordValues(keyword, Status(status)), status);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UEnumeration* {
+        return IcuBackend::GuestEnumeration(ucol_getKeywordValues(keyword, Status(local)), local);
+    });
 }
 
 UEnumeration* APS5_VABI ucol_getKeywordValuesForLocale_nid_postfix(const char* key, const char* locale, std::int8_t commonlyUsed, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    IcuBackend::CanonicalLocale(locale);
-    UErrorCode probe = U_ZERO_ERROR;
-    ures_close(ures_open(CollationTree, locale, &probe));
-    if (probe == U_USING_DEFAULT_WARNING) IcuBackend::RequireGuestDefault();
-    icu::LocalUEnumerationPointer host(ucol_getKeywordValuesForLocale(key, locale, commonlyUsed, error));
-    return IcuBackend::GuestEnumeration(host.orphan(), status);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UEnumeration* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        IcuBackend::CanonicalLocale(locale);
+        UErrorCode probe = U_ZERO_ERROR;
+        ures_close(ures_open(CollationTree, locale, &probe));
+        if (probe == U_USING_DEFAULT_WARNING) IcuBackend::RequireGuestDefault();
+        icu::LocalUEnumerationPointer host(ucol_getKeywordValuesForLocale(key, locale, commonlyUsed, error));
+        return IcuBackend::GuestEnumeration(host.orphan(), local);
+    });
 }
 
 void APS5_VABI uprv_sortArray_nid_postfix(void* array, std::int32_t length, std::int32_t itemSize, GuestComparator cmp, const void* context, std::int8_t sortStable, std::int32_t* status) {
     IcuBackend::Ensure();
     const ComparatorForward forward{cmp, context};
-    uprv_sortArray(array, length, itemSize, cmp ? ForwardComparator : nullptr, &forward, sortStable, reinterpret_cast<UErrorCode*>(status));
+    if (!status) {
+        uprv_sortArray(array, length, itemSize, cmp ? ForwardComparator : nullptr, &forward, sortStable, nullptr);
+        return;
+    }
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        uprv_sortArray(array, length, itemSize, cmp ? ForwardComparator : nullptr, &forward, sortStable, reinterpret_cast<UErrorCode*>(local));
+    });
 }
 
 std::int32_t APS5_VABI uprv_stableBinarySearch_nid_postfix(char* array, std::int32_t length, void* item, std::int32_t itemSize, GuestComparator cmp, const void* context) {

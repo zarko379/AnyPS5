@@ -84,15 +84,19 @@ bool RbnfStyle(std::int32_t style) {
 extern "C" {
 
 UNumberingSystem* APS5_VABI unumsys_open_nid_postfix(const char* locale, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    const icu::Locale requested(IcuBackend::LocaleObject(locale));
-    if (!NamedNumberingSystem(requested)) IcuBackend::LocaleData(nullptr, requested.getName());
-    return unumsys_open(locale, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UNumberingSystem* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        const icu::Locale requested(IcuBackend::LocaleObject(locale));
+        if (!NamedNumberingSystem(requested)) IcuBackend::LocaleData(nullptr, requested.getName());
+        return unumsys_open(locale, error);
+    });
 }
 
 UNumberingSystem* APS5_VABI unumsys_openByName_nid_postfix(const char* name, std::int32_t* status) {
-    return unumsys_openByName(name, Status(status));
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UNumberingSystem* {
+        return unumsys_openByName(name, Status(local));
+    });
 }
 
 void APS5_VABI unumsys_close_nid_postfix(UNumberingSystem* unumsys) {
@@ -109,7 +113,9 @@ std::int8_t APS5_VABI unumsys_isAlgorithmic_nid_postfix(const UNumberingSystem* 
 }
 
 UFieldPositionIterator* APS5_VABI ufieldpositer_open_nid_postfix(std::int32_t* status) {
-    return ufieldpositer_open(Status(status));
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UFieldPositionIterator* {
+        return ufieldpositer_open(Status(local));
+    });
 }
 
 void APS5_VABI ufieldpositer_close_nid_postfix(UFieldPositionIterator* fpositer) {
@@ -122,17 +128,19 @@ std::int32_t APS5_VABI ufieldpositer_next_nid_postfix(UFieldPositionIterator* fp
 }
 
 void* APS5_VABI unum_open_nid_postfix(std::int32_t style, const char16_t* pattern, std::int32_t patternLength, const char* locale, UParseError* parseErr, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    bool needsDefault = false;
-    if (KnownStyle(style)) {
-        IcuBackend::Locale(locale);
-        needsDefault = IcuBackend::LocaleData(nullptr, locale);
-        if (RbnfStyle(style)) needsDefault = IcuBackend::LocaleData(RbnfTree, locale) || needsDefault;
-    }
-    UNumberFormat* format = unum_open(static_cast<UNumberFormatStyle>(style), pattern, patternLength, locale, parseErr, error);
-    IcuBackend::Track(format, needsDefault);
-    return format;
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> void* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        bool needsDefault = false;
+        if (KnownStyle(style)) {
+            IcuBackend::Locale(locale);
+            needsDefault = IcuBackend::LocaleData(nullptr, locale);
+            if (RbnfStyle(style)) needsDefault = IcuBackend::LocaleData(RbnfTree, locale) || needsDefault;
+        }
+        UNumberFormat* format = unum_open(static_cast<UNumberFormatStyle>(style), pattern, patternLength, locale, parseErr, error);
+        IcuBackend::Track(format, needsDefault);
+        return format;
+    });
 }
 
 void APS5_VABI unum_close_nid_postfix(void* fmt) {
@@ -142,36 +150,44 @@ void APS5_VABI unum_close_nid_postfix(void* fmt) {
 }
 
 void* APS5_VABI unum_clone_nid_postfix(const void* fmt, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    IcuBackend::RequireObject(fmt);
-    UNumberFormat* clone = unum_clone(Format(fmt), error);
-    IcuBackend::Track(clone, IcuBackend::Tracked(fmt));
-    return clone;
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> void* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        IcuBackend::RequireObject(fmt);
+        UNumberFormat* clone = unum_clone(Format(fmt), error);
+        IcuBackend::Track(clone, IcuBackend::Tracked(fmt));
+        return clone;
+    });
 }
 
 std::int32_t APS5_VABI unum_formatDouble_nid_postfix(const void* fmt, double number, char16_t* result, std::int32_t resultLength, UFieldPosition* pos, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return -1;
-    IcuBackend::RequireObject(fmt);
-    return unum_formatDouble(Format(fmt), number, result, resultLength, pos, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return -1;
+        IcuBackend::RequireObject(fmt);
+        return unum_formatDouble(Format(fmt), number, result, resultLength, pos, error);
+    });
 }
 
 std::int32_t APS5_VABI unum_formatDoubleForFields_nid_postfix(const void* format, double number, char16_t* result, std::int32_t resultLength, UFieldPositionIterator* fpositer, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return -1;
-    if (!(result == nullptr ? resultLength != 0 : resultLength < 0)) IcuBackend::RequireObject(format);
-    return unum_formatDoubleForFields(Format(format), number, result, resultLength, fpositer, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return -1;
+        if (!(result == nullptr ? resultLength != 0 : resultLength < 0)) IcuBackend::RequireObject(format);
+        return unum_formatDoubleForFields(Format(format), number, result, resultLength, fpositer, error);
+    });
 }
 
 std::int32_t APS5_VABI unum_formatDecimal_nid_postfix(const void* fmt, const char* number, std::int32_t length, char16_t* result, std::int32_t resultLength, UFieldPosition* pos, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return -1;
-    if (!((result == nullptr && resultLength != 0) || resultLength < 0)) {
-        if (!number && length != 0) APS5_INVALID_ARG_EX;
-        IcuBackend::RequireObject(fmt);
-    }
-    return unum_formatDecimal(Format(fmt), number, length, result, resultLength, pos, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return -1;
+        if (!((result == nullptr && resultLength != 0) || resultLength < 0)) {
+            if (!number && length != 0) APS5_INVALID_ARG_EX;
+            IcuBackend::RequireObject(fmt);
+        }
+        return unum_formatDecimal(Format(fmt), number, length, result, resultLength, pos, error);
+    });
 }
 
 void APS5_VABI unum_setAttribute_nid_postfix(void* fmt, std::int32_t attr, std::int32_t newValue) {
@@ -180,22 +196,29 @@ void APS5_VABI unum_setAttribute_nid_postfix(void* fmt, std::int32_t attr, std::
 }
 
 std::int32_t APS5_VABI unum_getTextAttribute_nid_postfix(const void* fmt, std::int32_t tag, char16_t* result, std::int32_t resultLength, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return -1;
-    IcuBackend::RequireObject(fmt);
-    return unum_getTextAttribute(Format(fmt), static_cast<UNumberFormatTextAttribute>(tag), result, resultLength, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return -1;
+        IcuBackend::RequireObject(fmt);
+        return unum_getTextAttribute(Format(fmt), static_cast<UNumberFormatTextAttribute>(tag), result, resultLength, error);
+    });
 }
 
 void APS5_VABI unum_setTextAttribute_nid_postfix(void* fmt, std::int32_t tag, const char16_t* newValue, std::int32_t newValueLength, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return;
-    IcuBackend::RequireObject(fmt);
-    unum_setTextAttribute(Format(fmt), static_cast<UNumberFormatTextAttribute>(tag), newValue, newValueLength, error);
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return;
+        IcuBackend::RequireObject(fmt);
+        unum_setTextAttribute(Format(fmt), static_cast<UNumberFormatTextAttribute>(tag), newValue, newValueLength, error);
+    });
 }
 
 std::int32_t APS5_VABI unum_getSymbol_nid_postfix(const void* fmt, std::int32_t symbol, char16_t* buffer, std::int32_t size, std::int32_t* status) {
     IcuBackend::Ensure();
-    return unum_getSymbol(static_cast<const UNumberFormat*>(fmt), static_cast<UNumberFormatSymbol>(symbol), buffer, size, reinterpret_cast<UErrorCode*>(status));
+    if (!status) return unum_getSymbol(static_cast<const UNumberFormat*>(fmt), static_cast<UNumberFormatSymbol>(symbol), buffer, size, nullptr);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        return unum_getSymbol(static_cast<const UNumberFormat*>(fmt), static_cast<UNumberFormatSymbol>(symbol), buffer, size, reinterpret_cast<UErrorCode*>(local));
+    });
 }
 
 UPluralRules* APS5_VABI uplrules_openForType_nid_postfix(const char* locale, std::int32_t type, std::int32_t* status) {
@@ -212,14 +235,18 @@ void APS5_VABI uplrules_close_nid_postfix(UPluralRules* uplrules) {
 }
 
 std::int32_t APS5_VABI uplrules_selectWithFormat_nid_postfix(const UPluralRules* uplrules, double number, const void* fmt, char16_t* keyword, std::int32_t capacity, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return 0;
-    return uplrules_selectWithFormat(uplrules, number, Format(fmt), keyword, capacity, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return 0;
+        return uplrules_selectWithFormat(uplrules, number, Format(fmt), keyword, capacity, error);
+    });
 }
 
 UEnumeration* APS5_VABI uplrules_getKeywords_nid_postfix(const UPluralRules* uplrules, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    return IcuBackend::GuestEnumeration(uplrules_getKeywords(uplrules, error), status);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UEnumeration* {
+        UErrorCode* error = Status(local);
+        return IcuBackend::GuestEnumeration(uplrules_getKeywords(uplrules, error), local);
+    });
 }
 
 }

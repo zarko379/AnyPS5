@@ -388,6 +388,24 @@ void CheckGuestStatusPointers() {
     errno = 71;
     Require(usearch_open_nid_postfix(pattern, 4, text, 8, nullptr, nullptr, page.Failing()) == nullptr && errno == 71, "usearch_open returns first on a read-only failed status");
     Require(RejectsStatus([&] { usearch_open_nid_postfix(pattern, 4, text, 8, nullptr, nullptr, page.Passing()); }), "usearch_open rejects a read-only status it must fail");
+
+    UStringSearch* search = Open(pattern, text, "en");
+    Require(RejectsStatus([&] { usearch_next_nid_postfix(search, unreadable); }), "usearch_next rejects an unreadable status");
+    Require(RejectsStatus([&] { usearch_setAttribute_nid_postfix(search, USEARCH_OVERLAP, USEARCH_ON, unreadable); }), "usearch_setAttribute rejects an unreadable status");
+    Require(RejectsStatus([&] { usearch_setOffset_nid_postfix(search, 0, unreadable); }), "usearch_setOffset rejects an unreadable status");
+    Require(RejectsStatus([&] { usearch_setPattern_nid_postfix(search, pattern, 4, unreadable); }), "usearch_setPattern rejects an unreadable status");
+    Require(RejectsStatus([&] { usearch_setText_nid_postfix(search, text, 8, unreadable); }), "usearch_setText rejects an unreadable status");
+
+    errno = 71;
+    Require(usearch_next_nid_postfix(search, page.Failing()) == Done && errno == 71, "usearch_next returns first on a read-only failed status");
+    usearch_setAttribute_nid_postfix(search, USEARCH_OVERLAP, USEARCH_ON, page.Failing());
+    usearch_setOffset_nid_postfix(search, 100, page.Failing());
+    usearch_setPattern_nid_postfix(nullptr, pattern, 4, page.Failing());
+    usearch_setText_nid_postfix(nullptr, text, 8, page.Failing());
+    Require(usearch_next_nid_postfix(search, page.Passing()) == 0 && errno == 71, "usearch_next reads a read-only passing status and leaves it alone");
+    Require(RejectsStatus([&] { usearch_setOffset_nid_postfix(search, 100, page.Passing()); }), "usearch_setOffset rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { usearch_setPattern_nid_postfix(nullptr, pattern, 4, page.Passing()); }), "usearch_setPattern rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { usearch_setText_nid_postfix(nullptr, text, 8, page.Passing()); }), "usearch_setText rejects a read-only status it must fail");
     Require(page.Unchanged(), "a read-only status is never written");
 }
 

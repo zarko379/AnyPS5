@@ -33,7 +33,9 @@ std::int32_t APS5_VABI usearch_getMatchedLength_nid_postfix(const UStringSearch*
 }
 
 std::int32_t APS5_VABI usearch_next_nid_postfix(UStringSearch* search, std::int32_t* status) {
-    return usearch_next(search, Status(status));
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        return usearch_next(search, Status(local));
+    });
 }
 
 void APS5_VABI usearch_reset_nid_postfix(UStringSearch* search) {
@@ -42,21 +44,29 @@ void APS5_VABI usearch_reset_nid_postfix(UStringSearch* search) {
 }
 
 void APS5_VABI usearch_setAttribute_nid_postfix(UStringSearch* search, std::int32_t attribute, std::int32_t value, std::int32_t* status) {
-    usearch_setAttribute(search, static_cast<USearchAttribute>(attribute), static_cast<USearchAttributeValue>(value), Status(status));
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        usearch_setAttribute(search, static_cast<USearchAttribute>(attribute), static_cast<USearchAttributeValue>(value), Status(local));
+    });
 }
 
 void APS5_VABI usearch_setOffset_nid_postfix(UStringSearch* search, std::int32_t position, std::int32_t* status) {
-    usearch_setOffset(search, position, Status(status));
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        usearch_setOffset(search, position, Status(local));
+    });
 }
 
 void APS5_VABI usearch_setPattern_nid_postfix(UStringSearch* search, const char16_t* pattern, std::int32_t patternLength, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_SUCCESS(*error) && search && pattern && patternLength < -1) APS5_INVALID_ARG_EX;
-    usearch_setPattern(search, pattern, patternLength, error);
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error) && search && pattern && patternLength < -1) APS5_INVALID_ARG_EX;
+        usearch_setPattern(search, pattern, patternLength, error);
+    });
 }
 
 void APS5_VABI usearch_setText_nid_postfix(UStringSearch* search, const char16_t* text, std::int32_t textLength, std::int32_t* status) {
-    usearch_setText(search, text, textLength, Status(status));
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        usearch_setText(search, text, textLength, Status(local));
+    });
 }
 
 }
