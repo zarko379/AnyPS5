@@ -1435,7 +1435,6 @@ int APS5_VABI _ZN7WebCore11DisplayList12PutImageDataD2Ev();
 int APS5_VABI _ZN7WebCore12PrintContext12pagePropertyEPNS_5FrameEPKci();
 int APS5_VABI _ZNK7WebCore15HTMLFormElement24unsafeAssociatedElementsEv();
 int APS5_VABI _ZN7WebCore12SharedBuffer6createEv();
-int APS5_VABI _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE();
 int APS5_VABI _ZN7WebCore5Frame13rangeForPointERKNS_8IntPointE();
 int APS5_VABI _ZN7WebCore15UserInputBridge11reloadFrameEPNS_5FrameEN3WTF9OptionSetINS_12ReloadOptionEEENS_11InputSourceE();
 int APS5_VABI _ZN7WebCore10ISOFullBoxD2Ev();

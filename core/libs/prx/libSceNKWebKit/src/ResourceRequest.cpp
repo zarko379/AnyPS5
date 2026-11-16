@@ -110,6 +110,21 @@ String HeaderField(const ResourceRequestBase* self, HTTPHeaderName name) {
     return _ZNK7WebCore13HTTPHeaderMap3getENS_14HTTPHeaderNameE(&HeaderFields(request), name);
 }
 
+constexpr HTTPHeaderName conditionalHeaderNames[] = {
+    HTTPHeaderName::IfMatch,
+    HTTPHeaderName::IfModifiedSince,
+    HTTPHeaderName::IfNoneMatch,
+    HTTPHeaderName::IfRange,
+    HTTPHeaderName::IfUnmodifiedSince,
+};
+
+void RemoveHeaderField(ResourceRequestBase* self, HTTPHeaderName name) {
+    auto& request = Checked(self);
+    UpdateResourceRequest(request);
+    _ZN7WebCore13HTTPHeaderMap6removeENS_14HTTPHeaderNameE(&HeaderFields(request), name);
+    request.platformRequestUpdated = false;
+}
+
 void SetHeaderField(ResourceRequestBase* self, HTTPHeaderName name, const String* value, bool add) {
     auto& request = Checked(self);
     const auto& text = Checked(value);
@@ -320,6 +335,57 @@ double APS5_VABI _ZN7WebCore19ResourceRequestBase22defaultTimeoutIntervalEv() {
 
 void APS5_VABI _ZN7WebCore19ResourceRequestBase25setDefaultTimeoutIntervalEd(double timeoutInterval) {
     defaultTimeoutInterval = timeoutInterval;
+}
+
+const NKWebKit::HttpAbi::HTTPHeaderMap& APS5_VABI _ZNK7WebCore19ResourceRequestBase16httpHeaderFieldsEv(const ResourceRequestBase* self) {
+    const auto& request = Checked(self);
+    UpdateResourceRequest(request);
+    return HeaderFields(request);
+}
+
+String APS5_VABI _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(const ResourceRequestBase* self, const String* name) {
+    const auto& request = Checked(self);
+    const auto& key = Checked(name);
+    UpdateResourceRequest(request);
+    return _ZNK7WebCore13HTTPHeaderMap3getERKN3WTF6StringE(&HeaderFields(request), key);
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase22clearHTTPAuthorizationEv(ResourceRequestBase* self) {
+    auto& request = Checked(self);
+    UpdateResourceRequest(request);
+    if (!_ZN7WebCore13HTTPHeaderMap6removeENS_14HTTPHeaderNameE(&HeaderFields(request), HTTPHeaderName::Authorization)) return;
+    request.platformRequestUpdated = false;
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase20clearHTTPContentTypeEv(ResourceRequestBase* self) {
+    RemoveHeaderField(self, HTTPHeaderName::ContentType);
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase12clearPurposeEv(ResourceRequestBase* self) {
+    RemoveHeaderField(self, HTTPHeaderName::Purpose);
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase17clearHTTPReferrerEv(ResourceRequestBase* self) {
+    RemoveHeaderField(self, HTTPHeaderName::Referer);
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase15clearHTTPOriginEv(ResourceRequestBase* self) {
+    RemoveHeaderField(self, HTTPHeaderName::Origin);
+}
+
+bool APS5_VABI _ZNK7WebCore19ResourceRequestBase13isConditionalEv(const ResourceRequestBase* self) {
+    const auto& request = Checked(self);
+    UpdateResourceRequest(request);
+    for (auto name : conditionalHeaderNames) {
+        if (_ZNK7WebCore13HTTPHeaderMap8containsENS_14HTTPHeaderNameE(&HeaderFields(request), name)) return true;
+    }
+    return false;
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(ResourceRequestBase* self) {
+    auto& request = Checked(self);
+    UpdateResourceRequest(request);
+    for (auto name : conditionalHeaderNames) _ZN7WebCore13HTTPHeaderMap6removeENS_14HTTPHeaderNameE(&HeaderFields(request), name);
 }
 
 }

@@ -301,6 +301,118 @@ static void TestRefusals() {
     Require(valueImpl.refCount == 4 && nameImpl.refCount == 4);
 }
 
+static void TestClearAndConditional() {
+    auto request = MakeRequest();
+    auto valueImpl = Make("v");
+    auto customNameImpl = Make("X-Custom");
+    auto knownNameImpl = Make("content-TYPE");
+    auto missingNameImpl = Make("X-Missing");
+    String value(&valueImpl);
+    String customName(&customNameImpl);
+    String knownName(&knownNameImpl);
+    String missingName(&missingNameImpl);
+    for (auto* impl : {&valueImpl, &customNameImpl, &knownNameImpl, &missingNameImpl}) impl->refCount += 2;
+
+    Require(!_ZNK7WebCore19ResourceRequestBase13isConditionalEv(&request));
+    for (auto name : {HTTPHeaderName::Authorization, HTTPHeaderName::ContentType, HTTPHeaderName::Purpose, HTTPHeaderName::Referer,
+                      HTTPHeaderName::Origin, HTTPHeaderName::IfMatch, HTTPHeaderName::IfModifiedSince, HTTPHeaderName::IfNoneMatch,
+                      HTTPHeaderName::IfRange, HTTPHeaderName::IfUnmodifiedSince, HTTPHeaderName::Accept})
+        _ZN7WebCore19ResourceRequestBase18setHTTPHeaderFieldENS_14HTTPHeaderNameERKN3WTF6StringE(&request, name, &value);
+    _ZN7WebCore19ResourceRequestBase18setHTTPHeaderFieldERKN3WTF6StringES4_(&request, &customName, &value);
+    Require(Headers(request).common.size == 11 && Headers(request).uncommon.size == 1);
+    Require(valueImpl.refCount == 28);
+
+    Require(&_ZNK7WebCore19ResourceRequestBase16httpHeaderFieldsEv(&request) == &Headers(request));
+    Require(_ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, &customName).impl == &valueImpl);
+    Require(_ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, &knownName).impl == &valueImpl);
+    Require(_ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, &missingName).impl == nullptr);
+    Require(valueImpl.refCount == 28);
+
+    for (auto name : {HTTPHeaderName::IfMatch, HTTPHeaderName::IfModifiedSince, HTTPHeaderName::IfNoneMatch, HTTPHeaderName::IfRange, HTTPHeaderName::IfUnmodifiedSince}) {
+        auto single = MakeRequest();
+        _ZN7WebCore19ResourceRequestBase18setHTTPHeaderFieldENS_14HTTPHeaderNameERKN3WTF6StringE(&single, name, &value);
+        Require(_ZNK7WebCore19ResourceRequestBase13isConditionalEv(&single));
+        _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(&single);
+        Require(!_ZNK7WebCore19ResourceRequestBase13isConditionalEv(&single));
+        Require(Headers(single).common.size == 0);
+        Clear(single);
+    }
+    Require(valueImpl.refCount == 28);
+
+    request.platformRequestUpdated = true;
+    Require(_ZNK7WebCore19ResourceRequestBase13isConditionalEv(&request));
+    _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(&request);
+    Require(!_ZNK7WebCore19ResourceRequestBase13isConditionalEv(&request));
+    Require(request.platformRequestUpdated);
+    Require(Headers(request).common.size == 6);
+    _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(&request);
+    Require(Headers(request).common.size == 6 && request.platformRequestUpdated);
+
+    _ZN7WebCore19ResourceRequestBase22clearHTTPAuthorizationEv(&request);
+    Require(!request.platformRequestUpdated);
+    Require(!_ZNK7WebCore19ResourceRequestBase18hasHTTPHeaderFieldENS_14HTTPHeaderNameE(&request, HTTPHeaderName::Authorization));
+    request.platformRequestUpdated = true;
+    _ZN7WebCore19ResourceRequestBase22clearHTTPAuthorizationEv(&request);
+    Require(request.platformRequestUpdated);
+    Require(Headers(request).common.size == 5);
+
+    _ZN7WebCore19ResourceRequestBase20clearHTTPContentTypeEv(&request);
+    Require(!request.platformRequestUpdated);
+    Require(!_ZNK7WebCore19ResourceRequestBase18hasHTTPHeaderFieldENS_14HTTPHeaderNameE(&request, HTTPHeaderName::ContentType));
+    request.platformRequestUpdated = true;
+    _ZN7WebCore19ResourceRequestBase20clearHTTPContentTypeEv(&request);
+    Require(!request.platformRequestUpdated);
+
+    request.platformRequestUpdated = true;
+    _ZN7WebCore19ResourceRequestBase12clearPurposeEv(&request);
+    Require(!request.platformRequestUpdated);
+    Require(!_ZNK7WebCore19ResourceRequestBase18hasHTTPHeaderFieldENS_14HTTPHeaderNameE(&request, HTTPHeaderName::Purpose));
+
+    request.platformRequestUpdated = true;
+    _ZN7WebCore19ResourceRequestBase17clearHTTPReferrerEv(&request);
+    Require(!request.platformRequestUpdated);
+    Require(!_ZNK7WebCore19ResourceRequestBase18hasHTTPHeaderFieldENS_14HTTPHeaderNameE(&request, HTTPHeaderName::Referer));
+
+    request.platformRequestUpdated = true;
+    _ZN7WebCore19ResourceRequestBase15clearHTTPOriginEv(&request);
+    Require(!request.platformRequestUpdated);
+    Require(!_ZNK7WebCore19ResourceRequestBase18hasHTTPHeaderFieldENS_14HTTPHeaderNameE(&request, HTTPHeaderName::Origin));
+
+    Require(Headers(request).common.size == 1 && Headers(request).common.buffer[0].key == HTTPHeaderName::Accept);
+    Require(Headers(request).uncommon.size == 1);
+    Require(valueImpl.refCount == 8);
+
+    request.platformRequestUpdated = true;
+    request.resourceRequestUpdated = false;
+    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase16httpHeaderFieldsEv(&request); }));
+    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, &customName); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase22clearHTTPAuthorizationEv(&request); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase20clearHTTPContentTypeEv(&request); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase12clearPurposeEv(&request); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase17clearHTTPReferrerEv(&request); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase15clearHTTPOriginEv(&request); }));
+    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase13isConditionalEv(&request); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(&request); }));
+    Require(request.platformRequestUpdated);
+    Require(Headers(request).common.size == 1 && Headers(request).uncommon.size == 1);
+
+    request.resourceRequestUpdated = true;
+    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase16httpHeaderFieldsEv(nullptr); }));
+    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(nullptr, &customName); }));
+    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, nullptr); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase22clearHTTPAuthorizationEv(nullptr); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase20clearHTTPContentTypeEv(nullptr); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase12clearPurposeEv(nullptr); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase17clearHTTPReferrerEv(nullptr); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase15clearHTTPOriginEv(nullptr); }));
+    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase13isConditionalEv(nullptr); }));
+    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(nullptr); }));
+
+    Clear(request);
+    Require(valueImpl.refCount == 4 && customNameImpl.refCount == 4);
+    Require(knownNameImpl.refCount == 4 && missingNameImpl.refCount == 4);
+}
+
 int main() {
     TestNamedSetAndGet();
     TestAliases();
@@ -308,5 +420,6 @@ int main() {
     TestStringNames();
     TestLongReferrer();
     TestRefusals();
+    TestClearAndConditional();
     return 0;
 }

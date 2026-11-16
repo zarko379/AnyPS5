@@ -40,5 +40,14 @@ bool APS5_VABI _ZNK7WebCore19ResourceRequestBase9isTopSiteEv(const NKWebKit::Web
 void APS5_VABI _ZN7WebCore19ResourceRequestBase12setIsTopSiteEb(NKWebKit::WebCoreAbi::ResourceRequestBase* self, bool isTopSite);
 double APS5_VABI _ZN7WebCore19ResourceRequestBase22defaultTimeoutIntervalEv();
 void APS5_VABI _ZN7WebCore19ResourceRequestBase25setDefaultTimeoutIntervalEd(double timeoutInterval);
+const NKWebKit::HttpAbi::HTTPHeaderMap& APS5_VABI _ZNK7WebCore19ResourceRequestBase16httpHeaderFieldsEv(const NKWebKit::WebCoreAbi::ResourceRequestBase* self);
+NKWebKit::WtfAbi::String APS5_VABI _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(const NKWebKit::WebCoreAbi::ResourceRequestBase* self, const NKWebKit::WtfAbi::String* name);
+void APS5_VABI _ZN7WebCore19ResourceRequestBase22clearHTTPAuthorizationEv(NKWebKit::WebCoreAbi::ResourceRequestBase* self);
+void APS5_VABI _ZN7WebCore19ResourceRequestBase20clearHTTPContentTypeEv(NKWebKit::WebCoreAbi::ResourceRequestBase* self);
+void APS5_VABI _ZN7WebCore19ResourceRequestBase12clearPurposeEv(NKWebKit::WebCoreAbi::ResourceRequestBase* self);
+void APS5_VABI _ZN7WebCore19ResourceRequestBase17clearHTTPReferrerEv(NKWebKit::WebCoreAbi::ResourceRequestBase* self);
+void APS5_VABI _ZN7WebCore19ResourceRequestBase15clearHTTPOriginEv(NKWebKit::WebCoreAbi::ResourceRequestBase* self);
+bool APS5_VABI _ZNK7WebCore19ResourceRequestBase13isConditionalEv(const NKWebKit::WebCoreAbi::ResourceRequestBase* self);
+void APS5_VABI _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(NKWebKit::WebCoreAbi::ResourceRequestBase* self);
 
 }
