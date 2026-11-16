@@ -7,6 +7,7 @@
 /* Derived from rtc_base/string_to_number.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from media/base/codec.cc and media/base/codec.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from call/audio_send_stream.cc and call/audio_send_stream.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
+/* Derived from call/audio_receive_stream.cc and call/audio_receive_stream.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -639,6 +640,53 @@ std::size_t ExtensionCount(const WebRtcAudioSendStreamConfigRtp& rtp, const char
     return (last - first) / sizeof(WebRtcRtpExtension);
 }
 
+struct DecoderEntry {
+    WebRtcDecoderMapNode* node;
+    std::vector<WebRtcStringMapNode*> parameterNodes;
+};
+
+std::vector<DecoderEntry> ValidateDecoderMap(WebRtcDecoderMap& map, const char* message) {
+    std::vector<DecoderEntry> entries;
+    WebRtcDecoderMapNode* const end = reinterpret_cast<WebRtcDecoderMapNode*>(&map.root);
+    if (map.size == 0) {
+        if (map.root || map.beginNode != end)
+            throw std::invalid_argument(message);
+        return entries;
+    }
+    if (!map.root || !map.beginNode || map.beginNode == end)
+        throw std::invalid_argument(message);
+    struct Pending {
+        WebRtcDecoderMapNode* node;
+        WebRtcDecoderMapNode* parent;
+    };
+    std::vector<Pending> pending {{map.root, end}};
+    while (!pending.empty()) {
+        const Pending current = pending.back();
+        pending.pop_back();
+        if (entries.size() >= map.size)
+            throw std::invalid_argument(message);
+        WebRtcDecoderMapNode copy{};
+        CopyInChecked(&copy, current.node, sizeof(copy), message);
+        if (copy.parent != current.parent)
+            throw std::invalid_argument(message);
+        DecoderEntry entry {current.node, {}};
+        ValidateFormat(&current.node->format, message, entry.parameterNodes);
+        entries.push_back(std::move(entry));
+        if (copy.right)
+            pending.push_back({copy.right, current.node});
+        if (copy.left)
+            pending.push_back({copy.left, current.node});
+    }
+    if (entries.size() != map.size)
+        throw std::invalid_argument(message);
+    const WebRtcDecoderMapNode* leftmost = map.root;
+    while (leftmost->left)
+        leftmost = leftmost->left;
+    if (leftmost != map.beginNode)
+        throw std::invalid_argument(message);
+    return entries;
+}
+
 }
 
 extern "C" {
@@ -908,6 +956,32 @@ void APS5_VABI _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(WebRtcAudioSen
     config->rtp.extensionsCapacity = nullptr;
     ReleaseString(config->rtp.mid);
     ReleaseString(config->rtp.rid);
+}
+
+void APS5_VABI _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(WebRtcAudioReceiveStreamConfig* config) {
+    constexpr const char* message = "AudioReceiveStreamInterface::Config destructor requires a valid config";
+    RequireWritable(config, sizeof(*config), message);
+    ValidateString(config->syncGroup, message);
+    const std::vector<DecoderEntry> decoders = ValidateDecoderMap(config->decoderMap, message);
+    const ReferenceRelease releaseTransformer = config->frameTransformer ? ReleaseOf(config->frameTransformer, message) : nullptr;
+    const ReferenceRelease releaseDecryptor = config->frameDecryptor ? ReleaseOf(config->frameDecryptor, message) : nullptr;
+    const ReferenceRelease releaseFactory = config->decoderFactory ? ReleaseOf(config->decoderFactory, message) : nullptr;
+
+    if (releaseTransformer)
+        releaseTransformer(config->frameTransformer);
+    if (releaseDecryptor)
+        releaseDecryptor(config->frameDecryptor);
+    if (releaseFactory)
+        releaseFactory(config->decoderFactory);
+    for (auto entry = decoders.rbegin(); entry != decoders.rend(); ++entry) {
+        DestroyMapNodes(entry->parameterNodes, entry->node->format.parameters);
+        ReleaseString(entry->node->format.name);
+        _ZdlPv_nid_postfix(entry->node);
+    }
+    config->decoderMap.beginNode = reinterpret_cast<WebRtcDecoderMapNode*>(&config->decoderMap.root);
+    config->decoderMap.root = nullptr;
+    config->decoderMap.size = 0;
+    ReleaseString(config->syncGroup);
 }
 
 }

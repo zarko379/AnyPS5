@@ -288,6 +288,72 @@ void TestConfigDestructorChecksEverythingFirst() {
     RequireInvalidArgument([] { _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(nullptr); });
 }
 
+WebRtcDecoderMapNode* DecoderNode(std::int32_t payloadType, WebRtcDecoderMapNode* parent) {
+    auto* node = new (_Znwm_nid_postfix(sizeof(WebRtcDecoderMapNode))) WebRtcDecoderMapNode{};
+    node->parent = parent;
+    node->payloadType = payloadType;
+    InitFormat(node->format);
+    return node;
+}
+
+void InitReceiveConfig(WebRtcAudioReceiveStreamConfig& config, FakeReference* factory, FakeReference* decryptor, FakeReference* transformer) {
+    std::memset(&config, 0, sizeof(config));
+    InitLongString(config.syncGroup, 24, 's');
+    WebRtcDecoderMapNode* const end = reinterpret_cast<WebRtcDecoderMapNode*>(&config.decoderMap.root);
+    WebRtcDecoderMapNode* root = DecoderNode(111, end);
+    root->isBlack = true;
+    root->left = DecoderNode(0, root);
+    config.decoderMap.root = root;
+    config.decoderMap.beginNode = root->left;
+    config.decoderMap.size = 2;
+    config.decoderFactory = factory;
+    config.frameDecryptor = decryptor;
+    config.frameTransformer = transformer;
+}
+
+void TestReceiveConfigDestructor() {
+    FakeReference factory {ReferenceVtable, 1};
+    FakeReference decryptor {ReferenceVtable, 2};
+    FakeReference transformer {ReferenceVtable, 3};
+    WebRtcAudioReceiveStreamConfig config;
+    InitReceiveConfig(config, &factory, &decryptor, &transformer);
+    Require(live.size() == 5);
+    releasedReferences.clear();
+    _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(&config);
+    Require((releasedReferences == std::vector<int> {3, 2, 1}) && live.empty());
+    Require(config.decoderMap.size == 0 && config.decoderMap.root == nullptr);
+    Require(config.decoderMap.beginNode == reinterpret_cast<WebRtcDecoderMapNode*>(&config.decoderMap.root));
+
+    std::memset(&config, 0, sizeof(config));
+    InitShortString(config.syncGroup, "");
+    config.decoderMap.beginNode = reinterpret_cast<WebRtcDecoderMapNode*>(&config.decoderMap.root);
+    _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(&config);
+    Require(live.empty());
+}
+
+void TestReceiveConfigDestructorChecksEverythingFirst() {
+    FakeReference factory {ReferenceVtable, 1};
+    FakeReference broken {BrokenReferenceVtable, 2};
+    WebRtcAudioReceiveStreamConfig config;
+    InitReceiveConfig(config, &factory, nullptr, &broken);
+    releasedReferences.clear();
+    RequireInvalidArgument([&] { _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(&config); });
+    config.frameTransformer = nullptr;
+    config.decoderMap.size = 3;
+    RequireInvalidArgument([&] { _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(&config); });
+    config.decoderMap.size = 2;
+    config.decoderMap.beginNode = config.decoderMap.root;
+    RequireInvalidArgument([&] { _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(&config); });
+    config.decoderMap.beginNode = config.decoderMap.root->left;
+    config.decoderMap.root->left->format.name.capacity = 2;
+    RequireInvalidArgument([&] { _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(&config); });
+    config.decoderMap.root->left->format.name.capacity = WebRtcGuestStringInlineCapacity;
+    Require(releasedReferences.empty() && live.size() == 5);
+    _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(&config);
+    Require((releasedReferences == std::vector<int> {1}) && live.empty());
+    RequireInvalidArgument([] { _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(nullptr); });
+}
+
 }
 
 int main() {
@@ -304,5 +370,7 @@ int main() {
     TestStatsDestructorRejectsMalformedMembers();
     TestConfigDestructor();
     TestConfigDestructorChecksEverythingFirst();
+    TestReceiveConfigDestructor();
+    TestReceiveConfigDestructorChecksEverythingFirst();
     return 0;
 }

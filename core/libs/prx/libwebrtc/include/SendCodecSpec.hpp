@@ -153,3 +153,51 @@ static_assert(offsetof(WebRtcAudioSendStreamConfig, cryptoOptions) == 448);
 static_assert(offsetof(WebRtcAudioSendStreamConfig, frameEncryptor) == 456);
 static_assert(offsetof(WebRtcAudioSendStreamConfig, frameTransformer) == 464);
 static_assert(sizeof(WebRtcAudioSendStreamConfig) == 472);
+
+struct WebRtcDecoderMapNode {
+    WebRtcDecoderMapNode* left;
+    WebRtcDecoderMapNode* right;
+    WebRtcDecoderMapNode* parent;
+    bool isBlack;
+    std::int32_t payloadType;
+    WebRtcSdpAudioFormat format;
+};
+
+struct WebRtcDecoderMap {
+    WebRtcDecoderMapNode* beginNode;
+    WebRtcDecoderMapNode* root;
+    std::uint64_t size;
+};
+
+struct WebRtcAudioReceiveStreamConfig {
+    std::uint32_t remoteSsrc;
+    std::uint32_t localSsrc;
+    std::int32_t nackRtpHistoryMs;
+    std::int32_t rtcpMode;
+    bool enableNonSenderRtt;
+    void* rtcpSendTransport;
+    std::uint64_t jitterBufferMaxPackets;
+    bool jitterBufferFastAccelerate;
+    std::int32_t jitterBufferMinDelayMs;
+    WebRtcGuestString syncGroup;
+    WebRtcDecoderMap decoderMap;
+    void* decoderFactory;
+    WebRtcOptionalCodecPairId codecPairId;
+    WebRtcCryptoOptions cryptoOptions;
+    void* frameDecryptor;
+    void* frameTransformer;
+};
+
+static_assert(sizeof(WebRtcDecoderMapNode) == 120);
+static_assert(offsetof(WebRtcDecoderMapNode, payloadType) == 32);
+static_assert(offsetof(WebRtcDecoderMapNode, format) == 40);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, enableNonSenderRtt) == 16);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, rtcpSendTransport) == 24);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, jitterBufferMinDelayMs) == 44);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, syncGroup) == 48);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, decoderMap) == 88);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, decoderFactory) == 112);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, codecPairId) == 120);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, cryptoOptions) == 136);
+static_assert(offsetof(WebRtcAudioReceiveStreamConfig, frameDecryptor) == 144);
+static_assert(sizeof(WebRtcAudioReceiveStreamConfig) == 160);
