@@ -41,6 +41,7 @@ struct DeprecatedGlobalSettingsState {
 };
 
 DeprecatedGlobalSettingsState CurrentDeprecatedGlobalSettings();
+int PageConsoleClientMuteCount();
 
 }
 
@@ -63,5 +64,9 @@ void APS5_VABI _ZN7WebCore24DeprecatedGlobalSettings32setResourceLoadStatisticsE
 void APS5_VABI _ZN7WebCore24DeprecatedGlobalSettings26setAllowsAnySSLCertificateEb(bool allowAnySSLCertificate);
 void APS5_VABI _ZN7WebCore11FontCascade21setShouldUseSmoothingEb(bool shouldUseSmoothing);
 bool APS5_VABI _ZN7WebCore11FontCascade18shouldUseSmoothingEv();
+bool APS5_VABI _ZN7WebCore17PageConsoleClient21shouldPrintExceptionsEv();
+void APS5_VABI _ZN7WebCore17PageConsoleClient24setShouldPrintExceptionsEb(bool print);
+void APS5_VABI _ZN7WebCore17PageConsoleClient4muteEv();
+void APS5_VABI _ZN7WebCore17PageConsoleClient6unmuteEv();
 
 }

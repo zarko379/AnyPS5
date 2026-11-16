@@ -19228,27 +19228,11 @@ int APS5_VABI _ZN7WebCore17PageConsoleClient16takeHeapSnapshotEPN3JSC14JSGlobalO
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN7WebCore17PageConsoleClient21shouldPrintExceptionsEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN7WebCore17PageConsoleClient24setShouldPrintExceptionsEb() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN7WebCore17PageConsoleClient4muteEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN7WebCore17PageConsoleClient4timeEPN3JSC14JSGlobalObjectERKN3WTF6StringE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
 int APS5_VABI _ZN7WebCore17PageConsoleClient5countEPN3JSC14JSGlobalObjectERKN3WTF6StringE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN7WebCore17PageConsoleClient6unmuteEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 
