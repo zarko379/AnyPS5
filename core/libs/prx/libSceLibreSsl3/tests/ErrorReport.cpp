@@ -130,10 +130,8 @@ void CheckFilePrint(const std::string& prefix) {
     Require(ERR_get_error_nid_postfix() == 0);
     Require(fclose_nid_postfix(stream) == 0);
     Require(ReadFile(path) ==
-        prefix + "error:03064041:lib(3):func(100):reason(65):file.c:12:
-" +
-        prefix + "error:04065042:lib(4):func(101):reason(66):NA:0:
-");
+        prefix + "error:03064041:lib(3):func(100):reason(65):file.c:12:\n" +
+        prefix + "error:04065042:lib(4):func(101):reason(66):NA:0:\n");
 
     stream = fopen_nid_postfix(path, "rb");
     Require(stream != nullptr);

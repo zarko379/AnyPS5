@@ -40,8 +40,7 @@ void RegisterHeap() {
 
 void Require(bool condition, std::source_location location = std::source_location::current()) {
     if (condition) return;
-    std::fprintf(stderr, "libwebrtc rtcp::CompoundPacket check failed at line %u
-", location.line());
+    std::fprintf(stderr, "libwebrtc rtcp::CompoundPacket check failed at line %u\n", location.line());
     std::abort();
 }
 
