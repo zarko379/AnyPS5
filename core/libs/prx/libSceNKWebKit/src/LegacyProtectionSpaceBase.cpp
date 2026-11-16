@@ -38,6 +38,16 @@ using NKWebKit::WtfAbi::String;
 
 constexpr std::uint32_t ServerHTTP = 1;
 constexpr std::uint32_t AuthenticationSchemeDefault = 1;
+constexpr std::uint32_t ServerHTTPS = 2;
+constexpr std::uint32_t ServerFTPS = 4;
+constexpr std::uint32_t ProxyHTTP = 5;
+constexpr std::uint32_t ProxyHTTPS = 6;
+constexpr std::uint32_t ProxyFTP = 7;
+constexpr std::uint32_t ProxySOCKS = 8;
+constexpr std::uint32_t AuthenticationSchemeHTTPDigest = 3;
+constexpr std::uint32_t AuthenticationSchemeClientCertificateRequested = 7;
+constexpr std::uint32_t AuthenticationSchemeServerTrustEvaluationRequested = 8;
+constexpr std::uint32_t AuthenticationSchemeUnknown = 100;
 
 const LegacyProtectionSpaceBase& Checked(const LegacyProtectionSpaceBase* self) {
     if (!self) throw std::invalid_argument("null WebCore::ProtectionSpaceBase");
@@ -104,6 +114,23 @@ const String& APS5_VABI _ZNK7WebCore19ProtectionSpaceBase5realmEv(const LegacyPr
 
 std::uint32_t APS5_VABI _ZNK7WebCore19ProtectionSpaceBase20authenticationSchemeEv(const LegacyProtectionSpaceBase* self) {
     return Checked(self).authenticationScheme;
+}
+
+bool APS5_VABI _ZNK7WebCore19ProtectionSpaceBase7isProxyEv(const LegacyProtectionSpaceBase* self) {
+    const auto serverType = Checked(self).serverType;
+    return serverType == ProxyHTTP || serverType == ProxyHTTPS || serverType == ProxyFTP || serverType == ProxySOCKS;
+}
+
+bool APS5_VABI _ZNK7WebCore19ProtectionSpaceBase26receivesCredentialSecurelyEv(const LegacyProtectionSpaceBase* self) {
+    const auto& space = Checked(self);
+    return space.serverType == ServerHTTPS || space.serverType == ServerFTPS || space.serverType == ProxyHTTPS
+        || space.authenticationScheme == AuthenticationSchemeHTTPDigest;
+}
+
+bool APS5_VABI _ZNK7WebCore19ProtectionSpaceBase15isPasswordBasedEv(const LegacyProtectionSpaceBase* self) {
+    const auto scheme = Checked(self).authenticationScheme;
+    return scheme != AuthenticationSchemeClientCertificateRequested && scheme != AuthenticationSchemeServerTrustEvaluationRequested
+        && scheme != AuthenticationSchemeUnknown;
 }
 
 }

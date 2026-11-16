@@ -166,6 +166,61 @@ void TestNull(Construct5 construct, Construct0 constructDefault) {
 
 }
 
+namespace {
+
+void TestPredicates() {
+    LegacyProtectionSpaceBase space = LegacyProtectionSpaceBase();
+    const bool proxy[] = {false, false, false, false, true, true, true, true};
+    const bool secureServer[] = {false, true, false, true, false, true, false, false};
+    for (std::uint32_t serverType = 1; serverType <= 8; ++serverType) {
+        space.serverType = serverType;
+        space.authenticationScheme = 2;
+        Require(_ZNK7WebCore19ProtectionSpaceBase7isProxyEv(&space) == proxy[serverType - 1]);
+        Require(_ZNK7WebCore19ProtectionSpaceBase26receivesCredentialSecurelyEv(&space) == secureServer[serverType - 1]);
+        space.authenticationScheme = 3;
+        Require(_ZNK7WebCore19ProtectionSpaceBase26receivesCredentialSecurelyEv(&space));
+    }
+    space.serverType = 0;
+    Require(!_ZNK7WebCore19ProtectionSpaceBase7isProxyEv(&space));
+    space.serverType = 9;
+    Require(!_ZNK7WebCore19ProtectionSpaceBase7isProxyEv(&space));
+    space.authenticationScheme = 1;
+    Require(!_ZNK7WebCore19ProtectionSpaceBase26receivesCredentialSecurelyEv(&space));
+
+    for (std::uint32_t scheme : {1u, 2u, 3u, 4u, 5u, 6u, 9u, 0u, 42u}) {
+        space.authenticationScheme = scheme;
+        Require(_ZNK7WebCore19ProtectionSpaceBase15isPasswordBasedEv(&space));
+    }
+    for (std::uint32_t scheme : {7u, 8u, 100u}) {
+        space.authenticationScheme = scheme;
+        Require(!_ZNK7WebCore19ProtectionSpaceBase15isPasswordBasedEv(&space));
+    }
+
+    bool threw = false;
+    try {
+        _ZNK7WebCore19ProtectionSpaceBase7isProxyEv(nullptr);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+    threw = false;
+    try {
+        _ZNK7WebCore19ProtectionSpaceBase15isPasswordBasedEv(nullptr);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+    threw = false;
+    try {
+        _ZNK7WebCore19ProtectionSpaceBase26receivesCredentialSecurelyEv(nullptr);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+}
+
+}
+
 int main() {
     TestDefault(_ZN7WebCore19ProtectionSpaceBaseC1Ev);
     TestDefault(_ZN7WebCore19ProtectionSpaceBaseC2Ev);
@@ -175,5 +230,6 @@ int main() {
     TestEmptyInputs(_ZN7WebCore19ProtectionSpaceBaseC2ERKN3WTF6StringEiNS_25ProtectionSpaceServerTypeES4_NS_35ProtectionSpaceAuthenticationSchemeE);
     TestNull(_ZN7WebCore19ProtectionSpaceBaseC1ERKN3WTF6StringEiNS_25ProtectionSpaceServerTypeES4_NS_35ProtectionSpaceAuthenticationSchemeE, _ZN7WebCore19ProtectionSpaceBaseC1Ev);
     TestNull(_ZN7WebCore19ProtectionSpaceBaseC2ERKN3WTF6StringEiNS_25ProtectionSpaceServerTypeES4_NS_35ProtectionSpaceAuthenticationSchemeE, _ZN7WebCore19ProtectionSpaceBaseC2Ev);
+    TestPredicates();
     return 0;
 }

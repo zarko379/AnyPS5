@@ -15,5 +15,8 @@ std::int32_t APS5_VABI _ZNK7WebCore19ProtectionSpaceBase4portEv(const NKWebKit::
 std::uint32_t APS5_VABI _ZNK7WebCore19ProtectionSpaceBase10serverTypeEv(const NKWebKit::WebCoreAbi::LegacyProtectionSpaceBase* self);
 const NKWebKit::WtfAbi::String& APS5_VABI _ZNK7WebCore19ProtectionSpaceBase5realmEv(const NKWebKit::WebCoreAbi::LegacyProtectionSpaceBase* self);
 std::uint32_t APS5_VABI _ZNK7WebCore19ProtectionSpaceBase20authenticationSchemeEv(const NKWebKit::WebCoreAbi::LegacyProtectionSpaceBase* self);
+bool APS5_VABI _ZNK7WebCore19ProtectionSpaceBase7isProxyEv(const NKWebKit::WebCoreAbi::LegacyProtectionSpaceBase* self);
+bool APS5_VABI _ZNK7WebCore19ProtectionSpaceBase26receivesCredentialSecurelyEv(const NKWebKit::WebCoreAbi::LegacyProtectionSpaceBase* self);
+bool APS5_VABI _ZNK7WebCore19ProtectionSpaceBase15isPasswordBasedEv(const NKWebKit::WebCoreAbi::LegacyProtectionSpaceBase* self);
 
 }
