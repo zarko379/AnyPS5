@@ -1,10 +1,16 @@
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libc/include/Api.hpp"
+#include "prx/libc/include/ApplicationHeap.hpp"
 
+#include <array>
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <new>
 #include <source_location>
 #include <stdexcept>
 
@@ -208,7 +214,127 @@ void TestDataView() {
     RequireThrows<std::invalid_argument>([] { _ZNK6webrtc10AudioFrame9data_viewEv_nid_postfix(nullptr); });
 }
 
+namespace {
+
+int frees = 0;
+
+void* APS5_VABI TestAllocate(std::size_t size) { return std::malloc(size); }
+void APS5_VABI TestFree(void* pointer) { ++frees; std::free(pointer); }
+void* APS5_VABI TestCalloc(std::size_t count, std::size_t size) { return std::calloc(count, size); }
+void* APS5_VABI TestReallocate(void* pointer, std::size_t size) { return std::realloc(pointer, size); }
+void* APS5_VABI TestAlign(std::size_t, std::size_t size) { return std::malloc(size); }
+void* APS5_VABI TestRealign(void* pointer, std::size_t size, std::size_t) { return std::realloc(pointer, size); }
+int APS5_VABI TestPosixAlign(void** pointer, std::size_t, std::size_t size) {
+    *pointer = std::malloc(size);
+    return *pointer ? 0 : 12;
+}
+
+WebRtcRtpPacketInfosData* PacketInfos(std::int32_t references) {
+    auto* data = static_cast<WebRtcRtpPacketInfosData*>(_Znwm_nid_postfix(sizeof(WebRtcRtpPacketInfosData)));
+    auto* entries = static_cast<WebRtcRtpPacketInfoEntry*>(_Znwm_nid_postfix(sizeof(WebRtcRtpPacketInfoEntry)));
+    std::memset(entries, 0, sizeof(WebRtcRtpPacketInfoEntry));
+    new (&data->refCount) std::atomic<std::int32_t>(references);
+    data->begin = entries;
+    data->end = entries + 1;
+    data->capacity = entries + 1;
+    return data;
+}
+
+std::unique_ptr<WebRtcAudioFrame> Source() {
+    auto source = Filled();
+    _ZN6webrtc10AudioFrameC1Ev_nid_postfix(source.get());
+    std::int16_t samples[6] = {1, -2, 3, -4, 5, -6};
+    _ZN6webrtc10AudioFrame11UpdateFrameEjPKsmiNS0_10SpeechTypeENS0_11VADActivityEm_nid_postfix(source.get(), 77, samples, 3, 16000, 1, 0, 2);
+    source->elapsedTimeMs = 11;
+    source->ntpTimeMs = 22;
+    source->absoluteCaptureTimestampMs.value = 33;
+    source->absoluteCaptureTimestampMsEngaged = true;
+    return source;
+}
+
+void TestCopyFrom() {
+    auto source = Source();
+    WebRtcRtpPacketInfosData* infos = PacketInfos(1);
+    source->packetInfos = infos;
+    auto frame = Filled();
+    _ZN6webrtc10AudioFrameC1Ev_nid_postfix(frame.get());
+    _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), source.get());
+    Require(frame->timestamp == 77 && frame->elapsedTimeMs == 11 && frame->ntpTimeMs == 22);
+    Require(frame->samplesPerChannel == 3 && frame->sampleRateHz == 16000 && frame->numChannels == 2);
+    Require(frame->speechType == 1 && frame->vadActivity == 0 && frame->channelLayout == WebRtcChannelLayoutStereo);
+    Require(frame->absoluteCaptureTimestampMsEngaged && frame->absoluteCaptureTimestampMs.value == 33);
+    Require(!frame->muted && frame->packetInfos == infos && infos->refCount.load() == 2);
+    Require(frame->data[0] == 1 && frame->data[5] == -6 && frame->data[6] == 0 && frame->data[WebRtcAudioFrameMaxDataSizeSamples - 1] == 0);
+
+    auto other = Filled();
+    _ZN6webrtc10AudioFrameC1Ev_nid_postfix(other.get());
+    WebRtcRtpPacketInfosData* otherInfos = PacketInfos(1);
+    other->packetInfos = otherInfos;
+    other->timestamp = 5;
+    const int before = frees;
+    _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), other.get());
+    Require(frame->muted && frame->timestamp == 5 && frame->samplesPerChannel == 0 && frame->packetInfos == otherInfos);
+    Require(infos->refCount.load() == 1 && otherInfos->refCount.load() == 2 && frees == before);
+    Require(frame->data[0] == 1);
+
+    source->packetInfos = nullptr;
+    _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(source.get(), source.get());
+    Require(source->packetInfos == nullptr && source->timestamp == 77);
+    _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), source.get());
+    Require(frame->packetInfos == nullptr && otherInfos->refCount.load() == 1 && frees == before);
+    Require(frame->data[0] == 1 && frame->data[5] == -6);
+    other->packetInfos = nullptr;
+    _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), other.get());
+    Require(frame->packetInfos == nullptr && otherInfos->refCount.load() == 1);
+    frame->packetInfos = infos;
+    _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), source.get());
+    Require(frame->packetInfos == nullptr && frees == before + 2);
+    frame->packetInfos = otherInfos;
+    _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), source.get());
+    Require(frees == before + 4);
+}
+
+void TestCopyFromMalformedPacketInfos() {
+    auto source = Source();
+    WebRtcRtpPacketInfosData* sourceInfos = PacketInfos(1);
+    source->packetInfos = sourceInfos;
+    auto frame = Filled();
+    _ZN6webrtc10AudioFrameC1Ev_nid_postfix(frame.get());
+    WebRtcRtpPacketInfosData* broken = PacketInfos(1);
+    WebRtcRtpPacketInfoEntry* const entries = broken->begin;
+    broken->end = reinterpret_cast<WebRtcRtpPacketInfoEntry*>(reinterpret_cast<unsigned char*>(entries) + 8);
+    frame->packetInfos = broken;
+    RequireThrows<std::invalid_argument>([&] { _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), source.get()); });
+    Require(frame->packetInfos == broken && broken->refCount.load() == 1 && sourceInfos->refCount.load() == 1);
+    Require(frame->timestamp == 0 && frame->muted);
+    broken->end = entries + 1;
+    const int before = frees;
+    _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), source.get());
+    Require(frees == before + 2 && frame->packetInfos == sourceInfos && sourceInfos->refCount.load() == 2);
+}
+
+void TestCopyFromLimits() {
+    auto source = Source();
+    source->samplesPerChannel = WebRtcAudioFrameMaxDataSizeSamples;
+    source->numChannels = 2;
+    auto frame = Filled();
+    _ZN6webrtc10AudioFrameC1Ev_nid_postfix(frame.get());
+    RequireThrows<std::invalid_argument>([&] { _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), source.get()); });
+    Require(frame->samplesPerChannel == WebRtcAudioFrameMaxDataSizeSamples && frame->timestamp == 77 && !frame->muted);
+    Require(AllSamples(frame->data, 0));
+    RequireThrows<std::invalid_argument>([&] { _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(nullptr, source.get()); });
+    RequireThrows<std::invalid_argument>([&] { _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(frame.get(), nullptr); });
+}
+
+}
+
 int main() {
+    const std::array<void*, 10> api {
+        reinterpret_cast<void*>(&TestAllocate), reinterpret_cast<void*>(&TestFree),
+        reinterpret_cast<void*>(&TestCalloc), reinterpret_cast<void*>(&TestReallocate),
+        reinterpret_cast<void*>(&TestAlign), reinterpret_cast<void*>(&TestRealign),
+        reinterpret_cast<void*>(&TestPosixAlign), nullptr, nullptr, nullptr};
+    ApplicationHeapRegister_nid_no_patch(api.data());
     TestConstructor();
     TestMutedData();
     TestMute();
@@ -218,5 +344,8 @@ int main() {
     TestUpdateFrameLayouts();
     TestUpdateFrameLimits();
     TestDataView();
+    TestCopyFrom();
+    TestCopyFromMalformedPacketInfos();
+    TestCopyFromLimits();
     return 0;
 }

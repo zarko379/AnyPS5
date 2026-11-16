@@ -41,7 +41,10 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libwebrtc/include/RtpPacketInfos.hpp"
 
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
@@ -153,6 +156,45 @@ WebRtcInterleavedView APS5_VABI _ZNK6webrtc10AudioFrame9data_viewEv_nid_postfix(
     const std::size_t size = frame->numChannels * frame->samplesPerChannel;
     const std::int16_t* data = frame->muted ? ZeroedData : frame->data;
     return {frame->numChannels, frame->samplesPerChannel, size == 0 ? nullptr : data, size};
+}
+
+void APS5_VABI _ZN6webrtc10AudioFrame8CopyFromERKS0__nid_postfix(WebRtcAudioFrame* frame, const WebRtcAudioFrame* source) {
+    if (!frame)
+        throw std::invalid_argument("AudioFrame::CopyFrom requires a frame");
+    if (!source)
+        throw std::invalid_argument("AudioFrame::CopyFrom requires a source frame");
+    if (frame == source)
+        return;
+    auto* const sourceInfos = static_cast<WebRtcRtpPacketInfosData*>(source->packetInfos);
+    auto* const previousInfos = static_cast<WebRtcRtpPacketInfosData*>(frame->packetInfos);
+    WebRtcAddRefPacketInfos(sourceInfos);
+    try {
+        WebRtcReleasePacketInfos(previousInfos, "AudioFrame::CopyFrom requires valid packet infos in the frame");
+    } catch (...) {
+        if (sourceInfos)
+            sourceInfos->refCount.fetch_sub(1, std::memory_order_relaxed);
+        throw;
+    }
+    frame->packetInfos = sourceInfos;
+    if (frame->muted && !source->muted)
+        std::memset(frame->data, 0, sizeof(frame->data));
+    frame->timestamp = source->timestamp;
+    frame->elapsedTimeMs = source->elapsedTimeMs;
+    frame->ntpTimeMs = source->ntpTimeMs;
+    frame->muted = source->muted;
+    frame->samplesPerChannel = source->samplesPerChannel;
+    frame->sampleRateHz = source->sampleRateHz;
+    frame->speechType = source->speechType;
+    frame->vadActivity = source->vadActivity;
+    frame->numChannels = source->numChannels;
+    frame->channelLayout = source->channelLayout;
+    frame->absoluteCaptureTimestampMs = source->absoluteCaptureTimestampMs;
+    frame->absoluteCaptureTimestampMsEngaged = source->absoluteCaptureTimestampMsEngaged;
+    const std::size_t size = source->samplesPerChannel * source->numChannels;
+    if (size > WebRtcAudioFrameMaxDataSizeSamples)
+        throw std::invalid_argument("AudioFrame::CopyFrom: more samples than the frame holds");
+    if (!frame->muted && size != 0)
+        std::memcpy(frame->data, source->data, sizeof(std::int16_t) * size);
 }
 
 }
