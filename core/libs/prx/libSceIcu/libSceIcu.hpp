@@ -67,3 +67,6 @@
 #include "Hashtable.hpp"
 #include "CoreClasses.hpp"
 #include "Edits.hpp"
+#include "CharString.hpp"
+#include "StringTries.hpp"
+#include "ClassIds.hpp"
