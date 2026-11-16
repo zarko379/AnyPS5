@@ -358,6 +358,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <limits>
 #include <span>
 #include <vector>
@@ -1295,6 +1296,50 @@ bool ReadSingleDerObjectFromBio(LibreSsl::Bio* bio, std::vector<unsigned char>& 
     return true;
 }
 
+bool UsablePublicRsa(const LibreSsl3Rsa* rsa) {
+    if (!rsa) return false;
+    for (const void* component : {rsa->n, rsa->e}) {
+        const auto* number = static_cast<const LibreSsl3Bignum*>(component);
+        if (!number || number->negative) return false;
+    }
+    return true;
+}
+
+std::vector<unsigned char> EncodeSpki(const LibreSsl3EvpPkey& key) {
+    std::vector<unsigned char> algorithm;
+    std::vector<unsigned char> keyBits{0};
+    if (key.type == RsaType) {
+        const auto* rsa = static_cast<const LibreSsl3Rsa*>(key.key);
+        if (!UsablePublicRsa(rsa))
+            NotImplemented_nid_no_patch("i2d_PUBKEY of an RSA key without a nonnegative modulus and exponent");
+        std::vector<unsigned char> encoded;
+        if (!EncodeRsa(rsa, false, encoded)) NotImplemented_nid_no_patch("i2d_PUBKEY: RSA public key encoding");
+        Append(algorithm, Wrap(0x06, RsaOid));
+        Append(algorithm, Wrap(0x05, std::span<const unsigned char>()));
+        Append(keyBits, encoded);
+    } else if (key.type == EcType) {
+        const auto* ec = static_cast<const EcKey*>(key.key);
+        if (!ec || !ec->group || !ec->publicKey) NotImplemented_nid_no_patch("i2d_PUBKEY of an EC key without a group or public key");
+        const int curve = ec->group->curve.nid;
+        if (curve != Secp256r1 && curve != Secp384r1) NotImplemented_nid_no_patch("i2d_PUBKEY of an EC key on a curve other than P-256 or P-384");
+        const std::size_t pointLength = EC_POINT_point2oct_nid_postfix(
+            ec->group, ec->publicKey, ec->conversionForm, nullptr, 0, nullptr);
+        if (pointLength == 0) NotImplemented_nid_no_patch("i2d_PUBKEY: EC public key encoding");
+        keyBits.resize(1 + pointLength);
+        if (EC_POINT_point2oct_nid_postfix(ec->group, ec->publicKey, ec->conversionForm, keyBits.data() + 1,
+                pointLength, nullptr) != pointLength)
+            NotImplemented_nid_no_patch("i2d_PUBKEY: EC public key encoding");
+        Append(algorithm, Wrap(0x06, EcPublicKeyOid));
+        Append(algorithm, Wrap(0x06, curve == Secp256r1 ? std::span<const unsigned char>(P256Oid)
+            : std::span<const unsigned char>(P384Oid)));
+    } else {
+        NotImplemented_nid_no_patch("i2d_PUBKEY of a key type other than RSA or EC");
+    }
+    std::vector<unsigned char> body = Wrap(0x30, algorithm);
+    Append(body, Wrap(0x03, keyBits));
+    return Wrap(0x30, body);
+}
+
 template<typename T> void ReplaceOutput(T** output, T* decoded, void (APS5_VABI* freeValue)(T*)) {
     if (!output) return;
     if (*output) freeValue(*output);
@@ -1304,6 +1349,25 @@ template<typename T> void ReplaceOutput(T** output, T* decoded, void (APS5_VABI*
 }
 
 extern "C" {
+
+int APS5_VABI i2d_PUBKEY_nid_postfix(const LibreSsl3EvpPkey* key, unsigned char** output) {
+    if (!key) return 0;
+    const auto encoded = EncodeSpki(*key);
+    if (encoded.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+        NotImplemented_nid_no_patch("i2d_PUBKEY of an encoding longer than INT_MAX");
+    const int length = static_cast<int>(encoded.size());
+    if (!output) return length;
+    if (*output) {
+        std::memcpy(*output, encoded.data(), encoded.size());
+        *output += encoded.size();
+        return length;
+    }
+    auto* buffer = static_cast<unsigned char*>(calloc_nid_postfix(1, encoded.size()));
+    if (!buffer) return -1;
+    std::memcpy(buffer, encoded.data(), encoded.size());
+    *output = buffer;
+    return length;
+}
 
 LibreSsl3EvpPkey* APS5_VABI d2i_PUBKEY_nid_postfix(
     LibreSsl3EvpPkey** output, const unsigned char** input, std::int64_t length) {

@@ -9,13 +9,15 @@
 - [SSL_is_quic, SSL_CTX_set_quic_method and SSL_set_quic_transport_params](../../../core/libs/prx/libSceLibreSsl3/src/Ssl.cpp) (libSceLibreSsl3) - nothing is checked on the console. They follow [LibreSSL 4.0.0 ssl_lib.c](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libssl/ssl_lib.c) on the `ssl_local.h` offsets this module models: a DTLS method refuses a QUIC method, and the old transport parameters are zeroed and freed before a copy from the guest heap replaces them, also for a length of 0. Null objects or methods and null parameters with a nonzero length throw.
 - [EVP_PKEY_CTX_new_id](../../../core/libs/prx/libSceLibreSsl3/src/PkeyContext.cpp) (libSceLibreSsl3) - nothing is checked on the console. Like [LibreSSL 4.0.0 pmeth_lib.c](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto/evp/pmeth_lib.c) it ignores the engine and makes a key-less context for the RSA, RSA-PSS and EC methods; other NIDs queue `EVP_R_UNSUPPORTED_ALGORITHM` and return null, except the CMAC, DH, DSA, Ed25519, HKDF, HMAC, TLS1-PRF and X25519 methods of the 4.0.0 table, which this module does not model and which throw.
 
+- [i2d_PUBKEY](../../../core/libs/prx/libSceLibreSsl3/src/KeyDer.cpp) (libSceLibreSsl3) - nothing is checked on the console. It encodes a SubjectPublicKeyInfo as [LibreSSL 4.0.0](https://github.com/libressl/openbsd/tree/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto) `x_pubkey.c`, `rsa_ameth.c` and `ec_ameth.c` do (rsaEncryption with NULL parameters; id-ecPublicKey with the named-curve OID and the point in the key's conversion form), returning 0 for a null key and allocating the output when `*out` is null. EC keys are always written with a named curve, as `EVP_PKEY2PKCS8` here does, because libSceLibreSsl groups do not record whether the caller cleared `OPENSSL_EC_NAMED_CURVE`. Other key types, curves other than P-256 and P-384, RSA keys without a nonnegative modulus and exponent and EC keys without a group or public point throw.
+
 ## change libSceLibreSsl3 pending exports
 
 - [libSceLibreSsl3 pending exports](../../../core/libs/prx/libSceLibreSsl3/Export.cpp) - 10 named callable exports of the [PS5 3.20 export table](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceLibreSsl3.c), cross-checked against the same module in PS5 firmware 13.60, remain unimplemented: `EVP_PKEY_new_mac_key`, `OCSP_cert_to_id`, `PEM_read_RSAPrivateKey`, `PKCS7_free`, `SSL_CTX_add0_chain_cert`, `SSL_CTX_clear_chain_certs`, `d2i_PKCS7`, `d2i_RSAPublicKey_bio`, `d2i_RSA_PUBKEY` and `d2i_X509_bio`. Their signatures and behaviour are unverified; the declarations use the no-parameter unknown-signature convention and throw through `NotImplemented_nid_no_patch`.
 
 ## change Additional exports
 
-- [Additional exports](../../../core/libs/prx/libSceLibreSsl3/AdditionalExports.cpp) declare 41 still-unimplemented callable exports: 39 named and 2 known only by NID. These entries throw. Parameterless `int` declarations are unknown-signature placeholders, not verified ABI contracts. Names/NIDs match the 13.60 export table. The fourteen libtls lifecycle/config exports are implemented in `LibTls.cpp`; title compatibility beyond preconnection behavior remains unverified.
+- [Additional exports](../../../core/libs/prx/libSceLibreSsl3/AdditionalExports.cpp) declare 40 still-unimplemented callable exports: 38 named and 2 known only by NID. These entries throw. Parameterless `int` declarations are unknown-signature placeholders, not verified ABI contracts. Names/NIDs match the 13.60 export table. The fourteen libtls lifecycle/config exports are implemented in `LibTls.cpp`; title compatibility beyond preconnection behavior remains unverified.
 
 ## remove xpB+BNkO2Z0
 
@@ -32,6 +34,8 @@
 ## remove 4pEl-5DmrrM
 
 ## remove J5ZLHxWkT6k
+
+## remove A-Hs-8mau+8
 
 ## change formerly NID-only exports
 

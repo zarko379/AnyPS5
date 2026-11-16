@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <source_location>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -630,6 +631,47 @@ void TestBioMalformedAndMultiChunkObjects() {
     PKCS8_PRIV_KEY_INFO_free_nid_postfix(refP8);
 }
 
+template<class TAction> bool Throws(TAction action) {
+    try {
+        action();
+    } catch (const std::exception&) {
+        return true;
+    }
+    return false;
+}
+
+std::vector<unsigned char> EncodePublicKey(const LibreSsl3EvpPkey* key) {
+    const int length = i2d_PUBKEY_nid_postfix(key, nullptr);
+    Require(length > 0);
+    std::vector<unsigned char> buffer(static_cast<std::size_t>(length) + 2, 0xcc);
+    unsigned char* cursor = buffer.data() + 1;
+    Require(i2d_PUBKEY_nid_postfix(key, &cursor) == length);
+    Require(cursor == buffer.data() + 1 + length);
+    Require(buffer.front() == 0xcc && buffer.back() == 0xcc);
+    unsigned char* allocated = nullptr;
+    Require(i2d_PUBKEY_nid_postfix(key, &allocated) == length && allocated != nullptr);
+    Require(std::memcmp(allocated, buffer.data() + 1, static_cast<std::size_t>(length)) == 0);
+    free_nid_postfix(allocated);
+    return std::vector<unsigned char>(buffer.begin() + 1, buffer.end() - 1);
+}
+
+void TestPublicKeyEncoding() {
+    ERR_clear_error_nid_postfix();
+    Require(i2d_PUBKEY_nid_postfix(nullptr, nullptr) == 0);
+    for (const auto* der : {&RsaSpkiDer, &P256SpkiDer}) {
+        const unsigned char* cursor = der->data();
+        LibreSsl3EvpPkey* key = d2i_PUBKEY_nid_postfix(nullptr, &cursor, static_cast<std::int64_t>(der->size()));
+        Require(key != nullptr);
+        Require(EncodePublicKey(key) == *der);
+        EVP_PKEY_free_nid_disambig1_nid_postfix(key);
+    }
+    auto* bare = EVP_PKEY_new_nid_disambig1_nid_postfix();
+    Require(bare != nullptr);
+    Require(Throws([&] { i2d_PUBKEY_nid_postfix(bare, nullptr); }));
+    EVP_PKEY_free_nid_disambig1_nid_postfix(bare);
+    Require(ERR_get_error_nid_postfix() == 0);
+}
+
 void* APS5_VABI HeapAllocate(std::size_t size) { return std::malloc(size == 0 ? 1 : size); }
 void APS5_VABI HeapFree(void* pointer) { std::free(pointer); }
 void* APS5_VABI HeapCallocate(std::size_t count, std::size_t size) {
@@ -664,5 +706,6 @@ int main() {
     TestConsecutiveBioObjects();
     TestPkcs8AttributesRoundTrip();
     TestBioMalformedAndMultiChunkObjects();
+    TestPublicKeyEncoding();
     return 0;
 }
