@@ -85,6 +85,7 @@ target_sources(libwebrtc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/SdpAudioFormat.
 target_sources(libwebrtc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/SendCodecSpec.cpp)
 target_sources(libwebrtc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/RtcStatsReport.cpp)
 target_sources(libwebrtc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/IceServer.cpp)
+target_sources(libwebrtc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/VideoDecoderFactory.cpp)
 
 if(BUILD_TESTING)
     add_test_executable(guest_webrtc_video_sink_wants_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/VideoSinkWants.cpp)

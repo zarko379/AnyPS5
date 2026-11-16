@@ -374,6 +374,56 @@ void TestIsCodecInListH265AndInvalidArguments() {
     RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc14SdpVideoFormat13IsCodecInListEN3rtc9ArrayViewIKS0_Lln4711EEE_nid_postfix(&vp8.format, &broken, 1); });
 }
 
+struct FakeFactory {
+    const void* const* vtable;
+    std::vector<const OwnedFormat*> supported;
+    int calls;
+};
+
+struct FakeFormatVector {
+    WebRtcSdpVideoFormat* begin;
+    WebRtcSdpVideoFormat* end;
+    WebRtcSdpVideoFormat* capacity;
+};
+
+FakeFormatVector* APS5_VABI SupportedFormats(FakeFormatVector* result, const FakeFactory* factory) {
+    const_cast<FakeFactory*>(factory)->calls++;
+    const std::size_t count = factory->supported.size();
+    auto* storage = count ? static_cast<WebRtcSdpVideoFormat*>(_Znwm_nid_postfix(count * sizeof(WebRtcSdpVideoFormat))) : nullptr;
+    for (std::size_t index = 0; index < count; ++index)
+        _ZN6webrtc14SdpVideoFormatC1ERKS0__nid_postfix(storage + index, &factory->supported[index]->format);
+    *result = {storage, storage + count, storage + count};
+    return result;
+}
+
+void TestQueryCodecSupport() {
+    const std::array<const void*, 3> vtable {nullptr, nullptr, reinterpret_cast<const void*>(&SupportedFormats)};
+    OwnedFormat vp8("VP8", {});
+    OwnedFormat vp9("VP9", {{"profile-id", "2"}});
+    OwnedFormat h264("H264", {});
+    OwnedFormat h265("H265", {});
+    FakeFactory factory {vtable.data(), {&vp8, &vp9}, 0};
+    const std::size_t before = live.size();
+    WebRtcCodecSupport support = _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&factory, &vp9.format, false);
+    Require(support.isSupported && !support.isPowerEfficient && factory.calls == 1 && live.size() == before);
+    support = _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&factory, &h264.format, false);
+    Require(!support.isSupported && factory.calls == 2 && live.size() == before);
+    support = _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&factory, &vp8.format, true);
+    Require(!support.isSupported && !support.isPowerEfficient && factory.calls == 2);
+    factory.supported = {};
+    support = _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&factory, &vp8.format, false);
+    Require(!support.isSupported && factory.calls == 3 && live.size() == before);
+    factory.supported = {&h265};
+    RequireThrows<std::runtime_error>([&] { _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&factory, &h265.format, false); });
+    Require(live.size() == before);
+    const std::array<const void*, 3> empty {};
+    FakeFactory broken {empty.data(), {}, 0};
+    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&broken, &vp8.format, false); });
+    Require(_ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&broken, &vp8.format, true).isSupported == false);
+    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(nullptr, &vp8.format, false); });
+    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&factory, nullptr, false); });
+}
+
 }
 
 int main() {
@@ -391,5 +441,6 @@ int main() {
     TestIsCodecInListVp9AndAv1();
     TestIsCodecInListH264();
     TestIsCodecInListH265AndInvalidArguments();
+    TestQueryCodecSupport();
     return 0;
 }

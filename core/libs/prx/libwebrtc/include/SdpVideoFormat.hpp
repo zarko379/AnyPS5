@@ -18,3 +18,10 @@ static_assert(sizeof(WebRtcInlinedVector<WebRtcScalabilityModeCount>) == 48);
 static_assert(sizeof(WebRtcSdpVideoFormat) == 112);
 static_assert(offsetof(WebRtcSdpVideoFormat, parameters) == 40);
 static_assert(offsetof(WebRtcSdpVideoFormat, scalabilityModes) == 64);
+
+struct WebRtcCodecSupport {
+    bool isSupported;
+    bool isPowerEfficient;
+};
+
+static_assert(sizeof(WebRtcCodecSupport) == 2);

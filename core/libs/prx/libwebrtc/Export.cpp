@@ -324,11 +324,6 @@ int APS5_VABI libwebrtcUnknown23(void) {
     return 0;
 }
 
-int APS5_VABI _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 APS5_EXPORT("P+3Zbh6lqCo", libwebrtcUnknown24);
 int APS5_VABI libwebrtcUnknown24(void) {
     NotImplemented_nid_no_patch("P+3Zbh6lqCo");
