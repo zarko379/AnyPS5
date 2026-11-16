@@ -72,3 +72,4 @@
 #include "CharString.hpp"
 #include "StringTries.hpp"
 #include "ClassIds.hpp"
+#include "BaseClasses.hpp"
