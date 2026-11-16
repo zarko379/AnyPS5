@@ -43,7 +43,10 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libc/GuestStringStorage.hpp"
+#include "prx/libc/include/Api.hpp"
 
+#include <cstdint>
 #include <stdexcept>
 
 namespace {
@@ -76,6 +79,25 @@ void APS5_VABI _ZN6webrtc15AudioSendStream6Config13SendCodecSpecD1Ev_nid_postfix
     if (!spec)
         throw std::invalid_argument("AudioSendStream::Config::SendCodecSpec destructor requires a codec spec");
     _ZN6webrtc14SdpAudioFormatD1Ev_nid_postfix(&spec->format);
+}
+
+void APS5_VABI _ZN6webrtc15AudioSendStream5StatsD1Ev_nid_postfix(WebRtcAudioSendStreamStats* stats) {
+    constexpr const char* message = "AudioSendStream::Stats destructor requires valid stats";
+    if (!stats)
+        throw std::invalid_argument(message);
+    const WebRtcGuestString& codecName = stats->codecName;
+    if (codecName.capacity < WebRtcGuestStringInlineCapacity || codecName.size > codecName.capacity ||
+        (codecName.capacity > WebRtcGuestStringInlineCapacity && !codecName.pointer))
+        throw std::invalid_argument(message);
+    const auto first = reinterpret_cast<std::uintptr_t>(stats->reportBlockDatasBegin);
+    const auto last = reinterpret_cast<std::uintptr_t>(stats->reportBlockDatasEnd);
+    const auto limit = reinterpret_cast<std::uintptr_t>(stats->reportBlockDatasCapacity);
+    if (last < first || limit < last || (!first && limit))
+        throw std::invalid_argument(message);
+    if (stats->reportBlockDatasBegin)
+        _ZdlPv_nid_postfix(stats->reportBlockDatasBegin);
+    if (codecName.capacity > WebRtcGuestStringInlineCapacity)
+        GuestStringStorage::Deallocate(codecName.pointer, codecName.capacity + 1);
 }
 
 }

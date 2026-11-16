@@ -1,4 +1,5 @@
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libc/GuestStringStorage.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
 
@@ -149,6 +150,43 @@ void TestInvalidArgumentsThrow() {
     Require(live.empty());
 }
 
+void TestStatsDestructor() {
+    WebRtcAudioSendStreamStats stats;
+    std::memset(&stats, 0, sizeof(stats));
+    InitShortString(stats.codecName, "opus");
+    _ZN6webrtc15AudioSendStream5StatsD1Ev_nid_postfix(&stats);
+    Require(live.empty());
+    const std::string name(40, 'c');
+    stats.codecName.size = name.size();
+    stats.codecName.capacity = name.size() | WebRtcGuestStringInlineCapacity;
+    stats.codecName.pointer = static_cast<char*>(GuestStringStorage::Allocate(stats.codecName.capacity + 1));
+    std::memcpy(stats.codecName.pointer, name.data(), name.size());
+    stats.reportBlockDatasBegin = _Znwm_nid_postfix(96);
+    stats.reportBlockDatasEnd = static_cast<unsigned char*>(stats.reportBlockDatasBegin) + 48;
+    stats.reportBlockDatasCapacity = static_cast<unsigned char*>(stats.reportBlockDatasBegin) + 96;
+    Require(live.size() == 2);
+    _ZN6webrtc15AudioSendStream5StatsD1Ev_nid_postfix(&stats);
+    Require(live.empty());
+}
+
+void TestStatsDestructorRejectsMalformedMembers() {
+    WebRtcAudioSendStreamStats stats;
+    std::memset(&stats, 0, sizeof(stats));
+    InitShortString(stats.codecName, "opus");
+    stats.reportBlockDatasBegin = _Znwm_nid_postfix(16);
+    stats.reportBlockDatasEnd = static_cast<unsigned char*>(stats.reportBlockDatasBegin) + 16;
+    stats.reportBlockDatasCapacity = stats.reportBlockDatasBegin;
+    RequireInvalidArgument([&] { _ZN6webrtc15AudioSendStream5StatsD1Ev_nid_postfix(&stats); });
+    stats.reportBlockDatasCapacity = stats.reportBlockDatasEnd;
+    stats.codecName.capacity = 3;
+    RequireInvalidArgument([&] { _ZN6webrtc15AudioSendStream5StatsD1Ev_nid_postfix(&stats); });
+    Require(live.size() == 1);
+    stats.codecName.capacity = WebRtcGuestStringInlineCapacity;
+    _ZN6webrtc15AudioSendStream5StatsD1Ev_nid_postfix(&stats);
+    Require(live.empty());
+    RequireInvalidArgument([] { _ZN6webrtc15AudioSendStream5StatsD1Ev_nid_postfix(nullptr); });
+}
+
 }
 
 int main() {
@@ -161,5 +199,7 @@ int main() {
     TestConstructorCopiesTheFormat();
     TestEmptyParameters();
     TestInvalidArgumentsThrow();
+    TestStatsDestructor();
+    TestStatsDestructorRejectsMalformedMembers();
     return 0;
 }
