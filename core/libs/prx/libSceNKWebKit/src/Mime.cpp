@@ -685,6 +685,32 @@ NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry29preferredExten
     return MakeString(ext);
 }
 
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(const NKWebKit::WtfAbi::String& extension) {
+    for (const auto& entry : kPlatformMediaTypes) {
+        if (extension.impl && EqualIgnoringASCIICase(extension.impl, entry.extension)) return MakeString(entry.type);
+    }
+    return MakeString("", 0);
+}
+
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(const NKWebKit::WtfAbi::String& path) {
+    const auto* impl = path.impl;
+    if (impl) {
+        for (unsigned position = impl->length; position-- > 0;) {
+            if (GetChar(impl, position) != '.') continue;
+            const unsigned start = position + 1;
+            for (const auto& entry : kPlatformMediaTypes) {
+                const std::string_view extension(entry.extension);
+                if (impl->length - start != extension.length()) continue;
+                bool match = true;
+                for (unsigned i = 0; i < extension.length() && match; ++i) match = SameIgnoringASCIICase(GetChar(impl, start + i), extension[i]);
+                if (match) return MakeString(entry.type);
+            }
+            break;
+        }
+    }
+    return MakeString("application/octet-stream");
+}
+
 NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry30appendFileExtensionIfNecessaryERKN3WTF6StringES4_(
     const NKWebKit::WtfAbi::String& filename,
     const NKWebKit::WtfAbi::String& mimeType) {

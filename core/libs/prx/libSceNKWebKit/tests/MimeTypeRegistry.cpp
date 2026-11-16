@@ -241,6 +241,39 @@ void TestExtensions() {
         MakeString(nullptr), MakeString("image/png")), nullptr));
 }
 
+void TestMimeTypeForExtensionAndPath() {
+    auto forExtension = [](const char* extension) { return _ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(MakeString(extension)); };
+    Require(Equals(forExtension("png"), "image/png"));
+    Require(Equals(forExtension("PNG"), "image/png"));
+    Require(Equals(forExtension("jpg"), "image/jpeg"));
+    Require(Equals(forExtension("Html"), "text/html"));
+    Require(Equals(forExtension("mjs"), "application/x-javascript"));
+    Require(Equals(forExtension("webp"), "image/webp"));
+    Require(Equals(forExtension("xsl"), "text/xsl"));
+    Require(Equals(forExtension("pn"), ""));
+    Require(Equals(forExtension(".png"), ""));
+    Require(Equals(forExtension("wav"), ""));
+    Require(Equals(forExtension(""), ""));
+    Require(Equals(forExtension(nullptr), ""));
+    const char16_t wide[] = u"SVG";
+    String wideExtension = _ZN3WTF10StringImpl6createEPKDsj(wide, 3);
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(wideExtension), "image/svg+xml"));
+
+    auto forPath = [](const char* path) { return _ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString(path)); };
+    Require(Equals(forPath("/app0/index.html"), "text/html"));
+    Require(Equals(forPath("photo.JPEG"), "image/jpeg"));
+    Require(Equals(forPath("archive.tar.xml"), "text/xml"));
+    Require(Equals(forPath("notes.txt.bak"), "application/octet-stream"));
+    Require(Equals(forPath("README"), "application/octet-stream"));
+    Require(Equals(forPath("trailing."), "application/octet-stream"));
+    Require(Equals(forPath(".png"), "image/png"));
+    Require(Equals(forPath(""), "application/octet-stream"));
+    Require(Equals(forPath(nullptr), "application/octet-stream"));
+    const char16_t widePath[] = u"/aé/b.Css";
+    String wide16 = _ZN3WTF10StringImpl6createEPKDsj(widePath, 9);
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(wide16), "text/css"));
+}
+
 void TestAllowedAndEncoding() {
     Vector<String> emptyMimes;
     Vector<String> emptyExts;
@@ -422,6 +455,7 @@ int main() {
     TestFixedVectorLists();
     TestTypePredicates();
     TestExtensions();
+    TestMimeTypeForExtensionAndPath();
     TestAllowedAndEncoding();
     TestLegacySchemeRegistry();
     TestWideCharacterComparisons();

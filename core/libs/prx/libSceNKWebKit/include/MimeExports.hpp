@@ -39,6 +39,8 @@ bool APS5_VABI _ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WT
 bool APS5_VABI _ZN7WebCore16MIMETypeRegistry28isSupportedTextTrackMIMETypeERKN3WTF6StringE(const NKWebKit::WtfAbi::String& mimeType);
 bool APS5_VABI _ZN7WebCore16MIMETypeRegistry29isSupportedJavaScriptMIMETypeERKN3WTF6StringE(const NKWebKit::WtfAbi::String& mimeType);
 NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry29preferredExtensionForMIMETypeERKN3WTF6StringE(const NKWebKit::WtfAbi::String& type);
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(const NKWebKit::WtfAbi::String& extension);
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(const NKWebKit::WtfAbi::String& path);
 NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry30appendFileExtensionIfNecessaryERKN3WTF6StringES4_(const NKWebKit::WtfAbi::String& filename, const NKWebKit::WtfAbi::String& mimeType);
 bool APS5_VABI _ZN7WebCore16MIMETypeRegistry32containsImageMIMETypeForEncodingERKN3WTF6VectorINS1_6StringELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEES8_(const NKWebKit::WtfAbi::Vector<NKWebKit::WtfAbi::String>& mimeTypes, const NKWebKit::WtfAbi::Vector<NKWebKit::WtfAbi::String>& extensions);
 NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry33preferredImageMIMETypeForEncodingERKN3WTF6VectorINS1_6StringELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEES8_(const NKWebKit::WtfAbi::Vector<NKWebKit::WtfAbi::String>& mimeTypes, const NKWebKit::WtfAbi::Vector<NKWebKit::WtfAbi::String>& extensions);
