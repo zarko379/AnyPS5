@@ -345,10 +345,6 @@ int APS5_VABI _ZN9Inspector21HeapBackendDispatcherD0Ev() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN9Inspector15ScriptCallStackC2ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN9Inspector32TimelineBackendDispatcherHandlerC2Ev() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -644,10 +640,6 @@ int APS5_VABI _ZN3JSC16callCustomSetterEPNS_14JSGlobalObjectENS_7JSValueEbPNS_8J
 }
 
 int APS5_VABI _ZN3WTF3URL11setPasswordENS_10StringViewE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -1617,10 +1609,6 @@ int APS5_VABI _ZN9Inspector15ScriptCallStack6createERN3WTF6VectorINS_15ScriptCal
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN9Inspector15ScriptCallStackC1ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN9Inspector18InjectedScriptBase8makeCallERN10Deprecated18ScriptFunctionCallE() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -1658,10 +1646,6 @@ int APS5_VABI _ZN9Inspector22InspectorDebuggerAgent16willRunMicrotaskEv() {
 }
 
 int APS5_VABI _ZN9Inspector22InspectorDebuggerAgent18didCancelAsyncCallENS0_13AsyncCallTypeEi() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -1802,10 +1786,6 @@ int APS5_VABI _ZNK9Inspector18InjectedScriptBase27callFunctionWithEvalEnabledERN
 }
 
 int APS5_VABI _ZNK9Inspector18InjectedScriptHost16savedResultAliasEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 

@@ -66,9 +66,11 @@
 
 - [JSC::weakClearSlowCase and HandleSet::writeBarrier](../../../core/libs/prx/libSceJsc/src/JscHandleSet.cpp) (libSceJsc) - not measured on a console; the version and layouts are unverified: `WeakImpl` owner word at 8, `HandleNode` {value, prev, next}, `HandleSet` strong sentinels at 24/48, immediate at 72/96, free list at 120, set pointer at 16 of the 4 KiB `HandleBlock`. They follow pinned [Weak.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/heap/Weak.cpp#L33-L39), [WeakImpl.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/heap/WeakImpl.h#L36-L92) and [HandleSet.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/heap/HandleSet.cpp#L70-L89): the state becomes `Deallocated` and the reference null; the slot moves to the front of the immediate or strong list unwritten. Null pointers and a moved handle on no list throw where WebKit faults.
 
+- [Inspector target flags, ScriptCallStack and asyncCallIdentifier](../../../core/libs/prx/libSceJsc/src/InspectorHelpers.cpp) (libSceJsc) - not measured on a console; layouts unverified: the target flag is the byte at 12, `ScriptCallStack` a 32-bit count and a {buffer, capacity, size} `Vector` at 8, and `std::pair<unsigned, int>` is assumed in RAX. They follow pinned [RemoteAutomationTarget.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/inspector/remote/RemoteAutomationTarget.h#L41-L50), [RemoteInspectionTarget.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/inspector/remote/RemoteInspectionTarget.h#L41-L64), [ScriptCallStack.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/inspector/ScriptCallStack.cpp#L51-L54) and [InspectorDebuggerAgent.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/inspector/agents/InspectorDebuggerAgent.cpp#L403-L406). Null pointers throw.
+
 ### Known export names; ABI prototypes unverified
 
-- The 125 throwing JavaScriptCore, Inspector, WTF and bmalloc exports in [Export.cpp](../../../core/libs/prx/libSceJsc/Export.cpp) are present in the PS5 3.20 `libSceJsc` export inventory from [PS5-3.20_Libs](https://github.com/DNNDHH/PS5-3.20_Libs). Each is named after the symbol the [verified NID name database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) gives for its NID, and the NID of that name matches. Prototypes and behavior are unverified; each uses the no-parameter import-resolution convention and throws through `NotImplemented_nid_no_patch`. These declarations make no ABI or behavior claim.
+- The 123 throwing JavaScriptCore, Inspector, WTF and bmalloc exports in [Export.cpp](../../../core/libs/prx/libSceJsc/Export.cpp) are present in the PS5 3.20 `libSceJsc` export inventory from [PS5-3.20_Libs](https://github.com/DNNDHH/PS5-3.20_Libs). Each is named after the symbol the [verified NID name database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) gives for its NID, and the NID of that name matches. Prototypes and behavior are unverified; each uses the no-parameter import-resolution convention and throws through `NotImplemented_nid_no_patch`. These declarations make no ABI or behavior claim.
 
 - [Empty bodies](../../../core/libs/prx/libSceJsc/Export.cpp) (libSceJsc) - the console JavaScriptCore version is unverified; the parameters of five exports come from their mangled names. In firmware 13.42 the `JSC::VM::ClientData` `D1`, `bmalloc::FreeList` `D2`, `Inspector::DebuggerBackendDispatcherHandler` `D2` and `Inspector::TimelineBackendDispatcherHandler` `D1` destructors and `Inspector::InspectorDebuggerAgent::didCreateFrontendAndBackend` return at once without reading an argument, and so do these. Read from disassembly, not measured on a console.
 
@@ -98,7 +100,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 276 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 273 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -338,7 +340,6 @@
 | `_ZN9Inspector14InjectedScriptC2EN10Deprecated12ScriptObjectEPNS_20InspectorEnvironmentE` | `kESljrwvBC4` |
 | `_ZN9Inspector15RemoteInspector39sendAutomaticInspectionCandidateMessageEv` | `Atp9oheNRqg` |
 | `_ZN9Inspector15ScriptCallStack6createERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE` | `oRiKVtbDDgo` |
-| `_ZN9Inspector15ScriptCallStackC1ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE` | `kWQbgfGBRqQ` |
 | `_ZN9Inspector18InjectedScriptBase8makeCallERN10Deprecated18ScriptFunctionCallE` | `eP-XvTjowrw` |
 | `_ZN9Inspector18InjectedScriptBaseC1ERKN3WTF6StringEN10Deprecated12ScriptObjectEPNS_20InspectorEnvironmentE` | `LWvN9tXtNFM` |
 | `_ZN9Inspector18InjectedScriptBaseC2ERKN3WTF6StringEN10Deprecated12ScriptObjectEPNS_20InspectorEnvironmentE` | `7H6fVQJIvw4` |
@@ -349,7 +350,6 @@
 | `_ZN9Inspector22InspectorDebuggerAgent15didRunMicrotaskEv` | `H98NR3TRB+g` |
 | `_ZN9Inspector22InspectorDebuggerAgent16willRunMicrotaskEv` | `uuGLzGM+ngk` |
 | `_ZN9Inspector22InspectorDebuggerAgent18didCancelAsyncCallENS0_13AsyncCallTypeEi` | `4i4lCtimDgg` |
-| `_ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi` | `KhymfIzaujY` |
 | `_ZN9Inspector22InspectorDebuggerAgent20didDispatchAsyncCallEv` | `8+KmK2NNPww` |
 | `_ZN9Inspector22InspectorDebuggerAgent20didScheduleAsyncCallEPN3JSC14JSGlobalObjectENS0_13AsyncCallTypeEib` | `mciNZtOn-2E` |
 | `_ZN9Inspector22InspectorDebuggerAgent21willDispatchAsyncCallENS0_13AsyncCallTypeEi` | `Fa7tNy5W1JA` |
@@ -384,7 +384,6 @@
 | `_ZNK9Inspector15RemoteInspector18clientCapabilitiesEv` | `7HwcP1R63Eo` |
 | `_ZNK9Inspector18InjectedScriptBase27callFunctionWithEvalEnabledERN10Deprecated18ScriptFunctionCallE` | `69Ng45oazLY` |
 | `_ZNK9Inspector18InjectedScriptHost16savedResultAliasEv` | `1EYcTwBoE4w` |
-| `_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv` | `nYbNPPMMWik` |
 
 ### Additional unidentified export
 

@@ -458,6 +458,84 @@ void TestHandleSetWriteBarrier() {
     Check(Throws([&] { _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &node->value, nullptr); }), __LINE__);
 }
 
+
+using Jsc::InspectorAbi::AsyncCallIdentifier;
+using Jsc::InspectorAbi::FrameVector;
+using Jsc::InspectorAbi::RemoteTarget;
+using Jsc::InspectorAbi::ScriptCallStack;
+using TargetFlagFunction = bool (APS5_VABI*)(const RemoteTarget*);
+using ScriptCallStackFunction = void (APS5_VABI*)(ScriptCallStack*, FrameVector*);
+using AsyncCallIdentifierFunction = AsyncCallIdentifier (APS5_VABI*)(int, int);
+
+static_assert(std::is_same_v<decltype(&_ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv), TargetFlagFunction>);
+static_assert(std::is_same_v<decltype(&_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv), TargetFlagFunction>);
+static_assert(std::is_same_v<decltype(&_ZN9Inspector15ScriptCallStackC1ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE), ScriptCallStackFunction>);
+static_assert(std::is_same_v<decltype(&_ZN9Inspector15ScriptCallStackC2ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE), ScriptCallStackFunction>);
+static_assert(std::is_same_v<decltype(&_ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi), AsyncCallIdentifierFunction>);
+
+RemoteTarget Target(bool flag) {
+    RemoteTarget target;
+    std::memset(&target, 0xA5, sizeof(target));
+    target.vtable = &target;
+    target.targetIdentifier = 7;
+    target.flag = flag;
+    return target;
+}
+
+void TestRemoteTargets() {
+    const RemoteTarget unpaired = Target(false);
+    const RemoteTarget paired = Target(true);
+    Check(_ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv(&unpaired), __LINE__);
+    Check(!_ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv(&paired), __LINE__);
+    Check(!_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(&unpaired), __LINE__);
+    Check(_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(&paired), __LINE__);
+    Check(paired.targetIdentifier == 7 && paired.vtable == &paired, __LINE__);
+
+    unsigned char raw[16];
+    std::memset(raw, 0, sizeof(raw));
+    raw[12] = 1;
+    raw[8] = 0xFF;
+    raw[13] = 0xFF;
+    Check(_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(reinterpret_cast<const RemoteTarget*>(raw)), __LINE__);
+    raw[12] = 0;
+    Check(_ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv(reinterpret_cast<const RemoteTarget*>(raw)), __LINE__);
+
+    Check(Throws([] { _ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv(nullptr); }), __LINE__);
+    Check(Throws([] { _ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(nullptr); }), __LINE__);
+}
+
+void TestScriptCallStackConstructors() {
+    for (const ScriptCallStackFunction construct : {&_ZN9Inspector15ScriptCallStackC1ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE,
+                                                    &_ZN9Inspector15ScriptCallStackC2ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE}) {
+        unsigned char frames[64];
+        FrameVector vector{frames, 2, 1};
+        ScriptCallStack stack;
+        std::memset(&stack, 0x5A, sizeof(stack));
+        construct(&stack, &vector);
+        Check(stack.refCount == 1, __LINE__);
+        Check(stack.frames.buffer == frames && stack.frames.capacity == 2 && stack.frames.size == 1, __LINE__);
+        Check(vector.buffer == nullptr && vector.capacity == 0 && vector.size == 0, __LINE__);
+
+        FrameVector empty{nullptr, 0, 0};
+        std::memset(&stack, 0x5A, sizeof(stack));
+        construct(&stack, &empty);
+        Check(stack.refCount == 1 && stack.frames.buffer == nullptr && stack.frames.capacity == 0 && stack.frames.size == 0, __LINE__);
+        Check(empty.buffer == nullptr && empty.capacity == 0 && empty.size == 0, __LINE__);
+
+        Check(Throws([&] { construct(nullptr, &vector); }), __LINE__);
+        Check(Throws([&] { construct(&stack, nullptr); }), __LINE__);
+    }
+}
+
+void TestAsyncCallIdentifier() {
+    const AsyncCallIdentifier timer = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(0, 42);
+    Check(timer.type == 0 && timer.callbackId == 42, __LINE__);
+    const AsyncCallIdentifier listener = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(1, -5);
+    Check(listener.type == 1 && listener.callbackId == -5, __LINE__);
+    const AsyncCallIdentifier wide = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(-1, std::numeric_limits<int>::min());
+    Check(wide.type == std::numeric_limits<unsigned>::max() && wide.callbackId == std::numeric_limits<int>::min(), __LINE__);
+}
+
 }
 
 int main() {
@@ -472,6 +550,9 @@ int main() {
     TestScriptCallArgumentHandler();
     TestWeakClearSlowCase();
     TestHandleSetWriteBarrier();
+    TestRemoteTargets();
+    TestScriptCallStackConstructors();
+    TestAsyncCallIdentifier();
     std::puts("JSC runtime tests passed");
     return 0;
 }

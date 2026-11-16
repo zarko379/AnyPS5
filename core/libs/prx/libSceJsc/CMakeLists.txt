@@ -186,7 +186,7 @@ if(BUILD_TESTING)
     endif()
 endif()
 
-target_sources(libSceJsc PRIVATE src/JscFreeList.cpp src/JscClassInfo.cpp src/JscCell.cpp src/JscInternalFunction.cpp src/JscSpeculatedType.cpp src/JscToThis.cpp src/DeprecatedScriptCallArgumentHandler.cpp src/ArrayBufferContents.cpp src/JscHandleSet.cpp)
+target_sources(libSceJsc PRIVATE src/JscFreeList.cpp src/JscClassInfo.cpp src/JscCell.cpp src/JscInternalFunction.cpp src/JscSpeculatedType.cpp src/JscToThis.cpp src/DeprecatedScriptCallArgumentHandler.cpp src/ArrayBufferContents.cpp src/JscHandleSet.cpp src/InspectorHelpers.cpp)
 if(BUILD_TESTING)
     add_test_executable(jsc_runtime_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/JscRuntime.cpp)
     target_include_directories(jsc_runtime_tests PRIVATE ${LIBS_INCLUDE_DIR})

@@ -8,6 +8,7 @@
 #include "prx/libSceJsc/include/Api.hpp"
 #include "prx/libSceJsc/include/WtfSha1Exports.hpp"
 #include "prx/libSceJsc/include/DeprecatedScriptCallArgumentHandlerExports.hpp"
+#include "prx/libSceJsc/include/InspectorExports.hpp"
 #include "prx/libSceJsc/include/InventoryExports.hpp"
 #include "prx/libSceJsc/include/JscHandleExports.hpp"
 #include "prx/libSceJsc/include/JscRuntimeExports.hpp"
