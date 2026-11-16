@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -59,6 +60,15 @@ template<typename TAction> void RequireInvalidArgument(TAction action, std::sour
     try {
         action();
     } catch (const std::invalid_argument&) {
+        return;
+    }
+    Require(false, location);
+}
+
+template<typename TException, typename TAction> void RequireThrows(TAction action, std::source_location location = std::source_location::current()) {
+    try {
+        action();
+    } catch (const TException&) {
         return;
     }
     Require(false, location);
@@ -242,6 +252,128 @@ void TestInvalidFormatsThrow() {
     Require(live.empty());
 }
 
+struct Parameter {
+    std::string_view key;
+    std::string_view value;
+};
+
+struct OwnedFormat {
+    WebRtcSdpVideoFormat format;
+
+    OwnedFormat(std::string_view name, std::initializer_list<Parameter> parameters) {
+        InitFormat(format, name);
+        WebRtcStringMapNode* parent = EndNode(format.parameters);
+        WebRtcStringMapNode** slot = &format.parameters.root;
+        for (const Parameter& parameter : parameters) {
+            WebRtcStringMapNode* node = MakeNode(parameter.key, parameter.value, true);
+            node->links.parent = parent;
+            *slot = node;
+            if (format.parameters.size == 0)
+                format.parameters.beginNode = node;
+            ++format.parameters.size;
+            parent = node;
+            slot = &node->links.right;
+        }
+    }
+
+    ~OwnedFormat() { _ZN6webrtc14SdpVideoFormatD1Ev_nid_postfix(&format); }
+};
+
+struct FormatArray {
+    std::vector<WebRtcSdpVideoFormat> formats;
+
+    explicit FormatArray(std::initializer_list<const OwnedFormat*> list) : formats(list.size()) {
+        std::size_t index = 0;
+        for (const OwnedFormat* entry : list)
+            _ZN6webrtc14SdpVideoFormatC1ERKS0__nid_postfix(&formats[index++], &entry->format);
+    }
+
+    ~FormatArray() {
+        for (WebRtcSdpVideoFormat& format : formats)
+            _ZN6webrtc14SdpVideoFormatD1Ev_nid_postfix(&format);
+    }
+};
+
+bool InList(const OwnedFormat& format, std::initializer_list<const OwnedFormat*> list) {
+    FormatArray array(list);
+    return _ZNK6webrtc14SdpVideoFormat13IsCodecInListEN3rtc9ArrayViewIKS0_Lln4711EEE_nid_postfix(&format.format, array.formats.data(), array.formats.size());
+}
+
+bool Same(const OwnedFormat& left, const OwnedFormat& right) {
+    return InList(left, {&right});
+}
+
+void TestIsCodecInListNames() {
+    OwnedFormat vp8("VP8", {});
+    OwnedFormat lowerVp8("vp8", {{"anything", "x"}});
+    OwnedFormat vp9("VP9", {});
+    OwnedFormat generic("FOO", {{"a", "1"}});
+    OwnedFormat lowerGeneric("foo", {{"a", "2"}});
+    Require(Same(vp8, lowerVp8));
+    Require(!Same(vp8, vp9));
+    Require(!InList(vp8, {}));
+    Require(Same(generic, lowerGeneric));
+    Require(InList(vp8, {&vp9, &generic, &lowerVp8}));
+}
+
+void TestIsCodecInListVp9AndAv1() {
+    OwnedFormat vp9("VP9", {});
+    OwnedFormat vp9Zero("VP9", {{"profile-id", "0"}});
+    OwnedFormat vp9NegativeZero("VP9", {{"profile-id", "-0"}});
+    OwnedFormat vp9Two("VP9", {{"profile-id", "2"}});
+    OwnedFormat vp9Four("VP9", {{"profile-id", "4"}});
+    OwnedFormat vp9Spaced("VP9", {{"profile-id", "2 "}});
+    Require(Same(vp9, vp9Zero) && Same(vp9, vp9NegativeZero));
+    Require(!Same(vp9, vp9Two) && Same(vp9Two, vp9Two));
+    Require(!Same(vp9Four, vp9Four) && !Same(vp9Spaced, vp9Two));
+    Require(InList(vp9, {&vp9Two, &vp9Zero}));
+
+    OwnedFormat av1("AV1", {});
+    OwnedFormat av1Explicit("av1", {{"profile", "0"}, {"tier", "0"}, {"level-idx", "5"}});
+    OwnedFormat av1Level("AV1", {{"level-idx", "6"}});
+    OwnedFormat av1Tier("AV1", {{"tier", "1"}});
+    OwnedFormat av1Profile("AV1", {{"profile", "1"}});
+    OwnedFormat av1x("AV1X", {});
+    OwnedFormat av1xLevel("av1x", {{"level-idx", "6"}});
+    Require(Same(av1, av1Explicit));
+    Require(!Same(av1, av1Level) && !Same(av1, av1Tier) && !Same(av1, av1Profile));
+    Require(!Same(av1, av1x) && !Same(av1x, av1xLevel));
+}
+
+void TestIsCodecInListH264() {
+    OwnedFormat h264("H264", {});
+    OwnedFormat constrainedBaseline("h264", {{"profile-level-id", "42e01f"}});
+    OwnedFormat main("H264", {{"profile-level-id", "4d001f"}});
+    OwnedFormat mainUpper("H264", {{"profile-level-id", "4D0034"}});
+    OwnedFormat high("H264", {{"profile-level-id", "64001f"}});
+    OwnedFormat constrainedHigh("H264", {{"profile-level-id", "640c1f"}});
+    OwnedFormat packetized("H264", {{"packetization-mode", "1"}});
+    OwnedFormat packetizedBaseline("H264", {{"packetization-mode", "1"}, {"profile-level-id", "42e01f"}});
+    OwnedFormat shortId("H264", {{"profile-level-id", "42e0"}});
+    OwnedFormat spacedId("H264", {{"profile-level-id", " 42e01"}});
+    OwnedFormat badLevel("H264", {{"profile-level-id", "42e000"}});
+    OwnedFormat prefixed("H264", {{"profile-level-id", "0x420a"}});
+    Require(Same(h264, constrainedBaseline));
+    Require(!Same(h264, main) && Same(main, mainUpper));
+    Require(!Same(high, constrainedHigh) && Same(high, high));
+    Require(!Same(h264, packetized) && Same(packetized, packetizedBaseline));
+    Require(!Same(shortId, shortId) && !Same(spacedId, spacedId) && !Same(badLevel, badLevel));
+    Require(!Same(prefixed, prefixed));
+}
+
+void TestIsCodecInListH265AndInvalidArguments() {
+    OwnedFormat h265("H265", {});
+    OwnedFormat vp8("VP8", {});
+    Require(!Same(h265, vp8));
+    RequireThrows<std::runtime_error>([&] { Same(h265, h265); });
+    std::vector<WebRtcSdpVideoFormat> none;
+    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc14SdpVideoFormat13IsCodecInListEN3rtc9ArrayViewIKS0_Lln4711EEE_nid_postfix(nullptr, none.data(), 0); });
+    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc14SdpVideoFormat13IsCodecInListEN3rtc9ArrayViewIKS0_Lln4711EEE_nid_postfix(&vp8.format, nullptr, 1); });
+    WebRtcSdpVideoFormat broken = vp8.format;
+    broken.name.capacity = 3;
+    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc14SdpVideoFormat13IsCodecInListEN3rtc9ArrayViewIKS0_Lln4711EEE_nid_postfix(&vp8.format, &broken, 1); });
+}
+
 }
 
 int main() {
@@ -255,5 +387,9 @@ int main() {
     TestCopyAllocatedModes();
     TestMove();
     TestInvalidFormatsThrow();
+    TestIsCodecInListNames();
+    TestIsCodecInListVp9AndAv1();
+    TestIsCodecInListH264();
+    TestIsCodecInListH265AndInvalidArguments();
     return 0;
 }

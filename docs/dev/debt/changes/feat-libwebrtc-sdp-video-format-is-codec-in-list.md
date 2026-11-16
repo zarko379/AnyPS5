@@ -1,0 +1,5 @@
+# libwebrtc
+
+## add Public source implementations
+
+- [webrtc::SdpVideoFormat::IsCodecInList](../../../core/libs/prx/libwebrtc/src/SdpAudioFormat.cpp) (libwebrtc) - an H265 format whose name matches throws through `NotImplemented_nid_no_patch`, since whether the module defines `RTC_ENABLE_H265` (which adds the H265 profile, tier and tx-mode checks) is unknown; not measured on a console. Adapted from `IsSameCodec` in [sdp_video_format.cc](https://webrtc.googlesource.com/src/+/8d78f5de6c27b2c793039989ea381f1428fb0100/api/video_codecs/sdp_video_format.cc) with the H264, VP9 and AV1 profile parsers and `rtc::StringToNumber`, the used paths the same at M127: case-insensitive names, then H264 profile (from `profile-level-id`, read as `strtol` base 16) and packetization mode, VP9 `profile-id`, AV1 profile, tier and level index; other codecs match by name. The `ArrayView` arrives as pointer and count. Malformed formats and null arguments throw. Closes when: the H265 build flag is known and compared with the console.

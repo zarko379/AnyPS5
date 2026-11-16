@@ -1,7 +1,52 @@
 /* Derived from api/audio_codecs/audio_format.cc and api/audio_codecs/audio_format.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from api/video_codecs/sdp_video_format.cc and api/video_codecs/sdp_video_format.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
+/* Derived from api/video_codecs/h264_profile_level_id.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
+/* Derived from api/video_codecs/vp9_profile.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
+/* Derived from api/video_codecs/av1_profile.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
+/* Derived from api/video_codecs/video_codec.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
+/* Derived from rtc_base/string_to_number.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+/*
+ *  Copyright (c) 2021 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+/*
+ *  Copyright (c) 2022 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+/*
+ *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+/*
+ *  Copyright 2017 The WebRTC Project Authors. All rights reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -63,8 +108,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <limits>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -330,6 +377,205 @@ void AttachMap(WebRtcStringMap& destination, const WebRtcStringMap& cloned) {
         destination.root->links.parent = EndNode(destination);
 }
 
+enum class VideoCodecKind {
+    Generic,
+    Vp8,
+    Vp9,
+    Av1,
+    H264,
+    H265,
+};
+
+struct ByteView {
+    const char* data;
+    std::size_t size;
+};
+
+ByteView View(const WebRtcGuestString& string) {
+    return {WebRtcGuestStringData(string), static_cast<std::size_t>(string.size)};
+}
+
+bool EqualsIgnoreCase(ByteView left, ByteView right) {
+    if (left.size != right.size)
+        return false;
+    for (std::size_t index = 0; index < left.size; ++index) {
+        auto lower = [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c; };
+        if (lower(left.data[index]) != lower(right.data[index]))
+            return false;
+    }
+    return true;
+}
+
+bool Equals(ByteView left, ByteView right) {
+    return left.size == right.size && (left.size == 0 || std::memcmp(left.data, right.data, left.size) == 0);
+}
+
+ByteView Literal(const char* text) {
+    return {text, std::strlen(text)};
+}
+
+VideoCodecKind CodecKind(ByteView name) {
+    if (EqualsIgnoreCase(name, Literal("VP8")))
+        return VideoCodecKind::Vp8;
+    if (EqualsIgnoreCase(name, Literal("VP9")))
+        return VideoCodecKind::Vp9;
+    if (EqualsIgnoreCase(name, Literal("AV1")) || EqualsIgnoreCase(name, Literal("AV1X")))
+        return VideoCodecKind::Av1;
+    if (EqualsIgnoreCase(name, Literal("H264")))
+        return VideoCodecKind::H264;
+    if (EqualsIgnoreCase(name, Literal("H265")))
+        return VideoCodecKind::H265;
+    return VideoCodecKind::Generic;
+}
+
+const WebRtcGuestString* FindParameter(const std::vector<WebRtcStringMapNode*>& nodes, const char* key) {
+    const ByteView wanted = Literal(key);
+    for (const WebRtcStringMapNode* node : nodes)
+        if (Equals(View(node->key), wanted))
+            return &node->value;
+    return nullptr;
+}
+
+ByteView ParameterOrDefault(const std::vector<WebRtcStringMapNode*>& nodes, const char* key, const char* fallback) {
+    const WebRtcGuestString* value = FindParameter(nodes, key);
+    return value ? View(*value) : Literal(fallback);
+}
+
+std::optional<long long> StringToInt(ByteView text) {
+    if (text.size == 0)
+        return std::nullopt;
+    const bool startsWithDigit = text.data[0] >= '0' && text.data[0] <= '9';
+    if (!startsWithDigit && text.data[0] != '-')
+        return std::nullopt;
+    const bool negative = text.data[0] == '-';
+    std::size_t index = negative ? 1 : 0;
+    if (index == text.size)
+        return std::nullopt;
+    unsigned long long magnitude = 0;
+    const unsigned long long limit = negative ? static_cast<unsigned long long>(std::numeric_limits<long long>::max()) + 1 : static_cast<unsigned long long>(std::numeric_limits<long long>::max());
+    for (; index < text.size; ++index) {
+        const char c = text.data[index];
+        if (c < '0' || c > '9')
+            return std::nullopt;
+        const unsigned digit = static_cast<unsigned>(c - '0');
+        if (magnitude > (limit - digit) / 10)
+            return std::nullopt;
+        magnitude = magnitude * 10 + digit;
+    }
+    if (negative)
+        return magnitude == static_cast<unsigned long long>(std::numeric_limits<long long>::max()) + 1 ? std::numeric_limits<long long>::min() : -static_cast<long long>(magnitude);
+    return static_cast<long long>(magnitude);
+}
+
+std::optional<int> ParseProfile(const std::vector<WebRtcStringMapNode*>& nodes, const char* key, int maximum) {
+    const WebRtcGuestString* value = FindParameter(nodes, key);
+    if (!value)
+        return 0;
+    const std::optional<long long> number = StringToInt(View(*value));
+    if (!number || *number < 0 || *number > maximum)
+        return std::nullopt;
+    return static_cast<int>(*number);
+}
+
+bool SameProfile(const std::vector<WebRtcStringMapNode*>& left, const std::vector<WebRtcStringMapNode*>& right, const char* key, int maximum) {
+    const std::optional<int> profile = ParseProfile(left, key, maximum);
+    const std::optional<int> otherProfile = ParseProfile(right, key, maximum);
+    return profile && otherProfile && *profile == *otherProfile;
+}
+
+bool IsHexDigit(char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+unsigned HexValue(char c) {
+    if (c >= '0' && c <= '9')
+        return static_cast<unsigned>(c - '0');
+    if (c >= 'a' && c <= 'f')
+        return static_cast<unsigned>(c - 'a' + 10);
+    return static_cast<unsigned>(c - 'A' + 10);
+}
+
+std::uint32_t StrtolHex(const char* text, std::size_t length) {
+    std::size_t index = 0;
+    while (index < length && (text[index] == ' ' || (text[index] >= '\t' && text[index] <= '\r')))
+        ++index;
+    bool negative = false;
+    if (index < length && (text[index] == '+' || text[index] == '-')) {
+        negative = text[index] == '-';
+        ++index;
+    }
+    if (index + 2 < length && text[index] == '0' && (text[index + 1] == 'x' || text[index + 1] == 'X') && IsHexDigit(text[index + 2]))
+        index += 2;
+    std::uint64_t value = 0;
+    for (; index < length && IsHexDigit(text[index]); ++index)
+        value = value * 16 + HexValue(text[index]);
+    return static_cast<std::uint32_t>(negative ? 0 - value : value);
+}
+
+constexpr int H264LevelValues[] = {10, 11, 12, 13, 20, 21, 22, 30, 31, 32, 40, 41, 42, 50, 51, 52};
+
+struct H264ProfilePattern {
+    std::uint8_t profileIdc;
+    std::uint8_t mask;
+    std::uint8_t maskedValue;
+    int profile;
+};
+
+constexpr H264ProfilePattern H264ProfilePatterns[] = {
+    {0x42, 0x4F, 0x40, 0},
+    {0x4D, 0x8F, 0x80, 0},
+    {0x58, 0xCF, 0xC0, 0},
+    {0x42, 0x4F, 0x00, 1},
+    {0x58, 0xCF, 0x80, 1},
+    {0x4D, 0xAF, 0x00, 2},
+    {0x64, 0xFF, 0x00, 4},
+    {0x64, 0xFF, 0x0C, 3},
+    {0xF4, 0xFF, 0x00, 5},
+};
+
+std::optional<int> ParseH264Profile(const std::vector<WebRtcStringMapNode*>& nodes) {
+    const WebRtcGuestString* value = FindParameter(nodes, "profile-level-id");
+    if (!value)
+        return 0;
+    const char* text = WebRtcGuestStringData(*value);
+    const std::size_t length = static_cast<std::size_t>(std::find(text, text + value->size, '\0') - text);
+    if (length != 6)
+        return std::nullopt;
+    const std::uint32_t numeric = StrtolHex(text, length);
+    if (numeric == 0)
+        return std::nullopt;
+    const int levelIdc = static_cast<int>(numeric & 0xFF);
+    const auto profileIop = static_cast<std::uint8_t>((numeric >> 8) & 0xFF);
+    const auto profileIdc = static_cast<std::uint8_t>((numeric >> 16) & 0xFF);
+    if (std::find(std::begin(H264LevelValues), std::end(H264LevelValues), levelIdc) == std::end(H264LevelValues))
+        return std::nullopt;
+    for (const H264ProfilePattern& pattern : H264ProfilePatterns)
+        if (profileIdc == pattern.profileIdc && (profileIop & pattern.mask) == pattern.maskedValue)
+            return pattern.profile;
+    return std::nullopt;
+}
+
+bool IsSameCodecSpecific(ByteView name, const std::vector<WebRtcStringMapNode*>& left, const std::vector<WebRtcStringMapNode*>& right) {
+    switch (CodecKind(name)) {
+    case VideoCodecKind::H264: {
+        const std::optional<int> profile = ParseH264Profile(left);
+        const std::optional<int> otherProfile = ParseH264Profile(right);
+        return profile && otherProfile && *profile == *otherProfile &&
+            Equals(ParameterOrDefault(left, "packetization-mode", "0"), ParameterOrDefault(right, "packetization-mode", "0"));
+    }
+    case VideoCodecKind::Vp9:
+        return SameProfile(left, right, "profile-id", 3);
+    case VideoCodecKind::Av1:
+        return SameProfile(left, right, "profile", 2) &&
+            Equals(ParameterOrDefault(left, "tier", "0"), ParameterOrDefault(right, "tier", "0")) &&
+            Equals(ParameterOrDefault(left, "level-idx", "5"), ParameterOrDefault(right, "level-idx", "5"));
+    case VideoCodecKind::H265:
+        NotImplemented_nid_no_patch("SdpVideoFormat::IsCodecInList for H265: whether the module is built with RTC_ENABLE_H265 is unknown");
+    default:
+        return true;
+    }
+}
+
 }
 
 extern "C" {
@@ -501,6 +747,30 @@ void APS5_VABI _ZN6webrtc14SdpVideoFormatD1Ev_nid_postfix(WebRtcSdpVideoFormat* 
     ReleaseModes(format->scalabilityModes);
     DestroyMapNodes(nodes, format->parameters);
     ReleaseString(format->name);
+}
+
+bool APS5_VABI _ZNK6webrtc14SdpVideoFormat13IsCodecInListEN3rtc9ArrayViewIKS0_Lln4711EEE_nid_postfix(const WebRtcSdpVideoFormat* format, const WebRtcSdpVideoFormat* formats, std::size_t count) {
+    constexpr const char* message = "SdpVideoFormat::IsCodecInList requires valid formats";
+    WebRtcSdpVideoFormat snapshot{};
+    CopyInChecked(&snapshot, format, sizeof(snapshot), message);
+    if (count != 0 && !formats)
+        throw std::invalid_argument(message);
+    ValidateString(format->name, message);
+    std::vector<WebRtcStringMapNode*> nodes;
+    ValidateMapNodes(format->parameters, message, nodes);
+    const ByteView name = View(format->name);
+    for (std::size_t index = 0; index < count; ++index) {
+        const WebRtcSdpVideoFormat* other = formats + index;
+        CopyInChecked(&snapshot, other, sizeof(snapshot), message);
+        ValidateString(other->name, message);
+        if (!EqualsIgnoreCase(name, View(other->name)))
+            continue;
+        std::vector<WebRtcStringMapNode*> otherNodes;
+        ValidateMapNodes(other->parameters, message, otherNodes);
+        if (IsSameCodecSpecific(name, nodes, otherNodes))
+            return true;
+    }
+    return false;
 }
 
 }
