@@ -491,7 +491,7 @@ void TestRemoteTargets() {
     Check(_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(&paired), __LINE__);
     Check(paired.targetIdentifier == 7 && paired.vtable == &paired, __LINE__);
 
-    unsigned char raw[16];
+    alignas(8) unsigned char raw[16];
     std::memset(raw, 0, sizeof(raw));
     raw[12] = 1;
     raw[8] = 0xFF;
@@ -536,6 +536,53 @@ void TestAsyncCallIdentifier() {
     Check(wide.type == std::numeric_limits<unsigned>::max() && wide.callbackId == std::numeric_limits<int>::min(), __LINE__);
 }
 
+
+using Jsc::JscAbi::YarrRegularExpression;
+using Jsc::JscAbi::YarrRegularExpressionPrivate;
+using IsValidFunction = bool (APS5_VABI*)(const YarrRegularExpression*);
+using AnalyzeHeapFunction = void (APS5_VABI*)(void*, void*);
+using StructurePropertyNamesFunction = void (APS5_VABI*)(void*, void*, void*, std::uint64_t);
+
+static_assert(std::is_same_v<decltype(&_ZNK3JSC4Yarr17RegularExpression7isValidEv), IsValidFunction>);
+static_assert(std::is_same_v<decltype(&_ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE), AnalyzeHeapFunction>);
+static_assert(std::is_same_v<decltype(&_ZN3JSC7JSProxy25getStructurePropertyNamesEPNS_8JSObjectEPNS_14JSGlobalObjectERNS_17PropertyNameArrayENS_15EnumerationModeE), StructurePropertyNamesFunction>);
+
+void TestRegularExpressionIsValid() {
+    int bytecode = 0;
+    YarrRegularExpressionPrivate compiled{1, 0, nullptr, -1, 2, &bytecode};
+    YarrRegularExpressionPrivate failed{1, 3, nullptr, -1, 0, nullptr};
+    const YarrRegularExpression valid{&compiled};
+    const YarrRegularExpression invalid{&failed};
+    Check(_ZNK3JSC4Yarr17RegularExpression7isValidEv(&valid), __LINE__);
+    Check(!_ZNK3JSC4Yarr17RegularExpression7isValidEv(&invalid), __LINE__);
+    Check(compiled.refCount == 1 && compiled.lastMatchLength == -1 && compiled.byteCode == &bytecode, __LINE__);
+
+    alignas(8) unsigned char raw[32];
+    std::memset(raw, 0xFF, sizeof(raw));
+    std::memset(raw + 24, 0, 8);
+    const YarrRegularExpression rawExpression{reinterpret_cast<YarrRegularExpressionPrivate*>(raw)};
+    Check(!_ZNK3JSC4Yarr17RegularExpression7isValidEv(&rawExpression), __LINE__);
+    raw[31] = 1;
+    Check(_ZNK3JSC4Yarr17RegularExpression7isValidEv(&rawExpression), __LINE__);
+
+    const YarrRegularExpression empty{nullptr};
+    Check(Throws([&] { _ZNK3JSC4Yarr17RegularExpression7isValidEv(&empty); }), __LINE__);
+    Check(Throws([] { _ZNK3JSC4Yarr17RegularExpression7isValidEv(nullptr); }), __LINE__);
+}
+
+void TestEmptyBodies() {
+    unsigned char cell[32];
+    unsigned char other[32];
+    std::memset(cell, 0x5A, sizeof(cell));
+    std::memset(other, 0xA5, sizeof(other));
+    _ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE(cell, other);
+    _ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE(nullptr, nullptr);
+    _ZN3JSC7JSProxy25getStructurePropertyNamesEPNS_8JSObjectEPNS_14JSGlobalObjectERNS_17PropertyNameArrayENS_15EnumerationModeE(cell, other, other, 0x100000001ull);
+    _ZN3JSC7JSProxy25getStructurePropertyNamesEPNS_8JSObjectEPNS_14JSGlobalObjectERNS_17PropertyNameArrayENS_15EnumerationModeE(nullptr, nullptr, nullptr, 0);
+    for (unsigned char byte : cell) Check(byte == 0x5A, __LINE__);
+    for (unsigned char byte : other) Check(byte == 0xA5, __LINE__);
+}
+
 }
 
 int main() {
@@ -553,6 +600,8 @@ int main() {
     TestRemoteTargets();
     TestScriptCallStackConstructors();
     TestAsyncCallIdentifier();
+    TestRegularExpressionIsValid();
+    TestEmptyBodies();
     std::puts("JSC runtime tests passed");
     return 0;
 }

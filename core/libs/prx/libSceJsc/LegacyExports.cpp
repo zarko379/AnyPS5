@@ -281,10 +281,6 @@ int APS5_VABI _ZN9Inspector20CSSBackendDispatcher12setStyleTextElON3WTF6RefPtrIN
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN3JSC7JSProxy25getStructurePropertyNamesEPNS_8JSObjectEPNS_14JSGlobalObjectERNS_17PropertyNameArrayENS_15EnumerationModeE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN9Inspector21HeapBackendDispatcher13startTrackingElON3WTF6RefPtrINS1_8JSONImpl6ObjectENS1_13DumbPtrTraitsIS4_EEEE() {
     NotImplemented_nid_no_patch(__func__);
 }

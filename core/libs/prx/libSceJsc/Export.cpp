@@ -643,10 +643,6 @@ int APS5_VABI _ZN3JSC12JSLockHolderC1ERNS_2VME() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZNK3JSC4Yarr17RegularExpression7isValidEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN10Deprecated18ScriptFunctionCallC2ERKNS_12ScriptObjectERKN3WTF6StringEPFN3JSC7JSValueEPNS8_14JSGlobalObjectES9_RKNS8_8CallDataES9_RKNS8_7ArgListERNS4_8NakedPtrINS8_9ExceptionEEEE() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -1130,10 +1126,6 @@ int APS5_VABI _ZN3JSC4callEPNS_14JSGlobalObjectENS_7JSValueERKNS_8CallDataES2_RK
 }
 
 int APS5_VABI _ZN3JSC4callEPNS_14JSGlobalObjectENS_7JSValueES2_RKNS_7ArgListEPKc() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE() {
     NotImplemented_nid_no_patch(__func__);
 }
 

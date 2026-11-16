@@ -54,6 +54,19 @@ struct InternalFunction {
     const void* globalObject;
 };
 
+struct YarrRegularExpressionPrivate {
+    unsigned refCount;
+    std::uint8_t constructionErrorCode;
+    void* regexAllocatorHead;
+    int lastMatchLength;
+    unsigned numSubpatterns;
+    void* byteCode;
+};
+
+struct YarrRegularExpression {
+    YarrRegularExpressionPrivate* d;
+};
+
 static_assert(sizeof(FreeCell) == 16);
 static_assert(offsetof(FreeCell, scrambledNext) == 8);
 static_assert(sizeof(FreeList) == 40);
@@ -79,6 +92,13 @@ static_assert(std::is_trivially_copyable_v<CallData>);
 static_assert(sizeof(InternalFunction) == 48);
 static_assert(offsetof(InternalFunction, functionForCall) == 16);
 static_assert(offsetof(InternalFunction, functionForConstruct) == 24);
+static_assert(sizeof(YarrRegularExpressionPrivate) == 32);
+static_assert(offsetof(YarrRegularExpressionPrivate, constructionErrorCode) == 4);
+static_assert(offsetof(YarrRegularExpressionPrivate, regexAllocatorHead) == 8);
+static_assert(offsetof(YarrRegularExpressionPrivate, lastMatchLength) == 16);
+static_assert(offsetof(YarrRegularExpressionPrivate, numSubpatterns) == 20);
+static_assert(offsetof(YarrRegularExpressionPrivate, byteCode) == 24);
+static_assert(sizeof(YarrRegularExpression) == 8);
 
 } // namespace Jsc::JscAbi
 
@@ -93,6 +113,10 @@ Jsc::JscAbi::CallData APS5_VABI _ZN3JSC6JSCell16getConstructDataEPS0_(void* cell
 Jsc::JscAbi::CallData APS5_VABI _ZN3JSC16InternalFunction11getCallDataEPNS_6JSCellE(Jsc::JscAbi::InternalFunction* cell);
 Jsc::JscAbi::CallData APS5_VABI _ZN3JSC16InternalFunction16getConstructDataEPNS_6JSCellE(Jsc::JscAbi::InternalFunction* cell);
 void APS5_VABI _ZN3JSC6JSCell7destroyEPS0_(void* cell);
+void APS5_VABI _ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE(void* cell, void* analyzer);
+void APS5_VABI _ZN3JSC7JSProxy25getStructurePropertyNamesEPNS_8JSObjectEPNS_14JSGlobalObjectERNS_17PropertyNameArrayENS_15EnumerationModeE(
+    void* object, void* globalObject, void* propertyNames, std::uint64_t mode);
+bool APS5_VABI _ZNK3JSC4Yarr17RegularExpression7isValidEv(const Jsc::JscAbi::YarrRegularExpression* self);
 std::uint64_t APS5_VABI _ZN3JSC20speculationFromValueENS_7JSValueE(std::uint64_t value);
 std::uint64_t APS5_VABI _ZN3JSC8JSObject6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(void* cell, void* globalObject, std::uint8_t ecmaMode);
 std::uint64_t APS5_VABI _ZN3JSC7JSScope6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(void* cell, void* globalObject, std::uint8_t ecmaMode);

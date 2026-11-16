@@ -35,6 +35,8 @@ extern "C" {
 
 void APS5_VABI _ZN3JSC6JSCell7destroyEPS0_(void*) {}
 
+void APS5_VABI _ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE(void*, void*) {}
+
 Jsc::JscAbi::CallData APS5_VABI _ZN3JSC6JSCell11getCallDataEPS0_(void*) {
     return EmptyCallData();
 }
