@@ -9,6 +9,7 @@
 //   Copyright (C) 1997-2016, International Business Machines
 //   Corporation and others.  All Rights Reserved.
 
+#include "prx/libSceIcu/Defaults.hpp"
 #include "prx/libSceIcu/include/InventoryExports.hpp"
 #include "prx/libSceIcu/Backend.hpp"
 #include "prx/libSceIcu/Status.hpp"
