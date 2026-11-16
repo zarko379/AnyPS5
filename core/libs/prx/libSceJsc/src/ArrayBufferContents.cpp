@@ -111,8 +111,7 @@ void Clear(ArrayBufferContents& contents) {
     Reset(contents);
 }
 
-void TransferTo(ArrayBufferContents& source, ArrayBufferContents& target, const char* function) {
-    RequireSharedSurvives(LoadPacked(target.shared), function);
+void TransferTo(ArrayBufferContents& source, ArrayBufferContents& target) {
     if (source.sizeInBytes > MaxArrayBufferSize) throw std::length_error("JSC::ArrayBufferContents: size above MAX_ARRAY_BUFFER_SIZE");
     Clear(target);
     target.data = source.data;
@@ -139,10 +138,10 @@ void Construct(ArrayBufferContents* self) {
     contents.sizeInBytes = 0;
 }
 
-void MoveConstruct(ArrayBufferContents* self, ArrayBufferContents* other, const char* function) {
+void MoveConstruct(ArrayBufferContents* self, ArrayBufferContents* other) {
     auto& source = Checked(other);
     Construct(self);
-    TransferTo(source, *self, function);
+    TransferTo(source, *self);
 }
 
 void DestroyMembers(ArrayBufferContents* self, const char* function) {
@@ -166,16 +165,18 @@ void APS5_VABI _ZN3JSC19ArrayBufferContentsC2Ev(ArrayBufferContents* self) {
 }
 
 void APS5_VABI _ZN3JSC19ArrayBufferContentsC1EOS0_(ArrayBufferContents* self, ArrayBufferContents* other) {
-    MoveConstruct(self, other, __func__);
+    MoveConstruct(self, other);
 }
 
 void APS5_VABI _ZN3JSC19ArrayBufferContentsC2EOS0_(ArrayBufferContents* self, ArrayBufferContents* other) {
-    MoveConstruct(self, other, __func__);
+    MoveConstruct(self, other);
 }
 
 ArrayBufferContents* APS5_VABI _ZN3JSC19ArrayBufferContentsaSEOS0_(ArrayBufferContents* self, ArrayBufferContents* other) {
     auto& target = Checked(self);
-    TransferTo(Checked(other), target, __func__);
+    auto& source = Checked(other);
+    RequireSharedSurvives(LoadPacked(target.shared), __func__);
+    TransferTo(source, target);
     return self;
 }
 
