@@ -1,6 +1,7 @@
 #include "prx/libSceLibreSsl3/libSceLibreSsl3.hpp"
 #include "prx/libSceLibreSsl/include/Ec.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
+#include "prx/libc/include/ApplicationHeap.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -244,6 +245,8 @@ void RejectsANullInput() {
 }
 
 int main() {
+    void* api[10]{};
+    ApplicationHeapRegister_nid_no_patch(api);
     DecodesEachNamedCurve();
     ReadsBerHeaders();
     FillsOrReusesTheCallersKey();
