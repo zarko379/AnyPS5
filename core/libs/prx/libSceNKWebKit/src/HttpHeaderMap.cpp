@@ -31,6 +31,7 @@
 
 #include "prx/libSceNKWebKit/include/HttpHeaderMapExports.hpp"
 #include "prx/libSceNKWebKit/include/WtfExports.hpp"
+#include "prx/libSceNKWebKit/include/WtfValueExports.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -192,6 +193,36 @@ bool Remove(HeaderVector<TEntry>& vector, TMatch match) {
 
 }
 
+namespace {
+
+String IsolatedCopy(const String& value) {
+    return _ZNKR3WTF6String12isolatedCopyEv(&value);
+}
+
+template<class TEntry, class TCopy>
+HeaderVector<TEntry> CrossThreadCopy(const HeaderVector<TEntry>& source, TCopy copy) {
+    Validate(source);
+    HeaderVector<TEntry> result{nullptr, 0, 0};
+    if (!source.size) return result;
+    result.buffer = static_cast<TEntry*>(_ZN3WTF10fastMallocEm(std::size_t(source.size) * sizeof(TEntry)));
+    result.capacity = source.size;
+    try {
+        for (; result.size < source.size; ++result.size) std::construct_at(result.buffer + result.size, copy(source.buffer[result.size]));
+    } catch (...) {
+        for (unsigned i = 0; i < result.size; ++i) std::destroy_at(result.buffer + i);
+        _ZN3WTF8fastFreeEPv(result.buffer);
+        throw;
+    }
+    return result;
+}
+
+void Release(HeaderVector<CommonHeader>& vector) {
+    for (unsigned i = 0; i < vector.size; ++i) std::destroy_at(vector.buffer + i);
+    _ZN3WTF8fastFreeEPv(vector.buffer);
+}
+
+}
+
 void NKWebKit::HttpAbi::UpdateCommonHeader_nid_no_patch(HTTPHeaderMap& map, HTTPHeaderName name, const String& value, bool add) {
     if (static_cast<unsigned>(name) >= headerNames.size()) throw std::out_of_range("invalid HTTPHeaderName");
     auto& vector = map.common;
@@ -263,6 +294,19 @@ bool APS5_VABI _ZN7WebCore13HTTPHeaderMap6removeERKN3WTF6StringE(NKWebKit::HttpA
     HTTPHeaderName known;
     if (FindName(name, known)) return _ZN7WebCore13HTTPHeaderMap6removeENS_14HTTPHeaderNameE(self, known);
     return Remove(map.uncommon, [&](const auto& entry) { return Equal(entry.key, name); });
+}
+
+NKWebKit::HttpAbi::HTTPHeaderMap APS5_VABI _ZNK7WebCore13HTTPHeaderMap12isolatedCopyEv(const NKWebKit::HttpAbi::HTTPHeaderMap* self) {
+    const auto& source = Map(self);
+    HTTPHeaderMap result{};
+    result.common = CrossThreadCopy(source.common, [](const CommonHeader& header) { return CommonHeader{header.key, IsolatedCopy(header.value)}; });
+    try {
+        result.uncommon = CrossThreadCopy(source.uncommon, [](const UncommonHeader& header) { return UncommonHeader{IsolatedCopy(header.key), IsolatedCopy(header.value)}; });
+    } catch (...) {
+        Release(result.common);
+        throw;
+    }
+    return result;
 }
 
 NKWebKit::HttpAbi::ASCIILiteral APS5_VABI _ZN7WebCore20httpHeaderNameStringENS_14HTTPHeaderNameE(NKWebKit::HttpAbi::HTTPHeaderName name) {

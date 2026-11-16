@@ -523,6 +523,39 @@ void TestAliasing() {
     Expect(get(&map, 0), u"a, a");
 }
 
+void TestIsolatedCopy() {
+    using Isolate = Map (APS5_VABI *)(const Map*);
+    const auto isolate = std::bit_cast<Isolate>(&_ZNK7WebCore13HTTPHeaderMap12isolatedCopyEv);
+    Guarded guarded;
+    auto& map = guarded.map;
+    auto accept = Text("Accept");
+    auto custom = Text("X-Custom");
+    auto value = Text("text/html");
+    auto wideValue = Wide(u"été");
+    set(&map, accept, value);
+    set(&map, custom, wideValue);
+    Map copy = isolate(&map);
+    Require(copy.common.size == 1 && copy.common.capacity == 1, "common headers copied with exact capacity");
+    Require(copy.uncommon.size == 1 && copy.uncommon.capacity == 1, "uncommon headers copied with exact capacity");
+    Require(copy.common.buffer != map.common.buffer && copy.uncommon.buffer != map.uncommon.buffer, "fresh buffers");
+    Require(copy.common.buffer[0].key == map.common.buffer[0].key, "common key kept");
+    Require(copy.common.buffer[0].value.impl != value.impl, "common value copied");
+    Expect(copy.common.buffer[0].value, u"text/html");
+    Require(copy.uncommon.buffer[0].key.impl != custom.impl && copy.uncommon.buffer[0].value.impl != wideValue.impl, "uncommon strings copied");
+    Expect(copy.uncommon.buffer[0].key, u"X-Custom");
+    Expect(copy.uncommon.buffer[0].value, u"été");
+    Require(value.impl->refCount == 4 && custom.impl->refCount == 4 && wideValue.impl->refCount == 4, "source references unchanged");
+    Require(map.common.size == 1 && map.uncommon.size == 1, "source unchanged");
+    Destroy(copy.common);
+    Destroy(copy.uncommon);
+
+    Guarded empty;
+    Map emptyCopy = isolate(&empty.map);
+    Require(!emptyCopy.common.buffer && !emptyCopy.common.capacity && !emptyCopy.common.size, "empty common vector");
+    Require(!emptyCopy.uncommon.buffer && !emptyCopy.uncommon.capacity && !emptyCopy.uncommon.size, "empty uncommon vector");
+    RequireThrows([&] { isolate(nullptr); });
+}
+
 void TestInvalidStorage() {
     auto name = Text("Accept");
     auto unknown = Text("X-Unknown");
@@ -622,6 +655,7 @@ int main(int argc, char** argv) {
         TestGrowth();
         TestAliasing();
         TestInvalidStorage();
+        TestIsolatedCopy();
         std::puts("HTTPHeaderMap: lookup, mutation, 95 names, ABI, growth and lifetime checks passed");
     } catch (const std::exception& error) {
         std::fprintf(stderr, "HTTPHeaderMap unexpected exception: %s\n", error.what());
