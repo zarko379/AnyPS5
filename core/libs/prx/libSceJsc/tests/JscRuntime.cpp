@@ -23,6 +23,7 @@ using Jsc::JscAbi::FreeCell;
 using Jsc::JscAbi::FreeList;
 using Jsc::JscAbi::HashTable;
 using Jsc::JscAbi::InternalFunction;
+using Jsc::JscAbi::ScriptCallArgumentHandler;
 
 using InitializeBumpFunction = void (APS5_VABI*)(FreeList*, char*, unsigned);
 using InitializeListFunction = void (APS5_VABI*)(FreeList*, FreeCell*, std::uintptr_t, unsigned);
@@ -267,6 +268,62 @@ void TestToThis() {
     Check(Throws([&] { _ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE(nullptr, global, 0); }), __LINE__);
 }
 
+void TestScriptCallArgumentHandler() {
+    using Constructor = void (APS5_VABI*)(ScriptCallArgumentHandler*, void*);
+    using Destructor = void (APS5_VABI*)(ScriptCallArgumentHandler*);
+    unsigned char global[8]{};
+    for (Constructor construct : {_ZN10Deprecated25ScriptCallArgumentHandlerC1EPN3JSC14JSGlobalObjectE, _ZN10Deprecated25ScriptCallArgumentHandlerC2EPN3JSC14JSGlobalObjectE}) {
+        ScriptCallArgumentHandler handler;
+        std::memset(&handler, 0xA5, sizeof(handler));
+        construct(&handler, global);
+        Check(handler.arguments.overflowed == 0 && handler.arguments.size == 0 && handler.arguments.capacity == 8, __LINE__);
+        Check(handler.arguments.buffer == handler.arguments.inlineBuffer && handler.arguments.markSet == nullptr, __LINE__);
+        Check(handler.globalObject == global, __LINE__);
+        Check(handler.arguments.inlineBuffer[0] == 0xA5A5A5A5A5A5A5A5ull, __LINE__);
+    }
+
+    ScriptCallArgumentHandler handler;
+    _ZN10Deprecated25ScriptCallArgumentHandlerC1EPN3JSC14JSGlobalObjectE(&handler, nullptr);
+    Check(handler.globalObject == nullptr, __LINE__);
+    _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(&handler, true);
+    _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(&handler, false);
+    _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEN3JSC7JSValueE(&handler, 0xfffe00000000002Aull);
+    Check(handler.arguments.size == 3, __LINE__);
+    Check(handler.arguments.inlineBuffer[0] == 0x7 && handler.arguments.inlineBuffer[1] == 0x6, __LINE__);
+    Check(handler.arguments.inlineBuffer[2] == 0xfffe00000000002Aull, __LINE__);
+    for (std::uint64_t value = 3; value < 8; ++value)
+        _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEN3JSC7JSValueE(&handler, value);
+    Check(handler.arguments.size == 8 && handler.arguments.inlineBuffer[7] == 7, __LINE__);
+    Check(ThrowsRuntime([&] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(&handler, true); }), __LINE__);
+    Check(ThrowsRuntime([&] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEN3JSC7JSValueE(&handler, 0xA); }), __LINE__);
+    Check(handler.arguments.size == 8 && handler.arguments.buffer == handler.arguments.inlineBuffer, __LINE__);
+
+    for (Destructor destroy : {_ZN10Deprecated25ScriptCallArgumentHandlerD1Ev, _ZN10Deprecated25ScriptCallArgumentHandlerD2Ev}) {
+        ScriptCallArgumentHandler before = handler;
+        destroy(&handler);
+        Check(std::memcmp(&before, &handler, sizeof(handler)) == 0, __LINE__);
+        std::uint64_t heap[16]{};
+        handler.arguments.buffer = heap;
+        Check(ThrowsRuntime([&] { destroy(&handler); }), __LINE__);
+        handler.arguments.buffer = handler.arguments.inlineBuffer;
+        handler.arguments.markSet = global;
+        Check(ThrowsRuntime([&] { destroy(&handler); }), __LINE__);
+        handler.arguments.markSet = nullptr;
+    }
+
+    std::uint64_t heap[16]{};
+    ScriptCallArgumentHandler grown;
+    _ZN10Deprecated25ScriptCallArgumentHandlerC2EPN3JSC14JSGlobalObjectE(&grown, global);
+    grown.arguments.buffer = heap;
+    grown.arguments.capacity = 16;
+    Check(ThrowsRuntime([&] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(&grown, true); }), __LINE__);
+    Check(grown.arguments.size == 0 && heap[0] == 0, __LINE__);
+
+    Check(Throws([] { _ZN10Deprecated25ScriptCallArgumentHandlerC1EPN3JSC14JSGlobalObjectE(nullptr, nullptr); }), __LINE__);
+    Check(Throws([] { _ZN10Deprecated25ScriptCallArgumentHandlerD2Ev(nullptr); }), __LINE__);
+    Check(Throws([] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(nullptr, true); }), __LINE__);
+}
+
 }
 
 int main() {
@@ -278,6 +335,7 @@ int main() {
     TestSpeculationFromValue();
     TestDestroy();
     TestToThis();
+    TestScriptCallArgumentHandler();
     std::puts("JSC runtime tests passed");
     return 0;
 }

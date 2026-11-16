@@ -54,6 +54,8 @@
 
 - [JSC toThis exports](../../../core/libs/prx/libSceJsc/src/JscToThis.cpp) (libSceJsc) - not measured on a console; the JavaScriptCore version and the one-byte [ECMAMode](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/ECMAMode.h#L34-L56) (0 strict) are unverified. `JSObject::toThis` returns the cell as a value ([JSObject.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSObject.cpp#L2519-L2522)). In strict mode `JSScope::toThis` returns `undefined` ([JSScope.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSScope.cpp#L415-L420)) and `JSValue::toThisSlowCase` the value itself ([JSCJSValue.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSCJSValue.cpp#L119-L124)). Sloppy mode needs `globalThis` or a new wrapper object, which nothing here models, and keeps calling `NotImplemented_nid_no_patch`. A null value pointer throws where WebKit faults.
 
+- [Deprecated::ScriptCallArgumentHandler](../../../core/libs/prx/libSceJsc/src/DeprecatedScriptCallArgumentHandler.cpp) (libSceJsc) - not measured on a console; the version and layout (overflow byte, size at 4, capacity at 8, eight inline values from 16, buffer at 80, mark set at 88, global object at 96) are unverified. The constructors, destructors and `JSValue` and `bool` arguments follow pinned [ScriptFunctionCall.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/bindings/ScriptFunctionCall.h#L46-L62), [ScriptFunctionCall.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/bindings/ScriptFunctionCall.cpp#L57-L95) and [ArgList.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/ArgList.h#L45-L99). A ninth argument, a heap buffer or a mark set needs `slowAppend`, the heap and `Gigacage::free`, none modelled here, and keeps calling `NotImplemented_nid_no_patch`. A null `this` throws.
+
 - [WTF nullString, String::toUIntStrict and StringImpl::utf8Impl](../../../core/libs/prx/libSceJsc/src/WtfStringConversion.cpp) (libSceJsc) - not measured on a console; the WTF version and string layouts are unverified. `nullString` returns one static null `String` ([WTFString.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/WTFString.cpp#L1106-L1110)). `toUIntStrict` follows [WTFString.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/WTFString.cpp#L526-L534) and [StringToIntegerConversion.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/StringToIntegerConversion.h#L33-L122); non-Latin-1 whitespace is the bidi class WS set, as in `URL::port`. `utf8Impl` follows [StringImpl.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/StringImpl.cpp#L1755-L1813) over `convertUTF16ToUTF8`. Base 0, a null `this` and output past the buffer, where WebKit divides by zero, faults or asserts, throw.
 
 - [WTF::JSONImpl Value and ArrayBase accessors](../../../core/libs/prx/libSceJsc/src/WtfJson.cpp) (libSceJsc) - not measured on a console; the console WTF version is unverified. They read the libSceNKWebKit layout (vtable at 0, 32-bit count at 8, type at 12, value at 16, array `Vector` at 24) and follow pinned [JSONValues.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/JSONValues.cpp#L492-L664) and [JSONValues.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/JSONValues.h#L292-L328): `asBoolean` and `asString` copy only a matching type, `asValue` stores `this` with a reference and drops the old value through its deleting destructor, `length` and `end` read the vector. `asString` throws instead of releasing the last reference to the old string, since `StringImpl::destroy` is in libSceNKWebKit. Null pointers throw where WebKit faults.
@@ -92,7 +94,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 292 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 286 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -115,19 +117,13 @@
 | `_ZN10Deprecated18ScriptFunctionCallC1ERKNS_12ScriptObjectERKN3WTF6StringEPFN3JSC7JSValueEPNS8_14JSGlobalObjectES9_RKNS8_8CallDataES9_RKNS8_7ArgListERNS4_8NakedPtrINS8_9ExceptionEEEE` | `a-LHP9X0jDw` |
 | `_ZN10Deprecated18ScriptFunctionCallD1Ev` | `k6egh+rev0s` |
 | `_ZN10Deprecated18ScriptFunctionCallD2Ev` | `mgFuLMJg7cY` |
-| `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEN3JSC7JSValueE` | `b0+W39D6M9A` |
 | `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEPKc` | `3U2E2PkIKxM` |
 | `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentERKN3WTF6StringE` | `nGOnPCtlTvI` |
-| `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb` | `ntUjLWHNhAM` |
 | `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEi` | `qt8HISNT7CQ` |
 | `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEj` | `kntFpAbDN0w` |
 | `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEl` | `BEYVp9YbGN8` |
 | `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEm` | `LEC1dK5v-Kg` |
 | `_ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEx` | `Oqc2X663Vqc` |
-| `_ZN10Deprecated25ScriptCallArgumentHandlerC1EPN3JSC14JSGlobalObjectE` | `zs2x0c+f2hU` |
-| `_ZN10Deprecated25ScriptCallArgumentHandlerC2EPN3JSC14JSGlobalObjectE` | `9ByZEM2Rtbk` |
-| `_ZN10Deprecated25ScriptCallArgumentHandlerD1Ev` | `Kbexb6kz+D0` |
-| `_ZN10Deprecated25ScriptCallArgumentHandlerD2Ev` | `GyFZR4d5pHg` |
 | `_ZN10Deprecated25ScriptCallArgumentHandlernaEm` | `gsnLR9VxDdc` |
 | `_ZN10Deprecated25ScriptCallArgumentHandlernwEm` | `HJshvcn63K4` |
 | `_ZN3JSC10Identifier3addERNS_2VMEPKc` | `Yig0tJzlpwk` |
