@@ -1,6 +1,7 @@
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
 #include "prx/libc/include/General.hpp"
+#include "prx/libSceLibcInternal/include/InventoryExports.hpp"
 #include "prx/libSceLibcInternal/include/InventoryExports6.hpp"
 #include <array>
 #include <cstddef>
@@ -55,6 +56,18 @@ int main() {
         _ZNSt24_Iostream_error_categoryD0Ev_nid_postfix,
         _ZNSt8messagesIcED0Ev_nid_postfix,
         _ZNSt9money_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEED0Ev_nid_postfix,
+        libSceLibcInternalInventory_020_nid_no_patch,
+        libSceLibcInternalInventory_090_nid_no_patch,
+        libSceLibcInternalInventory_096_nid_no_patch,
+        libSceLibcInternalInventory_101_nid_no_patch,
+        libSceLibcInternalInventory_110_nid_no_patch,
+        libSceLibcInternalInventory_116_nid_no_patch,
+        libSceLibcInternalInventory_124_nid_no_patch,
+        libSceLibcInternalInventory_131_nid_no_patch,
+        libSceLibcInternalInventory_136_nid_no_patch,
+        libSceLibcInternalInventory_212_nid_no_patch,
+        libSceLibcInternalInventory_223_nid_no_patch,
+        libSceLibcInternalInventory_232_nid_no_patch,
     };
 
     for (Destructor destructor : destructors) {
@@ -66,6 +79,12 @@ int main() {
         Require(releases == 1 && lastReleased == object, "the deleting destructor releases the object");
     }
 
+    std::array<unsigned char, 16> category{};
+    category.fill(0xa5);
+    releases = 0;
+    libSceLibcInternalInventory_058_nid_no_patch(category.data());
+    Require(releases == 0, "the _Iostream_error_category complete-object destructor releases nothing");
+    for (unsigned char byte : category) Require(byte == 0xa5, "the _Iostream_error_category complete-object destructor leaves the object untouched");
     std::puts("libc internal deleting destructor checks passed");
     return 0;
 }

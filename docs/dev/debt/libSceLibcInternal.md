@@ -29,7 +29,6 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 | `_ZNSt10moneypunctIwLb1EED1Ev` | `OM0FnA7Tldk` |
 | `_ZNSt10moneypunctIwLb1EED2Ev` | `uVOxy7dQTFc` |
 | `_ZNSt12future_errorD0Ev` | `rNYLEsL7M0k` |
-| `_ZNSt13bad_exceptionD0Ev` | `lX9M5u0e48k` |
 | `_ZNSt13bad_exceptionD1Ev` | `t6egllDqQ2M` |
 | `_ZNSt13bad_exceptionD2Ev` | `iWNC2tkDgxw` |
 | `_ZNSt13basic_filebufIcSt11char_traitsIcEE4syncEv` | `VNaqectsZNs` |
@@ -55,7 +54,6 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 | `_ZNSt13basic_ostreamIwSt11char_traitsIwEED1Ev` | `EYZJsnX58DE` |
 | `_ZNSt15basic_streambufIcSt11char_traitsIcEE6xsgetnEPci` | `VpwymQiS4ck` |
 | `_ZNSt15basic_streambufIwSt11char_traitsIwEE6xsgetnEPwi` | `lZVehk7yFok` |
-| `_ZNSt24_Iostream_error_categoryD1Ev` | `27Z-Cx1jbkU` |
 | `_ZNSt4_Pad7_LaunchEPKcPP12pthread_attrPP7pthread` | `H7-7Z3ixv-w` |
 | `_ZNSt4_Pad7_LaunchEPKcPP7pthread` | `PBbZjsL6nfc` |
 | `_ZNSt4_PadC2EPKc` | `uhnb6dnXOnc` |
@@ -82,18 +80,15 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 | `_ZNSt7_MpunctIwE5_InitERKSt8_Locinfob` | `iCoD0EOIbTM` |
 | `_ZNSt7_MpunctIwEC2EPKcmbb` | `TDhjx3nyaoU` |
 | `_ZNSt7_MpunctIwED1Ev` | `0TADyPWrobI` |
-| `_ZNSt7codecvtIDic9_MbstatetED0Ev` | `vwMx2NhWdLw` |
 | `_ZNSt7codecvtIDic9_MbstatetED1Ev` | `TuhGCIxgLvA` |
 | `_ZNSt7codecvtIDsc9_MbstatetED0Ev` | `zYHryd8vd0w` |
 | `_ZNSt7codecvtIcc9_MbstatetEC1ERKSt8_Locinfom` | `3YCLxZqgIdo` |
 | `_ZNSt7codecvtIcc9_MbstatetEC2ERKSt8_Locinfom` | `4qHwSTPt-t8` |
 | `_ZNSt7codecvtIcc9_MbstatetEC2Em` | `e5Hwcntvd8c` |
-| `_ZNSt7codecvtIcc9_MbstatetED0Ev` | `2TYdayAO39E` |
 | `_ZNSt7codecvtIcc9_MbstatetED1Ev` | `djNkrJKTb6Q` |
 | `_ZNSt7codecvtIwc9_MbstatetED1Ev` | `0fkFA3za2N8` |
 | `_ZNSt7collateIcEC2ERKSt8_Locinfom` | `L71JAnoQees` |
 | `_ZNSt7collateIcEC2Em` | `tkqNipin1EI` |
-| `_ZNSt7collateIcED0Ev` | `Lt4407UMs2o` |
 | `_ZNSt7collateIcED1Ev` | `8pXCeme0FC4` |
 | `_ZNSt7collateIcED2Ev` | `dP5zwQ2Yc8g` |
 | `_ZNSt7collateIwE5_InitERKSt8_Locinfo` | `LxKs-IGDsFU` |
@@ -102,13 +97,11 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 | `_ZNSt7collateIwEC2EPKcm` | `PSAw7g1DD24` |
 | `_ZNSt7collateIwEC2ERKSt8_Locinfom` | `2PoQu-K2qXk` |
 | `_ZNSt7collateIwEC2Em` | `HQbgeUdQyyw` |
-| `_ZNSt7collateIwED0Ev` | `ig4VDIRc21Q` |
 | `_ZNSt7collateIwED1Ev` | `ZO3a6HfALTQ` |
 | `_ZNSt7collateIwED2Ev` | `84wIPnwBGiU` |
 | `_ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEEC1Em` | `uXj-oWD2334` |
 | `_ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEEC2ERKSt8_Locinfom` | `yAobGI2Whrg` |
 | `_ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEEC2Em` | `RNmYVYlZvv8` |
-| `_ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEED0Ev` | `-1G1iE3KyGI` |
 | `_ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEED1Ev` | `kAay0hfgDJs` |
 | `_ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEED2Ev` | `6S8jzWWGcWo` |
 | `_ZNSt7num_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEE5_InitERKSt8_Locinfo` | `4MHgRGOKOXY` |
@@ -116,19 +109,16 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 | `_ZNSt7num_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEEC1Em` | `18rLbEV-NQs` |
 | `_ZNSt7num_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEEC2ERKSt8_Locinfom` | `e3shgCIZxRc` |
 | `_ZNSt7num_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEEC2Em` | `-+RKa3As0gE` |
-| `_ZNSt7num_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEED0Ev` | `aHDdLa7jA1U` |
 | `_ZNSt7num_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEED1Ev` | `Zbaaq-d70ms` |
 | `_ZNSt7num_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEED2Ev` | `bwVJf3kat9c` |
 | `_ZNSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE5_InitERKSt8_Locinfo` | `BbJ4naWZeRw` |
 | `_ZNSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEEC1ERKSt8_Locinfom` | `Hg1im-rUeHc` |
 | `_ZNSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEEC1Em` | `LAEVU8cBSh4` |
 | `_ZNSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEEC2ERKSt8_Locinfom` | `Mniutm2JL2M` |
-| `_ZNSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEED0Ev` | `aOK5ucXO-5g` |
 | `_ZNSt7num_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEED1Ev` | `WoCt9o2SYHw` |
 | `_ZNSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEEC1ERKSt8_Locinfom` | `Ky+C-qbKcX0` |
 | `_ZNSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEEC1Em` | `xdHqQoggdfo` |
 | `_ZNSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEEC2Em` | `f1ZGLUnQGgo` |
-| `_ZNSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEED0Ev` | `jyXTVnmlJD4` |
 | `_ZNSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEED1Ev` | `WiUy3dEtCOQ` |
 | `_ZNSt7num_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEED2Ev` | `6hV3y21d59k` |
 | `_ZNSt8_Locinfo8_AddcatsEiPKc` | `WkAsdy5CUAo` |
@@ -199,7 +189,6 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 | `_ZNSt9money_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEED2Ev` | `CClObiVHzDY` |
 | `_ZNSt9money_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEE5_InitERKSt8_Locinfo` | `JOj6qfc4VLs` |
 | `_ZNSt9money_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEEC1ERKSt8_Locinfom` | `ej+44l1PjjY` |
-| `_ZNSt9money_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEED0Ev` | `RB3ratfpZDc` |
 | `_ZNSt9money_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEED1Ev` | `a6yvHMSqsV0` |
 | `_ZNSt9money_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEED2Ev` | `7ZmeGHyM6ew` |
 | `_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE4_PutES3_St22_String_const_iteratorISt11_String_valISt13_Simple_typesIcEEEm` | `66AuqgLnsQE` |
@@ -209,7 +198,6 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 | `_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEEC1Em` | `Qi5fpNt5+T0` |
 | `_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEEC2ERKSt8_Locinfom` | `b2na0Dzd5j8` |
 | `_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEEC2Em` | `XqbpfYmAZB4` |
-| `_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEED0Ev` | `s2zG12AYKTg` |
 | `_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEED1Ev` | `AnE9WWbyWkM` |
 | `_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEED2Ev` | `MuACiCSA8-s` |
 | `_ZNSt9money_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE5_InitERKSt8_Locinfo` | `kJmdxo4uM+8` |
@@ -217,7 +205,6 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 | `_ZNSt9money_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEEC1Em` | `rme+Po9yI5M` |
 | `_ZNSt9money_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEEC2Em` | `jIvWFH24Bjw` |
 | `_ZNSt9money_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEED2Ev` | `4+oswXtp7PQ` |
-| `_ZNSt9type_infoD0Ev` | `N5nZ3wQw+Vc` |
 | `_ZNSt9type_infoD1Ev` | `LLssoYjMOow` |
 | `_ZNSt9type_infoD2Ev` | `zb3436295XU` |
 | `_ZSt10_GetloctxtIcSt19istreambuf_iteratorIwSt11char_traitsIwEEEiRT0_S5_mPKT_` | `FX+eS2YsEtY` |
@@ -301,6 +288,8 @@ The named entries below use provider-specific NID aliases to avoid interposing h
 
 ### Functional
 
+- [_ZNSt24_Iostream_error_categoryD1Ev](../../../core/libs/prx/libSceLibcInternal/InventoryExports.cpp) (libSceLibcInternal, NID `27Z-Cx1jbkU`) - deduced from the implemented `_System_error_category`, `_Generic_error_category` and `_Future_error_category` complete-object destructors in `ExceptionDestructors.cpp`, not measured on a console: like them it runs libc's `_ZNSt14error_categoryD2Ev`, which does nothing, since the category adds no member to `error_category`.
+- [Deleting destructors of bad_exception, type_info and the codecvt<char>, codecvt<char32_t>, collate, num_get, num_put, money_get<wchar_t> and money_put<char> facets](../../../core/libs/prx/libSceLibcInternal/InventoryExports.cpp) (libSceLibcInternal, NIDs `lX9M5u0e48k`, `vwMx2NhWdLw`, `2TYdayAO39E`, `Lt4407UMs2o`, `ig4VDIRc21Q`, `-1G1iE3KyGI`, `aHDdLa7jA1U`, `aOK5ucXO-5g`, `jyXTVnmlJD4`, `RB3ratfpZDc`, `s2zG12AYKTg`, `N5nZ3wQw+Vc`) - deduced, not measured on a console: under the [Itanium C++ ABI](https://itanium-cxx-abi.github.io/cxx-abi/abi.html#definitions) a deleting destructor runs the complete-object destructor and then `operator delete`. Each class's `D1` here is the empty function described under the empty facet members above, so `D0` only calls `operator delete` (`_ZdlPv`) on the object, as the `ios_base` and `messages` deleting destructors already do.
 - [_ZNSt8_LocinfoC1EiPKc, _ZNSt8_LocinfoC2EiPKc, _ZNSt8_LocinfoC1ERKSs and _ZNSt8_LocinfoC2ERKSs](../../../core/libs/prx/libSceLibcInternal/LocaleObjects.cpp) (libSceLibcInternal, NIDs `L1Ze94yof2I`, `i180MNC9p4c`, `2aSk2ruCP0E` and `ReK9U6EUWuU`) - deduced, not measured on a console: they are the category and `std::string` forms of the implemented `_Locinfo(const char*)`. In microsoft/STL `stl/inc/xlocinfo` and `stl/src/locale.cpp` at `e1ed302683e5e822f663fbb0f44cee7e9ddc6af0` the category only chooses which categories take the name (`_Locinfo_Addcats`), and with libc's model, which accepts only the `C` locale, every category is `C` either way, so all four run libc's `_ZNSt8_LocinfoC1EPKc` and reject every other name. The string forms pass `c_str()` of the 0x28-byte string (inline buffer up to capacity 15), so the name ends at its first null. `_Addcats` stays unimplemented.
 - [locale::facet::_Incref and _Decref](../../../core/libs/prx/libSceLibcInternal/LocaleObjects.cpp) (libSceLibcInternal, NIDs `-EgSegeAKl4` and `AgxEl+HeWRQ`) - deduced, not measured on a console: microsoft/STL `stl/inc/xlocale` at `219514876ea86491de191ceaa88632616bbc0f19` (lines 136-146) increments and decrements the facet's `_Atomic_counter_t _Myrefs` atomically, and `_Decref` returns the facet when the count reaches zero and null otherwise. The count is the 32-bit word at offset 8 of `GuestLocale::Facet`, which libc's own facets update the same way through vtable slots 2 and 3 (`RetainFacet` and `ReleaseFacet`). Neither checks for overflow, so `_Decref` at zero wraps to `0xffffffff` and returns null, as the 2195 code does. A null facet throws, where the console would fault.
 - [__kernel_sin, __kernel_cos, __kernel_sindf and __kernel_cosdf](../../../core/libs/prx/libSceLibcInternal/TrigKernels.cpp) (libSceLibcInternal, NIDs `zpy7LnTL5p0`, `-m7FIvSBbMM`, `2Lvc7KWtErs` and `7ruwcMCJVGI`) - not measured on a console and the module was not read. They port FreeBSD 11.4 (`8c639945a44588f6cfdddfb057bb5aad88735da0`) `lib/msun/src/k_sin.c`, `k_cos.c`, `k_sinf.c` and `k_cosf.c` with the prototypes of `math_private.h` lines 800-816: any nonzero `iy` takes the tail path of `__kernel_sin`, arguments beyond about pi/4 are evaluated without a range check as in FreeBSD, and the float kernels round the double polynomial to `float`. Floating-point contraction is off, so results match an SSE2 build of that source bit for bit.
