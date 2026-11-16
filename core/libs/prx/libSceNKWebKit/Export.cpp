@@ -17148,10 +17148,6 @@ int APS5_VABI _ZN7WebCore14SecurityOrigin6createERKN3WTF3URLE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN7WebCore14SecurityPolicy27resetOriginAccessAllowlistsEv() {
     NotImplemented_nid_no_patch(__func__);
 }

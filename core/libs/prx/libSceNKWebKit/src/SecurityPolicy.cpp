@@ -82,9 +82,27 @@ bool ProtocolIs(const String& string, const char* protocol) {
     return false;
 }
 
+constexpr int AllowLocalLoadsForAll = 0;
+constexpr int AllowLocalLoadsForLocalOnly = 2;
+
+int localLoadPolicy = AllowLocalLoadsForLocalOnly;
+
+}
+
+namespace NKWebKit::WebCoreAbi {
+
+int SecurityPolicyLocalLoadPolicy() {
+    return localLoadPolicy;
+}
+
 }
 
 extern "C" {
+
+void APS5_VABI _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE(int policy) {
+    if (policy < AllowLocalLoadsForAll || policy > AllowLocalLoadsForLocalOnly) throw std::invalid_argument("invalid WebCore::SecurityPolicy::LocalLoadPolicy");
+    localLoadPolicy = policy;
+}
 
 bool APS5_VABI _ZN7WebCore14SecurityPolicy18shouldHideReferrerERKN3WTF3URLERKNS1_6StringE(const NKWebKit::WtfAbi::URL* url, const String* referrer) {
     if (!referrer) throw std::invalid_argument("null WTF::String reference");
