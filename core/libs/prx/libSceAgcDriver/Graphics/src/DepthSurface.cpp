@@ -1336,6 +1336,10 @@ public:
         GuestMemory::Read(begin, stencilBaseline);
     }
 
+    bool StencilRewatchedUnchanged(std::uint64_t begin, std::size_t bytes) const {
+        return stencilBaseline.size() == bytes && GuestMemory::OnlyRewatchedSince(begin, bytes, stencilGeneration) && GuestMemory::EqualsCommittedUnsynced(begin, stencilBaseline);
+    }
+
     void MarkStencilStale(bool written = false) {
         if (!StencilMirrorable()) return;
         const auto [begin, end] = staleStencilRange(*this);
@@ -1957,7 +1961,7 @@ public:
         const auto bytes = static_cast<std::size_t>(StencilMirrorBytes());
         GuestMemory::CollectWrites(resource.baseAddress, bytes);
         const auto generation = GuestMemory::TrackerGeneration();
-        const bool changed = stencilGeneration != 0u && GuestMemory::WrittenSince(resource.baseAddress, bytes, stencilGeneration);
+        const bool changed = stencilGeneration != 0u && GuestMemory::WrittenSince(resource.baseAddress, bytes, stencilGeneration) && !StencilRewatchedUnchanged(resource.baseAddress, bytes);
         stencilGeneration = generation;
         if (!changed || (pendingClear & VK_IMAGE_ASPECT_STENCIL_BIT) != 0) return;
         stencilStale = false;
@@ -3679,7 +3683,7 @@ void retireStencil(DepthSurface& surface) {
 bool stencilWrittenSinceBaseline(const DepthSurface& surface, std::uint64_t begin, std::size_t bytes) {
     if (GuestMemory::Watched(begin, bytes)) {
         GuestMemory::CollectWritesUncached(begin, bytes);
-        return surface.stencilGeneration != 0u && GuestMemory::WrittenSince(begin, bytes, surface.stencilGeneration);
+        return surface.stencilGeneration != 0u && GuestMemory::WrittenSince(begin, bytes, surface.stencilGeneration) && !surface.StencilRewatchedUnchanged(begin, bytes);
     }
     return surface.stencilBaseline.size() == bytes && !GuestMemory::EqualsCommittedUnsynced(begin, surface.stencilBaseline);
 }
