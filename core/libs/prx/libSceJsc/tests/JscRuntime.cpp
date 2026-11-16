@@ -31,6 +31,8 @@ using GetCallDataFunction = CallData (APS5_VABI*)(void*);
 using InternalCallDataFunction = CallData (APS5_VABI*)(InternalFunction*);
 using SpeculationFunction = std::uint64_t (APS5_VABI*)(std::uint64_t);
 using DestroyFunction = void (APS5_VABI*)(void*);
+using ToThisFunction = std::uint64_t (APS5_VABI*)(void*, void*, std::uint8_t);
+using ToThisSlowCaseFunction = std::uint64_t (APS5_VABI*)(const std::uint64_t*, void*, std::uint8_t);
 
 static_assert(std::is_same_v<decltype(&_ZN3JSC8FreeList14initializeBumpEPcj), InitializeBumpFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3JSC8FreeList14initializeListEPNS_8FreeCellEmj), InitializeListFunction>);
@@ -41,6 +43,9 @@ static_assert(std::is_same_v<decltype(&_ZN3JSC16InternalFunction11getCallDataEPN
 static_assert(std::is_same_v<decltype(&_ZN3JSC16InternalFunction16getConstructDataEPNS_6JSCellE), InternalCallDataFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3JSC20speculationFromValueENS_7JSValueE), SpeculationFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3JSC6JSCell7destroyEPS0_), DestroyFunction>);
+static_assert(std::is_same_v<decltype(&_ZN3JSC8JSObject6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE), ToThisFunction>);
+static_assert(std::is_same_v<decltype(&_ZN3JSC7JSScope6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE), ToThisFunction>);
+static_assert(std::is_same_v<decltype(&_ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE), ToThisSlowCaseFunction>);
 
 void Check(bool value, int line) {
     if (!value) {
@@ -243,6 +248,25 @@ void TestDestroy() {
     for (unsigned char byte : cell) Check(byte == 0x5A, __LINE__);
 }
 
+void TestToThis() {
+    unsigned char cell[16]{};
+    unsigned char global[16]{};
+    const auto cellBits = reinterpret_cast<std::uint64_t>(cell);
+    Check(_ZN3JSC8JSObject6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(cell, global, 0) == cellBits, __LINE__);
+    Check(_ZN3JSC8JSObject6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(cell, nullptr, 1) == cellBits, __LINE__);
+    Check(_ZN3JSC8JSObject6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(nullptr, global, 1) == 0, __LINE__);
+
+    Check(_ZN3JSC7JSScope6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(cell, global, 0) == 0xA, __LINE__);
+    Check(_ZN3JSC7JSScope6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(nullptr, nullptr, 0) == 0xA, __LINE__);
+    Check(ThrowsRuntime([&] { _ZN3JSC7JSScope6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(cell, global, 1); }), __LINE__);
+
+    for (std::uint64_t value : {0xfffe000000000005ull, 0x0002000000000000ull, 0x6ull, 0x7ull, 0x2ull, 0xAull}) {
+        Check(_ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE(&value, global, 0) == value, __LINE__);
+        Check(ThrowsRuntime([&] { _ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE(&value, global, 1); }), __LINE__);
+    }
+    Check(Throws([&] { _ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE(nullptr, global, 0); }), __LINE__);
+}
+
 }
 
 int main() {
@@ -253,6 +277,7 @@ int main() {
     TestInternalFunction();
     TestSpeculationFromValue();
     TestDestroy();
+    TestToThis();
     std::puts("JSC runtime tests passed");
     return 0;
 }
