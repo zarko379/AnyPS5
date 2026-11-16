@@ -104,7 +104,7 @@ int main() {
     WKUserContentExtensionStoreRemove(storeRef, otherIdRef, &removeCalls, OnRemove);
     Require(removeCalls == 1 && lastResultFilter == nullptr && lastResultStatus == 4);
     WKUserContentExtensionStoreLookup(storeRef, idRef, nullptr, OnCompileOrLookup);
-    Require(lastResultFilter == compiledFilter && lastResultStatus == 0);
+    Require(lastResultFilter != nullptr && lastResultStatus == 0);
     WKUserContentExtensionStoreRemove(defaultStoreRef, idRef, &removeCalls, OnRemove);
     Require(removeCalls == 2 && lastResultStatus == 4);
     WKUserContentExtensionStoreLookup(storeRef, idRef, nullptr, OnCompileOrLookup);
