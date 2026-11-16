@@ -1,5 +1,4 @@
 #pragma once
-#include "CString.hpp"
 #include "Collation.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <cstddef>
@@ -7,16 +6,23 @@
 
 namespace Icu {
 
+union Element {
+    void* pointer;
+    std::int32_t integer;
+};
+
+static_assert(sizeof(Element) == 8);
+
 using ElementDeleter = void (APS5_VABI*)(void*);
-using ElementsAreEqual = std::int8_t (APS5_VABI*)(UHashTok, UHashTok);
-using ElementComparator = std::int8_t (APS5_VABI*)(UHashTok, UHashTok);
-using ElementAssigner = void (APS5_VABI*)(UHashTok*, UHashTok*);
+using ElementsAreEqual = std::int8_t (APS5_VABI*)(Icu::Element, Icu::Element);
+using ElementComparator = std::int8_t (APS5_VABI*)(Icu::Element, Icu::Element);
+using ElementAssigner = void (APS5_VABI*)(Icu::Element*, Icu::Element*);
 
 struct Vector {
     const void* vtable;
     std::int32_t count;
     std::int32_t capacity;
-    UHashTok* elements;
+    Icu::Element* elements;
     ElementDeleter deleter;
     ElementsAreEqual comparer;
 };
@@ -52,7 +58,7 @@ Icu::ElementDeleter APS5_VABI _ZN6icu_687UVector10setDeleterEPFvPvE_nid_postfix(
 Icu::ElementsAreEqual APS5_VABI _ZN6icu_687UVector11setComparerEPFa8UElementS1_E_nid_postfix(Icu::Vector*, Icu::ElementsAreEqual);
 void APS5_VABI _ZN6icu_687UVector12setElementAtEPvi_nid_postfix(Icu::Vector*, void*, std::int32_t);
 void APS5_VABI _ZN6icu_687UVector12setElementAtEii_nid_postfix(Icu::Vector*, std::int32_t, std::int32_t);
-void APS5_VABI _ZN6icu_687UVector12sortedInsertE8UElementPFaS1_S1_ER10UErrorCode_nid_postfix(Icu::Vector*, UHashTok, Icu::ElementComparator, std::int32_t*);
+void APS5_VABI _ZN6icu_687UVector12sortedInsertE8UElementPFaS1_S1_ER10UErrorCode_nid_postfix(Icu::Vector*, Icu::Element, Icu::ElementComparator, std::int32_t*);
 void APS5_VABI _ZN6icu_687UVector12sortedInsertEPvPFa8UElementS2_ER10UErrorCode_nid_postfix(Icu::Vector*, void*, Icu::ElementComparator, std::int32_t*);
 void APS5_VABI _ZN6icu_687UVector12sortedInsertEiPFa8UElementS1_ER10UErrorCode_nid_postfix(Icu::Vector*, std::int32_t, Icu::ElementComparator, std::int32_t*);
 std::int8_t APS5_VABI _ZN6icu_687UVector13removeElementEPv_nid_postfix(Icu::Vector*, void*);
@@ -78,7 +84,7 @@ std::int32_t APS5_VABI _ZNK6icu_687UVector10elementAtiEi_nid_postfix(const Icu::
 std::int8_t APS5_VABI _ZNK6icu_687UVector11containsAllERKS0__nid_postfix(const Icu::Vector*, const Icu::Vector*);
 std::int8_t APS5_VABI _ZNK6icu_687UVector12containsNoneERKS0__nid_postfix(const Icu::Vector*, const Icu::Vector*);
 std::int8_t APS5_VABI _ZNK6icu_687UVector6equalsERKS0__nid_postfix(const Icu::Vector*, const Icu::Vector*);
-std::int32_t APS5_VABI _ZNK6icu_687UVector7indexOfE8UElementia_nid_postfix(const Icu::Vector*, UHashTok, std::int32_t, std::int8_t);
+std::int32_t APS5_VABI _ZNK6icu_687UVector7indexOfE8UElementia_nid_postfix(const Icu::Vector*, Icu::Element, std::int32_t, std::int8_t);
 std::int32_t APS5_VABI _ZNK6icu_687UVector7indexOfEPvi_nid_postfix(const Icu::Vector*, void*, std::int32_t);
 std::int32_t APS5_VABI _ZNK6icu_687UVector7indexOfEii_nid_postfix(const Icu::Vector*, std::int32_t, std::int32_t);
 void** APS5_VABI _ZNK6icu_687UVector7toArrayEPPv_nid_postfix(const Icu::Vector*, void**);

@@ -193,7 +193,7 @@ struct HostSink : icu::ByteSink {
 };
 
 struct HostAppendable : icu::Appendable {
-    UBool appendCodeUnit(char16_t) override { return TRUE; }
+    UBool appendCodeUnit(char16_t) override { return 1; }
 };
 
 void CheckDefaultBuffers() {

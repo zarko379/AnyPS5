@@ -65,11 +65,11 @@ bool EnsureCapacity(Vector* vector, std::int32_t minimumCapacity, std::int32_t* 
         }
         std::int32_t newCapacity = vector->capacity * 2;
         if (newCapacity < minimumCapacity) newCapacity = minimumCapacity;
-        if (newCapacity > static_cast<std::int32_t>(INT32_MAX / sizeof(UHashTok))) {
+        if (newCapacity > static_cast<std::int32_t>(INT32_MAX / sizeof(Icu::Element))) {
             *status = IllegalArgumentError;
             return false;
         }
-        auto* elements = static_cast<UHashTok*>(uprv_realloc_nid_postfix(vector->elements, sizeof(UHashTok) * static_cast<std::size_t>(newCapacity)));
+        auto* elements = static_cast<Icu::Element*>(uprv_realloc_nid_postfix(vector->elements, sizeof(Icu::Element) * static_cast<std::size_t>(newCapacity)));
         if (!elements) {
             *status = MemoryAllocationError;
             return false;
@@ -105,7 +105,7 @@ void RemoveAllElements(Vector* vector) {
     vector->count = 0;
 }
 
-std::int32_t IndexOf(const Vector* vector, UHashTok key, std::int32_t startIndex, std::int8_t hint) {
+std::int32_t IndexOf(const Vector* vector, Icu::Element key, std::int32_t startIndex, std::int8_t hint) {
     if (startIndex < 0) APS5_INVALID_ARG_EX;
     if (vector->comparer) {
         for (std::int32_t i = startIndex; i < vector->count; ++i) {
@@ -123,14 +123,14 @@ std::int32_t IndexOf(const Vector* vector, UHashTok key, std::int32_t startIndex
     return -1;
 }
 
-UHashTok PointerKey(void* pointer) {
-    UHashTok key;
+Icu::Element PointerKey(void* pointer) {
+    Icu::Element key;
     key.pointer = pointer;
     return key;
 }
 
-UHashTok IntegerKey(std::int32_t integer) {
-    UHashTok key;
+Icu::Element IntegerKey(std::int32_t integer) {
+    Icu::Element key;
     key.pointer = nullptr;
     key.integer = integer;
     return key;
@@ -147,7 +147,7 @@ void SetSize(Vector* vector, std::int32_t newSize, std::int32_t* status) {
     vector->count = newSize;
 }
 
-void InsertElementAt(Vector* vector, UHashTok element, std::int32_t index, std::int32_t* status) {
+void InsertElementAt(Vector* vector, Icu::Element element, std::int32_t index, std::int32_t* status) {
     if (0 <= index && index <= vector->count && EnsureCapacity(vector, vector->count + 1, status)) {
         for (std::int32_t i = vector->count; i > index; --i) vector->elements[i] = vector->elements[i - 1];
         vector->elements[index] = element;
@@ -155,14 +155,14 @@ void InsertElementAt(Vector* vector, UHashTok element, std::int32_t index, std::
     }
 }
 
-void SetElementAt(Vector* vector, UHashTok element, std::int32_t index) {
+void SetElementAt(Vector* vector, Icu::Element element, std::int32_t index) {
     if (0 <= index && index < vector->count) {
         DeleteElement(vector, vector->elements[index].pointer);
         vector->elements[index] = element;
     }
 }
 
-void SortedInsert(Vector* vector, UHashTok element, Icu::ElementComparator compare, std::int32_t* status) {
+void SortedInsert(Vector* vector, Icu::Element element, Icu::ElementComparator compare, std::int32_t* status) {
     if (vector->count > 0) Object(compare);
     std::int32_t min = 0;
     std::int32_t max = vector->count;
@@ -187,12 +187,12 @@ void DestroyVector(Vector* vector) {
 
 std::int32_t APS5_VABI SortElements_nid_no_patch(const void* context, const void* left, const void* right) {
     const Icu::ElementComparator compare = *static_cast<const Icu::ElementComparator*>(context);
-    return compare(*static_cast<const UHashTok*>(left), *static_cast<const UHashTok*>(right));
+    return compare(*static_cast<const Icu::Element*>(left), *static_cast<const Icu::Element*>(right));
 }
 
 std::int32_t APS5_VABI SortIntegers_nid_no_patch(const void*, const void* left, const void* right) {
-    const std::int32_t first = static_cast<const UHashTok*>(left)->integer;
-    const std::int32_t second = static_cast<const UHashTok*>(right)->integer;
+    const std::int32_t first = static_cast<const Icu::Element*>(left)->integer;
+    const std::int32_t second = static_cast<const Icu::Element*>(right)->integer;
     return first < second ? -1 : first == second ? 0 : 1;
 }
 
@@ -363,7 +363,7 @@ void APS5_VABI _ZN6icu_687UVector12setElementAtEii_nid_postfix(Vector* self, std
     SetElementAt(Object(self), IntegerKey(element), index);
 }
 
-void APS5_VABI _ZN6icu_687UVector12sortedInsertE8UElementPFaS1_S1_ER10UErrorCode_nid_postfix(Vector* self, UHashTok element, Icu::ElementComparator compare,
+void APS5_VABI _ZN6icu_687UVector12sortedInsertE8UElementPFaS1_S1_ER10UErrorCode_nid_postfix(Vector* self, Icu::Element element, Icu::ElementComparator compare,
                                                                                             std::int32_t* status) {
     IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
         SortedInsert(Object(self), element, compare, local);
@@ -426,7 +426,7 @@ void APS5_VABI _ZN6icu_687UVector19sortWithUComparatorEPFiPKvS2_S2_ES2_R10UError
     IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
         Object(self);
         if (Failure(local)) return;
-        uprv_sortArray_nid_postfix(self->elements, self->count, sizeof(UHashTok), compare, context, 1, local);
+        uprv_sortArray_nid_postfix(self->elements, self->count, sizeof(Icu::Element), compare, context, 1, local);
     });
 }
 
@@ -435,7 +435,7 @@ void APS5_VABI _ZN6icu_687UVector4sortEPFa8UElementS1_ER10UErrorCode_nid_postfix
         Object(self);
         if (Failure(local)) return;
         if (self->count > 1) Object(compare);
-        uprv_sortArray_nid_postfix(self->elements, self->count, sizeof(UHashTok), SortElements_nid_no_patch, &compare, 0, local);
+        uprv_sortArray_nid_postfix(self->elements, self->count, sizeof(Icu::Element), SortElements_nid_no_patch, &compare, 0, local);
     });
 }
 
@@ -443,8 +443,8 @@ void APS5_VABI _ZN6icu_687UVector5_initEiR10UErrorCode_nid_postfix(Vector* self,
     IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
         Object(self);
         if (Failure(local)) return;
-        if (initialCapacity < 1 || initialCapacity > static_cast<std::int32_t>(INT32_MAX / sizeof(UHashTok))) initialCapacity = DefaultCapacity;
-        self->elements = static_cast<UHashTok*>(uprv_malloc_nid_postfix(sizeof(UHashTok) * static_cast<std::size_t>(initialCapacity)));
+        if (initialCapacity < 1 || initialCapacity > static_cast<std::int32_t>(INT32_MAX / sizeof(Icu::Element))) initialCapacity = DefaultCapacity;
+        self->elements = static_cast<Icu::Element*>(uprv_malloc_nid_postfix(sizeof(Icu::Element) * static_cast<std::size_t>(initialCapacity)));
         if (!self->elements) *local = MemoryAllocationError;
         else self->capacity = initialCapacity;
     });
@@ -454,7 +454,7 @@ void APS5_VABI _ZN6icu_687UVector5sortiER10UErrorCode_nid_postfix(Vector* self, 
     IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
         Object(self);
         if (Failure(local)) return;
-        uprv_sortArray_nid_postfix(self->elements, self->count, sizeof(UHashTok), SortIntegers_nid_no_patch, nullptr, 0, local);
+        uprv_sortArray_nid_postfix(self->elements, self->count, sizeof(Icu::Element), SortIntegers_nid_no_patch, nullptr, 0, local);
     });
 }
 
@@ -571,7 +571,7 @@ std::int8_t APS5_VABI _ZNK6icu_687UVector6equalsERKS0__nid_postfix(const Vector*
     return 1;
 }
 
-std::int32_t APS5_VABI _ZNK6icu_687UVector7indexOfE8UElementia_nid_postfix(const Vector* self, UHashTok key, std::int32_t startIndex, std::int8_t hint) {
+std::int32_t APS5_VABI _ZNK6icu_687UVector7indexOfE8UElementia_nid_postfix(const Vector* self, Icu::Element key, std::int32_t startIndex, std::int8_t hint) {
     return IndexOf(Object(self), key, startIndex, hint);
 }
 

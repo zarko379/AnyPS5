@@ -86,7 +86,7 @@ UBool U_CALLCONV HostEqual(const UElement left, const UElement right) {
     return Low(left.integer) == Low(right.integer);
 }
 
-std::int8_t APS5_VABI GuestEqual_nid_no_patch(UHashTok left, UHashTok right) {
+std::int8_t APS5_VABI GuestEqual_nid_no_patch(Icu::Element left, Icu::Element right) {
     return Low(left.integer) == Low(right.integer) ? 1 : 0;
 }
 
@@ -94,11 +94,11 @@ int8_t U_CALLCONV HostOrder(UElement left, UElement right) {
     return left.integer < right.integer ? -1 : left.integer == right.integer ? 0 : 1;
 }
 
-std::int8_t APS5_VABI GuestKeyEqual_nid_no_patch(UHashTok key, UHashTok element) {
-    return static_cast<const UHashTok*>(key.pointer)->integer == element.integer ? 1 : 0;
+std::int8_t APS5_VABI GuestKeyEqual_nid_no_patch(Icu::Element key, Icu::Element element) {
+    return static_cast<const Icu::Element*>(key.pointer)->integer == element.integer ? 1 : 0;
 }
 
-std::int8_t APS5_VABI GuestOrder_nid_no_patch(UHashTok left, UHashTok right) {
+std::int8_t APS5_VABI GuestOrder_nid_no_patch(Icu::Element left, Icu::Element right) {
     return left.integer < right.integer ? -1 : left.integer == right.integer ? 0 : 1;
 }
 
@@ -111,8 +111,8 @@ int32_t U_CALLCONV HostCompare(const void* context, const void* left, const void
 
 std::int32_t APS5_VABI GuestCompare_nid_no_patch(const void* context, const void* left, const void* right) {
     const std::int32_t step = *static_cast<const std::int32_t*>(context);
-    const std::int32_t a = static_cast<const UHashTok*>(left)->integer % step;
-    const std::int32_t b = static_cast<const UHashTok*>(right)->integer % step;
+    const std::int32_t a = static_cast<const Icu::Element*>(left)->integer % step;
+    const std::int32_t b = static_cast<const Icu::Element*>(right)->integer % step;
     return a < b ? -1 : a == b ? 0 : 1;
 }
 
@@ -121,7 +121,7 @@ void U_CALLCONV HostAssign(UElement* destination, UElement* source) {
     destination->integer = source->integer + 1;
 }
 
-void APS5_VABI GuestAssign_nid_no_patch(UHashTok* destination, UHashTok* source) {
+void APS5_VABI GuestAssign_nid_no_patch(Icu::Element* destination, Icu::Element* source) {
     destination->pointer = nullptr;
     destination->integer = source->integer + 1;
 }
@@ -140,7 +140,7 @@ const Icu::Vector32& View(const icu::UVector32& host) {
 void Same(const Icu::Vector& guest, const icu::UVector& host, const char* message) {
     const Icu::Vector& view = View(host);
     Require(guest.count == view.count && guest.capacity == view.capacity, message);
-    Require(std::memcmp(guest.elements, view.elements, sizeof(UHashTok) * static_cast<std::size_t>(guest.count)) == 0, message);
+    Require(std::memcmp(guest.elements, view.elements, sizeof(Icu::Element) * static_cast<std::size_t>(guest.count)) == 0, message);
     Require(hostDeleted == guestDeleted, message);
     Require(guest.vtable == Sentinel, "the vector keeps its vtable");
 }
@@ -240,13 +240,10 @@ void CheckVectors() {
                 break;
             }
             case 11: {
-                UElement hostKey;
-                hostKey.pointer = nullptr;
-                hostKey.integer = value;
-                UHashTok guestKey;
+                Icu::Element guestKey;
                 guestKey.pointer = nullptr;
                 guestKey.integer = value;
-                host.sortedInsert(hostKey, HostOrder, hostStatus);
+                host.sortedInsert(reinterpret_cast<void*>(static_cast<std::uintptr_t>(static_cast<std::uint32_t>(value))), HostOrder, hostStatus);
                 _ZN6icu_687UVector12sortedInsertE8UElementPFaS1_S1_ER10UErrorCode_nid_postfix(&guest, guestKey, GuestOrder_nid_no_patch, &status);
                 break;
             }
@@ -298,13 +295,11 @@ void CheckVectors() {
             const std::int32_t start = static_cast<std::int32_t>(random() % (guest.count + 1));
             Require(host.indexOf(value, start) == _ZNK6icu_687UVector7indexOfEii_nid_postfix(&guest, value, start), "indexOf(int) matches ICU");
             Require(host.indexOf(pointer, start) == _ZNK6icu_687UVector7indexOfEPvi_nid_postfix(&guest, pointer, start), "indexOf(void*) matches ICU");
-            UElement hostKey;
-            hostKey.pointer = pointer;
-            UHashTok guestKey;
+            Icu::Element guestKey;
             guestKey.pointer = pointer;
-            for (std::int8_t hint : {0, 1}) {
-                Require(host.indexOf(hostKey, start, hint) == _ZNK6icu_687UVector7indexOfE8UElementia_nid_postfix(&guest, guestKey, start, hint), "indexOf(UElement) matches ICU");
-            }
+            const std::int32_t lowBits = static_cast<std::int32_t>(static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(pointer)));
+            Require(host.indexOf(pointer, start) == _ZNK6icu_687UVector7indexOfE8UElementia_nid_postfix(&guest, guestKey, start, 1), "indexOf(UElement) with the pointer hint matches ICU");
+            Require(host.indexOf(lowBits, start) == _ZNK6icu_687UVector7indexOfE8UElementia_nid_postfix(&guest, guestKey, start, 0), "indexOf(UElement) with the integer hint matches ICU");
             Require(host.search(pointer) == _ZNK6icu_686UStack6searchEPv_nid_postfix(&guest, pointer), "search matches ICU");
             Require((host.containsAll(hostOther) != 0) == (_ZNK6icu_687UVector11containsAllERKS0__nid_postfix(&guest, &guestOther) != 0), "containsAll matches ICU");
             Require((host.containsNone(hostOther) != 0) == (_ZNK6icu_687UVector12containsNoneERKS0__nid_postfix(&guest, &guestOther) != 0), "containsNone matches ICU");
@@ -348,7 +343,7 @@ void CheckVectors() {
             "addElement rejects an unreadable status");
     Require(Rejects([&] { _ZN6icu_687UVector10addElementEiR10UErrorCode_nid_postfix(&guest, 1, nullptr); }), "addElement rejects a null status");
     status = 1;
-    UHashTok* elements = guest.elements;
+    Icu::Element* elements = guest.elements;
     _ZN6icu_687UVector5_initEiR10UErrorCode_nid_postfix(&guest, 4, &status);
     Require(status == 1 && guest.elements == elements, "_init returns first on a failed status");
     _ZN6icu_687UVector5sortiER10UErrorCode_nid_postfix(&guest, &status);
