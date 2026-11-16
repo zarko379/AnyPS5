@@ -1001,10 +1001,6 @@ int APS5_VABI _ZN3JSC17createJSMicrotaskERNS_2VMENS_7JSValueE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN3JSC17weakClearSlowCaseERPNS_8WeakImplE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN3JSC19JSSymbolTableObject14deletePropertyEPNS_6JSCellEPNS_14JSGlobalObjectENS_12PropertyNameERNS_18DeletePropertySlotE() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -1302,10 +1298,6 @@ int APS5_VABI _ZN3JSC9CallFrame15isAnyWasmCalleeEv() {
 }
 
 int APS5_VABI _ZN3JSC9CodeCache5writeERNS_2VME() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_() {
     NotImplemented_nid_no_patch(__func__);
 }
 

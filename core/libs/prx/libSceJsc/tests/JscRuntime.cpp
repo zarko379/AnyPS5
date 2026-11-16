@@ -8,6 +8,7 @@
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -324,6 +325,139 @@ void TestScriptCallArgumentHandler() {
     Check(Throws([] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(nullptr, true); }), __LINE__);
 }
 
+using Jsc::JscAbi::HandleBlock;
+using Jsc::JscAbi::HandleNode;
+using Jsc::JscAbi::HandleSet;
+using Jsc::JscAbi::WeakImpl;
+using WeakClearFunction = void (APS5_VABI*)(WeakImpl**);
+using WriteBarrierFunction = void (APS5_VABI*)(HandleSet*, std::uint64_t*, const std::uint64_t*);
+
+static_assert(std::is_same_v<decltype(&_ZN3JSC17weakClearSlowCaseERPNS_8WeakImplE), WeakClearFunction>);
+static_assert(std::is_same_v<decltype(&_ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_), WriteBarrierFunction>);
+
+constexpr std::uint64_t kCell = 0x0000000000010000ull;
+constexpr std::uint64_t kOtherCell = 0x0000000000020000ull;
+constexpr std::uint64_t kInt = 0xFFFE000000000001ull;
+constexpr std::uint64_t kUndefined = 0xAull;
+
+struct HandleArena {
+    std::vector<unsigned char> storage = std::vector<unsigned char>(3 * Jsc::JscAbi::HandleBlockSize);
+    HandleSet set{};
+    HandleNode* nodes = nullptr;
+
+    HandleArena() {
+        const std::uintptr_t mask = Jsc::JscAbi::HandleBlockSize - 1;
+        const std::uintptr_t base = (reinterpret_cast<std::uintptr_t>(storage.data()) + mask) & ~mask;
+        auto* block = reinterpret_cast<HandleBlock*>(base);
+        block->prev = nullptr;
+        block->next = nullptr;
+        block->handleSet = &set;
+        nodes = reinterpret_cast<HandleNode*>(base + sizeof(HandleBlock));
+        set.strongHead.next = &set.strongTail;
+        set.strongTail.prev = &set.strongHead;
+        set.immediateHead.next = &set.immediateTail;
+        set.immediateTail.prev = &set.immediateHead;
+    }
+
+    HandleArena(const HandleArena&) = delete;
+    HandleArena& operator=(const HandleArena&) = delete;
+
+    HandleNode* Linked(unsigned index, std::uint64_t value, bool strong) {
+        HandleNode* node = &nodes[index];
+        HandleNode& head = strong ? set.strongHead : set.immediateHead;
+        node->value = value;
+        node->prev = &head;
+        node->next = head.next;
+        head.next->prev = node;
+        head.next = node;
+        return node;
+    }
+};
+
+bool OnlyNode(const HandleNode& head, const HandleNode& tail, const HandleNode* node) {
+    return head.next == node && node->prev == &head && node->next == &tail && tail.prev == node;
+}
+
+bool Empty(const HandleNode& head, const HandleNode& tail) {
+    return head.next == &tail && tail.prev == &head;
+}
+
+void TestWeakClearSlowCase() {
+    alignas(8) unsigned char owner[8]{};
+    WeakImpl impl{kCell, reinterpret_cast<std::uintptr_t>(owner) | 1, owner};
+    WeakImpl* reference = &impl;
+    _ZN3JSC17weakClearSlowCaseERPNS_8WeakImplE(&reference);
+    Check(reference == nullptr, __LINE__);
+    Check(impl.weakHandleOwner == (reinterpret_cast<std::uintptr_t>(owner) | 3), __LINE__);
+    Check(impl.jsValue == kCell && impl.context == owner, __LINE__);
+
+    WeakImpl live{kCell, reinterpret_cast<std::uintptr_t>(owner), nullptr};
+    reference = &live;
+    _ZN3JSC17weakClearSlowCaseERPNS_8WeakImplE(&reference);
+    Check(reference == nullptr && live.weakHandleOwner == (reinterpret_cast<std::uintptr_t>(owner) | 3), __LINE__);
+
+    WeakImpl* null = nullptr;
+    Check(Throws([&] { _ZN3JSC17weakClearSlowCaseERPNS_8WeakImplE(&null); }), __LINE__);
+    Check(Throws([] { _ZN3JSC17weakClearSlowCaseERPNS_8WeakImplE(nullptr); }), __LINE__);
+}
+
+void TestHandleSetWriteBarrier() {
+    HandleArena arena;
+    HandleSet& set = arena.set;
+    HandleNode* node = arena.Linked(0, 0, false);
+
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &node->value, &kCell);
+    Check(node->value == 0, __LINE__);
+    Check(OnlyNode(set.strongHead, set.strongTail, node), __LINE__);
+    Check(Empty(set.immediateHead, set.immediateTail), __LINE__);
+
+    node->value = kCell;
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &node->value, &kOtherCell);
+    Check(OnlyNode(set.strongHead, set.strongTail, node), __LINE__);
+
+    HandleNode* other = arena.Linked(1, kUndefined, false);
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &node->value, &kInt);
+    Check(node->value == kCell, __LINE__);
+    Check(Empty(set.strongHead, set.strongTail), __LINE__);
+    Check(set.immediateHead.next == node && node->prev == &set.immediateHead, __LINE__);
+    Check(node->next == other && other->prev == node && other->next == &set.immediateTail, __LINE__);
+    Check(set.immediateTail.prev == other, __LINE__);
+
+    node->value = kInt;
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &other->value, &kInt);
+    Check(set.immediateHead.next == node && node->next == other, __LINE__);
+
+    const std::uint64_t empty = 0;
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &other->value, &empty);
+    Check(set.immediateHead.next == other && other->next == node && node->next == &set.immediateTail, __LINE__);
+    Check(other->prev == &set.immediateHead && node->prev == other && set.immediateTail.prev == node, __LINE__);
+
+    other->value = 0;
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &other->value, &empty);
+    Check(set.immediateHead.next == other && other->next == node, __LINE__);
+
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &node->value, &kOtherCell);
+    Check(OnlyNode(set.strongHead, set.strongTail, node), __LINE__);
+    Check(OnlyNode(set.immediateHead, set.immediateTail, other), __LINE__);
+
+    node->value = kOtherCell;
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &node->value, &empty);
+    Check(Empty(set.strongHead, set.strongTail), __LINE__);
+    Check(set.immediateHead.next == node && node->next == other && other->next == &set.immediateTail, __LINE__);
+
+    HandleNode* loose = &arena.nodes[2];
+    loose->value = kInt;
+    loose->prev = nullptr;
+    loose->next = nullptr;
+    _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &loose->value, &kUndefined);
+    Check(Throws([&] { _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &loose->value, &kCell); }), __LINE__);
+    Check(loose->prev == nullptr && loose->next == nullptr && Empty(set.strongHead, set.strongTail), __LINE__);
+
+    Check(Throws([&] { _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(nullptr, &node->value, &kCell); }), __LINE__);
+    Check(Throws([&] { _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, nullptr, &kCell); }), __LINE__);
+    Check(Throws([&] { _ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_(&set, &node->value, nullptr); }), __LINE__);
+}
+
 }
 
 int main() {
@@ -336,6 +470,8 @@ int main() {
     TestDestroy();
     TestToThis();
     TestScriptCallArgumentHandler();
+    TestWeakClearSlowCase();
+    TestHandleSetWriteBarrier();
     std::puts("JSC runtime tests passed");
     return 0;
 }

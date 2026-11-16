@@ -1,5 +1,6 @@
 #include "prx/libSceJsc/include/Api.hpp"
 #include "prx/libSceJsc/include/InventoryExports.hpp"
+#include "prx/libSceJsc/include/JscHandleExports.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 
 #include <array>
@@ -7,7 +8,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <stdexcept>
 #include <type_traits>
+#include <vector>
 
 namespace {
 
@@ -109,6 +112,185 @@ void TestScriptObjectLifetime() {
     }
 }
 
+using Jsc::JscAbi::HandleBlock;
+using Jsc::JscAbi::HandleNode;
+using Jsc::JscAbi::HandleSet;
+
+constexpr std::uint64_t kCell = 0x0000000000040000ull;
+constexpr std::uint64_t kInt = 0xFFFE000000000007ull;
+
+struct HandleArena {
+    std::vector<unsigned char> storage = std::vector<unsigned char>(3 * Jsc::JscAbi::HandleBlockSize);
+    HandleSet set{};
+    HandleNode* nodes = nullptr;
+
+    HandleArena() {
+        const std::uintptr_t mask = Jsc::JscAbi::HandleBlockSize - 1;
+        const std::uintptr_t base = (reinterpret_cast<std::uintptr_t>(storage.data()) + mask) & ~mask;
+        auto* block = reinterpret_cast<HandleBlock*>(base);
+        block->prev = nullptr;
+        block->next = nullptr;
+        block->handleSet = &set;
+        nodes = reinterpret_cast<HandleNode*>(base + sizeof(HandleBlock));
+        set.strongHead.next = &set.strongTail;
+        set.strongTail.prev = &set.strongHead;
+        set.immediateHead.next = &set.immediateTail;
+        set.immediateTail.prev = &set.immediateHead;
+    }
+
+    HandleArena(const HandleArena&) = delete;
+    HandleArena& operator=(const HandleArena&) = delete;
+
+    HandleNode* Linked(unsigned index, std::uint64_t value, bool strong) {
+        HandleNode* node = &nodes[index];
+        HandleNode& head = strong ? set.strongHead : set.immediateHead;
+        node->value = value;
+        node->prev = &head;
+        node->next = head.next;
+        head.next->prev = node;
+        head.next = node;
+        return node;
+    }
+
+    void Free(unsigned index) {
+        HandleNode* node = &nodes[index];
+        node->value = 0x5A5A;
+        node->prev = nullptr;
+        node->next = set.freeHead;
+        set.freeHead = node;
+    }
+};
+
+Object Holding(HandleNode* node, unsigned char tail) {
+    Object object{};
+    object.fill(tail);
+    std::uint64_t* slot = &node->value;
+    std::memcpy(object.data(), &slot, sizeof(slot));
+    return object;
+}
+
+std::uint64_t* SlotOf(const Object& object) {
+    std::uint64_t* slot = nullptr;
+    std::memcpy(&slot, object.data(), sizeof(slot));
+    return slot;
+}
+
+bool EmptyList(const HandleNode& head, const HandleNode& tail) {
+    return head.next == &tail && tail.prev == &head;
+}
+
+template <typename Function>
+bool ThrowsNotImplemented(Function function) {
+    try {
+        function();
+    } catch (const std::runtime_error&) {
+        return true;
+    }
+    return false;
+}
+
+template <typename Function>
+bool ThrowsInvalid(Function function) {
+    try {
+        function();
+    } catch (const std::invalid_argument&) {
+        return true;
+    }
+    return false;
+}
+
+void TestDestroyHeld() {
+    for (const Destroy destroy : {&_ZN10Deprecated11ScriptValueD1Ev, &_ZN10Deprecated11ScriptValueD2Ev}) {
+        HandleArena arena;
+        arena.Free(2);
+        HandleNode* node = arena.Linked(0, kCell, true);
+        Object value = Holding(node, 0x5A);
+        destroy(value.data());
+        Require(IsEmptyValue(value, 0x5A));
+        Require(EmptyList(arena.set.strongHead, arena.set.strongTail));
+        Require(arena.set.freeHead == node && node->next == &arena.nodes[2] && node->prev == nullptr);
+        Require(node->value == kCell);
+    }
+}
+
+void TestCopyHeld() {
+    for (const Copy copy : {&_ZN10Deprecated11ScriptValueC1ERKS0_, &_ZN10Deprecated11ScriptValueC2ERKS0_}) {
+        HandleArena arena;
+        arena.Free(3);
+        arena.Free(1);
+        HandleNode* sourceNode = arena.Linked(0, kCell, true);
+        const Object source = Holding(sourceNode, 0x5A);
+        Object target{};
+        target.fill(0xA5);
+        copy(target.data(), source.data());
+        HandleNode* copied = &arena.nodes[1];
+        Require(SlotOf(target) == &copied->value);
+        for (std::size_t i = 8; i < target.size(); ++i) Require(target[i] == 0xA5);
+        Require(copied->value == kCell);
+        Require(arena.set.freeHead == &arena.nodes[3]);
+        Require(arena.set.strongHead.next == copied && copied->prev == &arena.set.strongHead);
+        Require(copied->next == sourceNode && sourceNode->prev == copied);
+        Require(EmptyList(arena.set.immediateHead, arena.set.immediateTail));
+        Require(SlotOf(source) == &sourceNode->value && sourceNode->value == kCell);
+
+        HandleNode* intNode = arena.Linked(2, kInt, false);
+        const Object intSource = Holding(intNode, 0x5A);
+        Object intTarget{};
+        copy(intTarget.data(), intSource.data());
+        Require(SlotOf(intTarget) == &arena.nodes[3].value && arena.nodes[3].value == kInt);
+        Require(arena.set.immediateHead.next == &arena.nodes[3] && arena.nodes[3].next == intNode);
+        Require(arena.set.freeHead == nullptr);
+
+        Object exhausted{};
+        exhausted.fill(0x11);
+        Require(ThrowsNotImplemented([&] { copy(exhausted.data(), source.data()); }));
+        for (const unsigned char byte : exhausted) Require(byte == 0x11);
+    }
+}
+
+void TestAssignHeld() {
+    HandleArena arena;
+    arena.Free(2);
+    HandleNode* sourceNode = arena.Linked(0, kCell, true);
+    HandleNode* targetNode = arena.Linked(1, kInt, false);
+    const Object source = Holding(sourceNode, 0x5A);
+    Object target = Holding(targetNode, 0xA5);
+    Require(_ZN10Deprecated11ScriptValueaSERKS0_(target.data(), source.data()) == target.data());
+    Require(SlotOf(target) == &targetNode->value && targetNode->value == kCell);
+    Require(arena.set.strongHead.next == targetNode && targetNode->next == sourceNode);
+    Require(EmptyList(arena.set.immediateHead, arena.set.immediateTail));
+    Require(arena.set.freeHead == &arena.nodes[2]);
+
+    Require(_ZN10Deprecated11ScriptValueaSERKS0_(target.data(), target.data()) == target.data());
+    Require(SlotOf(target) == &targetNode->value && targetNode->value == kCell);
+
+    const Object empty = EmptyValue(0x33);
+    Require(_ZN10Deprecated11ScriptValueaSERKS0_(target.data(), empty.data()) == target.data());
+    Require(IsEmptyValue(target, 0xA5));
+    Require(arena.set.freeHead == targetNode && targetNode->next == &arena.nodes[2]);
+    Require(arena.set.strongHead.next == sourceNode && sourceNode->next == &arena.set.strongTail);
+
+    Object fresh = EmptyValue(0x44);
+    Require(_ZN10Deprecated11ScriptValueaSERKS0_(fresh.data(), source.data()) == fresh.data());
+    Require(SlotOf(fresh) == &targetNode->value && targetNode->value == kCell);
+    Require(arena.set.freeHead == &arena.nodes[2]);
+    Require(arena.set.strongHead.next == targetNode && targetNode->next == sourceNode);
+}
+
+void TestHeldNullAndUnlinked() {
+    HandleArena arena;
+    HandleNode* loose = &arena.nodes[0];
+    loose->value = kCell;
+    loose->prev = nullptr;
+    loose->next = nullptr;
+    Object value = Holding(loose, 0x5A);
+    Require(ThrowsInvalid([&] { _ZN10Deprecated11ScriptValueD1Ev(value.data()); }));
+    Require(SlotOf(value) == &loose->value && arena.set.freeHead == nullptr);
+    Require(ThrowsInvalid([] { _ZN10Deprecated11ScriptValueD2Ev(nullptr); }));
+    Require(ThrowsInvalid([&] { _ZN10Deprecated11ScriptValueC1ERKS0_(nullptr, value.data()); }));
+    Require(ThrowsInvalid([&] { _ZN10Deprecated11ScriptValueaSERKS0_(value.data(), nullptr); }));
+}
+
 } // namespace
 
 int main() {
@@ -136,4 +318,8 @@ int main() {
     TestCopyEmpty();
     TestAssignEmpty();
     TestScriptObjectLifetime();
+    TestDestroyHeld();
+    TestCopyHeld();
+    TestAssignHeld();
+    TestHeldNullAndUnlinked();
 }

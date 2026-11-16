@@ -64,6 +64,8 @@
 
 - [WTF::Persistence::Coder<SHA1::Digest>](../../../core/libs/prx/libSceJsc/src/WtfPersistence.cpp) (libSceJsc) - not measured on a console; the WTF version and layouts (`Decoder`: three pointers, `SHA1` at 24; `Encoder`: `Vector<uint8_t, 4096>`, inline buffer at 16, `SHA1` at 4112; `Optional<Digest>` flag at byte 0) are unverified. They follow pinned [PersistentCoders.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/persistence/PersistentCoders.cpp#L143-L154), [PersistentDecoder.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/persistence/PersistentDecoder.cpp#L45-L60) and [PersistentEncoder.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/persistence/PersistentEncoder.cpp#L42-L62): 20 bytes are copied and the checksum takes the salt 101 and the bytes. `encode` past the vector capacity needs libSceNKWebKit `fastMalloc` and throws; null pointers and a full `SHA1` buffer throw where WebKit faults or asserts.
 
+- [JSC::weakClearSlowCase and HandleSet::writeBarrier](../../../core/libs/prx/libSceJsc/src/JscHandleSet.cpp) (libSceJsc) - not measured on a console; the version and layouts are unverified: `WeakImpl` owner word at 8, `HandleNode` {value, prev, next}, `HandleSet` strong sentinels at 24/48, immediate at 72/96, free list at 120, set pointer at 16 of the 4 KiB `HandleBlock`. They follow pinned [Weak.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/heap/Weak.cpp#L33-L39), [WeakImpl.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/heap/WeakImpl.h#L36-L92) and [HandleSet.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/heap/HandleSet.cpp#L70-L89): the state becomes `Deallocated` and the reference null; the slot moves to the front of the immediate or strong list unwritten. Null pointers and a moved handle on no list throw where WebKit faults.
+
 ### Known export names; ABI prototypes unverified
 
 - The 125 throwing JavaScriptCore, Inspector, WTF and bmalloc exports in [Export.cpp](../../../core/libs/prx/libSceJsc/Export.cpp) are present in the PS5 3.20 `libSceJsc` export inventory from [PS5-3.20_Libs](https://github.com/DNNDHH/PS5-3.20_Libs). Each is named after the symbol the [verified NID name database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) gives for its NID, and the NID of that name matches. Prototypes and behavior are unverified; each uses the no-parameter import-resolution convention and throws through `NotImplemented_nid_no_patch`. These declarations make no ABI or behavior claim.
@@ -96,7 +98,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 278 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 276 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -182,7 +184,6 @@
 | `_ZN3JSC16IsoSubspacePerVMC2EN3WTF8FunctionIFNS0_18SubspaceParametersERNS_2VMEEEE` | `cqbMRVG1FmQ` |
 | `_ZN3JSC17DebuggerCallFrame5scopeEv` | `D2HdGEYkNkg` |
 | `_ZN3JSC17createJSMicrotaskERNS_2VMENS_7JSValueE` | `8i0WEPLBJmI` |
-| `_ZN3JSC17weakClearSlowCaseERPNS_8WeakImplE` | `CXgp9dPHOTY` |
 | `_ZN3JSC19JSSymbolTableObject14deletePropertyEPNS_6JSCellEPNS_14JSGlobalObjectENS_12PropertyNameERNS_18DeletePropertySlotE` | `5uy3POCFlAc` |
 | `_ZN3JSC23JSModuleNamespaceObject10putByIndexEPNS_6JSCellEPNS_14JSGlobalObjectEjNS_7JSValueEb` | `lNicIEursI4` |
 | `_ZN3JSC23JSModuleNamespaceObject14deletePropertyEPNS_6JSCellEPNS_14JSGlobalObjectENS_12PropertyNameERNS_18DeletePropertySlotE` | `wfMAwMqO7ew` |
@@ -258,7 +259,6 @@
 | `_ZN3JSC8evaluateEPNS_14JSGlobalObjectERKNS_10SourceCodeENS_7JSValueERN3WTF8NakedPtrINS_9ExceptionEEE` | `l-vndn4cD2g` |
 | `_ZN3JSC9CallFrame15isAnyWasmCalleeEv` | `rsnmpSOdNzQ` |
 | `_ZN3JSC9CodeCache5writeERNS_2VME` | `cOnk31bagNI` |
-| `_ZN3JSC9HandleSet12writeBarrierEPNS_7JSValueERKS1_` | `oSOlHR1+AKw` |
 | `_ZN3JSC9Integrity14auditCellFullyERNS_2VMEPNS_6JSCellE` | `WC1M6Pb+YEg` |
 | `_ZN3JSC9JSONParseEPNS_14JSGlobalObjectERKN3WTF6StringE` | `y0tHjQrzBJk` |
 | `_ZN3JSC9Structure14sealTransitionERNS_2VMEPS0_` | `ICnB2IswiwU` |
