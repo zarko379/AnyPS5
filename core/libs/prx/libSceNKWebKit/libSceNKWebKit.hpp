@@ -61,3 +61,4 @@
 #include "prx/libSceNKWebKit/include/PublicSuffixExports.hpp"
 #include "prx/libSceNKWebKit/include/PropertyDescriptorExports.hpp"
 #include "prx/libSceNKWebKit/include/CollatorExports.hpp"
+#include "prx/libSceNKWebKit/include/TextBreakIteratorExports.hpp"

@@ -13957,10 +13957,6 @@ int APS5_VABI _ZN3WTF15FilePrintStreamD2Ev() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN3WTF15isWordTextBreakEP14UBreakIterator() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN3WTF15memoryFootprintEv() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -14086,10 +14082,6 @@ int APS5_VABI _ZN3WTF19ParallelEnvironmentC2EPFvPvEmi() {
 }
 
 int APS5_VABI _ZN3WTF19isCompilationThreadEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3WTF19numGraphemeClustersENS_10StringViewE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -14230,10 +14222,6 @@ int APS5_VABI _ZN3WTF25activateSignalHandlersForENS_6SignalE() {
 }
 
 int APS5_VABI _ZN3WTF26getAndResetAccumulatedLogsEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3WTF30numCodeUnitsInGraphemeClustersENS_10StringViewEj() {
     NotImplemented_nid_no_patch(__func__);
 }
 
