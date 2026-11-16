@@ -1,5 +1,6 @@
 #include "prx/libSceJsc/libSceJsc.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -154,6 +155,7 @@ std::string CaptureStandardError(Function function) {
     while ((read = std::fread(buffer, 1, sizeof(buffer), file)) > 0) output.append(buffer, read);
     std::fclose(file);
     std::remove(path);
+    output.erase(std::remove(output.begin(), output.end(), '\r'), output.end());
     return output;
 }
 

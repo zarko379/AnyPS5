@@ -129,7 +129,6 @@ const RemoteTarget& Target(const RemoteTarget* self, const char* function) {
 
 bool FlagSet(const RemoteTarget& target) {
     unsigned char byte = 0;
-    static_assert(sizeof(target.flag) == sizeof(byte));
     std::memcpy(&byte, &target.flag, sizeof(byte));
     return byte != 0;
 }

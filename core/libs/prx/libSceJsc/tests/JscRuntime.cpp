@@ -532,8 +532,8 @@ void TestAsyncCallIdentifier() {
     Check(timer.type == 0 && timer.callbackId == 42, __LINE__);
     const AsyncCallIdentifier listener = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(1, -5);
     Check(listener.type == 1 && listener.callbackId == -5, __LINE__);
-    const AsyncCallIdentifier wide = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(-1, std::numeric_limits<int>::min());
-    Check(wide.type == std::numeric_limits<unsigned>::max() && wide.callbackId == std::numeric_limits<int>::min(), __LINE__);
+    const AsyncCallIdentifier wide = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(-1, (std::numeric_limits<int>::min)());
+    Check(wide.type == (std::numeric_limits<unsigned>::max)() && wide.callbackId == (std::numeric_limits<int>::min)(), __LINE__);
 }
 
 
