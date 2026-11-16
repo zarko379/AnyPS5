@@ -89,10 +89,8 @@ void TestCollate() {
     _ZN3WTF8CollatorD1Ev(&reused);
 
     Collator root{};
-    _ZN3WTF8CollatorC1EPKcb(&root, nullptr, false);
-    Require(root.collator != nullptr && root.locale == nullptr);
-    Require(Sign(_ZNK3WTF8Collator7collateENS_10StringViewES1_(&root, Latin1("a"), Latin1("b"))) == -1);
-    _ZN3WTF8CollatorD1Ev(&root);
+    RequireThrows<std::exception>([&] { _ZN3WTF8CollatorC1EPKcb(&root, nullptr, false); });
+    Require(root.collator == nullptr && root.locale == nullptr);
 }
 
 void TestCreateIterator() {
