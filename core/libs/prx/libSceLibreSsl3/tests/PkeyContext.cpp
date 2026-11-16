@@ -313,6 +313,40 @@ void AlgorithmMethodSelection() {
     EVP_PKEY_CTX_free_nid_postfix(nullptr);
 }
 
+void ContextsById() {
+    for (const int nid : {LibreSsl3PkeyRsa, LibreSsl3PkeyRsaPss, LibreSsl3PkeyEc}) {
+        auto* context = EVP_PKEY_CTX_new_id_nid_postfix(nid, reinterpret_cast<void*>(0x10));
+        Require(context != nullptr);
+        Require(context->method == FindNativePkeyMethod_nid_no_patch(nid));
+        Require(context->key == nullptr && context->peerKey == nullptr);
+        Require(context->operation == LibreSsl3PkeyOperationUndefined);
+        Require((context->data != nullptr) == (nid != LibreSsl3PkeyEc));
+        Require(ERR_get_error_nid_postfix() == 0);
+        EVP_PKEY_CTX_free_nid_postfix(context);
+    }
+    auto* ec = EVP_PKEY_CTX_new_id_nid_postfix(LibreSsl3PkeyEc, nullptr);
+    Require(ec != nullptr);
+    Require(EVP_PKEY_derive_init_nid_postfix(ec) == 1);
+    std::size_t length = 0;
+    Require(EVP_PKEY_derive_nid_postfix(ec, nullptr, &length) == 0);
+    ExpectErrors({EcCode(140)});
+    EVP_PKEY_CTX_free_nid_postfix(ec);
+    for (const int nid : {0, -1, 1, 5, 117, 409, 911, 913, 951, 1034, 0x7fffffff}) {
+        Require(EVP_PKEY_CTX_new_id_nid_postfix(nid, nullptr) == nullptr);
+        ExpectErrors({EvpCode(156)});
+    }
+    for (const int nid : {894, 28, 116, 952, 1022, 855, 1055, 950}) {
+        bool threw = false;
+        try {
+            EVP_PKEY_CTX_new_id_nid_postfix(nid, nullptr);
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        Require(threw);
+        Require(ERR_get_error_nid_postfix() == 0);
+    }
+}
+
 void OperationGuards() {
     auto* key = NewNativeKey(LibreSsl3PkeyRsa);
     Require(EVP_PKEY_size_nid_postfix(key) == 256);
@@ -1418,6 +1452,7 @@ int main() {
         reinterpret_cast<void*>(PosixAlign_nid_no_patch)};
     ApplicationHeapRegister_nid_no_patch(api.data());
     AlgorithmMethodSelection();
+    ContextsById();
     OperationGuards();
     Pkcs1Vector();
     ChineseRemainderKey();

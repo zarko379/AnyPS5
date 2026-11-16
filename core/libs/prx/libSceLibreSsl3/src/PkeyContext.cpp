@@ -1350,6 +1350,28 @@ int DigestFinal(LibreSsl3::DigestContext* ctx, unsigned char* md, unsigned int* 
     return ret;
 }
 
+constexpr int UnmodelledPkeyMethods[]{894, 28, 116, 952, 1022, 855, 1055, 950};
+
+LibreSsl3PkeyContext* NewPkeyContext(LibreSsl3EvpPkey* key, const LibreSsl3PkeyMethod* method) {
+    if (!method) {
+        QueueEvpError(ReasonUnsupportedAlgorithm);
+        return nullptr;
+    }
+    auto* context = static_cast<LibreSsl3PkeyContext*>(calloc_nid_postfix(1, sizeof(LibreSsl3PkeyContext)));
+    if (!context) {
+        QueueEvpError(AllocationFailure);
+        return nullptr;
+    }
+    context->method = method;
+    context->operation = LibreSsl3PkeyOperationUndefined;
+    if ((context->key = key) != nullptr) EVP_PKEY_up_ref_nid_postfix(key);
+    if (method->initialize != nullptr && method->initialize(context) <= 0) {
+        EVP_PKEY_CTX_free_nid_postfix(context);
+        return nullptr;
+    }
+    return context;
+}
+
 } // namespace
 
 const LibreSsl3PkeyMethod* FindNativePkeyMethod_nid_no_patch(std::int32_t keyType) {
@@ -1377,23 +1399,18 @@ LibreSsl3PkeyContext* APS5_VABI EVP_PKEY_CTX_new_nid_postfix(LibreSsl3EvpPkey* k
     const auto* asn1Method = static_cast<const LibreSsl3PkeyAsn1Method*>(key->method);
     const auto* method = key->type == LibreSsl3PkeyEc ? &EcMethod :
         FindNativePkeyMethod_nid_no_patch(asn1Method->keyType);
+    return NewPkeyContext(key, method);
+}
+
+LibreSsl3PkeyContext* APS5_VABI EVP_PKEY_CTX_new_id_nid_postfix(int nid, void* engine) {
+    (void) engine;
+    const auto* method = FindNativePkeyMethod_nid_no_patch(nid);
     if (!method) {
-        QueueEvpError(ReasonUnsupportedAlgorithm);
-        return nullptr;
+        for (const int unmodelled : UnmodelledPkeyMethods) {
+            if (nid == unmodelled) NotImplemented_nid_no_patch("EVP_PKEY_CTX_new_id for a LibreSSL method this library does not model");
+        }
     }
-    auto* context = static_cast<LibreSsl3PkeyContext*>(calloc_nid_postfix(1, sizeof(LibreSsl3PkeyContext)));
-    if (!context) {
-        QueueEvpError(AllocationFailure);
-        return nullptr;
-    }
-    context->method = method;
-    context->operation = LibreSsl3PkeyOperationUndefined;
-    if ((context->key = key) != nullptr) EVP_PKEY_up_ref_nid_postfix(key);
-    if (method->initialize != nullptr && method->initialize(context) <= 0) {
-        EVP_PKEY_CTX_free_nid_postfix(context);
-        return nullptr;
-    }
-    return context;
+    return NewPkeyContext(nullptr, method);
 }
 
 int APS5_VABI EVP_PKEY_derive_init_nid_postfix(LibreSsl3PkeyContext* context) {

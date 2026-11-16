@@ -1,6 +1,7 @@
 #include "prx/libSceLibreSsl3/libSceLibreSsl3.hpp"
 #include "prx/libSceLibreSsl/include/Error.hpp"
 #include "prx/libkernel/include/Api.hpp"
+#include "prx/libc/include/Api.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -104,6 +105,48 @@ void CheckThreads(const std::string& prefix) {
     Require(ERR_get_error_nid_postfix() == 0x03064041);
 }
 
+std::string ReadFile(const char* path) {
+    auto* stream = fopen_nid_postfix(path, "rb");
+    Require(stream != nullptr);
+    std::string text;
+    char buffer[256];
+    for (;;) {
+        const auto count = fread_nid_postfix(buffer, 1, sizeof(buffer), stream);
+        text.append(buffer, count);
+        if (count < sizeof(buffer)) break;
+    }
+    Require(fclose_nid_postfix(stream) == 0);
+    return text;
+}
+
+void CheckFilePrint(const std::string& prefix) {
+    constexpr const char* path = "guest_libressl3_error_report_fp.tmp";
+    auto* stream = fopen_nid_postfix(path, "wb");
+    Require(stream != nullptr);
+    ERR_print_errors_fp_nid_postfix(stream);
+    LibreSslPutError_nid_no_patch(3, 100, 65, "file.c", 12);
+    LibreSslPutError_nid_no_patch(4, 101, 66);
+    ERR_print_errors_fp_nid_postfix(stream);
+    Require(ERR_get_error_nid_postfix() == 0);
+    Require(fclose_nid_postfix(stream) == 0);
+    Require(ReadFile(path) ==
+        prefix + "error:03064041:lib(3):func(100):reason(65):file.c:12:
+" +
+        prefix + "error:04065042:lib(4):func(101):reason(66):NA:0:
+");
+
+    stream = fopen_nid_postfix(path, "rb");
+    Require(stream != nullptr);
+    LibreSslPutError_nid_no_patch(3, 100, 65);
+    LibreSslPutError_nid_no_patch(4, 101, 66);
+    ERR_print_errors_fp_nid_postfix(stream);
+    Require(ERR_get_error_nid_postfix() == 0x04065042 && ERR_get_error_nid_postfix() == 0);
+    Require(fclose_nid_postfix(stream) == 0);
+    Require(remove_nid_postfix(path) == 0);
+
+    ERR_print_errors_fp_nid_postfix(nullptr);
+}
+
 } // namespace
 
 int main() {
@@ -114,6 +157,7 @@ int main() {
         CheckGuestProducer(prefix);
         CheckTruncation(prefix);
         CheckThreads(prefix);
+        CheckFilePrint(prefix);
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return 1;

@@ -168,4 +168,40 @@ void APS5_VABI SSL_CTX_set_keylog_callback_nid_postfix(LibreSsl3SslCtx* context,
     context->keylogCallback = reinterpret_cast<void*>(callback);
 }
 
+int APS5_VABI SSL_is_quic_nid_postfix(const LibreSsl3Ssl* ssl) {
+    if (!ssl)
+        throw std::invalid_argument("SSL_is_quic requires an SSL");
+    return ssl->quicMethod != nullptr;
+}
+
+int APS5_VABI SSL_CTX_set_quic_method_nid_postfix(LibreSsl3SslCtx* context, const void* quicMethod) {
+    if (!context || !context->method)
+        throw std::invalid_argument("SSL_CTX_set_quic_method requires a context with a method");
+    if (static_cast<const LibreSsl3SslMethod*>(context->method)->dtls) return 0;
+    context->quicMethod = quicMethod;
+    return 1;
+}
+
+int APS5_VABI SSL_set_quic_transport_params_nid_postfix(LibreSsl3Ssl* ssl, const std::uint8_t* params,
+                                                         std::size_t paramsLength) {
+    if (!ssl)
+        throw std::invalid_argument("SSL_set_quic_transport_params requires an SSL");
+    freezero_nid_postfix(ssl->quicTransportParams, ssl->quicTransportParamsLength);
+    ssl->quicTransportParams = nullptr;
+    ssl->quicTransportParamsLength = 0;
+    auto* copy = static_cast<std::uint8_t*>(malloc_nid_postfix(paramsLength));
+    if (!copy)
+        return 0;
+    if (paramsLength > 0) {
+        if (!params) {
+            free_nid_postfix(copy);
+            throw std::invalid_argument("SSL_set_quic_transport_params requires parameters for a nonzero length");
+        }
+        std::memcpy(copy, params, paramsLength);
+    }
+    ssl->quicTransportParams = copy;
+    ssl->quicTransportParamsLength = paramsLength;
+    return 1;
+}
+
 }

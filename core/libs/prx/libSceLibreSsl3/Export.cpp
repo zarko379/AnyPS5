@@ -1,6 +1,7 @@
 #include "prx/libSceLibreSsl3/include/Api.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include "SceTypes.hpp"
 #include "prx/libSceLibreSsl/ErrorQueue.hpp"
 #include "prx/libc/include/General.hpp"
@@ -8,9 +9,8 @@
 extern "C" {
 
 APS5_DUMMY_FUN
-int APS5_VABI BIO_vfree_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI BIO_vfree_nid_postfix(LibreSsl::Bio* bio) {
+    BIO_free_nid_postfix(bio);
 }
 
 int APS5_VABI CRYPTO_memcmp_nid_postfix(const void* first, const void* second, std::size_t length) {
@@ -29,9 +29,9 @@ std::uint64_t APS5_VABI ERR_peek_last_error_nid_postfix() {
     return LibreSslPeekLastError_nid_no_patch();
 }
 
-int APS5_VABI EVP_CIPHER_CTX_set_flags_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+void APS5_VABI EVP_CIPHER_CTX_set_flags_nid_postfix(LibreSslEvpCipherCtx* context, int flags) {
+    if (!context) throw std::invalid_argument("EVP_CIPHER_CTX_set_flags: null context");
+    context->flags |= static_cast<std::uint64_t>(static_cast<std::int64_t>(flags));
 }
 
 int APS5_VABI EVP_PKEY_new_mac_key_nid_postfix(void) {

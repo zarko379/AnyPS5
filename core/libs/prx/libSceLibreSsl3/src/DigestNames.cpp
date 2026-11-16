@@ -195,4 +195,7 @@ const void* APS5_VABI EVP_get_digestbyname_nid_postfix(const char* name) {
     return Resolve(entry->digest);
 }
 
+void APS5_VABI OpenSSL_add_all_digests_nid_postfix() {
+}
+
 }

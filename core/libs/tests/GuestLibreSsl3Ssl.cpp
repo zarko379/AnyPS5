@@ -1,5 +1,6 @@
 #include "prx/libSceLibreSsl3/libSceLibreSsl3.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
+#include "prx/libc/include/Api.hpp"
 
 #include <algorithm>
 #include <array>
@@ -387,6 +388,90 @@ void CheckX509Version() {
     CheckVersion(0x102, {0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01}, -1, TooSmall, "negative value below the minimum");
 }
 
+void CheckQuic() {
+    Guarded<LibreSsl3Ssl> guarded;
+    std::memset(&guarded, 0x5A, sizeof(guarded));
+    guarded.object.quicMethod = nullptr;
+    guarded.object.quicTransportParams = nullptr;
+    guarded.object.quicTransportParamsLength = 0;
+    Require(SSL_is_quic_nid_postfix(&guarded.object) == 0, "no QUIC method");
+    int quicMethod = 0;
+    guarded.object.quicMethod = &quicMethod;
+    Require(SSL_is_quic_nid_postfix(&guarded.object) == 1, "QUIC method at offset 8");
+
+    const auto start = Bytes(guarded);
+    const auto offset = offsetof(Guarded<LibreSsl3Ssl>, object) + 280;
+    const auto Stored = [&](const std::uint8_t* params, std::uint64_t length) {
+        auto expected = start;
+        const auto* pointer = guarded.object.quicTransportParams;
+        std::memcpy(expected.data() + offset, &pointer, sizeof(pointer));
+        std::memcpy(expected.data() + offset + 8, &length, sizeof(length));
+        return Same(guarded, expected) && pointer != nullptr && pointer != params &&
+               (length == 0 || std::memcmp(pointer, params, length) == 0);
+    };
+    const std::uint8_t first[] = {0x01, 0x04, 0x80, 0x00, 0x75, 0x30};
+    Require(SSL_set_quic_transport_params_nid_postfix(&guarded.object, first, sizeof(first)) == 1, "parameters");
+    Require(Stored(first, sizeof(first)), "parameters not copied to offsets 280 and 288");
+    const std::uint8_t second[] = {0x0f, 0x00};
+    Require(SSL_set_quic_transport_params_nid_postfix(&guarded.object, second, sizeof(second)) == 1, "replacement");
+    Require(Stored(second, sizeof(second)), "replacement not copied");
+    const int emptyResult = SSL_set_quic_transport_params_nid_postfix(&guarded.object, nullptr, 0);
+    Require(emptyResult == (guarded.object.quicTransportParams != nullptr ? 1 : 0), "empty parameters result");
+    Require(guarded.object.quicTransportParamsLength == 0, "empty parameters length");
+    if (emptyResult == 1) Require(Stored(nullptr, 0), "empty parameters not stored");
+    free_nid_postfix(guarded.object.quicTransportParams);
+    guarded.object.quicTransportParams = nullptr;
+
+    bool threw = false;
+    try {
+        SSL_set_quic_transport_params_nid_postfix(&guarded.object, nullptr, 3);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw && guarded.object.quicTransportParams == nullptr && guarded.object.quicTransportParamsLength == 0,
+        "null parameters with a length");
+    for (const auto call : {0, 1}) {
+        threw = false;
+        try {
+            if (call == 0) SSL_is_quic_nid_postfix(nullptr);
+            else SSL_set_quic_transport_params_nid_postfix(nullptr, first, sizeof(first));
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        Require(threw, "null SSL");
+    }
+
+    Guarded<LibreSsl3SslCtx> context;
+    std::memset(&context, 0x5A, sizeof(context));
+    LibreSsl3SslMethod tls = *TLS_method_nid_postfix();
+    context.object.method = &tls;
+    auto expected = Bytes(context);
+    const auto methodOffset = offsetof(Guarded<LibreSsl3SslCtx>, object) + 8;
+    const void* method = &quicMethod;
+    Require(SSL_CTX_set_quic_method_nid_postfix(&context.object, method) == 1, "TLS context");
+    std::memcpy(expected.data() + methodOffset, &method, sizeof(method));
+    Require(Same(context, expected), "QUIC method not stored at offset 8");
+    Require(SSL_CTX_set_quic_method_nid_postfix(&context.object, nullptr) == 1, "clear QUIC method");
+    std::memset(expected.data() + methodOffset, 0, sizeof(method));
+    Require(Same(context, expected), "QUIC method not cleared");
+    LibreSsl3SslMethod dtls = tls;
+    dtls.dtls = 1;
+    context.object.method = &dtls;
+    expected = Bytes(context);
+    Require(SSL_CTX_set_quic_method_nid_postfix(&context.object, method) == 0, "DTLS context");
+    Require(Same(context, expected), "DTLS context changed");
+    for (const auto withMethod : {false, true}) {
+        threw = false;
+        context.object.method = nullptr;
+        try {
+            SSL_CTX_set_quic_method_nid_postfix(withMethod ? &context.object : nullptr, method);
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        Require(threw, "null context or method");
+    }
+}
+
 void APS5_VABI KeylogLine(const LibreSsl3Ssl*, const char*) {}
 
 void CheckKeylogCallback() {
@@ -427,5 +512,6 @@ int main() {
     CheckTlsMethod();
     CheckX509Version();
     CheckKeylogCallback();
+    CheckQuic();
     return 0;
 }
