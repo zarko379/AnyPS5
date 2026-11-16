@@ -997,15 +997,7 @@ int APS5_VABI _ZN3JSC15JSWrapperObject13visitChildrenEPNS_6JSCellERNS_11SlotVisi
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN3JSC16InternalFunction11getCallDataEPNS_6JSCellE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN3JSC16InternalFunction13visitChildrenEPNS_6JSCellERNS_11SlotVisitorE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3JSC16InternalFunction16getConstructDataEPNS_6JSCellE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -1070,10 +1062,6 @@ int APS5_VABI _ZN3JSC19ArrayBufferContentsaSEOS0_() {
 }
 
 int APS5_VABI _ZN3JSC19JSSymbolTableObject14deletePropertyEPNS_6JSCellEPNS_14JSGlobalObjectENS_12PropertyNameERNS_18DeletePropertySlotE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3JSC20speculationFromValueENS_7JSValueE() {
     NotImplemented_nid_no_patch(__func__);
 }
 
@@ -1230,10 +1218,6 @@ int APS5_VABI _ZN3JSC6JSCell13estimatedSizeEPS0_RNS_2VME() {
 }
 
 int APS5_VABI _ZN3JSC6JSCell17customHasInstanceEPNS_8JSObjectEPNS_14JSGlobalObjectENS_7JSValueE() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN3JSC6JSCell7destroyEPS0_() {
     NotImplemented_nid_no_patch(__func__);
 }
 

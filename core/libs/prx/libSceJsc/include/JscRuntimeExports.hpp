@@ -45,6 +45,15 @@ struct CallData {
     std::uintptr_t second;
 };
 
+struct InternalFunction {
+    std::uint64_t cellHeader;
+    const void* butterfly;
+    std::uintptr_t functionForCall;
+    std::uintptr_t functionForConstruct;
+    const void* originalName;
+    const void* globalObject;
+};
+
 static_assert(sizeof(FreeCell) == 16);
 static_assert(offsetof(FreeCell, scrambledNext) == 8);
 static_assert(sizeof(FreeList) == 40);
@@ -67,6 +76,9 @@ static_assert(offsetof(CallData, type) == 0);
 static_assert(offsetof(CallData, first) == 8);
 static_assert(offsetof(CallData, second) == 16);
 static_assert(std::is_trivially_copyable_v<CallData>);
+static_assert(sizeof(InternalFunction) == 48);
+static_assert(offsetof(InternalFunction, functionForCall) == 16);
+static_assert(offsetof(InternalFunction, functionForConstruct) == 24);
 
 } // namespace Jsc::JscAbi
 
@@ -78,5 +90,9 @@ void APS5_VABI _ZN3JSC8FreeList14initializeListEPNS_8FreeCellEmj(Jsc::JscAbi::Fr
 bool APS5_VABI _ZNK3JSC9ClassInfo35hasStaticSetterOrReadonlyPropertiesEv(const Jsc::JscAbi::ClassInfo* self);
 Jsc::JscAbi::CallData APS5_VABI _ZN3JSC6JSCell11getCallDataEPS0_(void* cell);
 Jsc::JscAbi::CallData APS5_VABI _ZN3JSC6JSCell16getConstructDataEPS0_(void* cell);
+Jsc::JscAbi::CallData APS5_VABI _ZN3JSC16InternalFunction11getCallDataEPNS_6JSCellE(Jsc::JscAbi::InternalFunction* cell);
+Jsc::JscAbi::CallData APS5_VABI _ZN3JSC16InternalFunction16getConstructDataEPNS_6JSCellE(Jsc::JscAbi::InternalFunction* cell);
+void APS5_VABI _ZN3JSC6JSCell7destroyEPS0_(void* cell);
+std::uint64_t APS5_VABI _ZN3JSC20speculationFromValueENS_7JSValueE(std::uint64_t value);
 
 }

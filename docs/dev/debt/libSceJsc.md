@@ -46,7 +46,11 @@
 
 - [JSC::ClassInfo::hasStaticSetterOrReadonlyProperties](../../../core/libs/prx/libSceJsc/src/JscClassInfo.cpp) (libSceJsc) - not measured on a console; the console JavaScriptCore version is unverified, and only the parent pointer at byte 8 and the static table pointer at byte 16 of [ClassInfo.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/ClassInfo.h#L192-L205) and the flag at byte 8 of [Lookup.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/Lookup.h#L107-L114) `HashTable` are read. It follows pinned [Structure.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/Structure.cpp#L1384-L1393): it walks this class and its parents and returns true at the first static table whose flag is set. A null `this` throws where WebKit faults.
 
-- [JSC::JSCell::getCallData and getConstructData](../../../core/libs/prx/libSceJsc/src/JscCell.cpp) (libSceJsc) - not measured on a console; the console JavaScriptCore version and the 24-byte `CallData` (type byte at 0, union from byte 8, returned through the hidden result pointer) are unverified. They follow pinned [JSCell.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSCell.cpp#L91-L99), which returns `{ }`, on [CallData.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/CallData.h#L41-L54): type `None` and a null native function. The second union word, which `{ }` leaves unspecified, is written as 0. The cell is not read.
+- [JSC::JSCell::getCallData, getConstructData and destroy](../../../core/libs/prx/libSceJsc/src/JscCell.cpp) (libSceJsc) - not measured on a console; the console JavaScriptCore version and the 24-byte `CallData` (type byte at 0, union from byte 8, returned through the hidden result pointer) are unverified. They follow pinned [JSCell.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSCell.cpp#L39-L99): the two queries return `{ }` on [CallData.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/CallData.h#L41-L54), type `None` and a null native function, with the second union word, which `{ }` leaves unspecified, written as 0; `destroy` runs the trivial `JSCell` destructor and writes nothing. The cell is not read.
+
+- [JSC::InternalFunction::getCallData and getConstructData](../../../core/libs/prx/libSceJsc/src/JscInternalFunction.cpp) (libSceJsc) - not measured on a console; the JavaScriptCore version is unverified, and only the call and construct pointers at bytes 16 and 24 (8-byte cell header, [butterfly](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSObject.h#L1140), [InternalFunction.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/InternalFunction.h#L95-L98)) are read. They follow pinned [InternalFunction.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/InternalFunction.cpp#L88-L110): a `Native` `CallData` with the stored pointer, and `None` when the construct pointer is libSceJsc's own `callHostFunctionAsConstructor` export, which the constructor stores. Unspecified words are written as 0. libSceJsc builds no such cell; a null cell throws where WebKit faults.
+
+- [JSC::speculationFromValue](../../../core/libs/prx/libSceJsc/src/JscSpeculatedType.cpp) (libSceJsc) - not measured on a console; the JavaScriptCore version is unverified. Immediate values follow pinned [SpeculatedType.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/bytecode/SpeculatedType.cpp#L564-L589) with the [type bits](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/bytecode/SpeculatedType.h#L75-L102), the [value encoding](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSCJSValue.h#L449-L476), the [Int52 test](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/JSCJSValueInlines.h#L578-L614) and `USE_BIGINT32` 0 from [PlatformUse.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/PlatformUse.h#L144-L148). A cell needs its `Structure`, which nothing here models, and keeps calling `NotImplemented_nid_no_patch`.
 
 - [WTF nullString, String::toUIntStrict and StringImpl::utf8Impl](../../../core/libs/prx/libSceJsc/src/WtfStringConversion.cpp) (libSceJsc) - not measured on a console; the WTF version and string layouts are unverified. `nullString` returns one static null `String` ([WTFString.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/WTFString.cpp#L1106-L1110)). `toUIntStrict` follows [WTFString.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/WTFString.cpp#L526-L534) and [StringToIntegerConversion.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/StringToIntegerConversion.h#L33-L122); non-Latin-1 whitespace is the bidi class WS set, as in `URL::port`. `utf8Impl` follows [StringImpl.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/StringImpl.cpp#L1755-L1813) over `convertUTF16ToUTF8`. Base 0, a null `this` and output past the buffer, where WebKit divides by zero, faults or asserts, throw.
 
@@ -86,7 +90,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 299 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 295 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -171,9 +175,7 @@
 | `_ZN3JSC15ArrayBufferViewD2Ev` | `iYCgf+sk0iw` |
 | `_ZN3JSC15JSWeakObjectRef14finishCreationERNS_2VMEPNS_8JSObjectE` | `3WxN4u0Qywg` |
 | `_ZN3JSC15JSWrapperObject13visitChildrenEPNS_6JSCellERNS_11SlotVisitorE` | `no-jO-qaBAI` |
-| `_ZN3JSC16InternalFunction11getCallDataEPNS_6JSCellE` | `8FBD-Rkv4hQ` |
 | `_ZN3JSC16InternalFunction13visitChildrenEPNS_6JSCellERNS_11SlotVisitorE` | `18gO8FIVDOg` |
-| `_ZN3JSC16InternalFunction16getConstructDataEPNS_6JSCellE` | `DJktOWakWpE` |
 | `_ZN3JSC16InternalFunctionC2ERNS_2VMEPNS_9StructureENS_14NativeFunctionES5_` | `XA+MKRXav1U` |
 | `_ZN3JSC16IsoSubspacePerVM5forVMERNS_2VME` | `wQP33i9qQPI` |
 | `_ZN3JSC16IsoSubspacePerVMC1EN3WTF8FunctionIFNS0_18SubspaceParametersERNS_2VMEEEE` | `7HOzNJVbN0g` |
@@ -190,7 +192,6 @@
 | `_ZN3JSC19ArrayBufferContentsD2Ev` | `ZmbGnRlFl18` |
 | `_ZN3JSC19ArrayBufferContentsaSEOS0_` | `CqjOWM+bC4E` |
 | `_ZN3JSC19JSSymbolTableObject14deletePropertyEPNS_6JSCellEPNS_14JSGlobalObjectENS_12PropertyNameERNS_18DeletePropertySlotE` | `5uy3POCFlAc` |
-| `_ZN3JSC20speculationFromValueENS_7JSValueE` | `K9Mk0uRkFII` |
 | `_ZN3JSC23JSModuleNamespaceObject10putByIndexEPNS_6JSCellEPNS_14JSGlobalObjectEjNS_7JSValueEb` | `lNicIEursI4` |
 | `_ZN3JSC23JSModuleNamespaceObject14deletePropertyEPNS_6JSCellEPNS_14JSGlobalObjectENS_12PropertyNameERNS_18DeletePropertySlotE` | `wfMAwMqO7ew` |
 | `_ZN3JSC23JSModuleNamespaceObject14finishCreationEPNS_14JSGlobalObjectEPNS_20AbstractModuleRecordEON3WTF6VectorISt4pairINS_10IdentifierENS3_10ResolutionEELm0ENS5_15CrashOnOverflowELm16ENS5_10FastMallocEEE` | `MK8aFRu0E2A` |
@@ -230,7 +231,6 @@
 | `_ZN3JSC6JSCell12dumpToStreamEPKS0_RN3WTF11PrintStreamE` | `13Vdz0yQpSw` |
 | `_ZN3JSC6JSCell13estimatedSizeEPS0_RNS_2VME` | `g7U6yKITcyw` |
 | `_ZN3JSC6JSCell17customHasInstanceEPNS_8JSObjectEPNS_14JSGlobalObjectENS_7JSValueE` | `C7KVLWk-IVk` |
-| `_ZN3JSC6JSCell7destroyEPS0_` | `85S6tE7Yj9Q` |
 | `_ZN3JSC6RegExp12dumpToStreamEPKNS_6JSCellERN3WTF11PrintStreamE` | `6Zl8YABX-mc` |
 | `_ZN3JSC7JSArray17defineOwnPropertyEPNS_8JSObjectEPNS_14JSGlobalObjectENS_12PropertyNameERKNS_18PropertyDescriptorEb` | `TffOsjfNe+U` |
 | `_ZN3JSC7JSArray18getOwnPropertySlotEPNS_8JSObjectEPNS_14JSGlobalObjectENS_12PropertyNameERNS_12PropertySlotE` | `beI6iLGELZA` |

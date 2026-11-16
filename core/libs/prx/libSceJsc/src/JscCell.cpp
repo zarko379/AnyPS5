@@ -33,6 +33,8 @@ Jsc::JscAbi::CallData EmptyCallData() {
 
 extern "C" {
 
+void APS5_VABI _ZN3JSC6JSCell7destroyEPS0_(void*) {}
+
 Jsc::JscAbi::CallData APS5_VABI _ZN3JSC6JSCell11getCallDataEPS0_(void*) {
     return EmptyCallData();
 }
