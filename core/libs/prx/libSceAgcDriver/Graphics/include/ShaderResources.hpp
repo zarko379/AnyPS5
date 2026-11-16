@@ -73,6 +73,7 @@ struct TextureCacheUse {
     std::uint64_t storageBytes = 0;
 };
 TextureCacheUse TextureCacheUsage();
+TextureCacheUse PeekTextureCacheUsage();
 void OverrideCacheBudgetForTest(std::uint64_t bytes);
 void SampledFromStorageForTest(bool enabled);
 std::uint64_t SampledTextureCacheBudget(const Context& context);

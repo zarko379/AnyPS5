@@ -958,7 +958,7 @@ void PerformanceOverlay::NotePresent(OverlayStatistics::Clock::time_point at, Vk
         details.cpuPercent = cpu && cpuBase && sampledAt ? OverlayCpuPercent(*cpuBase, *cpu, at - *sampledAt, processors) : std::nullopt;
         cpuBase = cpu;
         details.shadersCompiling = DriverDetail::RegistrationPreparationsPending();
-        const auto textures = Graphics::TextureCacheUsage();
+        const auto textures = Graphics::PeekTextureCacheUsage();
         details.textures = OverlayTextures{textures.sampledEntries, textures.sampledBytes + textures.spareBytes + textures.storageBytes};
         const bool flipped = sampledAt && info.flipToPresentSamples > flipToPresentBaseSamples && info.flipToPresentMs >= flipToPresentBaseMs;
         details.flipToPresentMs = flipped ? std::optional<double>((info.flipToPresentMs - flipToPresentBaseMs) / static_cast<double>(info.flipToPresentSamples - flipToPresentBaseSamples)) : std::nullopt;

@@ -1689,11 +1689,19 @@ void OverrideCacheBudgetForTest(std::uint64_t bytes) {
 }
 
 TextureCacheUse TextureCacheUsage() {
-    TextureCacheUse use;
     {
         auto& sampled = Textures();
         std::lock_guard lock(sampled.mutex);
         dropUncachedViews(sampled);
+    }
+    return PeekTextureCacheUsage();
+}
+
+TextureCacheUse PeekTextureCacheUsage() {
+    TextureCacheUse use;
+    {
+        auto& sampled = Textures();
+        std::lock_guard lock(sampled.mutex);
         use.sampledEntries = sampled.entries.size();
         use.sampledBytes = sampled.bytes;
         use.spareEntries = sampled.spare.size();
