@@ -386,6 +386,37 @@ void TestLegacyMIMETypePredicates() {
     Require(!isPreview(_ZN3WTF10StringImpl6createEPKDsj(previewAliased, 9)));
 }
 
+void TestWideCharacterComparisons() {
+    auto wide = [](const char16_t* text) {
+        return String(_ZN3WTF10StringImpl6createEPKDsj(text, static_cast<unsigned>(std::char_traits<char16_t>::length(text))));
+    };
+    auto wideView = [](const char16_t* text) {
+        return StringView{text, static_cast<unsigned>(std::char_traits<char16_t>::length(text)), false};
+    };
+
+    Require(_ZN7WebCore16MIMETypeRegistry25isPDFOrPostScriptMIMETypeERKN3WTF6StringE(wide(u"Application/PDF")));
+    Require(!_ZN7WebCore16MIMETypeRegistry25isPDFOrPostScriptMIMETypeERKN3WTF6StringE(wide(u"\u0141pplication/pdf")));
+    Require(!_ZN7WebCore16MIMETypeRegistry25isPDFOrPostScriptMIMETypeERKN3WTF6StringE(wide(u"application/\u0170df")));
+
+    Require(_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(wide(u"Text/plain")));
+    Require(!_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(wide(u"\u0154ext/plain")));
+    Require(!_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(wide(u"text\u012Fplain")));
+
+    Require(_ZN7WebCore16MIMETypeRegistry23isSupportedJSONMIMETypeERKN3WTF6StringE(wide(u"application/problem+JSON")));
+    Require(!_ZN7WebCore16MIMETypeRegistry23isSupportedJSONMIMETypeERKN3WTF6StringE(wide(u"application/problem+\u014Ason")));
+    Require(!_ZN7WebCore16MIMETypeRegistry23isSupportedJSONMIMETypeERKN3WTF6StringE(wide(u"application/problem\u012Bjson")));
+
+    Require(_ZN7WebCore16MIMETypeRegistry13isXMLMIMETypeERKN3WTF6StringE(wide(u"image/svg+XML")));
+    Require(!_ZN7WebCore16MIMETypeRegistry13isXMLMIMETypeERKN3WTF6StringE(wide(u"image/svg+\u0178ml")));
+    Require(!_ZN7WebCore16MIMETypeRegistry13isXMLMIMETypeERKN3WTF6StringE(wide(u"\u0174ext/xml")));
+
+    Require(_ZN7WebCore16MIMETypeRegistry19isXMLEntityMIMETypeEN3WTF10StringViewE(wideView(u"Text/XML-External-Parsed-Entity")));
+    Require(!_ZN7WebCore16MIMETypeRegistry19isXMLEntityMIMETypeEN3WTF10StringViewE(wideView(u"\u0154ext/xml-external-parsed-entity")));
+
+    Require(_ZN7WebCore16MIMETypeRegistry28isSupportedTextTrackMIMETypeERKN3WTF6StringE(wide(u"TEXT/vtt")));
+    Require(!_ZN7WebCore16MIMETypeRegistry28isSupportedTextTrackMIMETypeERKN3WTF6StringE(wide(u"text/\u0176tt")));
+}
+
 int main() {
     TestLegacyMIMETypePredicates();
     TestFixedVectorLists();
@@ -393,6 +424,7 @@ int main() {
     TestExtensions();
     TestAllowedAndEncoding();
     TestLegacySchemeRegistry();
+    TestWideCharacterComparisons();
     std::printf("All libSceNKWebKit MimeTypeRegistry tests passed!\n");
     return 0;
 }

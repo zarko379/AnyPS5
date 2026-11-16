@@ -31,13 +31,21 @@ char16_t GetChar(const NKWebKit::WtfAbi::StringView& view, unsigned index) {
     return static_cast<const char16_t*>(view.data)[index];
 }
 
+char16_t ToASCIILower(char16_t character) {
+    return character >= u'A' && character <= u'Z' ? static_cast<char16_t>(character | 0x20) : character;
+}
+
+bool SameIgnoringASCIICase(char16_t character, char expected) {
+    return ToASCIILower(character) == ToASCIILower(static_cast<unsigned char>(expected));
+}
+
 bool EqualIgnoringASCIICase(const NKWebKit::WtfAbi::StringImpl* impl, std::string_view s) {
     if (!impl) return s.empty();
     if (impl->length != s.length()) return false;
     for (unsigned i = 0; i < impl->length; ++i) {
         char16_t c1 = GetChar(impl, i);
         char c2 = s[i];
-        if (std::tolower(static_cast<unsigned char>(c1)) != std::tolower(static_cast<unsigned char>(c2))) {
+        if (!SameIgnoringASCIICase(c1, c2)) {
             return false;
         }
     }
@@ -49,7 +57,7 @@ bool EqualIgnoringASCIICase(const NKWebKit::WtfAbi::StringView& view, std::strin
     for (unsigned i = 0; i < view.length; ++i) {
         char16_t c1 = GetChar(view, i);
         char c2 = s[i];
-        if (std::tolower(static_cast<unsigned char>(c1)) != std::tolower(static_cast<unsigned char>(c2))) {
+        if (!SameIgnoringASCIICase(c1, c2)) {
             return false;
         }
     }
@@ -62,7 +70,7 @@ bool StartsWithIgnoringASCIICase(const NKWebKit::WtfAbi::StringImpl* impl, std::
     for (unsigned i = 0; i < prefix.length(); ++i) {
         char16_t c1 = GetChar(impl, i);
         char c2 = prefix[i];
-        if (std::tolower(static_cast<unsigned char>(c1)) != std::tolower(static_cast<unsigned char>(c2))) {
+        if (!SameIgnoringASCIICase(c1, c2)) {
             return false;
         }
     }
@@ -76,7 +84,7 @@ bool EndsWithIgnoringASCIICase(const NKWebKit::WtfAbi::StringImpl* impl, std::st
     for (unsigned i = 0; i < suffix.length(); ++i) {
         char16_t c1 = GetChar(impl, offset + i);
         char c2 = suffix[i];
-        if (std::tolower(static_cast<unsigned char>(c1)) != std::tolower(static_cast<unsigned char>(c2))) {
+        if (!SameIgnoringASCIICase(c1, c2)) {
             return false;
         }
     }
@@ -407,10 +415,6 @@ bool StartsWithLettersIgnoringASCIICase(const NKWebKit::WtfAbi::StringImpl* impl
         if ((GetChar(impl, i) | 0x20) != static_cast<unsigned char>(lowercaseLetters[i])) return false;
     }
     return true;
-}
-
-char16_t ToASCIILower(char16_t character) {
-    return character >= u'A' && character <= u'Z' ? static_cast<char16_t>(character | 0x20) : character;
 }
 
 bool EqualIgnoringASCIICaseOnly(const NKWebKit::WtfAbi::StringImpl* impl, std::string_view s) {
