@@ -57,4 +57,38 @@ void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient24dispatchDidFinishLoadingEPNS
 void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient22dispatchDidFailLoadingEPNS_14DocumentLoaderEmRKNS_13ResourceErrorE() {
 }
 
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient12didDetectXSSERKN3WTF3URLEb() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient13committedLoadEPNS_14DocumentLoaderEPKci() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient25setMainFrameDocumentReadyEb() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient26updateCachedDocumentLoaderERNS_14DocumentLoaderE() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient29savePlatformDataToCachedFrameEPNS_11CachedFrameE() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient30dispatchDidFailProvisionalLoadERKNS_13ResourceErrorENS_19WillContinueLoadingE() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient31dispatchDidReachLayoutMilestoneEN3WTF9OptionSetINS_15LayoutMilestoneEEE() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient31dispatchUnableToImplementPolicyERKNS_13ResourceErrorE() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient32assignIdentifierToInitialRequestEmPNS_14DocumentLoaderERKNS_15ResourceRequestE() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient33dispatchWillPerformClientRedirectERKN3WTF3URLEdNS1_8WallTimeENS_19LockBackForwardListE() {
+}
+
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient8setTitleERKNS_19StringWithDirectionERKN3WTF3URLE() {
+}
+
 }
