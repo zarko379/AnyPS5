@@ -63,6 +63,57 @@ int main() {
     RequireThrows([&] { WKContextRegisterURLSchemeAsEmptyDocument(contextRef, contextRef); });
     RequireThrows([&] { WKContextRegisterURLSchemeAsSecure(nullptr, nullptr); });
 
+    Require(pool->domainRelaxationForbiddenSchemes.empty());
+    WKContextSetDomainRelaxationForbiddenForURLScheme(contextRef, schemeA);
+    WKContextSetDomainRelaxationForbiddenForURLScheme(contextRef, schemeB);
+    WKContextSetDomainRelaxationForbiddenForURLScheme(contextRef, schemeA);
+    Require(pool->domainRelaxationForbiddenSchemes.size() == 2);
+    Require(pool->domainRelaxationForbiddenSchemes[0] == "custom-csp");
+    Require(pool->domainRelaxationForbiddenSchemes[1] == "custom-cache");
+    RequireThrows([&] { WKContextSetDomainRelaxationForbiddenForURLScheme(nullptr, schemeA); });
+    RequireThrows([&] { WKContextSetDomainRelaxationForbiddenForURLScheme(contextRef, nullptr); });
+    RequireThrows([&] { WKContextSetDomainRelaxationForbiddenForURLScheme(schemeA, schemeB); });
+    Require(pool->domainRelaxationForbiddenSchemes.size() == 2);
+
+    const void* fontA = WKStringCreateWithUTF8CString("Font A");
+    const void* fontB = WKStringCreateWithUTF8CString("Font B");
+    const void* number = WKUInt64Create(7);
+    const void* fontItems[] = {fontA, number, fontB};
+    const void* fonts = WKArrayCreate(fontItems, 3);
+    const void* otherItems[] = {fontB};
+    const void* otherFonts = WKArrayCreate(otherItems, 1);
+    Require(pool->fontAllowList.empty());
+    WKContextSetFontAllowList(contextRef, fonts);
+    Require(pool->fontAllowList.size() == 2);
+    Require(pool->fontAllowList[0] == u"Font A");
+    Require(pool->fontAllowList[1] == u"Font B");
+    WKContextSetFontAllowList(contextRef, otherFonts);
+    Require(pool->fontAllowList.size() == 1);
+    Require(pool->fontAllowList[0] == u"Font B");
+    WKContextSetFontAllowList(contextRef, nullptr);
+    Require(pool->fontAllowList.empty());
+    WKContextSetFontAllowList(contextRef, fonts);
+    RequireThrows([&] { WKContextSetFontAllowList(nullptr, fonts); });
+    RequireThrows([&] { WKContextSetFontAllowList(contextRef, fontA); });
+    Require(pool->fontAllowList.size() == 2);
+
+    Require(!pool->injectedBundleInitializationUserData);
+    WKContextSetInitializationUserDataForInjectedBundle(contextRef, number);
+    Require(pool->injectedBundleInitializationUserData.Get() == static_cast<const NKWebKit::Object*>(number));
+    WKContextSetInitializationUserDataForInjectedBundle(contextRef, fonts);
+    Require(pool->injectedBundleInitializationUserData.Get() == static_cast<const NKWebKit::Object*>(fonts));
+    WKContextSetInitializationUserDataForInjectedBundle(contextRef, nullptr);
+    Require(!pool->injectedBundleInitializationUserData);
+    WKContextSetInitializationUserDataForInjectedBundle(contextRef, fontA);
+    RequireThrows([&] { WKContextSetInitializationUserDataForInjectedBundle(nullptr, fontA); });
+    WKRelease(fontA);
+    Require(WKStringIsEqualToUTF8CString(static_cast<const NKWebKit::Object*>(pool->injectedBundleInitializationUserData.Get()), "Font A"));
+
+    WKRelease(otherFonts);
+    WKRelease(fonts);
+    WKRelease(number);
+    WKRelease(fontB);
+
     WKRelease(schemeE);
     WKRelease(schemeD);
     WKRelease(schemeC);

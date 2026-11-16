@@ -133,6 +133,9 @@ public:
     std::vector<std::string> canDisplayOnlyIfCanRequestSchemes;
     std::vector<std::string> emptyDocumentSchemes;
     std::vector<std::string> secureSchemes;
+    std::vector<std::string> domainRelaxationForbiddenSchemes;
+    std::vector<std::u16string> fontAllowList;
+    Retained<Object> injectedBundleInitializationUserData;
 };
 
 class PageConfiguration final : public ObjectOf<ObjectType::PageConfiguration> {
