@@ -424,6 +424,62 @@ void TestQueryCodecSupport() {
     RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc19VideoDecoderFactory17QueryCodecSupportERKNS_14SdpVideoFormatEb_nid_postfix(&factory, nullptr, false); });
 }
 
+void InitCodec(WebRtcCodec& codec) {
+    std::memset(&codec, 0, sizeof(codec));
+    InitGuestString(codec.name, "a-video-codec-name-that-is-long");
+    codec.packetization.engaged = true;
+    InitGuestString(codec.packetization.value, "raw-packetization-mode-name");
+    InitGuestString(codec.txMode.value, "");
+    codec.params.beginNode = EndNode(codec.params);
+    auto* root = MakeNode("apt", "96", true);
+    auto* left = MakeNode("a-long-parameter-key-for-codec", "x", false);
+    root->links.parent = EndNode(codec.params);
+    root->links.left = left;
+    left->links.parent = root;
+    codec.params.root = root;
+    codec.params.beginNode = left;
+    codec.params.size = 2;
+    auto* feedback = static_cast<WebRtcFeedbackParam*>(_Znwm_nid_postfix(3 * sizeof(WebRtcFeedbackParam)));
+    InitGuestString(feedback[0].id, "nack");
+    InitGuestString(feedback[0].param, "");
+    InitGuestString(feedback[1].id, "ccm");
+    InitGuestString(feedback[1].param, "a-long-feedback-parameter-value");
+    codec.feedbackBegin = feedback;
+    codec.feedbackEnd = feedback + 2;
+    codec.feedbackCapacity = feedback + 3;
+    auto* modes = static_cast<std::uint8_t*>(_Znwm_nid_postfix(40));
+    modes[0] = 1;
+    codec.scalabilityModes.allocated.data = modes;
+    codec.scalabilityModes.allocated.capacity = 40;
+    codec.scalabilityModes.metadata = (1u << 1) | 1u;
+}
+
+void TestCodecDestructor() {
+    Require(live.empty());
+    WebRtcCodec codec;
+    InitCodec(codec);
+    Require(live.size() == 8);
+    _ZN7cricket5CodecD1Ev_nid_postfix(&codec);
+    Require(live.empty());
+
+    InitCodec(codec);
+    codec.txMode.engaged = true;
+    codec.txMode.value.capacity = 3;
+    RequireInvalidArgument([&] { _ZN7cricket5CodecD1Ev_nid_postfix(&codec); });
+    codec.txMode.engaged = false;
+    WebRtcFeedbackParam* const end = codec.feedbackEnd;
+    codec.feedbackEnd = reinterpret_cast<WebRtcFeedbackParam*>(reinterpret_cast<unsigned char*>(end) - 8);
+    RequireInvalidArgument([&] { _ZN7cricket5CodecD1Ev_nid_postfix(&codec); });
+    codec.feedbackEnd = end;
+    codec.feedbackBegin[1].param.capacity = 2;
+    RequireInvalidArgument([&] { _ZN7cricket5CodecD1Ev_nid_postfix(&codec); });
+    Require(live.size() == 8);
+    codec.feedbackBegin[1].param.capacity = codec.feedbackBegin[1].param.size | WebRtcGuestStringInlineCapacity;
+    _ZN7cricket5CodecD1Ev_nid_postfix(&codec);
+    Require(live.empty());
+    RequireInvalidArgument([] { _ZN7cricket5CodecD1Ev_nid_postfix(nullptr); });
+}
+
 }
 
 int main() {
@@ -442,5 +498,6 @@ int main() {
     TestIsCodecInListH264();
     TestIsCodecInListH265AndInvalidArguments();
     TestQueryCodecSupport();
+    TestCodecDestructor();
     return 0;
 }

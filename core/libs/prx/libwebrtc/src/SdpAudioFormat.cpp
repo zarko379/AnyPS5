@@ -5,8 +5,19 @@
 /* Derived from api/video_codecs/av1_profile.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from api/video_codecs/video_codec.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from rtc_base/string_to_number.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
+/* Derived from media/base/codec.cc and media/base/codec.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+/*
+ *  Copyright (c) 2004 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -576,6 +587,27 @@ bool IsSameCodecSpecific(ByteView name, const std::vector<WebRtcStringMapNode*>&
     }
 }
 
+std::size_t FeedbackCount(const WebRtcCodec* codec, const char* message) {
+    const auto first = reinterpret_cast<std::uintptr_t>(codec->feedbackBegin);
+    const auto last = reinterpret_cast<std::uintptr_t>(codec->feedbackEnd);
+    const auto limit = reinterpret_cast<std::uintptr_t>(codec->feedbackCapacity);
+    if (last < first || limit < last || (!first && limit) || first % alignof(WebRtcFeedbackParam) ||
+        (last - first) % sizeof(WebRtcFeedbackParam) || (limit - first) % sizeof(WebRtcFeedbackParam))
+        throw std::invalid_argument(message);
+    return (last - first) / sizeof(WebRtcFeedbackParam);
+}
+
+void ValidateOptionalString(const WebRtcOptionalGuestString& optional, const char* message) {
+    if (optional.engaged)
+        ValidateString(optional.value, message);
+}
+
+void ReleaseOptionalString(WebRtcOptionalGuestString& optional) {
+    if (optional.engaged)
+        ReleaseString(optional.value);
+    optional.engaged = false;
+}
+
 }
 
 extern "C" {
@@ -771,6 +803,37 @@ bool APS5_VABI _ZNK6webrtc14SdpVideoFormat13IsCodecInListEN3rtc9ArrayViewIKS0_Ll
             return true;
     }
     return false;
+}
+
+void APS5_VABI _ZN7cricket5CodecD1Ev_nid_postfix(WebRtcCodec* codec) {
+    constexpr const char* message = "cricket::Codec destructor requires a valid codec";
+    RequireWritable(codec, sizeof(*codec), message);
+    ValidateString(codec->name, message);
+    ValidateOptionalString(codec->packetization, message);
+    ValidateModes(codec->scalabilityModes, message);
+    ValidateOptionalString(codec->txMode, message);
+    std::vector<WebRtcStringMapNode*> nodes;
+    ValidateMapNodes(codec->params, message, nodes);
+    const std::size_t feedbackCount = FeedbackCount(codec, message);
+    for (std::size_t index = 0; index < feedbackCount; ++index) {
+        ValidateString(codec->feedbackBegin[index].id, message);
+        ValidateString(codec->feedbackBegin[index].param, message);
+    }
+    while (codec->feedbackEnd != codec->feedbackBegin) {
+        WebRtcFeedbackParam& feedback = *--codec->feedbackEnd;
+        ReleaseString(feedback.param);
+        ReleaseString(feedback.id);
+    }
+    if (codec->feedbackBegin)
+        _ZdlPv_nid_postfix(codec->feedbackBegin);
+    codec->feedbackBegin = nullptr;
+    codec->feedbackEnd = nullptr;
+    codec->feedbackCapacity = nullptr;
+    DestroyMapNodes(nodes, codec->params);
+    ReleaseOptionalString(codec->txMode);
+    ReleaseModes(codec->scalabilityModes);
+    ReleaseOptionalString(codec->packetization);
+    ReleaseString(codec->name);
 }
 
 }
