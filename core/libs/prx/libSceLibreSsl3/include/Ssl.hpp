@@ -18,6 +18,14 @@ struct LibreSsl3Ssl3State {
     unsigned char clientRandom[32];
 };
 
+struct LibreSsl3Ssl3StateLayout {
+    unsigned char beforeVerifiedChain[520];
+    void* verifiedChain;
+    unsigned char beforePeerQuicTransportParams[472];
+    const std::uint8_t* peerQuicTransportParams;
+    std::uint64_t peerQuicTransportParamsLength;
+};
+
 struct LibreSsl3Ssl {
     std::int32_t version;
     const LibreSsl3SslMethod* method;
@@ -95,3 +103,7 @@ static_assert(offsetof(LibreSsl3SslSession, masterKeyLength) == 8);
 static_assert(offsetof(LibreSsl3SslSession, masterKey) == 16);
 static_assert(sizeof(LibreSsl3SslSession) == 192);
 static_assert(offsetof(LibreSsl3SslSession, references) == 184);
+static_assert(sizeof(LibreSsl3Ssl3StateLayout) == 1016);
+static_assert(offsetof(LibreSsl3Ssl3StateLayout, verifiedChain) == 520);
+static_assert(offsetof(LibreSsl3Ssl3StateLayout, peerQuicTransportParams) == 1000);
+static_assert(offsetof(LibreSsl3Ssl3StateLayout, peerQuicTransportParamsLength) == 1008);

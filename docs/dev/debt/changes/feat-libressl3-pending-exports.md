@@ -17,13 +17,15 @@
 
 - [i2d_X509](../../../core/libs/prx/libSceLibreSsl3/src/X509Encode.cpp) (libSceLibreSsl3) - nothing is checked on the console. Following [LibreSSL 4.0.0](https://github.com/libressl/openbsd/tree/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto) `x_x509.c`, `tasn_enc.c` and `a_bitstr.c`, it writes the cached unmodified `X509_CINF` encoding, the signature algorithm and the signature BIT STRING, returning 0 for a null certificate and allocating the output when `*out` is null. A modified or never-decoded `X509_CINF` throws, because no field encoder for it exists here, as do signature algorithm parameters other than absent or NULL and a signature without an unused-bit count whose last byte is zero, where LibreSSL's length and content passes disagree.
 
+- [SSL_get_peer_quic_transport_params and SSL_get0_verified_chain](../../../core/libs/prx/libSceLibreSsl3/src/Ssl.cpp) (libSceLibreSsl3) - nothing is checked on the console. They read the 1016-byte `SSL3_STATE` of [LibreSSL 4.0.0 ssl_local.h](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libssl/ssl_local.h) as `ssl_lib.c` does: the peer parameters and their length at offsets 1000 and 1008, and the handshake's verified chain at offset 520. The offsets were computed from the 4.0.0 structure definitions, not measured; nothing in this module fills these fields yet. A null SSL or output and, for the parameters, a null `s3` throw where LibreSSL dereferences them; the chain getter returns null without `s3`.
+
 ## change libSceLibreSsl3 pending exports
 
 - [libSceLibreSsl3 pending exports](../../../core/libs/prx/libSceLibreSsl3/Export.cpp) - 10 named callable exports of the [PS5 3.20 export table](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceLibreSsl3.c), cross-checked against the same module in PS5 firmware 13.60, remain unimplemented: `EVP_PKEY_new_mac_key`, `OCSP_cert_to_id`, `PEM_read_RSAPrivateKey`, `PKCS7_free`, `SSL_CTX_add0_chain_cert`, `SSL_CTX_clear_chain_certs`, `d2i_PKCS7`, `d2i_RSAPublicKey_bio`, `d2i_RSA_PUBKEY` and `d2i_X509_bio`. Their signatures and behaviour are unverified; the declarations use the no-parameter unknown-signature convention and throw through `NotImplemented_nid_no_patch`.
 
 ## change Additional exports
 
-- [Additional exports](../../../core/libs/prx/libSceLibreSsl3/AdditionalExports.cpp) declare 36 still-unimplemented callable exports: 35 named and 1 known only by NID. These entries throw. Parameterless `int` declarations are unknown-signature placeholders, not verified ABI contracts. Names/NIDs match the 13.60 export table. The fourteen libtls lifecycle/config exports are implemented in `LibTls.cpp`; title compatibility beyond preconnection behavior remains unverified.
+- [Additional exports](../../../core/libs/prx/libSceLibreSsl3/AdditionalExports.cpp) declare 34 still-unimplemented callable exports: 33 named and 1 known only by NID. These entries throw. Parameterless `int` declarations are unknown-signature placeholders, not verified ABI contracts. Names/NIDs match the 13.60 export table. The fourteen libtls lifecycle/config exports are implemented in `LibTls.cpp`; title compatibility beyond preconnection behavior remains unverified.
 
 ## remove xpB+BNkO2Z0
 
@@ -50,6 +52,10 @@
 ## remove C7eFtWPfLdk
 
 ## remove e2ReciVG21w
+
+## remove U1dQZ1rXHdA
+
+## remove QKIOxHfZLh8
 
 ## change formerly NID-only exports
 

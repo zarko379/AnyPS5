@@ -204,4 +204,22 @@ int APS5_VABI SSL_set_quic_transport_params_nid_postfix(LibreSsl3Ssl* ssl, const
     return 1;
 }
 
+void APS5_VABI SSL_get_peer_quic_transport_params_nid_postfix(const LibreSsl3Ssl* ssl, const std::uint8_t** params,
+                                                              std::size_t* paramsLength) {
+    if (!ssl || !params || !paramsLength)
+        throw std::invalid_argument("SSL_get_peer_quic_transport_params requires an SSL and outputs");
+    if (!ssl->s3)
+        throw std::invalid_argument("SSL_get_peer_quic_transport_params requires SSL3 state");
+    const auto* state = reinterpret_cast<const LibreSsl3Ssl3StateLayout*>(ssl->s3);
+    *params = state->peerQuicTransportParams;
+    *paramsLength = state->peerQuicTransportParamsLength;
+}
+
+void* APS5_VABI SSL_get0_verified_chain_nid_postfix(const LibreSsl3Ssl* ssl) {
+    if (!ssl)
+        throw std::invalid_argument("SSL_get0_verified_chain requires an SSL");
+    if (!ssl->s3) return nullptr;
+    return reinterpret_cast<const LibreSsl3Ssl3StateLayout*>(ssl->s3)->verifiedChain;
+}
+
 }

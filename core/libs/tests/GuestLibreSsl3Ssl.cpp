@@ -472,6 +472,41 @@ void CheckQuic() {
     }
 }
 
+void CheckHandshakeStateGetters() {
+    Guarded<LibreSsl3Ssl3StateLayout> state;
+    std::memset(&state, 0x5A, sizeof(state));
+    const std::uint8_t params[] = {0x01, 0x02, 0x03};
+    int chain = 0;
+    state.object.peerQuicTransportParams = params;
+    state.object.peerQuicTransportParamsLength = sizeof(params);
+    state.object.verifiedChain = &chain;
+    const auto expectedState = Bytes(state);
+    Guarded<LibreSsl3Ssl> guarded;
+    std::memset(&guarded, 0x5A, sizeof(guarded));
+    guarded.object.s3 = reinterpret_cast<LibreSsl3Ssl3State*>(&state.object);
+    const auto expectedSsl = Bytes(guarded);
+    const std::uint8_t* out = nullptr;
+    std::size_t outLength = 0;
+    SSL_get_peer_quic_transport_params_nid_postfix(&guarded.object, &out, &outLength);
+    Require(out == params && outLength == sizeof(params), "peer QUIC parameters at offsets 1000 and 1008");
+    Require(SSL_get0_verified_chain_nid_postfix(&guarded.object) == &chain, "verified chain at offset 520");
+    Require(Same(state, expectedState) && Same(guarded, expectedSsl), "getters changed the SSL");
+    guarded.object.s3 = nullptr;
+    Require(SSL_get0_verified_chain_nid_postfix(&guarded.object) == nullptr, "no SSL3 state");
+    for (int call = 0; call < 4; ++call) {
+        bool threw = false;
+        try {
+            if (call == 0) SSL_get_peer_quic_transport_params_nid_postfix(&guarded.object, &out, &outLength);
+            else if (call == 1) SSL_get_peer_quic_transport_params_nid_postfix(nullptr, &out, &outLength);
+            else if (call == 2) SSL_get0_verified_chain_nid_postfix(nullptr);
+            else SSL_get_peer_quic_transport_params_nid_postfix(&guarded.object, nullptr, &outLength);
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        Require(threw, "null SSL, SSL3 state or output");
+    }
+}
+
 void APS5_VABI KeylogLine(const LibreSsl3Ssl*, const char*) {}
 
 void CheckKeylogCallback() {
@@ -513,5 +548,6 @@ int main() {
     CheckX509Version();
     CheckKeylogCallback();
     CheckQuic();
+    CheckHandshakeStateGetters();
     return 0;
 }
