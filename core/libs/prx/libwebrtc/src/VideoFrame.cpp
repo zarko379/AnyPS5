@@ -42,6 +42,7 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libwebrtc/include/RtpPacketInfos.hpp"
 #include "prx/libc/include/General.hpp"
 
 #include <cstdint>
@@ -99,10 +100,21 @@ void APS5_VABI _ZN6webrtc10VideoFrameC1ERKNS_13scoped_refptrINS_16VideoFrameBuff
 void APS5_VABI _ZN6webrtc10VideoFrameD1Ev_nid_postfix(WebRtcVideoFrame* frame) {
     if (!frame)
         throw std::invalid_argument("VideoFrame destructor requires a frame");
-    if (frame->packetInfos)
-        NotImplemented_nid_no_patch("VideoFrame destructor with packet infos: releasing the guest packet info vector");
+    WebRtcReleasePacketInfos(static_cast<WebRtcRtpPacketInfosData*>(frame->packetInfos), "VideoFrame destructor requires a valid packet info vector");
     if (frame->videoFrameBuffer)
         CallBuffer(frame->videoFrameBuffer, ReleaseSlot, "VideoFrame destructor requires a buffer with Release");
+}
+
+void** APS5_VABI _ZNK6webrtc10VideoFrame18video_frame_bufferEv_nid_postfix(void** result, const WebRtcVideoFrame* frame) {
+    if (!result)
+        throw std::invalid_argument("VideoFrame::video_frame_buffer requires a result reference");
+    if (!frame)
+        throw std::invalid_argument("VideoFrame::video_frame_buffer requires a frame");
+    void* const buffer = frame->videoFrameBuffer;
+    if (buffer)
+        CallBuffer(buffer, AddRefSlot, "VideoFrame::video_frame_buffer requires a buffer with AddRef");
+    *result = buffer;
+    return result;
 }
 
 }

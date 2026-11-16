@@ -41,6 +41,7 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libwebrtc/include/RtpPacketInfos.hpp"
 #include "prx/libc/include/General.hpp"
 
 #include <cstdint>
@@ -55,17 +56,23 @@ WebRtcVideoFrameBuilder& Checked(WebRtcVideoFrameBuilder* builder, const char* f
     return *builder;
 }
 
+using BufferAddRef = void(APS5_VABI*)(const void*);
 using BufferRelease = int(APS5_VABI*)(const void*);
 
+constexpr std::size_t AddRefSlot = 0;
 constexpr std::size_t ReleaseSlot = 1;
+
+void* BufferSlot(void* buffer, std::size_t slot, const char* message) {
+    const void* const* vtable;
+    if (!GuestCopyIn_nid_no_patch(&vtable, buffer, sizeof(vtable)) || !vtable || !vtable[slot])
+        throw std::invalid_argument(message);
+    return const_cast<void*>(vtable[slot]);
+}
 
 void ReleaseVideoFrameBuffer(void* buffer) {
     if (!buffer)
         return;
-    const void* const* vtable;
-    if (!GuestCopyIn_nid_no_patch(&vtable, buffer, sizeof(vtable)) || !vtable || !vtable[ReleaseSlot])
-        throw std::invalid_argument("VideoFrame::Builder destructor requires a buffer virtual function");
-    reinterpret_cast<BufferRelease>(const_cast<void*>(vtable[ReleaseSlot]))(buffer);
+    reinterpret_cast<BufferRelease>(BufferSlot(buffer, ReleaseSlot, "VideoFrame::Builder destructor requires a buffer virtual function"))(buffer);
 }
 
 }
@@ -78,9 +85,52 @@ void APS5_VABI _ZN6webrtc10VideoFrame7BuilderC1Ev_nid_postfix(WebRtcVideoFrameBu
 
 void APS5_VABI _ZN6webrtc10VideoFrame7BuilderD1Ev_nid_postfix(WebRtcVideoFrameBuilder* builder) {
     const WebRtcVideoFrameBuilder& checked = Checked(builder, "VideoFrame::Builder destructor requires a builder");
-    if (checked.packetInfos)
-        NotImplemented_nid_no_patch("VideoFrame::Builder destructor with packet infos: releasing the guest packet info vector");
+    WebRtcReleasePacketInfos(static_cast<WebRtcRtpPacketInfosData*>(checked.packetInfos), "VideoFrame::Builder destructor requires a valid packet info vector");
     ReleaseVideoFrameBuffer(checked.videoFrameBuffer);
+}
+
+WebRtcVideoFrameBuilder* APS5_VABI _ZN6webrtc10VideoFrame7Builder22set_video_frame_bufferERKNS_13scoped_refptrINS_16VideoFrameBufferEEE_nid_postfix(WebRtcVideoFrameBuilder* builder, void* const* buffer) {
+    WebRtcVideoFrameBuilder& checked = Checked(builder, "VideoFrame::Builder::set_video_frame_buffer requires a builder");
+    if (!buffer)
+        throw std::invalid_argument("VideoFrame::Builder::set_video_frame_buffer requires a buffer reference");
+    void* const replacement = *buffer;
+    void* const previous = checked.videoFrameBuffer;
+    const auto addRef = replacement ? reinterpret_cast<BufferAddRef>(BufferSlot(replacement, AddRefSlot, "VideoFrame::Builder::set_video_frame_buffer requires a buffer with AddRef")) : nullptr;
+    const auto release = previous ? reinterpret_cast<BufferRelease>(BufferSlot(previous, ReleaseSlot, "VideoFrame::Builder::set_video_frame_buffer requires the previous buffer to have Release")) : nullptr;
+    if (addRef)
+        addRef(replacement);
+    if (release)
+        release(previous);
+    checked.videoFrameBuffer = replacement;
+    return builder;
+}
+
+WebRtcVideoFrame* APS5_VABI _ZN6webrtc10VideoFrame7Builder5buildEv_nid_postfix(WebRtcVideoFrame* result, WebRtcVideoFrameBuilder* builder) {
+    if (!result)
+        throw std::invalid_argument("VideoFrame::Builder::build requires a result frame");
+    const WebRtcVideoFrameBuilder& checked = Checked(builder, "VideoFrame::Builder::build requires a builder");
+    if (!checked.videoFrameBuffer)
+        throw std::runtime_error("VideoFrame::Builder::build: RTC_CHECK(video_frame_buffer_ != nullptr) failed");
+    reinterpret_cast<BufferAddRef>(BufferSlot(checked.videoFrameBuffer, AddRefSlot, "VideoFrame::Builder::build requires a buffer with AddRef"))(checked.videoFrameBuffer);
+    WebRtcAddRefPacketInfos(static_cast<WebRtcRtpPacketInfosData*>(checked.packetInfos));
+    result->id = checked.id;
+    result->videoFrameBuffer = checked.videoFrameBuffer;
+    result->timestampRtp = checked.timestampRtp;
+    result->ntpTimeMs = checked.ntpTimeMs;
+    result->timestampUs = checked.timestampUs;
+    result->presentationTimestamp = checked.presentationTimestamp;
+    result->referenceTime = checked.referenceTime;
+    result->rotation = checked.rotation;
+    std::memcpy(result->colorSpace, checked.colorSpace, sizeof(result->colorSpace));
+    result->useLowLatencyRendering = checked.useLowLatencyRendering;
+    result->maxCompositionDelayInFrames = checked.maxCompositionDelayInFrames;
+    result->hasMaxCompositionDelayInFrames = checked.hasMaxCompositionDelayInFrames;
+    std::memcpy(result->updateRect, checked.updateRect, sizeof(result->updateRect));
+    result->hasUpdateRect = checked.hasUpdateRect;
+    result->packetInfos = checked.packetInfos;
+    reinterpret_cast<unsigned char*>(result->processingTime)[0] = 0;
+    result->hasProcessingTime = false;
+    return result;
 }
 
 WebRtcVideoFrameBuilder* APS5_VABI _ZN6webrtc10VideoFrame7Builder16set_timestamp_msEl_nid_postfix(WebRtcVideoFrameBuilder* builder, std::int64_t timestampMs) {

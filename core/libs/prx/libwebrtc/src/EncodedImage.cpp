@@ -92,6 +92,7 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libwebrtc/include/RtpPacketInfos.hpp"
 #include "prx/libc/libc.hpp"
 #include "prx/libc/include/General.hpp"
 
@@ -155,31 +156,8 @@ void* const BufferVtable[] = {
     reinterpret_cast<void*>(&BufferSize_nid_no_patch), reinterpret_cast<void*>(&BufferHasOneRef_nid_no_patch),
 };
 
-template<typename TValue>
-std::size_t Count(TValue* begin, TValue* end, TValue* capacity, const char* message) {
-    const auto first = reinterpret_cast<std::uintptr_t>(begin);
-    const auto last = reinterpret_cast<std::uintptr_t>(end);
-    const auto limit = reinterpret_cast<std::uintptr_t>(capacity);
-    if (last < first || limit < last || (!first && limit) || first % alignof(TValue) ||
-        (last - first) % sizeof(TValue) || (limit - first) % sizeof(TValue))
-        throw std::invalid_argument(message);
-    return (last - first) / sizeof(TValue);
-}
-
 void ReleasePacketInfos(WebRtcRtpPacketInfosData* data) {
-    if (!data || data->refCount.fetch_sub(1, std::memory_order_acq_rel) != 1)
-        return;
-    const auto count = Count(data->begin, data->end, data->capacity, "EncodedImage destructor requires a valid packet info vector");
-    for (std::size_t i = 0; i < count; ++i) {
-        auto& entry = data->begin[i];
-        Count(entry.csrcsBegin, entry.csrcsEnd, entry.csrcsCapacity, "EncodedImage destructor requires a valid CSRC vector");
-    }
-    for (std::size_t i = count; i > 0; --i)
-        if (data->begin[i - 1].csrcsBegin)
-            _ZdlPv_nid_postfix(data->begin[i - 1].csrcsBegin);
-    if (data->begin)
-        _ZdlPv_nid_postfix(data->begin);
-    _ZdlPv_nid_postfix(data);
+    WebRtcReleasePacketInfos(data, "EncodedImage destructor requires a valid packet info vector");
 }
 
 WebRtcEncodedImageMapNode* EndNode(WebRtcEncodedImageMap& map) {
