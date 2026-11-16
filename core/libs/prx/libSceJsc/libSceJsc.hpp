@@ -16,6 +16,7 @@
 #include "prx/libSceJsc/include/WtfJsonExports.hpp"
 #include "prx/libSceJsc/include/WtfLoggerExports.hpp"
 #include "prx/libSceJsc/include/WtfPageBlockExports.hpp"
+#include "prx/libSceJsc/include/WtfPersistenceExports.hpp"
 #include "prx/libSceJsc/include/WtfRandomExports.hpp"
 #include "prx/libSceJsc/include/WtfStringConversionExports.hpp"
 #include "prx/libSceJsc/include/WtfStringSearchExports.hpp"

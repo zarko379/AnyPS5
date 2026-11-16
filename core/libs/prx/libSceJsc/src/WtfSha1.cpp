@@ -31,6 +31,7 @@
  */
 
 #include "prx/libSceJsc/include/WtfSha1Exports.hpp"
+#include "prx/libSceJsc/src/WtfSha1Internal.hpp"
 
 #include <array>
 #include <cstddef>
@@ -128,6 +129,20 @@ void Reset(SHA1& sha1) {
 }
 
 }
+
+namespace Jsc::WtfAbi {
+
+void Sha1AddBytes(SHA1& sha1, const std::uint8_t* input, std::size_t length) {
+    if (length && !input) throw std::invalid_argument("WTF::SHA1::addBytes requires input");
+    while (length--) {
+        if (sha1.cursor >= BlockSize) throw std::invalid_argument("WTF::SHA1::addBytes: buffer cursor out of range");
+        sha1.buffer[sha1.cursor++] = *input++;
+        ++sha1.totalBytes;
+        if (sha1.cursor == BlockSize) ProcessBlock(sha1);
+    }
+}
+
+} // namespace Jsc::WtfAbi
 
 extern "C" {
 
