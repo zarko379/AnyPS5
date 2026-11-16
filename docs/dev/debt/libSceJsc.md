@@ -56,6 +56,8 @@
 
 - [Deprecated::ScriptCallArgumentHandler](../../../core/libs/prx/libSceJsc/src/DeprecatedScriptCallArgumentHandler.cpp) (libSceJsc) - not measured on a console; the version and layout (overflow byte, size at 4, capacity at 8, eight inline values from 16, buffer at 80, mark set at 88, global object at 96) are unverified. The constructors, destructors and `JSValue` and `bool` arguments follow pinned [ScriptFunctionCall.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/bindings/ScriptFunctionCall.h#L46-L62), [ScriptFunctionCall.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/bindings/ScriptFunctionCall.cpp#L57-L95) and [ArgList.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/ArgList.h#L45-L99). A ninth argument, a heap buffer or a mark set needs `slowAppend`, the heap and `Gigacage::free`, none modelled here, and keeps calling `NotImplemented_nid_no_patch`. A null `this` throws.
 
+- [JSC::ArrayBufferContents](../../../core/libs/prx/libSceJsc/src/ArrayBufferContents.cpp) (libSceJsc) - not measured on a console; the version and layout (data, 6-byte packed task at 8 and shared contents at 14, size at 20) are unverified. They follow pinned [ArrayBuffer.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/JavaScriptCore/runtime/ArrayBuffer.cpp#L60-L157) with 48-bit [packed pointers](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/Packed.h#L105-L157), no Gigacage and the task's `run` in vtable slot 2. Releasing the last reference to the shared contents needs their destructor and allocator, none modelled here, and keeps calling `NotImplemented_nid_no_patch`. Null pointers throw.
+
 - [WTF nullString, String::toUIntStrict and StringImpl::utf8Impl](../../../core/libs/prx/libSceJsc/src/WtfStringConversion.cpp) (libSceJsc) - not measured on a console; the WTF version and string layouts are unverified. `nullString` returns one static null `String` ([WTFString.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/WTFString.cpp#L1106-L1110)). `toUIntStrict` follows [WTFString.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/WTFString.cpp#L526-L534) and [StringToIntegerConversion.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/StringToIntegerConversion.h#L33-L122); non-Latin-1 whitespace is the bidi class WS set, as in `URL::port`. `utf8Impl` follows [StringImpl.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/text/StringImpl.cpp#L1755-L1813) over `convertUTF16ToUTF8`. Base 0, a null `this` and output past the buffer, where WebKit divides by zero, faults or asserts, throw.
 
 - [WTF::JSONImpl Value and ArrayBase accessors](../../../core/libs/prx/libSceJsc/src/WtfJson.cpp) (libSceJsc) - not measured on a console; the console WTF version is unverified. They read the libSceNKWebKit layout (vtable at 0, 32-bit count at 8, type at 12, value at 16, array `Vector` at 24) and follow pinned [JSONValues.cpp](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/JSONValues.cpp#L492-L664) and [JSONValues.h](https://github.com/WebKit/WebKit/blob/c55364d53f97/Source/WTF/wtf/JSONValues.h#L292-L328): `asBoolean` and `asString` copy only a matching type, `asValue` stores `this` with a reference and drops the old value through its deleting destructor, `length` and `end` read the vector. `asString` throws instead of releasing the last reference to the old string, since `StringImpl::destroy` is in libSceNKWebKit. Null pointers throw where WebKit faults.
@@ -94,7 +96,7 @@
   - `fj3HITuKDPs`
   - `uF3DZ2xR1sA`
 
-- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 286 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
+- [Additional callable exports](../../../core/libs/prx/libSceJsc/Export.cpp) - 278 callable NIDs match the [public 3.20 catalogue](https://github.com/DNNDHH/PS5-3.20_Libs/blob/b2a77c09cd71c01f34c790cfbe98c751a13262ad/libSceJsc.c) and the [selected export metadata](https://gist.github.com/kyon-eth/e699987524d8485a9de9740280cfe4c1/09c89f4d64a17da12485e0eb637620ced4f6eeb2) from two version-labelled images (SHA-256 `d2a5f8a8807f23cb71170a5d3b779a57636f5a3480d92955e4255545ffe1e97e`). The labels are not authenticated. Apart from the 13 register-set queries and constructors and the two `Deprecated::ScriptValue` getters in the firmware 13.42 entries below, prototypes and behavior are unverified; these declarations throw through `NotImplemented_nid_no_patch` and implement no runtime functionality. Shared WebKit exports require separate loader analysis.
 
 | Name | NID |
 | --- | --- |
@@ -181,14 +183,6 @@
 | `_ZN3JSC17DebuggerCallFrame5scopeEv` | `D2HdGEYkNkg` |
 | `_ZN3JSC17createJSMicrotaskERNS_2VMENS_7JSValueE` | `8i0WEPLBJmI` |
 | `_ZN3JSC17weakClearSlowCaseERPNS_8WeakImplE` | `CXgp9dPHOTY` |
-| `_ZN3JSC19ArrayBufferContents5clearEv` | `W2xTZFf+RzE` |
-| `_ZN3JSC19ArrayBufferContentsC1EOS0_` | `oxbJwN+R0zY` |
-| `_ZN3JSC19ArrayBufferContentsC1Ev` | `NLBl+ZxCYGU` |
-| `_ZN3JSC19ArrayBufferContentsC2EOS0_` | `NN6kXDW5Y5o` |
-| `_ZN3JSC19ArrayBufferContentsC2Ev` | `yZJAEU9jvAE` |
-| `_ZN3JSC19ArrayBufferContentsD1Ev` | `DMoAIt-s9Ks` |
-| `_ZN3JSC19ArrayBufferContentsD2Ev` | `ZmbGnRlFl18` |
-| `_ZN3JSC19ArrayBufferContentsaSEOS0_` | `CqjOWM+bC4E` |
 | `_ZN3JSC19JSSymbolTableObject14deletePropertyEPNS_6JSCellEPNS_14JSGlobalObjectENS_12PropertyNameERNS_18DeletePropertySlotE` | `5uy3POCFlAc` |
 | `_ZN3JSC23JSModuleNamespaceObject10putByIndexEPNS_6JSCellEPNS_14JSGlobalObjectEjNS_7JSValueEb` | `lNicIEursI4` |
 | `_ZN3JSC23JSModuleNamespaceObject14deletePropertyEPNS_6JSCellEPNS_14JSGlobalObjectENS_12PropertyNameERNS_18DeletePropertySlotE` | `wfMAwMqO7ew` |
