@@ -45,6 +45,8 @@ public:
     double pageZoomFactor = 1.0;
     double textZoomFactor = 1.0;
     bool supportsTextZoom = true;
+    std::optional<std::u16string> customUserAgent;
+    std::optional<std::u16string> applicationNameForUserAgent;
 };
 class Preferences : public ObjectOf<ObjectType::Preferences> {};
 class HTTPCookieStore final : public ObjectOf<ObjectType::HTTPCookieStore> {};
