@@ -91,6 +91,16 @@ struct LibreSsl3Certificate {
     unsigned char rest[200];
 };
 
+struct LibreSsl3EncodingX509 {
+    const LibreSsl3CertificateInfo* certInfo;
+    const LibreSsl3X509Algor* sigAlg;
+    const Asn1String* signature;
+    unsigned char rest[192];
+};
+
+static_assert(sizeof(LibreSsl3EncodingX509) == 216);
+static_assert(offsetof(LibreSsl3EncodingX509, signature) == 16);
+
 struct LibreSsl3PurposeX509 {
     const LibreSsl3CertificateInfo* certInfo;
     unsigned char beforeSkid[80];
@@ -355,7 +365,7 @@ void* APS5_VABI X509_get0_pubkey_nid_postfix(const LibreSsl3Certificate* certifi
 int APS5_VABI d2i_SSL_SESSION_nid_postfix();
 int APS5_VABI d2i_X509_CRL_nid_postfix();
 int APS5_VABI i2d_SSL_SESSION_nid_postfix();
-int APS5_VABI i2d_X509_nid_postfix();
+int APS5_VABI i2d_X509_nid_postfix(const LibreSsl3EncodingX509* certificate, unsigned char** output);
 void APS5_VABI sk_free_nid_postfix(LibreSslStack* stack);
 LibreSslStack* APS5_VABI sk_new_nid_postfix(StackCompare compare);
 int APS5_VABI sk_push_nid_postfix(LibreSslStack* stack, void* element);
