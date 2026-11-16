@@ -1388,8 +1388,6 @@ int APS5_VABI _ZN3WTF4Lock10unlockSlowEv();
 int APS5_VABI _ZN3WTF4Lock13safepointSlowEv();
 int APS5_VABI _ZN3WTF4Lock8lockSlowEv();
 int APS5_VABI _ZN3WTF5sleepENS_7SecondsE();
-int APS5_VABI _ZN3WTF6String6numberEd();
-int APS5_VABI _ZN3WTF6String6numberEf();
 int APS5_VABI _ZN3WTF6Thread13mayBeGCThreadEv();
 int APS5_VABI _ZN3WTF6Thread14changePriorityEi();
 int APS5_VABI _ZN3WTF6Thread16registerGCThreadENS_12GCThreadTypeE();

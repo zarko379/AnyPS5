@@ -401,6 +401,26 @@ const char* PreferredExtensionForMIMEType(const NKWebKit::WtfAbi::StringImpl* im
     return "";
 }
 
+bool StartsWithLettersIgnoringASCIICase(const NKWebKit::WtfAbi::StringImpl* impl, std::string_view lowercaseLetters) {
+    if (!impl || impl->length < lowercaseLetters.length()) return false;
+    for (unsigned i = 0; i < lowercaseLetters.length(); ++i) {
+        if ((GetChar(impl, i) | 0x20) != static_cast<unsigned char>(lowercaseLetters[i])) return false;
+    }
+    return true;
+}
+
+char16_t ToASCIILower(char16_t character) {
+    return character >= u'A' && character <= u'Z' ? static_cast<char16_t>(character | 0x20) : character;
+}
+
+bool EqualIgnoringASCIICaseOnly(const NKWebKit::WtfAbi::StringImpl* impl, std::string_view s) {
+    if (impl->length != s.length()) return false;
+    for (unsigned i = 0; i < impl->length; ++i) {
+        if (ToASCIILower(GetChar(impl, i)) != ToASCIILower(static_cast<unsigned char>(s[i]))) return false;
+    }
+    return true;
+}
+
 const char* MimeTypeForExtension(std::string_view ext) {
     for (const auto& entry : kPlatformMediaTypes) {
         if (ext.length() == std::strlen(entry.extension)) {
@@ -707,6 +727,20 @@ NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore16MIMETypeRegistry33preferredImage
 bool APS5_VABI _ZN7WebCore16MIMETypeRegistry34isSupportedImageVideoOrSVGMIMETypeERKN3WTF6StringE(const NKWebKit::WtfAbi::String& mimeType) {
     if (!mimeType.impl) return false;
     return IsSupportedImageMIMEType(mimeType.impl) || EqualIgnoringASCIICase(mimeType.impl, "image/svg+xml");
+}
+
+bool APS5_VABI _ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(const NKWebKit::WtfAbi::String& mimeType) {
+    return StartsWithLettersIgnoringASCIICase(mimeType.impl, "application/x-java-applet")
+        || StartsWithLettersIgnoringASCIICase(mimeType.impl, "application/x-java-bean")
+        || StartsWithLettersIgnoringASCIICase(mimeType.impl, "application/x-java-vm");
+}
+
+bool APS5_VABI _ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(const NKWebKit::WtfAbi::String& mimeType) {
+    if (!mimeType.impl || !mimeType.impl->length) return false;
+    for (std::string_view type : {"model/vnd.usdz+zip", "model/usd", "model/vnd.pixar.usd", "model/vnd.reality"}) {
+        if (EqualIgnoringASCIICaseOnly(mimeType.impl, type)) return true;
+    }
+    return false;
 }
 
 }

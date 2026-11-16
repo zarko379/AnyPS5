@@ -803,6 +803,16 @@ String APS5_VABI _ZN3WTF6String6numberEy(unsigned long long value) {
     return IntegerString(value);
 }
 
+String APS5_VABI _ZN3WTF6String6numberEf(float number) {
+    std::string text = NKWebKit::WtfAbi::NumberToString(number);
+    return _ZN3WTF10StringImpl6createEPKhj(reinterpret_cast<const unsigned char*>(text.data()), static_cast<unsigned>(text.size()));
+}
+
+String APS5_VABI _ZN3WTF6String6numberEd(double number) {
+    std::string text = NKWebKit::WtfAbi::NumberToString(number);
+    return _ZN3WTF10StringImpl6createEPKhj(reinterpret_cast<const unsigned char*>(text.data()), static_cast<unsigned>(text.size()));
+}
+
 String APS5_VABI _ZN3WTF6String13fromCodePointEi(std::int32_t cp) {
     if (cp < 0 || cp > 0x10FFFF) return String();
     char16_t data[2];

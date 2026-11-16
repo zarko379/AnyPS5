@@ -866,6 +866,42 @@ static void TestNumberFormatting() {
     Require(precisionFloat(0.1f, 9, keep) == "0.100000001");
     Require(precisionFloat(0.1f, 6, truncate) == "0.1");
     Require(precisionFloat(-1.5f, 1, keep) == "-2");
+
+    auto shortest = [](double value) { return NumberText(_ZN3WTF6String6numberEd(value)); };
+    Require(shortest(0) == "0");
+    Require(shortest(-0.0) == "0");
+    Require(shortest(1) == "1");
+    Require(shortest(-2.5) == "-2.5");
+    Require(shortest(0.1) == "0.1");
+    Require(shortest(0.1 + 0.2) == "0.30000000000000004");
+    Require(shortest(1.0 / 3) == "0.3333333333333333");
+    Require(shortest(123456789012345680.0) == "123456789012345680");
+    Require(shortest(1e20) == "100000000000000000000");
+    Require(shortest(1e21) == "1e+21");
+    Require(shortest(123e20) == "1.23e+22");
+    Require(shortest(0.000001) == "0.000001");
+    Require(shortest(0.0000012345) == "0.0000012345");
+    Require(shortest(1e-7) == "1e-7");
+    Require(shortest(-1.5e-7) == "-1.5e-7");
+    Require(shortest(5e-324) == "5e-324");
+    Require(shortest(std::numeric_limits<double>::max()) == "1.7976931348623157e+308");
+    Require(shortest(std::numeric_limits<double>::infinity()) == "Infinity");
+    Require(shortest(-std::numeric_limits<double>::infinity()) == "-Infinity");
+    Require(shortest(std::numeric_limits<double>::quiet_NaN()) == "NaN");
+    Require(shortest(static_cast<double>(0.1f)) == "0.10000000149011612");
+
+    auto shortestFloat = [](float value) { return NumberText(_ZN3WTF6String6numberEf(value)); };
+    Require(shortestFloat(0.1f) == "0.1");
+    Require(shortestFloat(-0.0f) == "0");
+    Require(shortestFloat(1.0f / 3) == "0.33333334");
+    Require(shortestFloat(123456789.0f) == "123456790");
+    Require(shortestFloat(1e20f) == "100000000000000000000");
+    Require(shortestFloat(1e21f) == "1e+21");
+    Require(shortestFloat(1e-7f) == "1e-7");
+    Require(shortestFloat(std::numeric_limits<float>::max()) == "3.4028235e+38");
+    Require(shortestFloat(std::numeric_limits<float>::denorm_min()) == "1e-45");
+    Require(shortestFloat(-std::numeric_limits<float>::infinity()) == "-Infinity");
+    Require(shortestFloat(std::numeric_limits<float>::quiet_NaN()) == "NaN");
 }
 
 int main() {

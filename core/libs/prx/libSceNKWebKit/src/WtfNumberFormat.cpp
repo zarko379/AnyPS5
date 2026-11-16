@@ -92,11 +92,7 @@ void CreateExponentialRepresentation(std::string& result, const std::string& dig
     result += std::to_string(exponent);
 }
 
-}  // namespace
-
-namespace NKWebKit::WtfAbi {
-
-std::string NumberToString(float number) {
+template<typename T> std::string ShortestNumberToString(T number) {
     if (!std::isfinite(number)) return SpecialValue(number);
     if (number == 0) return "0";
     char buffer[64];
@@ -118,6 +114,18 @@ std::string NumberToString(float number) {
     else
         CreateExponentialRepresentation(result, digits, exponent);
     return result;
+}
+
+}  // namespace
+
+namespace NKWebKit::WtfAbi {
+
+std::string NumberToString(float number) {
+    return ShortestNumberToString(number);
+}
+
+std::string NumberToString(double number) {
+    return ShortestNumberToString(number);
 }
 
 std::string NumberToFixedWidthString(double number, unsigned decimalPlaces) {

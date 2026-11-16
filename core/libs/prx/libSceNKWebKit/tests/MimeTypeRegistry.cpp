@@ -353,7 +353,41 @@ void TestLegacySchemeRegistry() {
 
 }  // namespace
 
+void TestLegacyMIMETypePredicates() {
+    auto isJava = [](const String& value) { return _ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(value); };
+    Require(isJava(MakeString("application/x-java-applet")));
+    Require(isJava(MakeString("application/x-java-applet;version=1.4")));
+    Require(isJava(MakeString("APPLICATION/X-JAVA-BEAN")));
+    Require(isJava(MakeString("application/x-java-vm-npruntime")));
+    Require(isJava(MakeString("application\x0fx\x0djava-vm")));
+    Require(!isJava(MakeString("application/x-java")));
+    Require(!isJava(MakeString(" application/x-java-vm")));
+    Require(!isJava(MakeString("application/java-vm")));
+    Require(!isJava(MakeString("")));
+    Require(!isJava(String{}));
+    const char16_t wide[] = u"application/x-java-vm";
+    Require(isJava(_ZN3WTF10StringImpl6createEPKDsj(wide, 21)));
+    const char16_t aliased[] = u"\u0141pplication/x-java-vm";
+    Require(!isJava(_ZN3WTF10StringImpl6createEPKDsj(aliased, 21)));
+
+    auto isPreview = [](const String& value) { return _ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(value); };
+    Require(isPreview(MakeString("model/vnd.usdz+zip")));
+    Require(isPreview(MakeString("MODEL/USD")));
+    Require(isPreview(MakeString("model/vnd.Pixar.usd")));
+    Require(isPreview(MakeString("model/vnd.reality")));
+    Require(!isPreview(MakeString("model/vnd.usdz")));
+    Require(!isPreview(MakeString("model/usd ")));
+    Require(!isPreview(MakeString("model\x0fusd")));
+    Require(!isPreview(MakeString("")));
+    Require(!isPreview(String{}));
+    const char16_t previewWide[] = u"Model/USD";
+    Require(isPreview(_ZN3WTF10StringImpl6createEPKDsj(previewWide, 9)));
+    const char16_t previewAliased[] = u"model/\u0155sd";
+    Require(!isPreview(_ZN3WTF10StringImpl6createEPKDsj(previewAliased, 9)));
+}
+
 int main() {
+    TestLegacyMIMETypePredicates();
     TestFixedVectorLists();
     TestTypePredicates();
     TestExtensions();

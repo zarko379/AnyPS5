@@ -209,6 +209,8 @@ NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String6numberEl(std::int64_t value);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String6numberEm(std::uint64_t value);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String6numberEx(long long value);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String6numberEy(unsigned long long value);
+NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String6numberEf(float number);
+NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String6numberEd(double number);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String8fromUTF8EPKh(const unsigned char* data);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String8fromUTF8EPKhm(const unsigned char* data, std::size_t length);
 NKWebKit::WtfAbi::String APS5_VABI _ZN3WTF6String8fromUTF8ERKNS_7CStringE(const NKWebKit::WtfAbi::CString& value);
