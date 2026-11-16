@@ -1,0 +1,5 @@
+# libwebrtc
+
+## add Public source implementations
+
+- [webrtc::SdpVideoFormat copy constructor, move constructor and destructor](../../../core/libs/prx/libwebrtc/src/SdpAudioFormat.cpp) (libwebrtc) - nothing is checked on the console. Defaulted in [sdp_video_format.cc](https://webrtc.googlesource.com/src/+/8d78f5de6c27b2c793039989ea381f1428fb0100/api/video_codecs/sdp_video_format.cc), identical at M127, on the 112-byte layout of `sdp_video_format.h`: name at 0, `CodecParameterMap` at 40 and the 48-byte `absl::InlinedVector<ScalabilityMode, 34>` at 64 (34 modes at both revisions). The name and map reuse the `SdpAudioFormat` copy, so the copied tree keeps the source's shape. The vector follows abseil at both pinned revisions: inline contents are copied byte for byte, an allocated one gets capacity `max(68, size)` from guest `operator new`, and a move adopts the storage and leaves the source empty. Malformed strings, trees or vectors and null objects throw. Closes when: compared with the console.

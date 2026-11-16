@@ -1,6 +1,17 @@
 /* Derived from api/audio_codecs/audio_format.cc and api/audio_codecs/audio_format.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
+/* Derived from api/video_codecs/sdp_video_format.cc and api/video_codecs/sdp_video_format.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+/*
+ *  Copyright (c) 2018 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -287,6 +298,38 @@ void ValidateFormat(const WebRtcSdpAudioFormat* format, const char* message, std
     ValidateMapNodes(format->parameters, message, outNodes);
 }
 
+void ValidateModes(const WebRtcInlinedVector<WebRtcScalabilityModeCount>& modes, const char* message) {
+    const std::uint64_t size = modes.metadata >> 1;
+    if (modes.metadata & 1) {
+        if (!modes.allocated.data || size > modes.allocated.capacity)
+            throw std::invalid_argument(message);
+        ProbeReadableChunks(modes.allocated.data, static_cast<std::size_t>(size), message);
+        return;
+    }
+    if (size > WebRtcScalabilityModeCount)
+        throw std::invalid_argument(message);
+}
+
+void ReleaseModes(WebRtcInlinedVector<WebRtcScalabilityModeCount>& modes) {
+    if ((modes.metadata & 1) && modes.allocated.data)
+        _ZdlPv_nid_postfix(modes.allocated.data);
+    modes.metadata = 0;
+}
+
+void ValidateVideoFormat(const WebRtcSdpVideoFormat* format, const char* message, std::vector<WebRtcStringMapNode*>& outNodes) {
+    ValidateString(format->name, message);
+    ValidateMapNodes(format->parameters, message, outNodes);
+    ValidateModes(format->scalabilityModes, message);
+}
+
+void AttachMap(WebRtcStringMap& destination, const WebRtcStringMap& cloned) {
+    destination = cloned;
+    if (destination.size == 0)
+        destination.beginNode = EndNode(destination);
+    else
+        destination.root->links.parent = EndNode(destination);
+}
+
 }
 
 extern "C" {
@@ -384,6 +427,78 @@ void APS5_VABI _ZN6webrtc14SdpAudioFormatD1Ev_nid_postfix(WebRtcSdpAudioFormat* 
     RequireWritable(format, sizeof(*format), message);
     std::vector<WebRtcStringMapNode*> nodes;
     ValidateFormat(format, message, nodes);
+    DestroyMapNodes(nodes, format->parameters);
+    ReleaseString(format->name);
+}
+
+void APS5_VABI _ZN6webrtc14SdpVideoFormatC1ERKS0__nid_postfix(WebRtcSdpVideoFormat* format, const WebRtcSdpVideoFormat* other) {
+    constexpr const char* message = "SdpVideoFormat copy constructor requires valid objects";
+    RequireWritable(format, sizeof(*format), message);
+    WebRtcSdpVideoFormat snapshot{};
+    CopyInChecked(&snapshot, other, sizeof(snapshot), message);
+    std::vector<WebRtcStringMapNode*> validated;
+    ValidateVideoFormat(other, message, validated);
+
+    const WebRtcInlinedVector<WebRtcScalabilityModeCount>& sourceModes = other->scalabilityModes;
+    const std::size_t modeCount = static_cast<std::size_t>(sourceModes.metadata >> 1);
+    WebRtcInlinedVector<WebRtcScalabilityModeCount> modes{};
+    if (modeCount != 0 && (sourceModes.metadata & 1)) {
+        const std::size_t capacity = std::max<std::size_t>(2 * WebRtcScalabilityModeCount, modeCount);
+        modes.allocated.data = _Znwm_nid_postfix(capacity);
+        modes.allocated.capacity = capacity;
+        std::memcpy(modes.allocated.data, sourceModes.allocated.data, modeCount);
+        modes.metadata = sourceModes.metadata;
+    } else if (modeCount != 0) {
+        modes = sourceModes;
+    }
+
+    try {
+        StringGuard nameGuard;
+        CopyString(other->name, nameGuard.value);
+        nameGuard.active = true;
+        WebRtcStringMap clonedMap{};
+        CloneMap(other->parameters, clonedMap, message);
+        format->name = nameGuard.value;
+        nameGuard.active = false;
+        AttachMap(format->parameters, clonedMap);
+    } catch (...) {
+        ReleaseModes(modes);
+        throw;
+    }
+    format->scalabilityModes = modes;
+}
+
+void APS5_VABI _ZN6webrtc14SdpVideoFormatC1EOS0__nid_postfix(WebRtcSdpVideoFormat* format, WebRtcSdpVideoFormat* other) {
+    constexpr const char* message = "SdpVideoFormat move constructor requires valid objects";
+    RequireWritable(format, sizeof(*format), message);
+    RequireWritable(other, sizeof(*other), message);
+    if (format == other)
+        throw std::invalid_argument(message);
+    std::vector<WebRtcStringMapNode*> validated;
+    ValidateVideoFormat(other, message, validated);
+
+    MoveString(format->name, other->name);
+    if (other->parameters.size == 0) {
+        format->parameters.beginNode = EndNode(format->parameters);
+        format->parameters.root = nullptr;
+        format->parameters.size = 0;
+    } else {
+        format->parameters = other->parameters;
+        format->parameters.root->links.parent = EndNode(format->parameters);
+        other->parameters.beginNode = EndNode(other->parameters);
+        other->parameters.root = nullptr;
+        other->parameters.size = 0;
+    }
+    format->scalabilityModes = other->scalabilityModes;
+    other->scalabilityModes.metadata = 0;
+}
+
+void APS5_VABI _ZN6webrtc14SdpVideoFormatD1Ev_nid_postfix(WebRtcSdpVideoFormat* format) {
+    constexpr const char* message = "SdpVideoFormat destructor requires a valid object";
+    RequireWritable(format, sizeof(*format), message);
+    std::vector<WebRtcStringMapNode*> nodes;
+    ValidateVideoFormat(format, message, nodes);
+    ReleaseModes(format->scalabilityModes);
     DestroyMapNodes(nodes, format->parameters);
     ReleaseString(format->name);
 }
