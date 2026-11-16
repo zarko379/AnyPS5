@@ -31,6 +31,12 @@ void RequireInvalidArgument(Function function) {
 const void* lastResultFilter = nullptr;
 std::uint32_t lastResultStatus = 999;
 
+void OnRemove(const void* filterRef, std::uint32_t status, void* context) {
+    ++*static_cast<int*>(context);
+    lastResultFilter = filterRef;
+    lastResultStatus = status;
+}
+
 void OnCompileOrLookup(const void* filterRef, std::uint32_t status, void* context) {
     (void)context;
     lastResultFilter = filterRef;
@@ -89,6 +95,36 @@ int main() {
     RequireInvalidArgument([&] { WKUserContentExtensionStoreLookup(nullptr, idRef, nullptr, nullptr); });
     RequireInvalidArgument([&] { WKUserContentExtensionStoreLookup(storeRef, nullptr, nullptr, nullptr); });
     RequireInvalidArgument([&] { WKUserContentExtensionStoreCreate(storeRef); });
+
+    int removeCalls = 0;
+    auto otherIdStr = NKWebKit::String::FromUtf8("other-filter");
+    const void* otherIdRef = NKWebKit::ToRef(otherIdStr);
+    lastResultFilter = compiledFilter;
+    lastResultStatus = 999;
+    WKUserContentExtensionStoreRemove(storeRef, otherIdRef, &removeCalls, OnRemove);
+    Require(removeCalls == 1 && lastResultFilter == nullptr && lastResultStatus == 4);
+    WKUserContentExtensionStoreLookup(storeRef, idRef, nullptr, OnCompileOrLookup);
+    Require(lastResultFilter == compiledFilter && lastResultStatus == 0);
+    WKUserContentExtensionStoreRemove(defaultStoreRef, idRef, &removeCalls, OnRemove);
+    Require(removeCalls == 2 && lastResultStatus == 4);
+    WKUserContentExtensionStoreLookup(storeRef, idRef, nullptr, OnCompileOrLookup);
+    Require(lastResultStatus == 0);
+    WKUserContentExtensionStoreRemove(storeRef, idRef, &removeCalls, OnRemove);
+    Require(removeCalls == 3 && lastResultFilter == nullptr && lastResultStatus == 0);
+    WKUserContentExtensionStoreLookup(storeRef, idRef, nullptr, OnCompileOrLookup);
+    Require(lastResultFilter == nullptr && lastResultStatus == 1);
+    WKUserContentExtensionStoreRemove(storeRef, idRef, &removeCalls, OnRemove);
+    Require(removeCalls == 4 && lastResultStatus == 4);
+    WKUserContentExtensionStoreCompile(storeRef, idRef, jsonRef, nullptr, OnCompileOrLookup);
+    Require(lastResultStatus == 0);
+    WKUserContentExtensionStoreRemove(storeRef, idRef, nullptr, nullptr);
+    WKUserContentExtensionStoreLookup(storeRef, idRef, nullptr, OnCompileOrLookup);
+    Require(lastResultStatus == 1);
+    RequireInvalidArgument([&] { WKUserContentExtensionStoreRemove(nullptr, idRef, nullptr, nullptr); });
+    RequireInvalidArgument([&] { WKUserContentExtensionStoreRemove(storeRef, nullptr, nullptr, nullptr); });
+    RequireInvalidArgument([&] { WKUserContentExtensionStoreRemove(idRef, idRef, nullptr, nullptr); });
+    Require(removeCalls == 4);
+    WKRelease(otherIdRef);
 
     WKRelease(defaultStoreRef);
     WKRelease(jsonRef);

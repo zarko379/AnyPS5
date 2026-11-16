@@ -1,10 +1,12 @@
 #include "prx/libc/include/General.hpp"
+#include "prx/libSceNKWebKit/include/ColorSpaceExports.hpp"
 #include "prx/libSceNKWebKit/include/WebCoreExports.hpp"
 #include "prx/libSceNKWebKit/src/WebCoreTypes.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
+#include <string>
 
 namespace WebCore {
 
@@ -44,10 +46,32 @@ Color MakeSRGBA(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a, 
     return Color{packed | kColorSpaceSRGB | kValidFlag | extraFlags};
 }
 
+constexpr std::uint64_t kUseColorFunctionSerializationFlag = 1ULL << (kFlagsShift + 1);
+
+SRGBA<std::uint8_t> SerializableInline(const Color* color, const char* function) {
+    if (!color) throw std::invalid_argument(std::string(function) + ": null Color");
+    if (IsOutOfLine(*color)) throw std::invalid_argument(std::string(function) + ": OutOfLine Color unsupported");
+    if (color->m_colorAndFlags & kUseColorFunctionSerializationFlag)
+        throw std::invalid_argument(std::string(function) + ": color function serialization unsupported");
+    return SRGBA<std::uint8_t>{Red(*color), Green(*color), Blue(*color), Alpha(*color)};
+}
+
 }  // namespace
 }  // namespace WebCore
 
 extern "C" {
+
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore19serializationForCSSERKNS_5ColorE(const WebCore::Color* color) {
+    return _ZN7WebCore19serializationForCSSENS_5SRGBAIhEE(WebCore::SerializableInline(color, __func__));
+}
+
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore20serializationForHTMLERKNS_5ColorE(const WebCore::Color* color) {
+    return _ZN7WebCore20serializationForHTMLENS_5SRGBAIhEE(WebCore::SerializableInline(color, __func__));
+}
+
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore32serializationForRenderTreeAsTextERKNS_5ColorE(const WebCore::Color* color) {
+    return _ZN7WebCore32serializationForRenderTreeAsTextENS_5SRGBAIhEE(WebCore::SerializableInline(color, __func__));
+}
 void APS5_VABI _ZN7WebCore5ColorC1EOS0_(WebCore::Color* self, WebCore::Color&& other) {
     if (WebCore::IsOutOfLine(other)) {
         throw std::invalid_argument("OutOfLine Color unsupported");
