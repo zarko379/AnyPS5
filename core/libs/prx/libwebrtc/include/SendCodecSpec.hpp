@@ -2,6 +2,8 @@
 
 #include "prx/libwebrtc/include/AudioEncoder.hpp"
 #include "prx/libwebrtc/include/AudioOptions.hpp"
+#include "prx/libwebrtc/include/CryptoOptions.hpp"
+#include "prx/libwebrtc/include/RtpExtension.hpp"
 #include "prx/libwebrtc/include/SdpAudioFormat.hpp"
 
 #include <cstddef>
@@ -88,3 +90,66 @@ static_assert(offsetof(WebRtcAudioSendStreamStats, targetBitrateBps) == 320);
 static_assert(offsetof(WebRtcAudioSendStreamStats, reportBlockDatasBegin) == 328);
 static_assert(offsetof(WebRtcAudioSendStreamStats, nacksReceived) == 352);
 static_assert(sizeof(WebRtcAudioSendStreamStats) == 360);
+
+struct WebRtcAudioSendStreamConfigRtp {
+    std::uint32_t ssrc;
+    WebRtcGuestString rid;
+    WebRtcGuestString mid;
+    bool extmapAllowMixed;
+    WebRtcRtpExtension* extensionsBegin;
+    WebRtcRtpExtension* extensionsEnd;
+    WebRtcRtpExtension* extensionsCapacity;
+    WebRtcGuestString cName;
+    std::int32_t rtcpMode;
+};
+
+struct WebRtcOptionalSendCodecSpec {
+    WebRtcSendCodecSpec value;
+    bool engaged;
+};
+
+struct WebRtcOptionalCodecPairId {
+    std::uint64_t value;
+    bool engaged;
+};
+
+struct WebRtcAudioSendStreamConfig {
+    WebRtcAudioSendStreamConfigRtp rtp;
+    std::int32_t rtcpReportIntervalMs;
+    void* sendTransport;
+    std::int32_t minBitrateBps;
+    std::int32_t maxBitrateBps;
+    double bitratePriority;
+    bool hasDscp;
+    WebRtcOptionalGuestString audioNetworkAdaptorConfig;
+    WebRtcOptionalSendCodecSpec sendCodecSpec;
+    void* encoderFactory;
+    WebRtcOptionalCodecPairId codecPairId;
+    WebRtcGuestString trackId;
+    WebRtcCryptoOptions cryptoOptions;
+    void* frameEncryptor;
+    void* frameTransformer;
+};
+
+static_assert(sizeof(WebRtcAudioSendStreamConfigRtp) == 168);
+static_assert(offsetof(WebRtcAudioSendStreamConfigRtp, mid) == 48);
+static_assert(offsetof(WebRtcAudioSendStreamConfigRtp, extmapAllowMixed) == 88);
+static_assert(offsetof(WebRtcAudioSendStreamConfigRtp, extensionsBegin) == 96);
+static_assert(offsetof(WebRtcAudioSendStreamConfigRtp, cName) == 120);
+static_assert(offsetof(WebRtcAudioSendStreamConfigRtp, rtcpMode) == 160);
+static_assert(sizeof(WebRtcOptionalSendCodecSpec) == 128);
+static_assert(offsetof(WebRtcOptionalSendCodecSpec, engaged) == 120);
+static_assert(sizeof(WebRtcOptionalCodecPairId) == 16);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, rtcpReportIntervalMs) == 168);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, sendTransport) == 176);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, bitratePriority) == 192);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, hasDscp) == 200);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, audioNetworkAdaptorConfig) == 208);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, sendCodecSpec) == 256);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, encoderFactory) == 384);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, codecPairId) == 392);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, trackId) == 408);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, cryptoOptions) == 448);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, frameEncryptor) == 456);
+static_assert(offsetof(WebRtcAudioSendStreamConfig, frameTransformer) == 464);
+static_assert(sizeof(WebRtcAudioSendStreamConfig) == 472);

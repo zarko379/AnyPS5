@@ -1,0 +1,5 @@
+# libwebrtc
+
+## add Public source implementations
+
+- [webrtc::AudioSendStream::Config destructor](../../../core/libs/prx/libwebrtc/src/SdpAudioFormat.cpp) (libwebrtc) - nothing is checked on the console; the constructor stays unimplemented because the `CryptoOptions` default it stores differs between M127 and M134. Defaulted in [audio_send_stream.cc](https://webrtc.googlesource.com/src/+/8d78f5de6c27b2c793039989ea381f1428fb0100/call/audio_send_stream.cc) on the 472-byte layout of `audio_send_stream.h`, the same at M127 (its extra `SendCodecSpec` flag fits the padding): the 168-byte `Rtp` (strings, `RtpExtension` vector), the optional adaptor string at 208, the optional `SendCodecSpec` at 256, the encoder factory at 384, the track id at 408 and the encryptor and transformer at 456 and 464. Every member and `Release` (guest slot 1 of `RefCountInterface`) is checked first; then members go in reverse order. Malformed members or a null config throw before anything changes. Closes when: compared with the console.

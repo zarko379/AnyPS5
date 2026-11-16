@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -187,6 +188,106 @@ void TestStatsDestructorRejectsMalformedMembers() {
     RequireInvalidArgument([] { _ZN6webrtc15AudioSendStream5StatsD1Ev_nid_postfix(nullptr); });
 }
 
+std::vector<int> releasedReferences;
+
+struct FakeReference {
+    const void* vtable;
+    int id;
+};
+
+void APS5_VABI FakeAddRef(const void*) {}
+int APS5_VABI FakeRelease(const void* object) {
+    releasedReferences.push_back(static_cast<const FakeReference*>(object)->id);
+    return 1;
+}
+
+const void* const ReferenceVtable[] = {reinterpret_cast<const void*>(&FakeAddRef), reinterpret_cast<const void*>(&FakeRelease)};
+const void* const BrokenReferenceVtable[] = {reinterpret_cast<const void*>(&FakeAddRef), nullptr};
+
+void InitLongString(WebRtcGuestString& target, std::size_t length, char fill) {
+    std::memset(&target, 0, sizeof(target));
+    target.size = length;
+    target.capacity = length | WebRtcGuestStringInlineCapacity;
+    target.pointer = static_cast<char*>(GuestStringStorage::Allocate(target.capacity + 1));
+    std::memset(target.pointer, fill, length);
+    target.pointer[length] = '\0';
+}
+
+void InitConfig(WebRtcAudioSendStreamConfig& config, FakeReference* factory, FakeReference* encryptor, FakeReference* transformer) {
+    std::memset(&config, 0, sizeof(config));
+    InitShortString(config.rtp.rid, "r");
+    InitLongString(config.rtp.mid, 20, 'm');
+    auto* extensions = static_cast<WebRtcRtpExtension*>(_Znwm_nid_postfix(3 * sizeof(WebRtcRtpExtension)));
+    std::memset(extensions, 0, 3 * sizeof(WebRtcRtpExtension));
+    InitLongString(extensions[0].uri, 40, 'u');
+    InitShortString(extensions[1].uri, "urn:x");
+    config.rtp.extensionsBegin = extensions;
+    config.rtp.extensionsEnd = extensions + 2;
+    config.rtp.extensionsCapacity = extensions + 3;
+    InitShortString(config.rtp.cName, "cname");
+    config.audioNetworkAdaptorConfig.engaged = true;
+    InitLongString(config.audioNetworkAdaptorConfig.value, 30, 'a');
+    WebRtcSdpAudioFormat format;
+    InitFormat(format);
+    _ZN6webrtc15AudioSendStream6Config13SendCodecSpecC1EiRKNS_14SdpAudioFormatE_nid_postfix(&config.sendCodecSpec.value, 111, &format);
+    _ZN6webrtc14SdpAudioFormatD1Ev_nid_postfix(&format);
+    config.sendCodecSpec.engaged = true;
+    config.encoderFactory = factory;
+    InitLongString(config.trackId, 17, 't');
+    config.frameEncryptor = encryptor;
+    config.frameTransformer = transformer;
+}
+
+void TestConfigDestructor() {
+    FakeReference factory {ReferenceVtable, 1};
+    FakeReference encryptor {ReferenceVtable, 2};
+    FakeReference transformer {ReferenceVtable, 3};
+    WebRtcAudioSendStreamConfig config;
+    InitConfig(config, &factory, &encryptor, &transformer);
+    Require(live.size() == 6);
+    releasedReferences.clear();
+    _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(&config);
+    Require((releasedReferences == std::vector<int> {3, 2, 1}));
+    Require(live.empty());
+
+    InitConfig(config, nullptr, nullptr, nullptr);
+    config.sendCodecSpec.engaged = false;
+    WebRtcSendCodecSpec spec = config.sendCodecSpec.value;
+    config.audioNetworkAdaptorConfig.engaged = false;
+    WebRtcGuestString adaptor = config.audioNetworkAdaptorConfig.value;
+    releasedReferences.clear();
+    _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(&config);
+    Require(releasedReferences.empty() && live.size() == 2);
+    _ZN6webrtc15AudioSendStream6Config13SendCodecSpecD1Ev_nid_postfix(&spec);
+    GuestStringStorage::Deallocate(adaptor.pointer, adaptor.capacity + 1);
+    Require(live.empty());
+}
+
+void TestConfigDestructorChecksEverythingFirst() {
+    FakeReference factory {ReferenceVtable, 1};
+    FakeReference broken {BrokenReferenceVtable, 2};
+    WebRtcAudioSendStreamConfig config;
+    InitConfig(config, &factory, &broken, nullptr);
+    const std::size_t allocated = live.size();
+    releasedReferences.clear();
+    RequireInvalidArgument([&] { _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(&config); });
+    config.frameEncryptor = nullptr;
+    config.rtp.extensionsBegin[1].uri.capacity = 3;
+    RequireInvalidArgument([&] { _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(&config); });
+    config.rtp.extensionsBegin[1].uri.capacity = WebRtcGuestStringInlineCapacity;
+    config.sendCodecSpec.value.format.name.capacity = 1;
+    RequireInvalidArgument([&] { _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(&config); });
+    config.sendCodecSpec.value.format.name.capacity = WebRtcGuestStringInlineCapacity;
+    WebRtcRtpExtension* const end = config.rtp.extensionsEnd;
+    config.rtp.extensionsEnd = reinterpret_cast<WebRtcRtpExtension*>(reinterpret_cast<unsigned char*>(end) + 4);
+    RequireInvalidArgument([&] { _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(&config); });
+    config.rtp.extensionsEnd = end;
+    Require(releasedReferences.empty() && live.size() == allocated);
+    _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(&config);
+    Require((releasedReferences == std::vector<int> {1}) && live.empty());
+    RequireInvalidArgument([] { _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(nullptr); });
+}
+
 }
 
 int main() {
@@ -201,5 +302,7 @@ int main() {
     TestInvalidArgumentsThrow();
     TestStatsDestructor();
     TestStatsDestructorRejectsMalformedMembers();
+    TestConfigDestructor();
+    TestConfigDestructorChecksEverythingFirst();
     return 0;
 }
