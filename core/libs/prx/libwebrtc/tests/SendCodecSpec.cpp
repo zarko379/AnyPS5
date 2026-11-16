@@ -252,13 +252,12 @@ void TestConfigDestructor() {
 
     InitConfig(config, nullptr, nullptr, nullptr);
     config.sendCodecSpec.engaged = false;
-    WebRtcSendCodecSpec spec = config.sendCodecSpec.value;
     config.audioNetworkAdaptorConfig.engaged = false;
     WebRtcGuestString adaptor = config.audioNetworkAdaptorConfig.value;
     releasedReferences.clear();
     _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(&config);
     Require(releasedReferences.empty() && live.size() == 2);
-    _ZN6webrtc15AudioSendStream6Config13SendCodecSpecD1Ev_nid_postfix(&spec);
+    _ZN6webrtc15AudioSendStream6Config13SendCodecSpecD1Ev_nid_postfix(&config.sendCodecSpec.value);
     GuestStringStorage::Deallocate(adaptor.pointer, adaptor.capacity + 1);
     Require(live.empty());
 }

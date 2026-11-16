@@ -343,7 +343,7 @@ void TestIsCodecInListVp9AndAv1() {
 void TestIsCodecInListH264() {
     OwnedFormat h264("H264", {});
     OwnedFormat constrainedBaseline("h264", {{"profile-level-id", "42e01f"}});
-    OwnedFormat main("H264", {{"profile-level-id", "4d001f"}});
+    OwnedFormat mainProfile("H264", {{"profile-level-id", "4d001f"}});
     OwnedFormat mainUpper("H264", {{"profile-level-id", "4D0034"}});
     OwnedFormat high("H264", {{"profile-level-id", "64001f"}});
     OwnedFormat constrainedHigh("H264", {{"profile-level-id", "640c1f"}});
@@ -354,7 +354,7 @@ void TestIsCodecInListH264() {
     OwnedFormat badLevel("H264", {{"profile-level-id", "42e000"}});
     OwnedFormat prefixed("H264", {{"profile-level-id", "0x420a"}});
     Require(Same(h264, constrainedBaseline));
-    Require(!Same(h264, main) && Same(main, mainUpper));
+    Require(!Same(h264, mainProfile) && Same(mainProfile, mainUpper));
     Require(!Same(high, constrainedHigh) && Same(high, high));
     Require(!Same(h264, packetized) && Same(packetized, packetizedBaseline));
     Require(!Same(shortId, shortId) && !Same(spacedId, spacedId) && !Same(badLevel, badLevel));

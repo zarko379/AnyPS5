@@ -159,7 +159,7 @@ struct WebRtcDecoderMapNode {
     WebRtcDecoderMapNode* right;
     WebRtcDecoderMapNode* parent;
     bool isBlack;
-    std::int32_t payloadType;
+    alignas(8) std::int32_t payloadType;
     WebRtcSdpAudioFormat format;
 };
 
