@@ -12,6 +12,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string_view>
 
 namespace AgcDriver::Graphics {
@@ -45,6 +46,7 @@ struct DeviceLibraries {
     std::vector<VkShaderModule> modules;
     std::map<Key, VkPipelineLayout> layouts;
     std::array<std::map<Key, VkPipeline>, 4> parts;
+    std::array<std::set<Key>, 4> building;
     PipelineLibraryCounters counters;
 };
 
@@ -53,6 +55,7 @@ struct LibraryStore {
     std::map<VkDevice, DeviceLibraries> devices;
     std::condition_variable idle;
     std::condition_variable work;
+    std::condition_variable built;
     std::deque<std::pair<VkDevice, std::function<void()>>> jobs;
     std::map<VkDevice, std::size_t> pending;
     std::map<VkDevice, std::size_t> activeBuilds;
@@ -193,6 +196,27 @@ VkPipeline LinkPipelineFromLibraries(const Context& context, const VkGraphicsPip
             libraries.push_back(found->second);
             continue;
         }
+        auto& building = device.building[part];
+        if (building.contains(key)) {
+            PerformanceTimer waiting("Vulkan.GraphicsPipelineLibraryWait");
+            store.built.wait(lock, [&] { return !building.contains(key); });
+            if (const auto found = cache.find(key); found != cache.end()) {
+                libraries.push_back(found->second);
+                continue;
+            }
+        }
+        building.insert(key);
+        struct Building {
+            LibraryStore& store;
+            std::set<Key>& building;
+            const Key& key;
+            std::unique_lock<std::mutex>& lock;
+            ~Building() {
+                if (!lock.owns_lock()) lock.lock();
+                building.erase(key);
+                store.built.notify_all();
+            }
+        } inFlight{store, building, key, lock};
         PerformanceTimer timing("Vulkan.GraphicsPipelineLibrary");
         VkGraphicsPipelineLibraryCreateInfoEXT library{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT, flags[part] == VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT ? &rendering : &shaderRendering};
         library.flags = flags[part];

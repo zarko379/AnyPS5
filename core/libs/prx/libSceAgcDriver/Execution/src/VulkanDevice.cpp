@@ -5124,6 +5124,14 @@ bool VulkanDevice::PrebuildGraphicsLibraries(const Graphics::ShaderStages& stage
     return Graphics::Pipeline::Prebuild(context, state, Graphics::VertexInputLayout{}, layouts.View(), group);
 }
 
+void VulkanDevice::PrebuildDrawPipeline(const Graphics::State& graphics, std::span<const Graphics::CompiledShader> shaders) {
+    PerformanceTimer timing("Vulkan.DrawPipelinePrebuild");
+    const auto context = graphicsContext();
+    if (!context.graphicsPipelineLibrary || context.descriptorCache == nullptr) return;
+    const auto layouts = Graphics::DescribeSetLayouts(context, shaders);
+    static_cast<void>(Graphics::Pipeline::Prebuild(context, graphics, Graphics::VertexInputLayout{}, layouts.View(), shaders));
+}
+
 std::vector<std::uint32_t> VulkanDevice::DrawContentKey(const Graphics::State& graphics, const Pm4::DrawParameters& draw, std::span<const Graphics::CompiledShader> shaders) const {
     if (!state->contextReady) return {};
     return Graphics::DrawResourceContentKey(state->context, graphics, draw, shaders);
