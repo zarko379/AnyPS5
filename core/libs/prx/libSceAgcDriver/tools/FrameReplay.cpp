@@ -5,6 +5,7 @@
 #include "prx/libSceAgcDriver/Execution/include/FrameDumpIo.hpp"
 #include "prx/libSceAgcDriver/Execution/include/Pm4.hpp"
 #include "prx/libSceAgcDriver/Execution/include/VideoOutput.hpp"
+#include "prx/libSceAgcDriver/Graphics/include/MultisampleTarget.hpp"
 #include "prx/libSceAgcDriver/Submit/include/Acb.hpp"
 #include "prx/libSceAgcDriver/Submit/include/Dcb.hpp"
 #include "prx/libc/include/GuestAllocations.hpp"
@@ -151,8 +152,31 @@ std::uint64_t headerNumber(const std::string& header, std::string_view key) {
     return std::strtoull(header.c_str() + at + quoted.size(), nullptr, 10);
 }
 
+template<typename TWrite>
+void writeAroundHostOnlySamples(std::uint64_t address, std::uint64_t bytes, TWrite write) {
+    auto cursor = address;
+    const auto end = address + bytes;
+    for (const auto& [begin, size] : AgcDriver::Graphics::HostOnlySampleRanges(address, static_cast<std::size_t>(bytes))) {
+        const auto skip = std::max(begin, cursor);
+        const auto stop = std::min(begin + size, end);
+        if (stop <= skip) continue;
+        if (skip > cursor) write(cursor, skip - cursor);
+        cursor = stop;
+    }
+    if (end > cursor) write(cursor, end - cursor);
+}
+
 void restore(const FrameCaptureReader& reader, const FrameMemoryChunk& chunk) {
-    reader.Read(chunk, std::span(reinterpret_cast<std::byte*>(static_cast<std::uintptr_t>(chunk.address)), static_cast<std::size_t>(chunk.bytes)));
+    auto* const target = reinterpret_cast<std::byte*>(static_cast<std::uintptr_t>(chunk.address));
+    if (AgcDriver::Graphics::HostOnlySampleRanges(chunk.address, static_cast<std::size_t>(chunk.bytes)).empty()) {
+        reader.Read(chunk, std::span(target, static_cast<std::size_t>(chunk.bytes)));
+        return;
+    }
+    std::vector<std::byte> bytes(static_cast<std::size_t>(chunk.bytes));
+    reader.Read(chunk, bytes);
+    writeAroundHostOnlySamples(chunk.address, chunk.bytes, [&](std::uint64_t at, std::uint64_t count) {
+        std::memcpy(target + (at - chunk.address), bytes.data() + (at - chunk.address), static_cast<std::size_t>(count));
+    });
 }
 
 bool committedWritable(std::uint64_t address, std::uint64_t bytes) {
@@ -321,7 +345,8 @@ Skipped restoreMemory(const FrameCaptureReader& reader) {
 void resetMemory(const FrameCaptureReader& reader, const Skipped& skipped) {
     AgcDriverWaitIdle_nid_postfix();
     for (const auto& chunk : reader.Chunks()) {
-        if (chunk.kind == FrameMemoryKind::Range && !skipped.Overlaps(chunk)) std::memset(reinterpret_cast<void*>(static_cast<std::uintptr_t>(chunk.address)), 0, static_cast<std::size_t>(chunk.bytes));
+        if (chunk.kind != FrameMemoryKind::Range || skipped.Overlaps(chunk)) continue;
+        writeAroundHostOnlySamples(chunk.address, chunk.bytes, [](std::uint64_t at, std::uint64_t count) { std::memset(reinterpret_cast<void*>(static_cast<std::uintptr_t>(at)), 0, static_cast<std::size_t>(count)); });
     }
     restoreSnapshot(reader, skipped);
 }
