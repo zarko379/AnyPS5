@@ -43,12 +43,24 @@
 #include "prx/libwebrtc/libwebrtc.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <stdexcept>
 
 namespace {
 
 constexpr std::size_t DeletingDestructorSlot = 1;
+constexpr std::size_t CertificateSlot = 2;
+constexpr std::size_t ExpirationTimeSlot = 7;
+constexpr std::uint64_t MillisecondsPerSecond = 1000;
+
+void* Slot(const void* object, std::size_t slot, const char* message) {
+    const void* const* vtable;
+    std::memcpy(&vtable, object, sizeof(vtable));
+    if (!vtable || !vtable[slot])
+        throw std::invalid_argument(message);
+    return const_cast<void*>(vtable[slot]);
+}
 
 }
 
@@ -66,6 +78,23 @@ void APS5_VABI _ZN3rtc14RTCCertificateD1Ev_nid_postfix(WebRtcRtcCertificate* cer
         throw std::invalid_argument("RTCCertificate destructor requires an identity with a virtual destructor");
     using Destructor = void(APS5_VABI*)(void*);
     reinterpret_cast<Destructor>(const_cast<void*>(vtable[DeletingDestructorSlot]))(identity);
+}
+
+
+bool APS5_VABI _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(const WebRtcRtcCertificate* certificate, std::uint64_t now) {
+    if (!certificate)
+        throw std::invalid_argument("RTCCertificate::HasExpired requires a certificate");
+    const void* identity = certificate->identity;
+    if (!identity)
+        throw std::invalid_argument("RTCCertificate::HasExpired requires an identity");
+    using CertificateGetter = const void*(APS5_VABI*)(const void*);
+    const void* sslCertificate = reinterpret_cast<CertificateGetter>(Slot(identity, CertificateSlot, "RTCCertificate::HasExpired requires an identity with certificate()"))(identity);
+    if (!sslCertificate)
+        throw std::invalid_argument("RTCCertificate::HasExpired requires an identity certificate");
+    using ExpirationTime = std::int64_t(APS5_VABI*)(const void*);
+    const std::int64_t expires = reinterpret_cast<ExpirationTime>(Slot(sslCertificate, ExpirationTimeSlot, "RTCCertificate::HasExpired requires a certificate with CertificateExpirationTime()"))(sslCertificate);
+    const std::uint64_t expiresMs = expires != -1 ? static_cast<std::uint64_t>(expires) * MillisecondsPerSecond : 0;
+    return expiresMs <= now;
 }
 
 }

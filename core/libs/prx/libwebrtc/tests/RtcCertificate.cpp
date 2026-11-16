@@ -1,6 +1,7 @@
 #include "prx/libwebrtc/libwebrtc.hpp"
 
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <source_location>
@@ -66,11 +67,66 @@ void TestInvalidArgumentsThrow() {
     RequireInvalidArgument([&] { _ZN3rtc14RTCCertificateD1Ev_nid_postfix(&certificate); });
 }
 
+struct FakeSslCertificate {
+    const void* const* vtable;
+    std::int64_t expiration;
+};
+
+struct FakeCertificateIdentity {
+    const void* const* vtable;
+    const FakeSslCertificate* certificate;
+};
+
+const void* APS5_VABI IdentityCertificate(const void* identity) {
+    return static_cast<const FakeCertificateIdentity*>(identity)->certificate;
+}
+
+std::int64_t APS5_VABI CertificateExpiration(const void* certificate) {
+    return static_cast<const FakeSslCertificate*>(certificate)->expiration;
+}
+
+void TestHasExpired() {
+    const std::array<const void*, 8> certificateVtable {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, reinterpret_cast<const void*>(&CertificateExpiration)};
+    const std::array<const void*, 3> identityVtable {nullptr, nullptr, reinterpret_cast<const void*>(&IdentityCertificate)};
+    FakeSslCertificate sslCertificate {certificateVtable.data(), 100};
+    FakeCertificateIdentity identity {identityVtable.data(), &sslCertificate};
+    WebRtcRtcCertificate certificate {1, &identity};
+    Require(!_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 99999));
+    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 100000));
+    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 100001));
+    sslCertificate.expiration = -1;
+    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0));
+    sslCertificate.expiration = 0;
+    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0));
+    sslCertificate.expiration = -2;
+    Require(!_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0xFFFFFFFFFFFFF82Full));
+    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0xFFFFFFFFFFFFF830ull));
+}
+
+void TestHasExpiredInvalidArgumentsThrow() {
+    const std::array<const void*, 8> certificateVtable {};
+    const std::array<const void*, 3> identityVtable {nullptr, nullptr, reinterpret_cast<const void*>(&IdentityCertificate)};
+    const std::array<const void*, 3> emptyVtable {};
+    FakeSslCertificate sslCertificate {certificateVtable.data(), 1};
+    FakeCertificateIdentity identity {identityVtable.data(), &sslCertificate};
+    WebRtcRtcCertificate certificate {1, &identity};
+    RequireInvalidArgument([&] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0); });
+    identity.certificate = nullptr;
+    RequireInvalidArgument([&] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0); });
+    identity.vtable = emptyVtable.data();
+    RequireInvalidArgument([&] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0); });
+    certificate.identity = nullptr;
+    RequireInvalidArgument([&] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0); });
+    RequireInvalidArgument([] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(nullptr, 0); });
+}
+
 }
 
 int main() {
     TestDeletesTheIdentityThroughItsDeletingDestructor();
     TestWithoutIdentityDoesNothing();
     TestInvalidArgumentsThrow();
+    TestHasExpired();
+    TestHasExpiredInvalidArgumentsThrow();
     return 0;
 }

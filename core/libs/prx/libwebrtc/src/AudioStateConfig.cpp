@@ -41,8 +41,26 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libc/include/General.hpp"
 
+#include <array>
+#include <cstddef>
 #include <stdexcept>
+
+namespace {
+
+constexpr std::size_t ReleaseSlot = 1;
+
+using Release = int (APS5_VABI*)(const void*);
+
+Release ReleaseOf(void* object) {
+    const void* const* vtable = nullptr;
+    if (!GuestCopyIn_nid_no_patch(&vtable, object, sizeof(vtable)) || !vtable || !vtable[ReleaseSlot])
+        throw std::invalid_argument("AudioState::Config destructor requires references with Release");
+    return reinterpret_cast<Release>(const_cast<void*>(vtable[ReleaseSlot]));
+}
+
+}
 
 extern "C" {
 
@@ -53,6 +71,20 @@ void APS5_VABI _ZN6webrtc10AudioState6ConfigC1Ev_nid_postfix(WebRtcAudioStateCon
     config->audioProcessing = nullptr;
     config->audioDeviceModule = nullptr;
     config->asyncAudioProcessingFactory = nullptr;
+}
+
+
+void APS5_VABI _ZN6webrtc10AudioState6ConfigD1Ev_nid_postfix(WebRtcAudioStateConfig* config) {
+    if (!config)
+        throw std::invalid_argument("AudioState::Config destructor requires a config");
+    const std::array<void*, 4> references {config->asyncAudioProcessingFactory, config->audioDeviceModule, config->audioProcessing, config->audioMixer};
+    std::array<Release, 4> releases {};
+    for (std::size_t index = 0; index < references.size(); ++index)
+        if (references[index])
+            releases[index] = ReleaseOf(references[index]);
+    for (std::size_t index = 0; index < references.size(); ++index)
+        if (references[index])
+            releases[index](references[index]);
 }
 
 }
