@@ -4,17 +4,10 @@
 
 extern "C" {
 std::int32_t APS5_VABI uloc_getName_nid_postfix(const char* localeID, char* name, std::int32_t nameCapacity, std::int32_t* err);
-std::int32_t APS5_VABI uloc_getParent_nid_postfix(const char* localeID, char* parent, std::int32_t parentCapacity, std::int32_t* err);
-std::int32_t APS5_VABI uloc_getVariant_nid_postfix(const char* localeID, char* variant, std::int32_t variantCapacity, std::int32_t* err);
-const char* APS5_VABI uloc_getISO3Language_nid_postfix(const char* localeID);
-const char* APS5_VABI uloc_getISO3Country_nid_postfix(const char* localeID);
-const char* const* APS5_VABI uloc_getISOLanguages_nid_postfix();
-const char* const* APS5_VABI uloc_getISOCountries_nid_postfix();
 const char* APS5_VABI uloc_toUnicodeLocaleKey_nid_postfix(const char* keyword);
 const char* APS5_VABI uloc_toUnicodeLocaleType_nid_postfix(const char* keyword, const char* value);
 const char* APS5_VABI uloc_toLegacyKey_nid_postfix(const char* keyword);
 const char* APS5_VABI uloc_toLegacyType_nid_postfix(const char* keyword, const char* value);
-std::int32_t APS5_VABI uloc_setKeywordValue_nid_postfix(const char* keywordName, const char* keywordValue, char* buffer, std::int32_t bufferCapacity, std::int32_t* status);
 std::int32_t APS5_VABI uloc_countAvailable_nid_postfix();
 const char* APS5_VABI uloc_getAvailable_nid_postfix(std::int32_t n);
 std::int32_t APS5_VABI uloc_addLikelySubtags_nid_postfix(const char* localeID, char* maximizedLocaleID, std::int32_t maximizedLocaleIDCapacity, std::int32_t* err);

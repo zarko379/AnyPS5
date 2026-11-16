@@ -1,3 +1,12 @@
+// Derived from icu4c/source/common/cmemory.cpp@84e1f26ea77152936e70d53178a816dbfbf69989 (ICU 68.2): uprv_calloc below.
+// https://github.com/unicode-org/icu/blob/84e1f26ea77152936e70d53178a816dbfbf69989/icu4c/source/common/cmemory.cpp
+//
+// The upstream file's notice, verbatim:
+//   © 2016 and later: Unicode, Inc. and others.
+//   License & terms of use: http://www.unicode.org/copyright.html
+//   Copyright (C) 2002-2015, International Business Machines
+//   Corporation and others.  All Rights Reserved.
+
 #include "prx/libSceIcu/libSceIcu.hpp"
 #include "prx/libSceIcu/Status.hpp"
 #include "prx/libSceIcu/Backend.hpp"

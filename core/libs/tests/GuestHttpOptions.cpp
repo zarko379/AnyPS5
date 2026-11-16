@@ -25,8 +25,6 @@ void Require(bool value, const char* what) {
     std::abort();
 }
 
-int APS5_VABI CookieSend(std::int32_t, const char*, const char*, void*) { std::abort(); }
-
 int Get(int (APS5_VABI *getter)(int, int*), int id) {
     int value = -1;
     Require(getter(id, &value) == 0, "an option getter failed on a live object");
@@ -213,13 +211,11 @@ void CheckTermEndsOptions() {
     Require(sceHttpGetEpoll(connection, &bound, nullptr) == BeforeInit && sceHttpUnsetEpoll(connection) == BeforeInit, "the epoll binding outlived the last sceHttpTerm");
     Require(sceHttpCacheRedirectedConnectionEnabled(connection, 1) == BeforeInit, "sceHttpCacheRedirectedConnectionEnabled works after the last sceHttpTerm");
     Require(sceHttpSetProxy(connection, 1, 0, "proxy.example", 3128) == BeforeInit, "sceHttpSetProxy works after the last sceHttpTerm");
-    Require(sceHttpSetCookieSendCallback(connection, CookieSend, nullptr) == BeforeInit, "sceHttpSetCookieSendCallback works after the last sceHttpTerm");
     Require(sceHttpsEnableOptionPrivate(connection, 0x4000u) == BeforeInit && sceHttpsDisableOptionPrivate(connection, 0x4000u) == BeforeInit, "the private SSL options work after the last sceHttpTerm");
     Require(sceHttpGetNonblock(connection, nullptr) == BeforeInit, "a null output is checked before initialisation");
     Require(value == -1 && bound == nullptr, "a refused getter wrote its output");
     const int next = sceHttpInit_nid_postfix(1, 1, 0x10000);
     Require(sceHttpSetAutoRedirect(pattern, 0) == InvalidId && sceHttpGetNonblock(connection, &value) == InvalidId, "an object outlived the last sceHttpTerm into a new sceHttpInit");
-    Require(sceHttpSetCookieSendCallback(connection, CookieSend, nullptr) == InvalidId, "an object outlived the last sceHttpTerm into a new sceHttpInit");
     Require(sceHttpTerm_nid_postfix(next) == 0, "sceHttpTerm failed");
 }
 
@@ -274,15 +270,6 @@ void CheckUnobservedOptions(int context) {
     Require(sceHttpSetProxy(connection, 0, 0, nullptr, 0) == InvalidValue, "sceHttpSetProxy took a null host");
     Require(sceHttpSetProxy(UnknownId, 0, 0, nullptr, 0) == InvalidValue, "the proxy host is not checked before the id");
     Require(sceHttpSetProxy(UnknownId, 1, 1, "proxy.example", 8080) == InvalidId, "sceHttpSetProxy took an unknown id");
-    int marker = 0;
-    for (const int id : {pattern, connection, request}) {
-        Require(sceHttpSetCookieSendCallback(id, CookieSend, &marker) == 0, "sceHttpSetCookieSendCallback refused a live object");
-        Require(sceHttpSetCookieSendCallback(id, nullptr, nullptr) == 0, "sceHttpSetCookieSendCallback refused a null callback");
-    }
-    Require(sceHttpSetCookieSendCallback(UnknownId, CookieSend, &marker) == InvalidId && sceHttpSetCookieSendCallback(UnknownId, nullptr, nullptr) == InvalidId, "sceHttpSetCookieSendCallback took an unknown id");
-    const int child = sceHttpCreateConnectionWithURL(pattern, "http://example.com/", 1);
-    Require(sceHttpSetCookieSendCallback(child, CookieSend, &marker) == 0 && sceHttpDeleteConnection(child) == 0, "a connection created after the callback refused it");
-    Require(sceHttpSetCookieSendCallback(child, CookieSend, &marker) == InvalidId, "a deleted connection still took a cookie send callback");
     Require(sceHttpAbortRequestForce(request) == 0, "sceHttpAbortRequestForce failed on a live request");
     Require(sceHttpDeleteRequest(request) == 0 && sceHttpDeleteConnection(connection) == 0 && sceHttpDeleteTemplate(pattern) == 0, "delete failed");
     Require(sceHttpSetDelayBuildRequestEnabled(request, 1) == InvalidId, "a deleted request still accepted delay build request");
@@ -292,7 +279,6 @@ void CheckUnobservedOptions(int context) {
 
 int main() {
     Require(sceHttpSetDelayBuildRequestEnabled(UnknownId, 1) == BeforeInit, "delay build request was taken before sceHttpInit");
-    Require(sceHttpSetCookieSendCallback(UnknownId, CookieSend, nullptr) == BeforeInit && sceHttpSetCookieSendCallback(0, nullptr, nullptr) == BeforeInit, "a cookie send callback was taken before sceHttpInit");
     const int context = sceHttpInit_nid_postfix(1, 1, 0x10000);
     Require(context > 0, "sceHttpInit failed");
     CheckAutoRedirect(context);

@@ -3,20 +3,27 @@
 #include <unicode/ucnv.h>
 #include <unicode/uloc.h>
 
-extern "C" {
+namespace IcuBackend {
 
-void APS5_VABI uloc_setDefault_nid_postfix(const char* locale, std::int32_t* status) {
-    UErrorCode* error = reinterpret_cast<UErrorCode*>(IcuBackend::RequireStatus(status));
-    if (U_FAILURE(*error)) return;
-    IcuBackend::NewDefaultLocale(locale);
-    uloc_setDefault(locale, error);
-    IcuBackend::SetGuestDefaultLocale(locale != nullptr);
+bool SetDefaultLocale(const char* locale, std::int32_t* status) {
+    return WithGuestStatus(status, "uloc_setDefault", [&](std::int32_t* local) {
+        UErrorCode* error = reinterpret_cast<UErrorCode*>(local);
+        if (U_FAILURE(*error)) return false;
+        NewDefaultLocale(locale);
+        uloc_setDefault(locale, error);
+        SetGuestDefaultLocale(locale != nullptr);
+        return true;
+    });
 }
 
-const char* APS5_VABI uloc_getDefault_nid_postfix() {
-    IcuBackend::Locale(nullptr);
+const char* GuestDefaultLocale() {
+    if (!GuestDefault()) return nullptr;
     return uloc_getDefault();
 }
+
+}
+
+extern "C" {
 
 void APS5_VABI ucnv_setDefaultName_nid_postfix(const char* name) {
     IcuBackend::Ensure();

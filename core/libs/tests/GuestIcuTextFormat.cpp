@@ -18,6 +18,20 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cerrno>
+#include <cstddef>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -464,12 +478,91 @@ void CheckIDefault() {
 
 }
 
+namespace {
+
+class ReadOnlyStatusPage {
+public:
+    ReadOnlyStatusPage() {
+#ifdef _WIN32
+        SYSTEM_INFO info{};
+        GetSystemInfo(&info);
+        bytes = info.dwPageSize;
+        data = VirtualAlloc(nullptr, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        Require(data != nullptr, "a status page maps");
+#else
+        const long page = sysconf(_SC_PAGESIZE);
+        bytes = static_cast<std::size_t>(page > 0 ? page : 4096);
+        data = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        Require(data != MAP_FAILED, "a status page maps");
+#endif
+        Passing()[0] = Ok;
+        Failing()[0] = IllegalArgument;
+#ifdef _WIN32
+        DWORD previous = 0;
+        Require(VirtualProtect(data, bytes, PAGE_READONLY, &previous) != 0, "the status page becomes read-only");
+#else
+        Require(mprotect(data, bytes, PROT_READ) == 0, "the status page becomes read-only");
+#endif
+    }
+
+    ~ReadOnlyStatusPage() {
+#ifdef _WIN32
+        VirtualFree(data, 0, MEM_RELEASE);
+#else
+        munmap(data, bytes);
+#endif
+    }
+
+    ReadOnlyStatusPage(const ReadOnlyStatusPage&) = delete;
+    ReadOnlyStatusPage& operator=(const ReadOnlyStatusPage&) = delete;
+
+    std::int32_t* Passing() const { return static_cast<std::int32_t*>(data); }
+    std::int32_t* Failing() const { return static_cast<std::int32_t*>(data) + 4; }
+    bool Unchanged() const { return *Passing() == Ok && *Failing() == IllegalArgument; }
+
+private:
+    void* data = nullptr;
+    std::size_t bytes = 0;
+};
+
+std::int32_t* UnreadableStatus() {
+    return reinterpret_cast<std::int32_t*>(std::uintptr_t{0x10});
+}
+
+template<typename TAction>
+bool RejectsStatus(TAction action) {
+    errno = 71;
+    const bool threw = Throws<std::runtime_error>(action);
+    return threw && errno == 71;
+}
+
+void CheckGuestStatusPointers() {
+    std::int32_t* unreadable = UnreadableStatus();
+    char16_t buffer[2] = {u'a', u'b'};
+    Require(RejectsStatus([&] { uldn_openForContext_nid_postfix("en", nullptr, 0, unreadable); }), "uldn_openForContext rejects an unreadable status");
+    Require(RejectsStatus([&] { ureldatefmt_format_nid_postfix(nullptr, 0.0, 0, nullptr, 1, unreadable); }), "ureldatefmt_format rejects an unreadable status");
+    Require(RejectsStatus([&] { ureldatefmt_open_nid_postfix("en", nullptr, 0, 0, unreadable); }), "ureldatefmt_open rejects an unreadable status");
+    Require(RejectsStatus([&] { ufmtval_getString_nid_postfix(nullptr, nullptr, unreadable); }), "ufmtval_getString rejects an unreadable status");
+
+    ReadOnlyStatusPage page;
+    Require(uldn_openForContext_nid_postfix("en", nullptr, 0, page.Failing()) == nullptr, "uldn_openForContext returns first on a read-only failed status");
+    Require(ureldatefmt_format_nid_postfix(nullptr, 0.0, 0, buffer, 2, page.Failing()) == 0, "ureldatefmt_format returns first on a read-only failed status");
+    Require(ureldatefmt_open_nid_postfix("en", nullptr, 0, 0, page.Failing()) == nullptr, "ureldatefmt_open returns first on a read-only failed status");
+    Require(ufmtval_getString_nid_postfix(nullptr, nullptr, page.Failing()) == nullptr, "ufmtval_getString returns first on a read-only failed status");
+    Require(RejectsStatus([&] { ureldatefmt_format_nid_postfix(nullptr, 0.0, 0, nullptr, 1, page.Passing()); }), "ureldatefmt_format rejects a read-only status it must fail");
+    Require(RejectsStatus([&] { ufmtval_getString_nid_postfix(nullptr, nullptr, page.Passing()); }), "ufmtval_getString rejects a read-only status it must fail");
+    Require(page.Unchanged(), "a read-only status is never written");
+}
+
+}
+
 int main() {
     UErrorCode status = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &status);
     CheckListErrors();
     CheckDisplayNameErrors();
     CheckRelativeErrors();
+    CheckGuestStatusPointers();
     CheckIDefault();
     SetDefaults("en_US");
     CheckLists({"en", "de", "es", "he", "ja", "ar", "", "root", "it", "th", "zh_Hant", "ur_IN", "el", "en_IN"}, "sweep");

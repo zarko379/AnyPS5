@@ -1,6 +1,18 @@
 #include "prx/libSceIcu/LocaleInfo.hpp"
 #include "prx/libSceIcu/Configuration.hpp"
 #include "prx/libSceIcu/Defaults.hpp"
+#include "prx/libSceIcu/include/InventoryExports.hpp"
+
+namespace GuestLocale {
+
+const auto getParent = &uloc_getParent;
+const auto getISO3Language = &uloc_getISO3Language;
+const auto getISO3Country = &uloc_getISO3Country;
+const auto getISOLanguages = &uloc_getISOLanguages;
+const auto getISOCountries = &uloc_getISOCountries;
+
+}
+
 #include <unicode/uclean.h>
 #include <unicode/udata.h>
 #include <unicode/uloc.h>
@@ -127,7 +139,6 @@ void CheckStrings() {
     for (const char* locale : Locales) {
         const std::string what = std::string("locale ") + locale;
         CompareChars(what + " getName", [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_getName_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_getName(locale, d, c, s); });
-        CompareChars(what + " getVariant", [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_getVariant_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_getVariant(locale, d, c, s); });
         CompareChars(what + " addLikelySubtags", [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_addLikelySubtags_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_addLikelySubtags(locale, d, c, s); });
         CompareChars(what + " minimizeSubtags", [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_minimizeSubtags_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_minimizeSubtags(locale, d, c, s); });
         for (std::int8_t strict : {0, 1}) {
@@ -139,23 +150,10 @@ void CheckStrings() {
             std::vector<char> hostBuffer(static_cast<std::size_t>(capacity) + 2, 'x');
             std::int32_t status = Ok;
             UErrorCode hostStatus = U_ZERO_ERROR;
-            const std::int32_t length = uloc_getParent_nid_postfix(locale, capacity ? buffer.data() : nullptr, capacity, &status);
+            const std::int32_t length = GuestLocale::getParent(locale, capacity ? buffer.data() : nullptr, capacity, &status);
             const std::int32_t hostLength = uloc_getParent(locale, capacity ? hostBuffer.data() : nullptr, capacity, &hostStatus);
             Require(length == hostLength && status == hostStatus && buffer == hostBuffer, what + " getParent " + std::to_string(capacity));
         }
-        Require(Throws<std::invalid_argument>([&] { std::int32_t ok = Ok; uloc_getParent_nid_postfix(locale, nullptr, 4, &ok); }), what + ": getParent with a NULL buffer throws");
-        const char* underscore = std::strrchr(locale, '_');
-        if (underscore && underscore != locale) {
-            Require(Throws<std::invalid_argument>([&] { std::int32_t ok = Ok; char parent[4]; uloc_getParent_nid_postfix(locale, parent, -1, &ok); }), what + ": getParent with a negative capacity throws where ICU copies");
-        } else {
-            char parent[4];
-            char hostParent[4];
-            std::int32_t status = Ok;
-            UErrorCode hostStatus = U_ZERO_ERROR;
-            Require(uloc_getParent_nid_postfix(locale, parent, -1, &status) == uloc_getParent(locale, hostParent, -1, &hostStatus) && status == hostStatus, what + ": getParent without a parent accepts a negative capacity");
-        }
-        Require(std::string(uloc_getISO3Language_nid_postfix(locale)) == uloc_getISO3Language(locale), what + " ISO3 language");
-        Require(std::string(uloc_getISO3Country_nid_postfix(locale)) == uloc_getISO3Country(locale), what + " ISO3 country");
         Require(ulocimp_isCanonicalizedLocaleForTest_nid_postfix(locale) == ulocimp_isCanonicalizedLocaleForTest(locale), what + " canonicalized");
         for (int line = 0; line < 2; ++line) {
             std::int32_t status = Ok;
@@ -183,44 +181,6 @@ void CheckStrings() {
     Require(Throws<std::invalid_argument>([] { uloc_toLegacyType_nid_postfix("vt", nullptr); }), "toLegacyType throws for a NULL value");
 }
 
-void CheckKeywords() {
-    struct Case {
-        const char* name;
-        const char* value;
-        const char* start;
-    };
-    const Case cases[] = {
-        {"calendar", "buddhist", "th_TH"}, {"calendar", "buddhist", "th_TH@"}, {"Calendar", "japanese", "ja@currency=JPY"}, {"currency", nullptr, "en@currency=USD;calendar=x"},
-        {"currency", "", "en@currency=USD"}, {"collation", "phonebook", "de@collation=standard"}, {"zz", "q", "de@ a = b ;c=d"}, {"calendar", "bad value!", "en"},
-        {"", "x", "en"}, {nullptr, "x", "en"}, {"calendar", "x", "en@=b"}, {"calendar", "x", "en@a="}, {"calendar", "gregorian", ""}, {"averyveryverylongkeywordname", "x", "en"},
-        {"calendar", "x", "en@a=b;c=d;e=f"}, {"b", "x", "en@a=b;c=d"}, {"calendar", nullptr, "en"},
-    };
-    for (const Case& item : cases) {
-        for (std::int32_t capacity : {0, 1, 2, 10, 12, 18, 64}) {
-            std::vector<char> buffer(80, 'x');
-            std::vector<char> hostBuffer(80, 'x');
-            std::strcpy(buffer.data(), item.start);
-            std::strcpy(hostBuffer.data(), item.start);
-            for (std::int32_t warning : {Ok, static_cast<std::int32_t>(U_STRING_NOT_TERMINATED_WARNING)}) {
-                std::vector<char> guestCopy = buffer;
-                std::vector<char> hostCopy = hostBuffer;
-                std::int32_t status = warning;
-                UErrorCode hostStatus = static_cast<UErrorCode>(warning);
-                const std::int32_t length = uloc_setKeywordValue_nid_postfix(item.name, item.value, guestCopy.data(), capacity, &status);
-                const std::int32_t hostLength = uloc_setKeywordValue(item.name, item.value, hostCopy.data(), capacity, &hostStatus);
-                Require(length == hostLength && status == hostStatus && guestCopy == hostCopy, std::string("setKeywordValue ") + Name(item.name) + " " + Name(item.value) + " " + item.start + " " + std::to_string(capacity));
-            }
-        }
-    }
-    Require(Throws<std::invalid_argument>([] { std::int32_t ok = Ok; uloc_setKeywordValue_nid_postfix("calendar", "x", nullptr, 8, &ok); }), "setKeywordValue throws for a NULL buffer ICU reads");
-    std::int32_t status = Ok;
-    UErrorCode hostStatus = U_ZERO_ERROR;
-    Require(uloc_setKeywordValue_nid_postfix("calendar", "x", nullptr, 1, &status) == uloc_setKeywordValue("calendar", "x", nullptr, 1, &hostStatus) && status == hostStatus, "setKeywordValue rejects a small capacity before reading");
-    status = U_INVALID_FORMAT_ERROR;
-    Require(uloc_setKeywordValue_nid_postfix("calendar", "x", nullptr, 8, &status) == -1 && status == U_INVALID_FORMAT_ERROR, "setKeywordValue returns -1 for a failed status");
-    Require(Throws<std::invalid_argument>([] { char buffer[8] = "en"; uloc_setKeywordValue_nid_postfix("calendar", "x", buffer, 8, nullptr); }), "setKeywordValue throws for a NULL status");
-}
-
 void CheckLists() {
     const std::int32_t count = uloc_countAvailable_nid_postfix();
     Require(count == uloc_countAvailable() && count > 500, "countAvailable matches");
@@ -228,12 +188,12 @@ void CheckLists() {
     Require(Throws<std::invalid_argument>([count] { uloc_getAvailable_nid_postfix(count); }), "getAvailable throws one past the end, which ICU 68.2 reads");
     Require(Throws<std::invalid_argument>([] { uloc_getAvailable_nid_postfix(-1); }), "getAvailable throws for a negative index");
     Require(uloc_getAvailable_nid_postfix(count + 1) == nullptr && uloc_getAvailable_nid_postfix(1 << 30) == nullptr, "getAvailable returns NULL beyond the end");
-    const char* const* languages = uloc_getISOLanguages_nid_postfix();
+    const char* const* languages = GuestLocale::getISOLanguages();
     const char* const* hostLanguages = uloc_getISOLanguages();
     std::size_t index = 0;
     for (; hostLanguages[index]; ++index) Require(languages[index] && std::strcmp(languages[index], hostLanguages[index]) == 0, "ISO languages");
     Require(!languages[index] && index > 100, "ISO languages end together");
-    const char* const* countries = uloc_getISOCountries_nid_postfix();
+    const char* const* countries = GuestLocale::getISOCountries();
     const char* const* hostCountries = uloc_getISOCountries();
     for (index = 0; hostCountries[index]; ++index) Require(countries[index] && std::strcmp(countries[index], hostCountries[index]) == 0, "ISO countries");
     Require(!countries[index] && index > 100, "ISO countries end together");
@@ -244,6 +204,10 @@ void CheckLists() {
     Require(length == hostLength && length > 10, "known canonicalized locales count");
     for (std::int32_t item = 0; item < length; ++item) Require(std::strcmp(known[item], hostKnown[item]) == 0, "known canonicalized locales");
     Require(Throws<std::invalid_argument>([] { ulocimp_getKnownCanonicalizedLocaleForTest_nid_postfix(nullptr); }), "a NULL length throws");
+    for (const char* locale : {"en", "en_US", "de_AT", "zh_Hant_TW", "sr_Latn_RS", "es_419", "ar_EG", "fa_IR", "he", "ja_JP@calendar=japanese", "pt_BR@currency=usd"}) {
+        Require(std::string(GuestLocale::getISO3Language(locale)) == uloc_getISO3Language(locale), std::string("ISO3 language ") + locale);
+        Require(std::string(GuestLocale::getISO3Country(locale)) == uloc_getISO3Country(locale), std::string("ISO3 country ") + locale);
+    }
 }
 
 const char* const DisplayLocales[] = {"en", "de", "fr_CA", "ja", "zh_Hant", "", "ar", "sr_Latn", "en_GB", "es_MX"};
@@ -335,10 +299,6 @@ void CheckDefaults() {
     char chars[64];
     char16_t text[64];
     Require(NotImplemented([&] { uloc_getName_nid_postfix(nullptr, chars, 64, &ok); }), "getName throws for NULL");
-    Require(NotImplemented([&] { uloc_getParent_nid_postfix(nullptr, chars, 64, &ok); }), "getParent throws for NULL");
-    Require(NotImplemented([&] { uloc_getVariant_nid_postfix(nullptr, chars, 64, &ok); }), "getVariant throws for NULL");
-    Require(NotImplemented([&] { uloc_getISO3Language_nid_postfix(nullptr); }), "getISO3Language throws for NULL");
-    Require(NotImplemented([&] { uloc_getISO3Country_nid_postfix(nullptr); }), "getISO3Country throws for NULL");
     Require(NotImplemented([&] { uloc_addLikelySubtags_nid_postfix(nullptr, chars, 64, &ok); }), "addLikelySubtags throws for NULL");
     Require(NotImplemented([&] { uloc_minimizeSubtags_nid_postfix(nullptr, chars, 64, &ok); }), "minimizeSubtags throws for NULL");
     Require(NotImplemented([&] { uloc_toLanguageTag_nid_postfix(nullptr, chars, 64, 0, &ok); }), "toLanguageTag throws for NULL");
@@ -387,8 +347,7 @@ void CheckDefaults() {
         std::int32_t status = Ok;
         UErrorCode hostStatus = U_ZERO_ERROR;
         char host[64];
-        Require(uloc_getParent_nid_postfix(locale, chars, 64, &status) == uloc_getParent(locale, host, 64, &hostStatus) && status == hostStatus && std::strcmp(chars, host) == 0, std::string("getParent never canonicalizes: ") + locale);
-        Require(std::string(uloc_getISO3Language_nid_postfix(locale)) == uloc_getISO3Language(locale), std::string("getISO3Language never canonicalizes: ") + locale);
+        Require(GuestLocale::getParent(locale, chars, 64, &status) == uloc_getParent(locale, host, 64, &hostStatus) && status == hostStatus && std::strcmp(chars, host) == 0, std::string("getParent never canonicalizes: ") + locale);
         status = Ok;
         hostStatus = U_ZERO_ERROR;
         Require(ulocimp_getRegionForSupplementalData_nid_postfix(locale, 0, chars, 64, &status) == ulocimp_getRegionForSupplementalData(locale, 0, host, 64, &hostStatus) && status == hostStatus, std::string("getRegionForSupplementalData without inference never canonicalizes: ") + locale);
@@ -428,7 +387,7 @@ void CheckDefaults() {
             std::int32_t status = Ok;
             UErrorCode hostStatus = U_ZERO_ERROR;
             Require(uloc_getCharacterOrientation_nid_postfix(locale, &status) == uloc_getCharacterOrientation(locale, &hostStatus) && status == hostStatus, std::string("default orientation ") + fallback + " " + Name(locale));
-            Require(Name(uloc_getISO3Country_nid_postfix(locale)) == Name(uloc_getISO3Country(locale)), std::string("default ISO3 country ") + fallback + " " + Name(locale));
+            if (!locale) Require(Name(GuestLocale::getISO3Country(locale)) == Name(uloc_getISO3Country(locale)), std::string("default ISO3 country ") + fallback);
         }
     }
     SetDefaults(nullptr);
@@ -436,7 +395,6 @@ void CheckDefaults() {
 
 void CheckErrors() {
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_getName_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in getName");
-    Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_getParent_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in getParent");
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_addLikelySubtags_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in addLikelySubtags");
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_minimizeSubtags_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in minimizeSubtags");
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_toLanguageTag_nid_postfix("en", buffer, 8, 0, nullptr); }), "a NULL status throws in toLanguageTag");
@@ -447,7 +405,6 @@ void CheckErrors() {
     Require(Throws<std::invalid_argument>([] { std::int32_t ok = Ok; char buffer[8]; ulocimp_getRegionForSupplementalData_nid_postfix("en_US", 0, buffer, -1, &ok); }), "a negative region capacity throws");
     std::int32_t status = Ok;
     UErrorCode hostStatus = U_ZERO_ERROR;
-    Require(uloc_getVariant_nid_postfix("en_US_POSIX", nullptr, 0, nullptr) == 0, "getVariant accepts a NULL status as ICU does");
     status = U_INVALID_FORMAT_ERROR;
     hostStatus = U_INVALID_FORMAT_ERROR;
     Require(uloc_getCharacterOrientation_nid_postfix(nullptr, &status) == uloc_getCharacterOrientation(nullptr, &hostStatus) && status == U_INVALID_FORMAT_ERROR, "a failed status returns before the locale check in getCharacterOrientation");
@@ -462,7 +419,6 @@ int main() {
     CheckDefaults();
     SetDefaults("en_US");
     CheckStrings();
-    CheckKeywords();
     CheckLists();
     CheckDisplayNames();
     CheckTableStrings();

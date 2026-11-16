@@ -18,6 +18,20 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <cerrno>
+#include <cstddef>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 void* GuestStringIterator(const char16_t* text, std::int32_t length);
 void* GuestUtf8Iterator(const char* text, std::int32_t length);
@@ -577,6 +591,83 @@ void CheckArraySorting() {
 
 }
 
+namespace {
+
+class ReadOnlyStatusPage {
+public:
+    ReadOnlyStatusPage() {
+#ifdef _WIN32
+        SYSTEM_INFO info{};
+        GetSystemInfo(&info);
+        bytes = info.dwPageSize;
+        data = VirtualAlloc(nullptr, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        Require(data != nullptr, "a status page maps");
+#else
+        const long page = sysconf(_SC_PAGESIZE);
+        bytes = static_cast<std::size_t>(page > 0 ? page : 4096);
+        data = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        Require(data != MAP_FAILED, "a status page maps");
+#endif
+        Passing()[0] = Ok;
+        Failing()[0] = IllegalArgument;
+#ifdef _WIN32
+        DWORD previous = 0;
+        Require(VirtualProtect(data, bytes, PAGE_READONLY, &previous) != 0, "the status page becomes read-only");
+#else
+        Require(mprotect(data, bytes, PROT_READ) == 0, "the status page becomes read-only");
+#endif
+    }
+
+    ~ReadOnlyStatusPage() {
+#ifdef _WIN32
+        VirtualFree(data, 0, MEM_RELEASE);
+#else
+        munmap(data, bytes);
+#endif
+    }
+
+    ReadOnlyStatusPage(const ReadOnlyStatusPage&) = delete;
+    ReadOnlyStatusPage& operator=(const ReadOnlyStatusPage&) = delete;
+
+    std::int32_t* Passing() const { return static_cast<std::int32_t*>(data); }
+    std::int32_t* Failing() const { return static_cast<std::int32_t*>(data) + 4; }
+    bool Unchanged() const { return *Passing() == Ok && *Failing() == IllegalArgument; }
+
+private:
+    void* data = nullptr;
+    std::size_t bytes = 0;
+};
+
+std::int32_t* UnreadableStatus() {
+    return reinterpret_cast<std::int32_t*>(std::uintptr_t{0x10});
+}
+
+template<typename TAction>
+bool RejectsStatus(TAction action) {
+    errno = 71;
+    const bool threw = Throws<std::runtime_error>(action);
+    return threw && errno == 71;
+}
+
+void CheckGuestStatusPointers() {
+    std::int32_t* unreadable = UnreadableStatus();
+    Require(RejectsStatus([&] { ucol_getAttribute_nid_postfix(nullptr, UCOL_STRENGTH, unreadable); }), "ucol_getAttribute rejects an unreadable status");
+    Require(RejectsStatus([&] { ucol_getReorderCodes_nid_postfix(nullptr, nullptr, 0, unreadable); }), "ucol_getReorderCodes rejects an unreadable status");
+    Require(RejectsStatus([&] { ucol_getTailoredSet_nid_postfix(nullptr, unreadable); }), "ucol_getTailoredSet rejects an unreadable status");
+    Require(RejectsStatus([&] { ucol_open_nid_postfix("en", unreadable); }), "ucol_open rejects an unreadable status");
+    Require(RejectsStatus([&] { ucol_setAttribute_nid_postfix(nullptr, UCOL_STRENGTH, UCOL_PRIMARY, unreadable); }), "ucol_setAttribute rejects an unreadable status");
+
+    ReadOnlyStatusPage page;
+    Require(ucol_getAttribute_nid_postfix(nullptr, UCOL_STRENGTH, page.Failing()) == UCOL_DEFAULT, "ucol_getAttribute returns first on a read-only failed status");
+    Require(ucol_getReorderCodes_nid_postfix(nullptr, nullptr, 0, page.Failing()) == 0, "ucol_getReorderCodes returns first on a read-only failed status");
+    Require(ucol_getTailoredSet_nid_postfix(nullptr, page.Failing()) == nullptr, "ucol_getTailoredSet returns first on a read-only failed status");
+    Require(ucol_open_nid_postfix("en", page.Failing()) == nullptr, "ucol_open returns first on a read-only failed status");
+    ucol_setAttribute_nid_postfix(nullptr, UCOL_STRENGTH, UCOL_PRIMARY, page.Failing());
+    Require(page.Unchanged(), "a read-only failed status is never written");
+}
+
+}
+
 int main() {
     UErrorCode access = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &access);
@@ -591,6 +682,7 @@ int main() {
     CheckReorderCodes();
     CheckAvailable();
     CheckTailoredSet();
+    CheckGuestStatusPointers();
     CheckArraySorting();
     return 0;
 }

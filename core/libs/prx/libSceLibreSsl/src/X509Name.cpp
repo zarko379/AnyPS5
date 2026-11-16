@@ -1,11 +1,11 @@
 #include "prx/libSceLibreSsl/include/Api.hpp"
-#include "prx/libSceLibreSsl/include/Error.hpp"
-#include "prx/libSceLibreSsl/include/ObjectTable.hpp"
 #include <climits>
 #include <cstddef>
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include "prx/libSceLibreSsl/include/Error.hpp"
+#include "prx/libSceLibreSsl/include/ObjectTable.hpp"
 
 static_assert(sizeof(LibreSslX509NameEntry) == 24);
 static_assert(offsetof(LibreSslX509NameEntry, value) == 8);
@@ -13,17 +13,6 @@ static_assert(sizeof(LibreSslX509Name) == 40);
 static_assert(offsetof(LibreSslX509Name, entries) == 0);
 
 namespace {
-
-struct Asn1Object {
-    const char* shortName;
-    const char* longName;
-    int nid;
-    int length;
-    const unsigned char* data;
-    int flags;
-};
-
-static_assert(sizeof(Asn1Object) == 40 && offsetof(Asn1Object, length) == 20 && offsetof(Asn1Object, data) == 24);
 
 constexpr int ObjectLibrary = 8;
 constexpr int AnyFunction = 0xfff;
@@ -39,12 +28,12 @@ const LibreSslAsn1Object* ObjectByNid(int nid) {
         return &object;
     }
     if (!LibreSslAddedObjectsExist_nid_no_patch()) return nullptr;
-    if (const LibreSslAsn1Object* added = LibreSslAddedObjectByNid_nid_no_patch(nid)) return added;
-    LibreSslPutError_nid_no_patch(ObjectLibrary, AnyFunction, UnknownNid);
-    return nullptr;
+    const LibreSslAsn1Object* object = LibreSslAddedObjectByNid_nid_no_patch(nid);
+    if (!object) LibreSslPutError_nid_no_patch(ObjectLibrary, AnyFunction, UnknownNid);
+    return object;
 }
 
-int IndexOf(const LibreSslX509Name* name, const LibreSslAsn1Object& target, int lastpos, const char* function) {
+int IndexOf(const LibreSslX509Name* name, const LibreSslAsn1Object& wanted, int lastpos, const char* function) {
     if (!name) return -1;
     if (lastpos == INT_MAX) throw std::invalid_argument(std::string(function) + ": last position overflows");
     if (lastpos < 0) lastpos = -1;
@@ -52,12 +41,11 @@ int IndexOf(const LibreSslX509Name* name, const LibreSslAsn1Object& target, int 
     for (++lastpos; lastpos < count; ++lastpos) {
         const auto* entry = X509_NAME_get_entry_nid_postfix(name, lastpos);
         if (!entry || !entry->object) throw std::invalid_argument(std::string(function) + ": null name entry or object");
-        const auto* object = static_cast<const Asn1Object*>(entry->object);
-        if (object->length != target.length) continue;
-        if (target.length == 0) return lastpos;
-        if (target.length < 0) throw std::invalid_argument(std::string(function) + ": negative object length");
-        if (!object->data || !target.data) throw std::invalid_argument(std::string(function) + ": null object data");
-        if (std::memcmp(object->data, target.data, static_cast<std::size_t>(target.length)) == 0) return lastpos;
+        const auto* object = static_cast<const LibreSslAsn1Object*>(entry->object);
+        if (object->length != wanted.length) continue;
+        if (wanted.length == 0) return lastpos;
+        if (!object->data) throw std::invalid_argument(std::string(function) + ": null object data");
+        if (std::memcmp(object->data, wanted.data, static_cast<std::size_t>(wanted.length)) == 0) return lastpos;
     }
     return -1;
 }

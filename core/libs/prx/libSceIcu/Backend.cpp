@@ -13,6 +13,7 @@
 #include <unicode/uset.h>
 #include "uresimp.h"
 #include <atomic>
+#include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <mutex>
@@ -141,6 +142,22 @@ std::int32_t* RequireStatus(std::int32_t* status) {
     if (!status) APS5_INVALID_ARG_EX;
     Ensure();
     return status;
+}
+
+GuestStatus::GuestStatus(std::int32_t* status, const char* function) : guest(status), caller(function), savedErrno(errno), incoming(0), local(0) {
+    RequireStatus(status);
+    const bool readable = GuestCopyIn_nid_no_patch(&incoming, status, sizeof(incoming));
+    errno = savedErrno;
+    if (!readable) NotImplemented_nid_no_patch(caller);
+    local = incoming;
+}
+
+void GuestStatus::Commit() const {
+    if (local == incoming) return;
+    const int current = errno;
+    const bool writable = GuestCopyOut_nid_no_patch(guest, &local, sizeof(local));
+    errno = writable ? current : savedErrno;
+    if (!writable) NotImplemented_nid_no_patch(caller);
 }
 
 const void* RequireObject(const void* object) {

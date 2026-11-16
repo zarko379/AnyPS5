@@ -23,6 +23,20 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cerrno>
+#include <cstddef>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 bool GuestEnumerationLayout(void* enumeration);
 std::int32_t GuestEnumerationCount(void* enumeration, std::int32_t* status);
@@ -719,6 +733,75 @@ void CheckIDefault() {
 
 }
 
+namespace {
+
+class ReadOnlyStatusPage {
+public:
+    ReadOnlyStatusPage() {
+#ifdef _WIN32
+        SYSTEM_INFO info{};
+        GetSystemInfo(&info);
+        bytes = info.dwPageSize;
+        data = VirtualAlloc(nullptr, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        Require(data != nullptr, "a status page maps");
+#else
+        const long page = sysconf(_SC_PAGESIZE);
+        bytes = static_cast<std::size_t>(page > 0 ? page : 4096);
+        data = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        Require(data != MAP_FAILED, "a status page maps");
+#endif
+        Passing()[0] = Ok;
+        Failing()[0] = IllegalArgument;
+#ifdef _WIN32
+        DWORD previous = 0;
+        Require(VirtualProtect(data, bytes, PAGE_READONLY, &previous) != 0, "the status page becomes read-only");
+#else
+        Require(mprotect(data, bytes, PROT_READ) == 0, "the status page becomes read-only");
+#endif
+    }
+
+    ~ReadOnlyStatusPage() {
+#ifdef _WIN32
+        VirtualFree(data, 0, MEM_RELEASE);
+#else
+        munmap(data, bytes);
+#endif
+    }
+
+    ReadOnlyStatusPage(const ReadOnlyStatusPage&) = delete;
+    ReadOnlyStatusPage& operator=(const ReadOnlyStatusPage&) = delete;
+
+    std::int32_t* Passing() const { return static_cast<std::int32_t*>(data); }
+    std::int32_t* Failing() const { return static_cast<std::int32_t*>(data) + 4; }
+    bool Unchanged() const { return *Passing() == Ok && *Failing() == IllegalArgument; }
+
+private:
+    void* data = nullptr;
+    std::size_t bytes = 0;
+};
+
+std::int32_t* UnreadableStatus() {
+    return reinterpret_cast<std::int32_t*>(std::uintptr_t{0x10});
+}
+
+template<typename TAction>
+bool RejectsStatus(TAction action) {
+    errno = 71;
+    const bool threw = Throws<std::runtime_error>(action);
+    return threw && errno == 71;
+}
+
+void CheckGuestStatusPointers() {
+    Require(RejectsStatus([] { uplrules_openForType_nid_postfix("en", UPLURAL_TYPE_CARDINAL, UnreadableStatus()); }), "uplrules_openForType rejects an unreadable status");
+
+    ReadOnlyStatusPage page;
+    Require(uplrules_openForType_nid_postfix("en", UPLURAL_TYPE_COUNT, page.Failing()) == nullptr, "uplrules_openForType returns first on a read-only failed status");
+    Require(RejectsStatus([&] { uplrules_openForType_nid_postfix("en", UPLURAL_TYPE_COUNT, page.Passing()); }), "uplrules_openForType rejects a read-only status it must fail");
+    Require(page.Unchanged(), "a read-only status is never written");
+}
+
+}
+
 int main() {
     std::array<void*, 10> api{
         reinterpret_cast<void*>(Allocate_nid_no_patch), reinterpret_cast<void*>(Free_nid_no_patch), reinterpret_cast<void*>(Calloc_nid_no_patch),
@@ -730,6 +813,7 @@ int main() {
     CheckNumberingSystems();
     CheckFieldIterator();
     CheckNumberFormatErrors();
+    CheckGuestStatusPointers();
     SetDefaults("en_US");
     Sweep({"en", "de", "fr_CH", "ar_EG", "hi_IN", "ja", "zh_Hant", "th_TH@numbers=thai", "", "root", "sr_Latn", "es_419", "bn", "en@numbers=arab", "ru"}, "sweep");
     CheckDefaults();

@@ -2,7 +2,6 @@
 #define CORE_LIBS_PRX_LIBSCEHTTP_SRC_OPTIONS_HPP
 
 #include "SceTypes.hpp"
-#include "prx/libSceHttp/include/Http.hpp"
 #include "prx/libSceHttp/src/Cookies.hpp"
 #include <optional>
 
@@ -15,8 +14,6 @@ struct HttpOptions {
     bool delayBuildRequest = false;
     HttpEpollHandle epoll = nullptr;
     void* epollArgument = nullptr;
-    HttpCookieSendCallback cookieSendCallback = nullptr;
-    void* cookieSendArgument = nullptr;
 };
 
 void AddHttpContext(int contextId);
@@ -31,6 +28,5 @@ bool SetHttpOption(int id, bool HttpOptions::*option, bool enable);
 bool SetHttpCookieEnabled(int id, int enable);
 bool SetHttpContextAcceptEncodingGzip(int contextId, bool enable);
 bool SetHttpEpollBinding(int id, HttpEpollHandle epoll, void* argument);
-bool SetHttpCookieSendCallback(int id, HttpCookieSendCallback callback, void* argument);
 
 #endif

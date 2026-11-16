@@ -42,6 +42,9 @@ public:
     bool controlledByAutomation = false;
     bool mediaCaptureEnabled = true;
     std::optional<std::u16string> customTextEncodingName;
+    double pageZoomFactor = 1.0;
+    double textZoomFactor = 1.0;
+    bool supportsTextZoom = true;
 };
 class Preferences : public ObjectOf<ObjectType::Preferences> {};
 class HTTPCookieStore final : public ObjectOf<ObjectType::HTTPCookieStore> {};

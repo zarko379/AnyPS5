@@ -146,9 +146,11 @@ int32_t U_CALLCONV ForwardComparator(const void* context, const void* left, cons
 extern "C" {
 
 UCollator* APS5_VABI ucol_open_nid_postfix(const char* locale, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    return ucol_open(IcuBackend::LocaleObject(locale), error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UCollator* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        return ucol_open(IcuBackend::LocaleObject(locale), error);
+    });
 }
 
 void APS5_VABI ucol_close_nid_postfix(UCollator* collator) {
@@ -187,11 +189,15 @@ void APS5_VABI ucol_setStrength_nid_postfix(UCollator* collator, std::int32_t st
 }
 
 std::int32_t APS5_VABI ucol_getAttribute_nid_postfix(const UCollator* collator, std::int32_t attribute, std::int32_t* status) {
-    return ucol_getAttribute(collator, static_cast<UColAttribute>(attribute), Status(status));
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        return ucol_getAttribute(collator, static_cast<UColAttribute>(attribute), Status(local));
+    });
 }
 
 void APS5_VABI ucol_setAttribute_nid_postfix(UCollator* collator, std::int32_t attribute, std::int32_t value, std::int32_t* status) {
-    ucol_setAttribute(collator, static_cast<UColAttribute>(attribute), static_cast<UColAttributeValue>(value), Status(status));
+    IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) {
+        ucol_setAttribute(collator, static_cast<UColAttribute>(attribute), static_cast<UColAttributeValue>(value), Status(local));
+    });
 }
 
 const char16_t* APS5_VABI ucol_getRules_nid_postfix(const UCollator* collator, std::int32_t* length) {
@@ -201,9 +207,11 @@ const char16_t* APS5_VABI ucol_getRules_nid_postfix(const UCollator* collator, s
 }
 
 std::int32_t APS5_VABI ucol_getReorderCodes_nid_postfix(const UCollator* collator, std::int32_t* dest, std::int32_t destCapacity, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return 0;
-    return ucol_getReorderCodes(Collator(collator), dest, destCapacity, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return 0;
+        return ucol_getReorderCodes(Collator(collator), dest, destCapacity, error);
+    });
 }
 
 std::int32_t APS5_VABI ucol_countAvailable_nid_postfix() {
@@ -218,13 +226,15 @@ const char* APS5_VABI ucol_getAvailable_nid_postfix(std::int32_t index) {
 }
 
 USet* APS5_VABI ucol_getTailoredSet_nid_postfix(const UCollator* collator, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    icu::LocalUSetPointer host(ucol_getTailoredSet(Collator(collator), error));
-    if (!host.isValid()) return nullptr;
-    USet* guest = IcuBackend::GuestSet(host.getAlias());
-    if (!guest) *error = U_MEMORY_ALLOCATION_ERROR;
-    return guest;
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> USet* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        icu::LocalUSetPointer host(ucol_getTailoredSet(Collator(collator), error));
+        if (!host.isValid()) return nullptr;
+        USet* guest = IcuBackend::GuestSet(host.getAlias());
+        if (!guest) *error = U_MEMORY_ALLOCATION_ERROR;
+        return guest;
+    });
 }
 
 UEnumeration* APS5_VABI ucol_getKeywordValues_nid_postfix(const char* keyword, std::int32_t* status) {

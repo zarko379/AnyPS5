@@ -199,9 +199,11 @@ std::int32_t APS5_VABI unum_getSymbol_nid_postfix(const void* fmt, std::int32_t 
 }
 
 UPluralRules* APS5_VABI uplrules_openForType_nid_postfix(const char* locale, std::int32_t type, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    return uplrules_openForType(IcuBackend::LocaleObject(locale), static_cast<UPluralType>(type), error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> UPluralRules* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        return uplrules_openForType(IcuBackend::LocaleObject(locale), static_cast<UPluralType>(type), error);
+    });
 }
 
 void APS5_VABI uplrules_close_nid_postfix(UPluralRules* uplrules) {

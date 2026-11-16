@@ -3,7 +3,6 @@
 #include "prx/libc/include/Api.hpp"
 #include <cstdarg>
 #include <cstddef>
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -511,11 +510,20 @@ void UprvMemoryWithUserFunctions() {
     Require(empty[0] == 0 && g_log.lastSize == 1);
 
     std::memset(g_arena, 0x55, sizeof(g_arena));
-    auto* cleared = static_cast<unsigned char*>(uprv_calloc_nid_postfix(3, 8));
-    Require(cleared == g_arena && g_log.lastSize == 24 && g_log.context == &marker && cleared[0] == 0 && cleared[23] == 0 && cleared[24] == 0x55);
-    const int allocations = g_log.allocations;
-    Require(uprv_calloc_nid_postfix(0, 8) == zero && uprv_calloc_nid_postfix(8, 0) == zero && uprv_calloc_nid_postfix((SIZE_MAX >> 1) + 1, 2) == zero);
-    Require(g_log.allocations == allocations);
+    const int before = g_log.allocations;
+    auto* cleared = static_cast<unsigned char*>(uprv_calloc_nid_postfix(5, 8));
+    Require(cleared == g_arena && g_log.allocations == before + 1 && g_log.lastSize == 40);
+    for (std::size_t index = 0; index < 40; ++index) Require(cleared[index] == 0);
+    Require(g_arena[40] == 0x55);
+
+    Require(uprv_calloc_nid_postfix(0, 8) == zero && uprv_calloc_nid_postfix(8, 0) == zero && g_log.allocations == before + 1);
+    Require(uprv_calloc_nid_postfix(2, (SIZE_MAX / 2) + 1) == zero && g_log.allocations == before + 1);
+    u_cleanup_nid_postfix();
+
+    status = 0;
+    u_setMemoryFunctions_nid_postfix(&marker, Allocate_nid_no_patch, Reallocate_nid_no_patch, Release_nid_no_patch, &status);
+    Require(status == 0);
+    Require(uprv_calloc_nid_postfix(4, 4) == nullptr);
     u_cleanup_nid_postfix();
 }
 
@@ -541,8 +549,10 @@ void UprvMemoryWithDefaultHeap() {
     char* whole = uprv_strndup_nid_postfix("heap", -5);
     Require(whole != nullptr && std::string(whole) == "heap");
     free_nid_postfix(whole);
-    auto* cleared = static_cast<unsigned char*>(uprv_calloc_nid_postfix(4, 4));
-    Require(cleared != nullptr && std::all_of(cleared, cleared + 16, [](unsigned char value) { return value == 0; }));
+
+    auto* cleared = static_cast<unsigned char*>(uprv_calloc_nid_postfix(3, 100));
+    Require(cleared != nullptr);
+    for (std::size_t index = 0; index < 300; ++index) Require(cleared[index] == 0);
     free_nid_postfix(cleared);
 }
 

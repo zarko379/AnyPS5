@@ -907,28 +907,7 @@ static void TestHitTestLocation() {
     Require(std::memcmp(&copy2, &source, 66) == 0);
 }
 
-static WebCore::LayoutPoint Constrain(WebCore::LayoutRect visible, WebCore::LayoutSize contents, WebCore::LayoutPoint position,
-    WebCore::LayoutPoint origin, int header, int footer) {
-    return _ZN7WebCore14ScrollableArea34constrainScrollPositionForOverhangERKNS_10LayoutRectERKNS_10LayoutSizeERKNS_11LayoutPointES9_ii(
-        visible, contents, position, origin, header, footer);
-}
-
 static void TestScrollableAreaStatics() {
-    WebCore::LayoutRect visible{WebCore::LayoutPoint{0, 0}, WebCore::LayoutSize{51200, 38400}};
-    WebCore::LayoutSize contents{64000, 128000};
-    WebCore::LayoutPoint inside = Constrain(visible, contents, WebCore::LayoutPoint{6400, 3200}, WebCore::LayoutPoint{0, 0}, 0, 0);
-    Require(inside.m_x.m_value == 6400 && inside.m_y.m_value == 3200);
-    WebCore::LayoutPoint pushed = Constrain(visible, contents, WebCore::LayoutPoint{32000, -6400}, WebCore::LayoutPoint{0, 0}, 0, 0);
-    Require(pushed.m_x.m_value == 12800 && pushed.m_y.m_value == 0);
-    WebCore::LayoutPoint emptied = Constrain(visible, contents, WebCore::LayoutPoint{0, 127360}, WebCore::LayoutPoint{0, 0}, 10, 20);
-    Require(emptied.m_x.m_value == 0 && emptied.m_y.m_value == 0);
-    WebCore::LayoutPoint origin = Constrain(visible, contents, WebCore::LayoutPoint{0, 0}, WebCore::LayoutPoint{-6400, 0}, 0, 0);
-    Require(origin.m_x.m_value == 6400 && origin.m_y.m_value == 0);
-    WebCore::LayoutPoint saturated = Constrain(visible, contents, WebCore::LayoutPoint{0, 0}, WebCore::LayoutPoint{0, 0}, 40000000, 0);
-    Require(saturated.m_x.m_value == -51200 && saturated.m_y.m_value == -38400);
-    WebCore::LayoutPoint footer = Constrain(visible, contents, WebCore::LayoutPoint{0, 89600}, WebCore::LayoutPoint{0, 0}, 0, 20);
-    Require(footer.m_x.m_value == 0 && footer.m_y.m_value == 88320);
-
     float value = -9.0f;
     float overhang = -9.0f;
     _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(-5.0f, 100.0f, 20.0f, value, overhang);

@@ -196,16 +196,6 @@ int SaturatedSub(int a, int b) {
     return static_cast<int>(result);
 }
 
-LayoutUnit LayoutFromInt(int value) {
-    if (value > kIntMaxForLayoutUnit) {
-        return LayoutUnit{std::numeric_limits<int>::max()};
-    }
-    if (value < kIntMinForLayoutUnit) {
-        return LayoutUnit{std::numeric_limits<int>::min()};
-    }
-    return LayoutUnit{value * kFixedPointDenominator};
-}
-
 LayoutUnit LayoutFromFloat(float value) {
     return LayoutUnit{ClampToInteger(value * kFixedPointDenominator)};
 }
@@ -248,31 +238,6 @@ LayoutUnit LayoutAdd(LayoutUnit a, LayoutUnit b) {
 
 LayoutUnit LayoutSub(LayoutUnit a, LayoutUnit b) {
     return LayoutUnit{SaturatedSub(a.m_value, b.m_value)};
-}
-
-LayoutUnit LayoutNegate(LayoutUnit a) {
-    return LayoutUnit{WrappingSub(0, a.m_value)};
-}
-
-LayoutUnit LayoutMin(LayoutUnit a, LayoutUnit b) {
-    return b.m_value < a.m_value ? b : a;
-}
-
-LayoutUnit LayoutMax(LayoutUnit a, LayoutUnit b) {
-    return a.m_value < b.m_value ? b : a;
-}
-
-void LayoutRectIntersect(LayoutRect& rect, const LayoutRect& other) {
-    LayoutPoint newLocation{LayoutMax(rect.m_location.m_x, other.m_location.m_x), LayoutMax(rect.m_location.m_y, other.m_location.m_y)};
-    LayoutPoint newMaxPoint{
-        LayoutMin(LayoutAdd(rect.m_location.m_x, rect.m_size.m_width), LayoutAdd(other.m_location.m_x, other.m_size.m_width)),
-        LayoutMin(LayoutAdd(rect.m_location.m_y, rect.m_size.m_height), LayoutAdd(other.m_location.m_y, other.m_size.m_height))};
-    if (newLocation.m_x.m_value >= newMaxPoint.m_x.m_value || newLocation.m_y.m_value >= newMaxPoint.m_y.m_value) {
-        newLocation = LayoutPoint{};
-        newMaxPoint = LayoutPoint{};
-    }
-    rect.m_location = newLocation;
-    rect.m_size = LayoutSize{LayoutSub(newMaxPoint.m_x, newLocation.m_x), LayoutSub(newMaxPoint.m_y, newLocation.m_y)};
 }
 
 float Min3(float v1, float v2, float v3) {
@@ -1001,38 +966,6 @@ void APS5_VABI _ZN7WebCore15HitTestLocationC1ERKNS_10FloatPointE(WebCore::HitTes
 
 void APS5_VABI _ZN7WebCore15HitTestLocationC2ERKNS_10FloatPointE(WebCore::HitTestLocation* self, const WebCore::FloatPoint& point) {
     _ZN7WebCore15HitTestLocationC1ERKNS_10FloatPointE(self, point);
-}
-
-WebCore::LayoutPoint APS5_VABI _ZN7WebCore14ScrollableArea34constrainScrollPositionForOverhangERKNS_10LayoutRectERKNS_10LayoutSizeERKNS_11LayoutPointES9_ii(
-    const WebCore::LayoutRect& visibleContentRect, const WebCore::LayoutSize& totalContentsSize,
-    const WebCore::LayoutPoint& scrollPosition, const WebCore::LayoutPoint& scrollOrigin, int headerHeight, int footerHeight) {
-    WebCore::LayoutSize idealScrollRectSize{
-        WebCore::LayoutMin(visibleContentRect.m_size.m_width, totalContentsSize.m_width),
-        WebCore::LayoutMin(visibleContentRect.m_size.m_height, totalContentsSize.m_height)};
-    WebCore::LayoutUnit header = WebCore::LayoutFromInt(headerHeight);
-    WebCore::LayoutPoint scrollLocation{
-        WebCore::LayoutSub(WebCore::LayoutAdd(scrollPosition.m_x, scrollOrigin.m_x), WebCore::LayoutUnit{0}),
-        WebCore::LayoutSub(WebCore::LayoutAdd(scrollPosition.m_y, scrollOrigin.m_y), header)};
-    WebCore::LayoutRect scrollRect{scrollLocation, idealScrollRectSize};
-    WebCore::LayoutRect documentRect{WebCore::LayoutPoint{}, WebCore::LayoutSize{totalContentsSize.m_width,
-        WebCore::LayoutSub(WebCore::LayoutSub(totalContentsSize.m_height, header), WebCore::LayoutFromInt(footerHeight))}};
-    WebCore::LayoutRectIntersect(scrollRect, documentRect);
-    if (scrollRect.m_size.m_width.m_value != idealScrollRectSize.m_width.m_value
-        || scrollRect.m_size.m_height.m_value != idealScrollRectSize.m_height.m_value) {
-        scrollRect.m_size = idealScrollRectSize;
-        WebCore::LayoutRectIntersect(scrollRect, documentRect);
-        if (scrollRect.m_size.m_width.m_value < idealScrollRectSize.m_width.m_value) {
-            WebCore::LayoutUnit dx = WebCore::LayoutNegate(WebCore::LayoutSub(idealScrollRectSize.m_width, scrollRect.m_size.m_width));
-            scrollRect.m_location.m_x = WebCore::LayoutAdd(scrollRect.m_location.m_x, dx);
-        }
-        if (scrollRect.m_size.m_height.m_value < idealScrollRectSize.m_height.m_value) {
-            WebCore::LayoutUnit dy = WebCore::LayoutNegate(WebCore::LayoutSub(idealScrollRectSize.m_height, scrollRect.m_size.m_height));
-            scrollRect.m_location.m_y = WebCore::LayoutAdd(scrollRect.m_location.m_y, dy);
-        }
-    }
-    return WebCore::LayoutPoint{
-        WebCore::LayoutSub(scrollRect.m_location.m_x, scrollOrigin.m_x),
-        WebCore::LayoutSub(scrollRect.m_location.m_y, scrollOrigin.m_y)};
 }
 
 void APS5_VABI _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(

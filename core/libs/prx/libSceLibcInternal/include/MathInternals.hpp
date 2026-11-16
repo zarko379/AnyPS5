@@ -80,10 +80,4 @@ float APS5_VABI _ZSt8_XLgammaf_nid_postfix(float x);
 double APS5_VABI _ZSt8_XLgammad_nid_postfix(double x);
 long double APS5_VABI _ZSt8_XLgammae_nid_postfix(long double x);
 
-std::uint16_t* APS5_VABI sceLibcInternalUnknown_1hGmBh83dL8_nid_no_patch(double* value);
-std::uint16_t* APS5_VABI sceLibcInternalUnknown_hrv1BgM68kU_nid_no_patch(double* value);
-std::uint16_t* APS5_VABI sceLibcInternalUnknown_cfpRP3h9F6o_nid_no_patch(float* value);
-std::uint16_t* APS5_VABI sceLibcInternalUnknown_IdWhZ0SM7JA_nid_no_patch(float* value);
-std::uint16_t* APS5_VABI sceLibcInternalUnknown_W_T_amhWrkA_nid_no_patch(long double* value);
-
 }

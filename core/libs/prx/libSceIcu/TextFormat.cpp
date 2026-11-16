@@ -83,17 +83,21 @@ void APS5_VABI ulistfmt_formatStringsToResult_nid_postfix(const UListFormatter* 
 }
 
 const char16_t* APS5_VABI ufmtval_getString_nid_postfix(const UFormattedValue* ufmtval, std::int32_t* pLength, std::int32_t* ec) {
-    return ufmtval_getString(ufmtval, pLength, Status(ec));
+    return IcuBackend::WithGuestStatus(ec, __func__, [&](std::int32_t* local) -> const char16_t* {
+        return ufmtval_getString(ufmtval, pLength, Status(local));
+    });
 }
 
 ULocaleDisplayNames* APS5_VABI uldn_openForContext_nid_postfix(const char* locale, std::int32_t* contexts, std::int32_t length, std::int32_t* pErrorCode) {
-    UErrorCode* error = Status(pErrorCode);
-    if (U_FAILURE(*error)) return nullptr;
-    IcuBackend::Locale(locale);
-    const bool needsDefault = IcuBackend::LocaleData(nullptr, locale);
-    ULocaleDisplayNames* names = uldn_openForContext(locale, reinterpret_cast<UDisplayContext*>(contexts), length, error);
-    IcuBackend::Track(names, needsDefault);
-    return names;
+    return IcuBackend::WithGuestStatus(pErrorCode, __func__, [&](std::int32_t* local) -> ULocaleDisplayNames* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        IcuBackend::Locale(locale);
+        const bool needsDefault = IcuBackend::LocaleData(nullptr, locale);
+        ULocaleDisplayNames* names = uldn_openForContext(locale, reinterpret_cast<UDisplayContext*>(contexts), length, error);
+        IcuBackend::Track(names, needsDefault);
+        return names;
+    });
 }
 
 void APS5_VABI uldn_close_nid_postfix(ULocaleDisplayNames* ldn) {
@@ -132,18 +136,20 @@ std::int32_t APS5_VABI uldn_keyValueDisplayName_nid_postfix(const ULocaleDisplay
 }
 
 URelativeDateTimeFormatter* APS5_VABI ureldatefmt_open_nid_postfix(const char* locale, void* nfToAdopt, std::int32_t width, std::int32_t capitalizationContext, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_FAILURE(*error)) return nullptr;
-    if ((capitalizationContext >> 8) == UDISPCTX_TYPE_CAPITALIZATION && (width < 0 || width >= UDAT_STYLE_COUNT)) APS5_INVALID_ARG_EX;
-    IcuBackend::Locale(locale);
-    const bool needsDefault = IcuBackend::LocaleData(nullptr, locale);
-    const bool numberNeedsDefault = IcuBackend::Tracked(nfToAdopt);
-    URelativeDateTimeFormatter* formatter = ureldatefmt_open(locale, static_cast<UNumberFormat*>(nfToAdopt), static_cast<UDateRelativeDateTimeFormatterStyle>(width), static_cast<UDisplayContext>(capitalizationContext), error);
-    if (formatter) {
-        IcuBackend::Untrack(nfToAdopt);
-        IcuBackend::Track(formatter, needsDefault || numberNeedsDefault);
-    }
-    return formatter;
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> URelativeDateTimeFormatter* {
+        UErrorCode* error = Status(local);
+        if (U_FAILURE(*error)) return nullptr;
+        if ((capitalizationContext >> 8) == UDISPCTX_TYPE_CAPITALIZATION && (width < 0 || width >= UDAT_STYLE_COUNT)) APS5_INVALID_ARG_EX;
+        IcuBackend::Locale(locale);
+        const bool needsDefault = IcuBackend::LocaleData(nullptr, locale);
+        const bool numberNeedsDefault = IcuBackend::Tracked(nfToAdopt);
+        URelativeDateTimeFormatter* formatter = ureldatefmt_open(locale, static_cast<UNumberFormat*>(nfToAdopt), static_cast<UDateRelativeDateTimeFormatterStyle>(width), static_cast<UDisplayContext>(capitalizationContext), error);
+        if (formatter) {
+            IcuBackend::Untrack(nfToAdopt);
+            IcuBackend::Track(formatter, needsDefault || numberNeedsDefault);
+        }
+        return formatter;
+    });
 }
 
 void APS5_VABI ureldatefmt_close_nid_postfix(URelativeDateTimeFormatter* reldatefmt) {
@@ -159,9 +165,11 @@ std::int32_t APS5_VABI ureldatefmt_formatNumeric_nid_postfix(const URelativeDate
 }
 
 std::int32_t APS5_VABI ureldatefmt_format_nid_postfix(const URelativeDateTimeFormatter* reldatefmt, double offset, std::int32_t unit, char16_t* result, std::int32_t resultCapacity, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_SUCCESS(*error) && !BadBuffer(result, resultCapacity)) Relative(reldatefmt, unit);
-    return ureldatefmt_format(reldatefmt, offset, static_cast<URelativeDateTimeUnit>(unit), result, resultCapacity, error);
+    return IcuBackend::WithGuestStatus(status, __func__, [&](std::int32_t* local) -> std::int32_t {
+        UErrorCode* error = Status(local);
+        if (U_SUCCESS(*error) && !BadBuffer(result, resultCapacity)) Relative(reldatefmt, unit);
+        return ureldatefmt_format(reldatefmt, offset, static_cast<URelativeDateTimeUnit>(unit), result, resultCapacity, error);
+    });
 }
 
 }

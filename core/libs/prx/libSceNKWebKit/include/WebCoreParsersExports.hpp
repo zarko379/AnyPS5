@@ -55,12 +55,11 @@ extern "C" {
 
 NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore33stripLeadingAndTrailingHTMLSpacesERKN3WTF6StringE(const NKWebKit::WtfAbi::String& string);
 
-bool APS5_VABI _ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(const NKWebKit::WtfAbi::String& range, long long& rangeOffset, long long& rangeEnd, long long& rangeSuffixLength);
-
 WebCore::XFrameOptionsDisposition APS5_VABI _ZN7WebCore24parseXFrameOptionsHeaderERKN3WTF6StringE(const NKWebKit::WtfAbi::String& header);
 WebCore::ExpectedInt APS5_VABI _ZN7WebCore16parseHTMLIntegerEN3WTF10StringViewE(NKWebKit::WtfAbi::StringView input);
 WebCore::CrossOriginResourcePolicy APS5_VABI _ZN7WebCore36parseCrossOriginResourcePolicyHeaderEN3WTF10StringViewE(NKWebKit::WtfAbi::StringView header);
 bool APS5_VABI _ZN7WebCore18isValidContentTypeERKN3WTF6StringENS_4ModeE(const NKWebKit::WtfAbi::String& input, WebCore::Mode mode);
+bool APS5_VABI _ZN7WebCore10parseRangeERKN3WTF6StringERxS4_S4_(const NKWebKit::WtfAbi::String* range, long long* rangeOffset, long long* rangeEnd, long long* rangeSuffixLength);
 NKWebKit::WtfAbi::ByteVector APS5_VABI _ZN3WTF24normalizeLineEndingsToLFEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(NKWebKit::WtfAbi::ByteVector&& vector);
 NKWebKit::WtfAbi::ByteVector APS5_VABI _ZN3WTF26normalizeLineEndingsToCRLFEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(NKWebKit::WtfAbi::ByteVector&& source);
 NKWebKit::WtfAbi::ByteVector APS5_VABI _ZN3WTF28normalizeLineEndingsToNativeEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(NKWebKit::WtfAbi::ByteVector&& from);

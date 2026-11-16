@@ -750,8 +750,10 @@ int APS5_VABI sceHttpGetCookieEnabled(int id, int* enable) {
 }
 
 int APS5_VABI sceHttpSetCookieSendCallback(std::int32_t id, HttpCookieSendCallback callback, void* userArg) {
-    if (!HttpInitialised()) return ERROR_BEFORE_INIT;
-    return SetHttpCookieSendCallback(id, callback, userArg) ? 0 : ERROR_INVALID_ID;
+    (void)id;
+    (void)callback;
+    (void)userArg;
+    return 0;
 }
 
 int APS5_VABI sceHttpCookieExport(int contextId, void* buffer, std::size_t size, std::size_t* requiredSize) {

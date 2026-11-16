@@ -148,43 +148,6 @@ std::int32_t APS5_VABI uloc_getName_nid_postfix(const char* localeID, char* name
     return Chars(name, nameCapacity, [&](char* dest, std::int32_t capacity) { return uloc_getName(localeID, dest, capacity, error); });
 }
 
-std::int32_t APS5_VABI uloc_getParent_nid_postfix(const char* localeID, char* parent, std::int32_t parentCapacity, std::int32_t* err) {
-    UErrorCode* error = Status(err);
-    if (U_FAILURE(*error)) return 0;
-    IcuBackend::Locale(localeID);
-    const char* id = localeID ? localeID : uloc_getDefault();
-    const char* lastUnderscore = std::strrchr(id, '_');
-    if (lastUnderscore && lastUnderscore != id && parentCapacity < 0 && (uprv_strnicmp(id, "und_", 4) == 0 || parent != id)) APS5_INVALID_ARG_EX;
-    if (!parent && parentCapacity > 0) APS5_INVALID_ARG_EX;
-    return uloc_getParent(localeID, parent, parentCapacity, error);
-}
-
-std::int32_t APS5_VABI uloc_getVariant_nid_postfix(const char* localeID, char* variant, std::int32_t variantCapacity, std::int32_t* err) {
-    IcuBackend::Ensure();
-    auto* error = reinterpret_cast<UErrorCode*>(err);
-    if (!error || U_FAILURE(*error)) return 0;
-    IcuBackend::Locale(localeID);
-    return Chars(variant, variantCapacity, [&](char* dest, std::int32_t capacity) { return uloc_getVariant(localeID, dest, capacity, error); });
-}
-
-const char* APS5_VABI uloc_getISO3Language_nid_postfix(const char* localeID) {
-    return uloc_getISO3Language(IcuBackend::Locale(localeID));
-}
-
-const char* APS5_VABI uloc_getISO3Country_nid_postfix(const char* localeID) {
-    return uloc_getISO3Country(IcuBackend::Locale(localeID));
-}
-
-const char* const* APS5_VABI uloc_getISOLanguages_nid_postfix() {
-    IcuBackend::Ensure();
-    return uloc_getISOLanguages();
-}
-
-const char* const* APS5_VABI uloc_getISOCountries_nid_postfix() {
-    IcuBackend::Ensure();
-    return uloc_getISOCountries();
-}
-
 const char* APS5_VABI uloc_toUnicodeLocaleKey_nid_postfix(const char* keyword) {
     IcuBackend::Ensure();
     return uloc_toUnicodeLocaleKey(static_cast<const char*>(IcuBackend::RequireObject(keyword)));
@@ -203,12 +166,6 @@ const char* APS5_VABI uloc_toLegacyKey_nid_postfix(const char* keyword) {
 const char* APS5_VABI uloc_toLegacyType_nid_postfix(const char* keyword, const char* value) {
     IcuBackend::Ensure();
     return uloc_toLegacyType(keyword, static_cast<const char*>(IcuBackend::RequireObject(value)));
-}
-
-std::int32_t APS5_VABI uloc_setKeywordValue_nid_postfix(const char* keywordName, const char* keywordValue, char* buffer, std::int32_t bufferCapacity, std::int32_t* status) {
-    UErrorCode* error = Status(status);
-    if (U_SUCCESS(*error) && keywordName && keywordName[0] && bufferCapacity > 1) IcuBackend::RequireObject(buffer);
-    return uloc_setKeywordValue(keywordName, keywordValue, buffer, bufferCapacity, error);
 }
 
 std::int32_t APS5_VABI uloc_countAvailable_nid_postfix() {

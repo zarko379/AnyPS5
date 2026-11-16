@@ -48,6 +48,7 @@ constexpr int UMTX_OP_NWAKE_PRIVATE = 21;
 constexpr int UMTX_OP_MUTEX_WAKE2 = 22;
 constexpr int UMTX_OP_SEM2_WAIT = 23;
 constexpr int UMTX_OP_SEM2_WAKE = 24;
+constexpr int UMTX_OP_MEASURED_NOOP = 27;
 constexpr int UMTX_OP_MAX = 27;
 constexpr std::uint32_t UMTX_ABSTIME = 1;
 constexpr int GUEST_CLOCK_REALTIME = 0;
@@ -1004,6 +1005,8 @@ int APS5_VABI _umtx_op_nid_postfix(void* object, int operation, std::uint64_t va
             break;
         case UMTX_OP_RW_UNLOCK:
             error = RwlockUnlock(static_cast<UserRwlock*>(object));
+            break;
+        case UMTX_OP_MEASURED_NOOP:
             break;
         default:
             if (operation < 0 || operation >= UMTX_OP_MAX) {

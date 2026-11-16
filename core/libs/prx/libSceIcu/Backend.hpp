@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 
 struct USet;
 struct UEnumeration;
@@ -12,7 +14,36 @@ void Ensure();
 std::int32_t* RequireStatus(std::int32_t* status);
 const void* RequireObject(const void* object);
 
+class GuestStatus {
+public:
+    GuestStatus(std::int32_t* status, const char* function);
+    std::int32_t* Local() { return &local; }
+    void Commit() const;
+
+private:
+    std::int32_t* guest;
+    const char* caller;
+    int savedErrno;
+    std::int32_t incoming;
+    std::int32_t local;
+};
+
+template<typename TCall>
+auto WithGuestStatus(std::int32_t* status, const char* caller, TCall&& call) {
+    GuestStatus guestStatus(status, caller);
+    if constexpr (std::is_void_v<std::invoke_result_t<TCall, std::int32_t*>>) {
+        std::forward<TCall>(call)(guestStatus.Local());
+        guestStatus.Commit();
+    } else {
+        auto result = std::forward<TCall>(call)(guestStatus.Local());
+        guestStatus.Commit();
+        return result;
+    }
+}
+
 void SetGuestDefaultLocale(bool set);
+bool SetDefaultLocale(const char* locale, std::int32_t* status);
+const char* GuestDefaultLocale();
 void SetGuestDefaultConverter(bool set);
 const char* Locale(const char* locale);
 const char* Converter(const char* name);
