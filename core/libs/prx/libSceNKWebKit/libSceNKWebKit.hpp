@@ -59,3 +59,4 @@
 #include "prx/libSceNKWebKit/include/DoubleConversionExports.hpp"
 #include "prx/libSceNKWebKit/include/EventExports.hpp"
 #include "prx/libSceNKWebKit/include/PublicSuffixExports.hpp"
+#include "prx/libSceNKWebKit/include/PropertyDescriptorExports.hpp"

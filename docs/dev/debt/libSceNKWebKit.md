@@ -170,7 +170,8 @@ Inventory prose retains historical counts; use the [generated progress report](h
 - [Dictionary key order](../../../core/libs/prx/libSceNKWebKit/src/Dictionary.cpp) (libSceNKWebKit) - `WKDictionaryCopyKeys` returns keys sorted by UTF-16 code unit, not in the `WTF::HashMap` iteration order of [WKDictionary.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/Shared/API/c/WKDictionary.cpp).
 - [URL boundary fields](../../../core/libs/prx/libSceNKWebKit/src/WtfString.cpp) (libSceNKWebKit) - `URL::lastPathComponent` and `URL::strippedForUseAsReferrer` follow the [pinned URL.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/URL.cpp) for consistent URLs, but throw `std::out_of_range` where upstream clamps inconsistent boundary fields (`pathEnd` or `queryEnd` beyond the string, `userStart` after `passwordEnd`, a credential end after `queryEnd`). Closes when: the console behaviour for inconsistent fields is measured.
 - [Out-of-line colors](../../../core/libs/prx/libSceNKWebKit/src/WebCoreColor.cpp) (libSceNKWebKit) - `WebCore::Color` operations on an out-of-line value (extended color spaces in [Color.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/platform/graphics/Color.h)) throw; only inline 8-bit sRGBA values are handled.
-- [WebCore::Color serialization](../../../core/libs/prx/libSceNKWebKit/src/WebCoreColor.cpp) (libSceNKWebKit) - not compared with a console module. `serializationForCSS`, `serializationForHTML` and `serializationForRenderTreeAsText` of a `Color` pass an inline color's 8-bit sRGBA components to the existing `SRGBA<uint8_t>` serializers, as `callOnUnderlyingType` in the pinned [ColorSerialization.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/platform/graphics/ColorSerialization.cpp#L162-L181) does; without the color-function flag those serializers give the same text there and at WebKit c55364. A color with the `UseColorFunctionSerialization` flag, which needs `serializationUsingColorFunction`, an out-of-line color and a null reference throw.
+- [WebCore::Color serialization](../../../core/libs/prx/libSceNKWebKit/src/WebCoreColor.cpp) (libSceNKWebKit) - not compared with a console module. `serializationForCSS`, `serializationForHTML` and `serializationForRenderTreeAsText` of a `Color` pass an inline color's 8-bit sRGBA components to the existing `SRGBA<uint8_t>` serializers, as `callOnUnderlyingType` in the pinned [ColorSerialization.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/platform/graphics/ColorSerialization.cpp#L162-L181) does; without the color-function flag those serializers give the same text there and at WebKit c55364. `operator<<(TextStream&, const Color&)` writes the render-tree text, as Color.cpp does in both trees. A color with the `UseColorFunctionSerialization` flag, which needs `serializationUsingColorFunction`, an out-of-line color and a null reference throw.
+- [JSC::PropertyDescriptor flags](../../../core/libs/prx/libSceNKWebKit/src/JscPropertyDescriptor.cpp) (libSceNKWebKit) - not compared with a console module. The five queries and the `setUndefined`, `setWritable`, `setEnumerable`, `setConfigurable`, `setGetter` and `setSetter` mutators follow [PropertyDescriptor.cpp](https://github.com/WebKit/WebKit/blob/73a35b43be7ae44c084885bd3fa4b403e59723c8/Source/JavaScriptCore/runtime/PropertyDescriptor.cpp#L35-L190) at WebKit 73a35b43, identical in the PS5 tree, on the 32-byte layout of PropertyDescriptor.h (three encoded `JSValue`s, then the attribute and seen-attribute words) that the existing `getter` and `setter` offsets already assume. `JSValue` arguments are their 64-bit encodings and undefined is 0xa. `setDescriptor` and `setAccessorDescriptor`, which inspect `GetterSetter` cells, still throw; a null descriptor throws.
 - [WTF host services](../../../core/libs/prx/libSceNKWebKit/src/WtfSystem.cpp) (libSceNKWebKit) - `fastMalloc`, `bmalloc` and Gigacage allocations come from the host allocator, and `CPUTime::forCurrentThread` and random values come from the host, not the console; they throw when the host cannot answer. `WTFCrash` and failed assertions abort the process.
 - [WTF::pageSize](../../../core/libs/prx/libSceNKWebKit/src/WtfPageBlock.cpp) (libSceNKWebKit) - not compared with a console module. It follows the PS5 11.x [PageBlock.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/PageBlock.cpp#L42-L69), which on `OS(UNIX)` (`__FreeBSD__` on the PS5) reads `sysconf(_SC_PAGESIZE)`: it asks guest libkernel `sysconf(47)`, which returns the 16384 bytes the `hw.pagesize` entry in [libkernel.md](libkernel.md) measured on a console. A size that is not a power of two or is above the 16 KiB `CeilingOnPageSize` that [PageBlock.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/PageBlock.h#L52-L53) sets for `PLATFORM(PLAYSTATION)` throws where WebKit's `RELEASE_ASSERT` crashes; its third assertion, that the ceiling is a multiple of the page size, always holds after those two and is not repeated.
 - [WTF::numberOfProcessorCores](../../../core/libs/prx/libSceNKWebKit/src/WtfNumberOfCores.cpp) (libSceNKWebKit) - the `WTF_numberOfProcessorCores` override that the PS5 11.x [NumberOfCores.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/NumberOfCores.cpp#L50-L77) reads first with `getenv_np` is not read, as what the console's `getenv_np` reads is unknown ([libScePosixForWebKit.md](libScePosixForWebKit.md)). The count is guest `sysconf(58)` (`_SC_NPROCESSORS_ONLN`, the tree's `OS(FREEBSD)` path), read once, or 1 when it fails; it is the host's count, not the 16 a PS5 payload read ([libkernel.md](libkernel.md)). Closes when: measured in a title process.
@@ -955,14 +956,8 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN3JSC18IncrementalSweeper13startSweepingERNS_4HeapE` | `giqKNgVN4+w` |
 | `_ZN3JSC18IncrementalSweeperC1EPNS_4HeapE` | `zQmtzzBK6wQ` |
 | `_ZN3JSC18IncrementalSweeperC2EPNS_4HeapE` | `2X3KbR1J6-c` |
-| `_ZN3JSC18PropertyDescriptor11setWritableEb` | `TPYlzWierqc` |
-| `_ZN3JSC18PropertyDescriptor12setUndefinedEv` | `KJAQlWsQKf8` |
 | `_ZN3JSC18PropertyDescriptor13setDescriptorENS_7JSValueEj` | `6yS9uNax8IU` |
-| `_ZN3JSC18PropertyDescriptor13setEnumerableEb` | `UGdSsj17Fm8` |
-| `_ZN3JSC18PropertyDescriptor15setConfigurableEb` | `6kO8OVYUL7U` |
 | `_ZN3JSC18PropertyDescriptor21setAccessorDescriptorEPNS_12GetterSetterEj` | `1U1HXAR-PdU` |
-| `_ZN3JSC18PropertyDescriptor9setGetterENS_7JSValueE` | `9tHTHaoaTRU` |
-| `_ZN3JSC18PropertyDescriptor9setSetterENS_7JSValueE` | `nJ0Pu5MzLBw` |
 | `_ZN3JSC19HeapSnapshotBuilder11analyzeNodeEPNS_6JSCellE` | `6+Ilj5seAW8` |
 | `_ZN3JSC19HeapSnapshotBuilder13buildSnapshotEv` | `KJoz6a9hUJQ` |
 | `_ZN3JSC19HeapSnapshotBuilder15setLabelForCellEPNS_6JSCellERKN3WTF6StringE` | `WudmiYuePRQ` |
@@ -4065,7 +4060,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN7WebCorelsERN3WTF10TextStreamERKNS_27AbsolutePositionConstraintsE` | `3s8eZwwVACU` |
 | `_ZN7WebCorelsERN3WTF10TextStreamERKNS_32FixedPositionViewportConstraintsE` | `gkrDbcAYMyA` |
 | `_ZN7WebCorelsERN3WTF10TextStreamERKNS_33StickyPositionViewportConstraintsE` | `grWXn3ZlkYM` |
-| `_ZN7WebCorelsERN3WTF10TextStreamERKNS_5ColorE` | `MkKcrZ9pT0Q` |
 | `_ZN7WebCorelsERN3WTF10TextStreamERKNS_6RegionE` | `4W0wxLj52NI` |
 | `_ZN7WebCorelsERN3WTF10TextStreamERKNS_9ImageDataE` | `aFJnQE4CaWw` |
 | `_ZN7WebCorelsERN3WTF10TextStreamERKNS_9RectEdgesIfEE` | `s8ZoG4mimcw` |
@@ -4614,10 +4608,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZNK3JSC18BytecodeCacheError7isValidEv` | `uBoKXflFvyo` |
 | `_ZNK3JSC18BytecodeCacheError7messageEv` | `tzLyXXPWt64` |
 | `_ZNK3JSC18GCActivityCallback9isEnabledEv` | `CAOt1d2AT44` |
-| `_ZNK3JSC18PropertyDescriptor10enumerableEv` | `8VxnZ-Os8hU` |
-| `_ZNK3JSC18PropertyDescriptor16isDataDescriptorEv` | `TO6C8Mw-kjo` |
-| `_ZNK3JSC18PropertyDescriptor20isAccessorDescriptorEv` | `JlMrGMLBCAA` |
-| `_ZNK3JSC18PropertyDescriptor8writableEv` | `cStwmF0rgi8` |
 | `_ZNK3JSC19CacheableIdentifier4dumpERN3WTF11PrintStreamE` | `BER1Mhcfk28` |
 | `_ZNK3JSC19ControlFlowProfiler8dumpDataEv` | `KrAUJMghj1A` |
 | `_ZNK3JSC19HeapSnapshotBuilder18descriptionForCellEPNS_6JSCellE` | `nRR4MuQjSqY` |

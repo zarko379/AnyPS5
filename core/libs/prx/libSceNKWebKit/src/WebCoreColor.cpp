@@ -1,5 +1,7 @@
 #include "prx/libc/include/General.hpp"
 #include "prx/libSceNKWebKit/include/ColorSpaceExports.hpp"
+#include "prx/libSceNKWebKit/include/WebCoreDumpExports.hpp"
+#include "prx/libSceNKWebKit/include/WtfExports.hpp"
 #include "prx/libSceNKWebKit/include/WebCoreExports.hpp"
 #include "prx/libSceNKWebKit/src/WebCoreTypes.hpp"
 #include <algorithm>
@@ -71,6 +73,11 @@ NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore20serializationForHTMLERKNS_5Color
 
 NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore32serializationForRenderTreeAsTextERKNS_5ColorE(const WebCore::Color* color) {
     return _ZN7WebCore32serializationForRenderTreeAsTextENS_5SRGBAIhEE(WebCore::SerializableInline(color, __func__));
+}
+
+NKWebKit::WtfAbi::TextStream& APS5_VABI _ZN7WebCorelsERN3WTF10TextStreamERKNS_5ColorE(NKWebKit::WtfAbi::TextStream& stream, const WebCore::Color& color) {
+    const auto text = _ZN7WebCore32serializationForRenderTreeAsTextERKNS_5ColorE(&color);
+    return _ZN3WTF10TextStreamlsERKNS_6StringE(&stream, text);
 }
 void APS5_VABI _ZN7WebCore5ColorC1EOS0_(WebCore::Color* self, WebCore::Color&& other) {
     if (WebCore::IsOutOfLine(other)) {

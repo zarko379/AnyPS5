@@ -178,4 +178,5 @@ NKWebKit::WtfAbi::TextStream& APS5_VABI _ZN7WebCorelsERN3WTF10TextStreamENS_21Vi
 NKWebKit::WtfAbi::TextStream& APS5_VABI _ZN7WebCorelsERN3WTF10TextStreamENS_26GraphicsLayerPaintingPhaseE(NKWebKit::WtfAbi::TextStream& stream, WebCore::GraphicsLayerPaintingPhase value);
 NKWebKit::WtfAbi::TextStream& APS5_VABI _ZN7WebCorelsERN3WTF10TextStreamENS_25ScrollPositioningBehaviorE(NKWebKit::WtfAbi::TextStream& stream, WebCore::ScrollPositioningBehavior value);
 NKWebKit::WtfAbi::TextStream& APS5_VABI _ZN7WebCorelsERN3WTF10TextStreamERKNS_13GraphicsLayer16CustomAppearanceE(NKWebKit::WtfAbi::TextStream& stream, const WebCore::GraphicsLayer::CustomAppearance& value);
+NKWebKit::WtfAbi::TextStream& APS5_VABI _ZN7WebCorelsERN3WTF10TextStreamERKNS_5ColorE(NKWebKit::WtfAbi::TextStream& stream, const WebCore::Color& color);
 }

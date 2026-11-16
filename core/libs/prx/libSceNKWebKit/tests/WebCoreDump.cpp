@@ -257,6 +257,21 @@ void TestScrollingAndLayerEnums() {
     }
 }
 
+void TestColor() {
+    const WebCore::Color opaque{0xFF0080FFull | (17ull << 56) | (1ull << 50)};
+    const WebCore::Color translucent{0x0A141E80ull | (17ull << 56) | (1ull << 50)};
+    Check(Dump([&](TextStream& s) -> TextStream& { return _ZN7WebCorelsERN3WTF10TextStreamERKNS_5ColorE(s, opaque); }) == "#FF0080");
+    Check(Dump([&](TextStream& s) -> TextStream& { return _ZN7WebCorelsERN3WTF10TextStreamERKNS_5ColorE(s, translucent); }) == "#0A141E80");
+    TextStream stream = NewStream();
+    _ZN3WTF10TextStreamlsEPKc(&stream, "color=");
+    _ZN7WebCorelsERN3WTF10TextStreamERKNS_5ColorE(stream, opaque);
+    Check(Release(stream) == "color=#FF0080");
+    const WebCore::Color outOfLine{1ull << 51};
+    const WebCore::Color functionSerialized{0xFF0080FFull | (17ull << 56) | (1ull << 50) | (1ull << 49)};
+    Throws([&] { TextStream s = NewStream(); _ZN7WebCorelsERN3WTF10TextStreamERKNS_5ColorE(s, outOfLine); });
+    Throws([&] { TextStream s = NewStream(); _ZN7WebCorelsERN3WTF10TextStreamERKNS_5ColorE(s, functionSerialized); });
+}
+
 void TestChaining() {
     TextStream stream = NewStream();
     WebCore::IntPoint point{1, 2};
@@ -277,6 +292,7 @@ int main() {
     TestScrollingAndLayerEnums();
     TestLayoutValues();
     TestTransforms();
+    TestColor();
     TestChaining();
     return 0;
 }
