@@ -61,30 +61,10 @@ std::optional<std::u16string> ToWTFString(const void* stringRef, const char* fun
 
 extern "C" {
 
-double APS5_VABI WKPageGetTextZoomFactor(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->textZoomFactor;
-}
 
-void APS5_VABI WKPageSetTextZoomFactor(const void* pageRef, double zoomFactor) {
-    PageFrom(pageRef, __func__)->textZoomFactor = zoomFactor;
-}
 
-double APS5_VABI WKPageGetPageZoomFactor(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->pageZoomFactor;
-}
 
-void APS5_VABI WKPageSetPageZoomFactor(const void* pageRef, double zoomFactor) {
-    if (zoomFactor <= 0) {
-        return;
-    }
-    PageFrom(pageRef, __func__)->pageZoomFactor = zoomFactor;
-}
 
-void APS5_VABI WKPageSetPageAndTextZoomFactors(const void* pageRef, double pageZoomFactor, double textZoomFactor) {
-    auto* page = PageFrom(pageRef, __func__);
-    page->pageZoomFactor = pageZoomFactor;
-    page->textZoomFactor = textZoomFactor;
-}
 
 double APS5_VABI WKPageGetBackingScaleFactor(const void* pageRef) {
     const auto* page = PageFrom(pageRef, __func__);

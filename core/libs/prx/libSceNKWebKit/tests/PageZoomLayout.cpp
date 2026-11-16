@@ -45,53 +45,6 @@ struct PageHandle {
 constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
-void CheckZoomFactors() {
-    PageHandle page;
-    Require(WKPageGetTextZoomFactor(page.ref) == 1);
-    Require(WKPageGetPageZoomFactor(page.ref) == 1);
-    WKPageSetTextZoomFactor(page.ref, 1.75);
-    Require(WKPageGetTextZoomFactor(page.ref) == 1.75);
-    Require(WKPageGetPageZoomFactor(page.ref) == 1);
-    WKPageSetTextZoomFactor(page.ref, -3);
-    Require(WKPageGetTextZoomFactor(page.ref) == -3);
-    WKPageSetTextZoomFactor(page.ref, 0);
-    Require(WKPageGetTextZoomFactor(page.ref) == 0);
-
-    WKPageSetPageZoomFactor(page.ref, 2.5);
-    Require(WKPageGetPageZoomFactor(page.ref) == 2.5);
-    Require(WKPageGetTextZoomFactor(page.ref) == 0);
-    WKPageSetPageZoomFactor(page.ref, 0);
-    Require(WKPageGetPageZoomFactor(page.ref) == 2.5);
-    WKPageSetPageZoomFactor(page.ref, -0.0);
-    Require(WKPageGetPageZoomFactor(page.ref) == 2.5);
-    WKPageSetPageZoomFactor(page.ref, -1);
-    Require(WKPageGetPageZoomFactor(page.ref) == 2.5);
-    WKPageSetPageZoomFactor(page.ref, -kInfinity);
-    Require(WKPageGetPageZoomFactor(page.ref) == 2.5);
-    WKPageSetPageZoomFactor(page.ref, std::numeric_limits<double>::denorm_min());
-    Require(WKPageGetPageZoomFactor(page.ref) == std::numeric_limits<double>::denorm_min());
-    WKPageSetPageZoomFactor(page.ref, kNaN);
-    Require(std::isnan(WKPageGetPageZoomFactor(page.ref)));
-    WKPageSetPageZoomFactor(page.ref, kInfinity);
-    Require(std::isinf(WKPageGetPageZoomFactor(page.ref)));
-
-    WKPageSetPageAndTextZoomFactors(page.ref, 0.5, 3);
-    Require(WKPageGetPageZoomFactor(page.ref) == 0.5);
-    Require(WKPageGetTextZoomFactor(page.ref) == 3);
-    WKPageSetPageAndTextZoomFactors(page.ref, -2, 0);
-    Require(WKPageGetPageZoomFactor(page.ref) == -2);
-    Require(WKPageGetTextZoomFactor(page.ref) == 0);
-
-    WKPageSetPageZoomFactor(nullptr, 0);
-    WKPageSetPageZoomFactor(nullptr, -5);
-    RequireInvalidArgument([] { WKPageSetPageZoomFactor(nullptr, 1); });
-    RequireInvalidArgument([] { WKPageSetPageZoomFactor(nullptr, kNaN); });
-    RequireInvalidArgument([] { WKPageGetPageZoomFactor(nullptr); });
-    RequireInvalidArgument([] { WKPageSetTextZoomFactor(nullptr, 0); });
-    RequireInvalidArgument([] { WKPageGetTextZoomFactor(nullptr); });
-    RequireInvalidArgument([] { WKPageSetPageAndTextZoomFactors(nullptr, 1, 1); });
-}
-
 void CheckBackingScaleFactor() {
     PageHandle page;
     Require(WKPageGetBackingScaleFactor(page.ref) == 1);
@@ -126,7 +79,6 @@ void CheckScaleFactor() {
     Require(WKPageGetScaleFactor(page.ref) == -2);
     WKPageSetScaleFactor(page.ref, 0, NKWebKit::PointValue{0, 0});
     Require(WKPageGetScaleFactor(page.ref) == 0);
-    Require(WKPageGetPageZoomFactor(page.ref) == 1);
     Require(WKPageGetBackingScaleFactor(page.ref) == 1);
     RequireInvalidArgument([] { WKPageSetScaleFactor(nullptr, 1, NKWebKit::PointValue{0, 0}); });
     RequireInvalidArgument([] { WKPageGetScaleFactor(nullptr); });
@@ -253,18 +205,14 @@ void CheckCustomTextEncodingName() {
 
 void CheckWrongObjectType() {
     const void* stringRef = NKWebKit::ToRef(NKWebKit::Make<NKWebKit::String>(std::u16string(u"x")));
-    RequireInvalidArgument([stringRef] { WKPageGetTextZoomFactor(stringRef); });
-    RequireInvalidArgument([stringRef] { WKPageSetPageZoomFactor(stringRef, 2); });
     RequireInvalidArgument([stringRef] { WKPageFixedLayoutSize(stringRef); });
     RequireInvalidArgument([stringRef] { WKPageCopyCustomTextEncodingName(stringRef); });
-    WKPageSetPageZoomFactor(stringRef, -1);
     WKRelease(stringRef);
 }
 
 }
 
 int main() {
-    CheckZoomFactors();
     CheckBackingScaleFactor();
     CheckScaleFactor();
     CheckFixedLayout();

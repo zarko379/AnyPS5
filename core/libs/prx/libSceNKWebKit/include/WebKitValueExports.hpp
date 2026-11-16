@@ -260,11 +260,6 @@ void APS5_VABI WKPageSetSuppressScrollbarAnimations(const void* pageRef, bool su
 bool APS5_VABI WKPageAreScrollbarAnimationsSuppressed(const void* pageRef);
 std::uint32_t APS5_VABI WKPageGetScrollPinningBehavior(const void* pageRef);
 void APS5_VABI WKPageSetScrollPinningBehavior(const void* pageRef, std::uint32_t pinning);
-double APS5_VABI WKPageGetTextZoomFactor(const void* pageRef);
-void APS5_VABI WKPageSetTextZoomFactor(const void* pageRef, double zoomFactor);
-double APS5_VABI WKPageGetPageZoomFactor(const void* pageRef);
-void APS5_VABI WKPageSetPageZoomFactor(const void* pageRef, double zoomFactor);
-void APS5_VABI WKPageSetPageAndTextZoomFactors(const void* pageRef, double pageZoomFactor, double textZoomFactor);
 double APS5_VABI WKPageGetBackingScaleFactor(const void* pageRef);
 void APS5_VABI WKPageSetCustomBackingScaleFactor(const void* pageRef, double customScaleFactor);
 void APS5_VABI WKPageSetScaleFactor(const void* pageRef, double scale, NKWebKit::PointValue origin);

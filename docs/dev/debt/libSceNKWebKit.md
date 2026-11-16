@@ -223,7 +223,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 - [Process pool URL scheme registration](../../../core/libs/prx/libSceNKWebKit/src/ContextURLSchemes.cpp) (libSceNKWebKit) - `WKContextRegisterURLSchemeAsBypassingContentSecurityPolicy`, `WKContextRegisterURLSchemeAsCachePartitioned`, `WKContextRegisterURLSchemeAsCanDisplayOnlyIfCanRequest`, `WKContextRegisterURLSchemeAsEmptyDocument` and `WKContextRegisterURLSchemeAsSecure` record registered scheme names on the host `ProcessPool` without network-process or policy enforcement.
 - [WKPage visited links controls](../../../core/libs/prx/libSceNKWebKit/src/PageVisitedLinks.cpp) (libSceNKWebKit) - `WKPageGetAddsVisitedLinks` and `WKPageSetAddsVisitedLinks` read and set the visited links state on the host `Page` object without visited link store notifications.
 - [WKPage scrolling and pagination state](../../../core/libs/prx/libSceNKWebKit/src/PageScrolling.cpp) (libSceNKWebKit) - not measured on a console. The rubber-band edge, rubber-banding, background extension, pagination, scrollbar animation and scroll pinning getters and setters follow [WKPage.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/UIProcess/API/C/WKPage.cpp#L745-L898) and the `WebPageProxy` setters, which store the value before messaging the web process; no web process is modelled, so no message is sent and web-process callbacks never change the state. Defaults are the WebPageProxy.h and WebPageProxyInternals.h initializers. An invalid pagination mode leaves the mode unchanged, even for a null page; an invalid pinning value stores `DoNotPin`. Suspended pages are not modelled.
-- [WKPage zoom, scale, layout and encoding state](../../../core/libs/prx/libSceNKWebKit/src/PageZoomLayout.cpp) (libSceNKWebKit) - not measured on a console. The zoom, backing scale, page scale, fixed layout, automation, media capture and text encoding getters and setters follow [WKPage.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/UIProcess/API/C/WKPage.cpp#L609-L698) and the `WebPageProxy` setters, which store before messaging the web process. No web process or view is modelled: nothing is sent, and the intrinsic device scale factor stays at its initializer 1 because only a view sets it. Pages are not created from a configuration, so automation starts at the APIPageConfiguration.h default `false`. A fixed layout size component that is NaN or outside the `int` range throws `std::out_of_range`, where WebKit's `static_cast<int>` is undefined.
+- [WKPage scale, layout and encoding state](../../../core/libs/prx/libSceNKWebKit/src/PageZoomLayout.cpp) (libSceNKWebKit) - not measured on a console. The backing scale, page scale, fixed layout, automation, media capture and text encoding getters and setters follow [WKPage.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebKit/UIProcess/API/C/WKPage.cpp#L609-L698) and the `WebPageProxy` setters, which store before messaging the web process. No web process or view is modelled: nothing is sent, and the intrinsic device scale factor stays at its initializer 1 because only a view sets it. Pages are not created from a configuration, so automation starts at the APIPageConfiguration.h default `false`. A fixed layout size component that is NaN or outside the `int` range throws `std::out_of_range`, where WebKit's `static_cast<int>` is undefined.
 - [Additional callable exports](../../../core/libs/prx/libSceNKWebKit/Export.cpp) - 5928 of the 8703 inventory declarations listed below throw through `NotImplemented_nid_no_patch`; signatures and behavior are unverified. The later 13.60-labelled image contains all 8703; 8448 match the public 3.20 catalogue, while 255 are absent and their presence in retail 3.20 is unverified. Per-image records show the latter in a separate 3.20-labelled image, but neither image label is authenticated. Identified names match NIDs in the [public symbol database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) or [supplemental catalog](https://github.com/claimore22/ps5rs/blob/2304be5131221bae0dac24b9767cabffda33f747/data/nids.csv). Data exports need separate analysis.
 - [Additional callable exports](../../../core/libs/prx/libSceNKWebKit/Export.cpp) - the inventory declarations listed below throw through NotImplemented_nid_no_patch, and a pull request that implements one removes its row; signatures and behavior are unverified. The [generated progress report](https://boykopovar.github.io/AnyPS5/progress.html) counts the throwing exports. The later 13.60-labelled image contains all 8703 inventory declarations; 8448 match the public 3.20 catalogue, while 255 are absent and their presence in retail 3.20 is unverified. Per-image records show the latter in a separate 3.20-labelled image, but neither image label is authenticated. Identified names match NIDs in the [public symbol database](https://github.com/zecoxao/sce_symbols/blob/2883963a0a514ba6e77407a08ef4730a65e88254/aerolib.csv) or [supplemental catalog](https://github.com/claimore22/ps5rs/blob/2304be5131221bae0dac24b9767cabffda33f747/data/nids.csv). Data exports need separate analysis.
 
@@ -521,10 +521,12 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKPageGetEstimatedProgress` | `EEXgOrxJ1go` |
 | `WKPageGetImageForFindMatch` | `KPPJLasPz+o` |
 | `WKPageGetMediaState` | `F4AnS9A-OSc` |
+| `WKPageGetPageZoomFactor` | `fPJ3h4AHMkU` |
 | `WKPageGetProcessIdentifier` | `llISO4CgRb8` |
 | `WKPageGetSamplingProfilerOutput` | `tnytRb-rZp4` |
 | `WKPageGetSelectionAsWebArchiveData` | `Ck7bElZaJ-4` |
 | `WKPageGetSourceForFrame` | `plbxmi4Te84` |
+| `WKPageGetTextZoomFactor` | `pNy9E8Now3M` |
 | `WKPageGoBack` | `o2fPZBklfHg` |
 | `WKPageGoForward` | `T2GU7yBLQNA` |
 | `WKPageGoToBackForwardListItem` | `YE3MRmCjo0Y` |
@@ -583,6 +585,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKPageSetMediaVolume` | `UC703hx3DrM` |
 | `WKPageSetMockCameraOrientation` | `VHxoAYeD2q4` |
 | `WKPageSetMuted` | `XUBgIGb3ae0` |
+| `WKPageSetPageAndTextZoomFactors` | `k+0t4ZFxfT0` |
 | `WKPageSetPageContextMenuClient` | `LddfS0Uiwr0` |
 | `WKPageSetPageDiagnosticLoggingClient` | `cdYzqB96vXg` |
 | `WKPageSetPageFindClient` | `tWIbltNkRvU` |
@@ -594,8 +597,10 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `WKPageSetPagePolicyClient` | `pJ4iBZ6LEA0` |
 | `WKPageSetPageStateClient` | `8dbxlsbVzdY` |
 | `WKPageSetPageUIClient` | `6RXuTZIVqIg` |
+| `WKPageSetPageZoomFactor` | `pCJUJOonjAM` |
 | `WKPageStopLoading` | `BGuvmFH0-Uo` |
 | `WKPageSupportsTextEncoding` | `3tolGFkslb4` |
+| `WKPageSetTextZoomFactor` | `f-vSeWHQsW4` |
 | `WKPageSupportsTextZoom` | `vq8FBoJCd7c` |
 | `WKPageSuspendActiveDOMObjectsAndAnimations` | `WtwJKh+NPQU` |
 | `WKPageTerminate` | `x5CgqP9ManE` |

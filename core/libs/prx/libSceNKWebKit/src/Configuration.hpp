@@ -33,8 +33,6 @@ public:
     double gapBetweenPages = 0;
     bool suppressScrollbarAnimations = false;
     std::uint32_t scrollPinningBehavior = 0;
-    double textZoomFactor = 1;
-    double pageZoomFactor = 1;
     double pageScaleFactor = 1;
     float intrinsicDeviceScaleFactor = 1;
     std::optional<float> customDeviceScaleFactor;
