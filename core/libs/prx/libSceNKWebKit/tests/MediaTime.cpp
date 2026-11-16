@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <stdexcept>
+#include <string>
 
 
 extern "C" {
@@ -415,6 +417,46 @@ void TestMediaTimeMemory() {
     std::free(arrMem);
 }
 
+std::string MediaTimeText(const WTF::MediaTime* time) {
+    NKWebKit::WtfAbi::String text = _ZNK3WTF9MediaTime8toStringEv(time);
+    Require(text.impl != nullptr);
+    Require((text.impl->hashAndFlags & 4) != 0);
+    return std::string(static_cast<const char*>(text.impl->data), text.impl->length);
+}
+
+void TestMediaTimeToString() {
+    using Time = WTF::MediaTime;
+    const Time half(1, 2, Time::Valid);
+    Require(MediaTimeText(&half) == "{1/2 = 0.5}");
+    const Time negative(-3, 1000, Time::Valid);
+    Require(MediaTimeText(&negative) == "{-3/1000 = -0.003}");
+    const Time whole(90000, 90000, Time::Valid | Time::HasBeenRounded);
+    Require(MediaTimeText(&whole) == "{90000/90000 = 1}");
+    Time fromDouble(0, 1, Time::Valid | Time::DoubleValue);
+    fromDouble.m_timeValueAsDouble = 1.25;
+    Require(MediaTimeText(&fromDouble) == "{1.25}");
+    Time invalidDouble(0, 1, Time::DoubleValue);
+    invalidDouble.m_timeValueAsDouble = 2.0;
+    Require(MediaTimeText(&invalidDouble) == "{NaN, invalid}");
+    const Time invalid(5, 7, 0);
+    Require(MediaTimeText(&invalid) == "{5/7 = NaN, invalid}");
+    const Time positive(0, 1, Time::Valid | Time::PositiveInfinite);
+    Require(MediaTimeText(&positive) == "{0/1 = Infinity}");
+    const Time negativeInfinite(0, 1, Time::Valid | Time::NegativeInfinite);
+    Require(MediaTimeText(&negativeInfinite) == "{0/1 = -Infinity}");
+    const Time indefinite(0, 1, Time::Valid | Time::Indefinite);
+    Require(MediaTimeText(&indefinite) == "{0/1 = NaN}");
+    const Time large(std::numeric_limits<int64_t>::min(), 4294967295u, Time::Valid);
+    Require(MediaTimeText(&large).rfind("{-9223372036854775808/4294967295 = ", 0) == 0);
+    bool threw = false;
+    try {
+        _ZNK3WTF9MediaTime8toStringEv(nullptr);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    Require(threw);
+}
+
 void TestPlatformTimeRanges() {
     WebCore::PlatformTimeRanges emptyRanges;
     _ZN7WebCore18PlatformTimeRangesC1Ev(&emptyRanges);
@@ -684,6 +726,7 @@ int main(int argc, char** argv) {
     TestMediaTimeArithmeticAndComparison();
     TestMediaTimeOverflow();
     TestMediaTimeMemory();
+    TestMediaTimeToString();
     TestPlatformTimeRanges();
     TestTimeRanges();
     std::printf("MediaTime and TimeRanges tests passed successfully!\n");

@@ -3,6 +3,7 @@
 #include "prx/libSceNKWebKit/include/WtfExports.hpp"
 #include "prx/libSceNKWebKit/src/MediaTypes.hpp"
 #include "prx/libSceNKWebKit/src/WtfStringAbi.hpp"
+#include "prx/libSceNKWebKit/src/WtfTextAbi.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -12,6 +13,8 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace {
@@ -551,6 +554,17 @@ float APS5_VABI _ZNK3WTF9MediaTime7toFloatEv(const WTF::MediaTime* self) {
 
 double APS5_VABI _ZNK3WTF9MediaTime8toDoubleEv(const WTF::MediaTime* self) {
     return mediaTimeToDouble(*self);
+}
+
+NKWebKit::WtfAbi::String APS5_VABI _ZNK3WTF9MediaTime8toStringEv(const WTF::MediaTime* self) {
+    if (!self) throw std::invalid_argument("WTF::MediaTime::toString: null MediaTime");
+    std::string text = "{";
+    if (!(self->m_timeFlags & WTF::MediaTime::DoubleValue))
+        text += std::to_string(self->m_timeValue) + '/' + std::to_string(self->m_timeScale) + " = ";
+    text += NKWebKit::WtfAbi::NumberToString(mediaTimeToDouble(*self));
+    if (!(self->m_timeFlags & WTF::MediaTime::Valid)) text += ", invalid";
+    text += '}';
+    return _ZN3WTF10StringImpl6createEPKhj(reinterpret_cast<const unsigned char*>(text.data()), static_cast<unsigned>(text.size()));
 }
 
 uint8_t APS5_VABI _ZNK3WTF9MediaTime9timeFlagsEv(const WTF::MediaTime* self) {

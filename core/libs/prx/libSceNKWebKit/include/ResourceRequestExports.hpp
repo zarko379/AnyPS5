@@ -49,5 +49,7 @@ void APS5_VABI _ZN7WebCore19ResourceRequestBase17clearHTTPReferrerEv(NKWebKit::W
 void APS5_VABI _ZN7WebCore19ResourceRequestBase15clearHTTPOriginEv(NKWebKit::WebCoreAbi::ResourceRequestBase* self);
 bool APS5_VABI _ZNK7WebCore19ResourceRequestBase13isConditionalEv(const NKWebKit::WebCoreAbi::ResourceRequestBase* self);
 void APS5_VABI _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(NKWebKit::WebCoreAbi::ResourceRequestBase* self);
+void APS5_VABI _ZN7WebCore19ResourceRequestBase19setHTTPHeaderFieldsENS_13HTTPHeaderMapE(NKWebKit::WebCoreAbi::ResourceRequestBase* self, NKWebKit::HttpAbi::HTTPHeaderMap* headerFields);
+void APS5_VABI _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(NKWebKit::WebCoreAbi::ResourceRequestBase* self, const NKWebKit::WtfAbi::String* encoding1, const NKWebKit::WtfAbi::String* encoding2, const NKWebKit::WtfAbi::String* encoding3);
 
 }

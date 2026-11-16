@@ -2819,9 +2819,7 @@ int APS5_VABI _ZN7WebCore19ProtectionSpaceBase7compareERKNS_15ProtectionSpaceES3
 int APS5_VABI _ZN7WebCore19ResourceRequestBase13partitionNameERKN3WTF6StringE();
 int APS5_VABI _ZN7WebCore19ResourceRequestBase17setAsIsolatedCopyERKNS_15ResourceRequestE();
 int APS5_VABI _ZN7WebCore19ResourceRequestBase17setCachePartitionERKN3WTF6StringE();
-int APS5_VABI _ZN7WebCore19ResourceRequestBase19setHTTPHeaderFieldsENS_13HTTPHeaderMapE();
 int APS5_VABI _ZN7WebCore19ResourceRequestBase37setExistingHTTPReferrerToOriginStringEv();
-int APS5_VABI _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_();
 int APS5_VABI _ZN7WebCore19ResourceRequestBase5equalERKNS_15ResourceRequestES3_();
 int APS5_VABI _ZN7WebCore19StorageQuotaManager20resetQuotaForTestingEv();
 int APS5_VABI _ZN7WebCore19StorageQuotaManager24requestSpaceOnMainThreadEmON3WTF17CompletionHandlerIFvNS0_8DecisionEEEE();
@@ -4885,7 +4883,6 @@ int APS5_VABI _ZNK3WTF9BitVector4dumpERNS_11PrintStreamE();
 int APS5_VABI _ZNK3WTF9MediaTime12toJSONObjectEv();
 int APS5_VABI _ZNK3WTF9MediaTime12toJSONStringEv();
 int APS5_VABI _ZNK3WTF9MediaTime4dumpERNS_11PrintStreamE();
-int APS5_VABI _ZNK3WTF9MediaTime8toStringEv();
 int APS5_VABI _ZNK7WebCore10FileHandlecvbEv();
 int APS5_VABI _ZNK7WebCore10FontRanges16fontForCharacterEi();
 int APS5_VABI _ZNK7WebCore10FontRanges17fontForFirstRangeEv();

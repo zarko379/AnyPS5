@@ -29,6 +29,7 @@
 #include "prx/libSceNKWebKit/include/ResourceRequestExports.hpp"
 #include "prx/libSceNKWebKit/include/WtfExports.hpp"
 
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -380,6 +381,41 @@ bool APS5_VABI _ZNK7WebCore19ResourceRequestBase13isConditionalEv(const Resource
         if (_ZNK7WebCore13HTTPHeaderMap8containsENS_14HTTPHeaderNameE(&HeaderFields(request), name)) return true;
     }
     return false;
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase19setHTTPHeaderFieldsENS_13HTTPHeaderMapE(ResourceRequestBase* self, NKWebKit::HttpAbi::HTTPHeaderMap* headerFields) {
+    auto& request = Checked(self);
+    if (!headerFields) throw std::invalid_argument("null WebCore::HTTPHeaderMap");
+    UpdateResourceRequest(request);
+    auto& fields = HeaderFields(request);
+    std::swap(fields.common, headerFields->common);
+    std::swap(fields.uncommon, headerFields->uncommon);
+    request.platformRequestUpdated = false;
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(ResourceRequestBase* self, const String* encoding1, const String* encoding2, const String* encoding3) {
+    auto& request = Checked(self);
+    const String encodings[] = {Checked(encoding1), Checked(encoding2), Checked(encoding3)};
+    UpdateResourceRequest(request);
+    auto& array = request.responseContentDispositionEncodingFallbackArray;
+    if (array.size > array.capacity || (array.size && !array.buffer)) throw std::invalid_argument("invalid WTF::Vector<WTF::String>");
+    auto* old = static_cast<String*>(array.buffer);
+    for (unsigned i = 0; i < array.size; ++i) std::destroy_at(old + i);
+    _ZN3WTF8fastFreeEPv(array.buffer);
+    array = NKWebKit::WebCoreAbi::Vector{nullptr, 0, 0};
+    unsigned count = 0;
+    for (const auto& encoding : encodings) count += encoding.impl ? 1 : 0;
+    if (count) {
+        array.buffer = _ZN3WTF10fastMallocEm(count * sizeof(String));
+        array.capacity = count;
+    }
+    auto* buffer = static_cast<String*>(array.buffer);
+    for (const auto& encoding : encodings) {
+        if (!encoding.impl) continue;
+        std::construct_at(buffer + array.size, encoding);
+        ++array.size;
+    }
+    request.platformRequestUpdated = false;
 }
 
 void APS5_VABI _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(ResourceRequestBase* self) {
