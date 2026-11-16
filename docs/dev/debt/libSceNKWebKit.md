@@ -172,6 +172,7 @@ Inventory prose retains historical counts; use the [generated progress report](h
 - [Out-of-line colors](../../../core/libs/prx/libSceNKWebKit/src/WebCoreColor.cpp) (libSceNKWebKit) - `WebCore::Color` operations on an out-of-line value (extended color spaces in [Color.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/platform/graphics/Color.h)) throw; only inline 8-bit sRGBA values are handled.
 - [WebCore::Color serialization](../../../core/libs/prx/libSceNKWebKit/src/WebCoreColor.cpp) (libSceNKWebKit) - not compared with a console module. `serializationForCSS`, `serializationForHTML` and `serializationForRenderTreeAsText` of a `Color` pass an inline color's 8-bit sRGBA components to the existing `SRGBA<uint8_t>` serializers, as `callOnUnderlyingType` in the pinned [ColorSerialization.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WebCore/platform/graphics/ColorSerialization.cpp#L162-L181) does; without the color-function flag those serializers give the same text there and at WebKit c55364. `operator<<(TextStream&, const Color&)` writes the render-tree text, as Color.cpp does in both trees. A color with the `UseColorFunctionSerialization` flag, which needs `serializationUsingColorFunction`, an out-of-line color and a null reference throw.
 - [JSC::PropertyDescriptor flags](../../../core/libs/prx/libSceNKWebKit/src/JscPropertyDescriptor.cpp) (libSceNKWebKit) - not compared with a console module. The five queries and the `setUndefined`, `setWritable`, `setEnumerable`, `setConfigurable`, `setGetter` and `setSetter` mutators follow [PropertyDescriptor.cpp](https://github.com/WebKit/WebKit/blob/73a35b43be7ae44c084885bd3fa4b403e59723c8/Source/JavaScriptCore/runtime/PropertyDescriptor.cpp#L35-L190) at WebKit 73a35b43, identical in the PS5 tree, on the 32-byte layout of PropertyDescriptor.h (three encoded `JSValue`s, then the attribute and seen-attribute words) that the existing `getter` and `setter` offsets already assume. `JSValue` arguments are their 64-bit encodings and undefined is 0xa. `setDescriptor` and `setAccessorDescriptor`, which inspect `GetterSetter` cells, still throw; a null descriptor throws.
+- [WTF::Collator](../../../core/libs/prx/libSceNKWebKit/src/WtfCollator.cpp) (libSceNKWebKit) - not compared with a console module. The constructors, destructors, `collate`, `collateUTF8` and `createIterator` follow [CollatorICU.cpp](https://github.com/WebKit/WebKit/blob/73a35b43be7ae44c084885bd3fa4b403e59723c8/Source/WTF/wtf/unicode/icu/CollatorICU.cpp#L48-L272) at WebKit 73a35b43, the same in the PS5 tree, including the single cached `UCollator` a destroyed collator leaves for the next one with the same locale and case order, on the 24-byte layout of Collator.h. They use the bundled ICU through libSceIcu, so ordering follows its collation data, which may differ from the console's. Where WebKit only asserts, a failing `ucol_open` of the root locale, `ucol_setAttribute` or `ucol_strcollIter`, a null collator, null strings and lengths above `INT_MAX` throw.
 - [WTF host services](../../../core/libs/prx/libSceNKWebKit/src/WtfSystem.cpp) (libSceNKWebKit) - `fastMalloc`, `bmalloc` and Gigacage allocations come from the host allocator, and `CPUTime::forCurrentThread` and random values come from the host, not the console; they throw when the host cannot answer. `WTFCrash` and failed assertions abort the process.
 - [WTF::pageSize](../../../core/libs/prx/libSceNKWebKit/src/WtfPageBlock.cpp) (libSceNKWebKit) - not compared with a console module. It follows the PS5 11.x [PageBlock.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/PageBlock.cpp#L42-L69), which on `OS(UNIX)` (`__FreeBSD__` on the PS5) reads `sysconf(_SC_PAGESIZE)`: it asks guest libkernel `sysconf(47)`, which returns the 16384 bytes the `hw.pagesize` entry in [libkernel.md](libkernel.md) measured on a console. A size that is not a power of two or is above the 16 KiB `CeilingOnPageSize` that [PageBlock.h](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/PageBlock.h#L52-L53) sets for `PLATFORM(PLAYSTATION)` throws where WebKit's `RELEASE_ASSERT` crashes; its third assertion, that the ceiling is a multiple of the page size, always holds after those two and is not repeated.
 - [WTF::numberOfProcessorCores](../../../core/libs/prx/libSceNKWebKit/src/WtfNumberOfCores.cpp) (libSceNKWebKit) - the `WTF_numberOfProcessorCores` override that the PS5 11.x [NumberOfCores.cpp](https://github.com/neonmodder123/PS5-WebKit-11.x/blob/80f77e94c63ee7202eec3d4b5b1a021dd89011ba/Source/WTF/wtf/NumberOfCores.cpp#L50-L77) reads first with `getenv_np` is not read, as what the console's `getenv_np` reads is unknown ([libScePosixForWebKit.md](libScePosixForWebKit.md)). The count is guest `sysconf(58)` (`_SC_NPROCESSORS_ONLN`, the tree's `OS(FREEBSD)` path), read once, or 1 when it fails; it is the host's count, not the 16 a PS5 payload read ([libkernel.md](libkernel.md)). Closes when: measured in a title process.
@@ -1352,7 +1353,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN3WTF14SymbolRegistry12symbolForKeyERKNS_6StringE` | `4eO+y6WtOIw` |
 | `_ZN3WTF14SymbolRegistryD1Ev` | `4wHuG6WpyF0` |
 | `_ZN3WTF14SymbolRegistryD2Ev` | `l8UKHjO29+w` |
-| `_ZN3WTF14createIteratorENS_10StringViewE` | `svIkqWCw-LU` |
 | `_ZN3WTF14dataLogFStringEPKc` | `xQQ4VSubx-k` |
 | `_ZN3WTF15AtomStringTableD1Ev` | `YHjoCx7QaOs` |
 | `_ZN3WTF15AtomStringTableD2Ev` | `JxkGFAxlPa8` |
@@ -1484,10 +1484,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZN3WTF7RunLoop9TimerBaseC2ERS0_` | `7fOcpBLva2Y` |
 | `_ZN3WTF7RunLoop9TimerBaseD1Ev` | `Fj3K7fq81Nw` |
 | `_ZN3WTF7RunLoop9TimerBaseD2Ev` | `CmEb6NZaH44` |
-| `_ZN3WTF8CollatorC1EPKcb` | `8DP3Cufk2xw` |
-| `_ZN3WTF8CollatorC2EPKcb` | `jPO4DqIdSig` |
-| `_ZN3WTF8CollatorD1Ev` | `YyCzoJifhqg` |
-| `_ZN3WTF8CollatorD2Ev` | `E3vh3HLyXrI` |
 | `_ZN3WTF8JSONImpl10ObjectBase6removeERKNS_6StringE` | `nIH6ALR8JYA` |
 | `_ZN3WTF8JSONImpl6Object6createEv` | `Ceq8ieFRG+0` |
 | `_ZN3WTF8WordLock10unlockSlowEv` | `MffI7wLS6TM` |
@@ -4662,8 +4658,6 @@ Inventory prose retains historical counts; use the [generated progress report](h
 | `_ZNK3WTF7RunLoop9TimerBase16secondsUntilFireEv` | `9ym46rnYKZA` |
 | `_ZNK3WTF7RunLoop9TimerBase8isActiveEv` | `uh7RQK-+n20` |
 | `_ZNK3WTF7Seconds4dumpERNS_11PrintStreamE` | `hrTPOtnC7Mw` |
-| `_ZNK3WTF8Collator11collateUTF8EPKcS2_` | `Ds3V4AkI+J4` |
-| `_ZNK3WTF8Collator7collateENS_10StringViewES1_` | `g46lcz7ehyY` |
 | `_ZNK3WTF8JSONImpl10ObjectBase10memoryCostEv` | `MnJYzxTchUY` |
 | `_ZNK3WTF8JSONImpl10ObjectBase9getStringERKNS_6StringERS2_` | `uoSZQi-ImGo` |
 | `_ZNK3WTF8JSONImpl5Value12toJSONStringEv` | `H9Atnn27DDQ` |
