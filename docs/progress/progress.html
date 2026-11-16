@@ -182,7 +182,7 @@
 <tr><td>libSceHttp2</td><td>27</td><td>71</td><td>38%</td></tr>
 <tr><td>libSceHttpCache</td><td>16</td><td>30</td><td>53%</td></tr>
 <tr><td>libSceHubAppUtil</td><td>0</td><td>3</td><td>0%</td></tr>
-<tr><td>libSceIcu</td><td>666</td><td>2757</td><td>24%</td></tr>
+<tr><td>libSceIcu</td><td>842</td><td>2757</td><td>31%</td></tr>
 <tr><td>libSceIdu</td><td>16</td><td>21</td><td>76%</td></tr>
 <tr><td>libSceImageUtil</td><td>0</td><td>18</td><td>0%</td></tr>
 <tr><td>libSceIme</td><td>17</td><td>64</td><td>27%</td></tr>
@@ -197,7 +197,7 @@
 <tr><td>libSceJpegDec</td><td>6</td><td>6</td><td>100%</td></tr>
 <tr><td>libSceJpegEnc</td><td>4</td><td>4</td><td>100%</td></tr>
 <tr><td>libSceJpegParser</td><td>0</td><td>5</td><td>0%</td></tr>
-<tr><td>libSceJsc</td><td>86</td><td>737</td><td>12%</td></tr>
+<tr><td>libSceJsc</td><td>109</td><td>737</td><td>15%</td></tr>
 <tr><td>libSceJscCompiler</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceJson</td><td>0</td><td>30</td><td>0%</td></tr>
 <tr><td>libSceJson2</td><td>141</td><td>223</td><td>63%</td></tr>
@@ -205,7 +205,7 @@
 <tr><td>libSceJxrParser</td><td>0</td><td>7</td><td>0%</td></tr>
 <tr><td>libSceKbEmulate</td><td colspan="3">No exports</td></tr>
 <tr><td>libSceKeyboard</td><td>13</td><td>28</td><td>46%</td></tr>
-<tr><td>libSceLibcInternal</td><td>534</td><td>1131</td><td>47%</td></tr>
+<tr><td>libSceLibcInternal</td><td>558</td><td>1131</td><td>49%</td></tr>
 <tr><td>libSceLibreSsl</td><td>333</td><td>473</td><td>70%</td></tr>
 <tr><td>libSceLibreSsl3</td><td>600</td><td>705</td><td>85%</td></tr>
 <tr><td>libSceLoginDialog</td><td>7</td><td>7</td><td>100%</td></tr>
@@ -234,7 +234,7 @@
 <tr><td>libSceNgs2.native</td><td>57</td><td>71</td><td>80%</td></tr>
 <tr><td>libSceNKWeb</td><td>0</td><td>5</td><td>0%</td></tr>
 <tr><td>libSceNKWebCdlgInjectedBundle</td><td>0</td><td>1</td><td>0%</td></tr>
-<tr><td>libSceNKWebKit</td><td>3219</td><td>11261</td><td>29%</td></tr>
+<tr><td>libSceNKWebKit</td><td>3330</td><td>11261</td><td>30%</td></tr>
 <tr><td>libSceNKWebKitRequirements</td><td>130</td><td>173</td><td>75%</td></tr>
 <tr><td>libSceNotification</td><td>4</td><td>4</td><td>100%</td></tr>
 <tr><td>libSceNotificationClient</td><td colspan="3">No exports</td></tr>
@@ -422,24 +422,24 @@
 <tr><td>libwvoec</td><td>0</td><td>77</td><td>0%</td></tr>
 <tr><td>Party</td><td>0</td><td>26</td><td>0%</td></tr>
 <tr><td>ulobjmgr</td><td>4</td><td>6</td><td>67%</td></tr>
-<tr><th>Total</th><th>16960</th><th>39416</th><th>43.03%</th></tr>
+<tr><th>Total</th><th>17294</th><th>39416</th><th>43.88%</th></tr>
 </table>
 <p>A function is implemented when it no longer calls <code>NotImplemented_nid_no_patch</code>; comparison reports separately mark implemented functions whose body only returns a constant or throws. The total only includes functions already declared in <a href="https://github.com/boykopovar/AnyPS5/blob/main/core/libs/prx">core/libs/prx</a>, not every function exported by the PS5 firmware. Shared-source libraries are counted only at their source library. Libraries with no exports only provide an empty module for titles that load them. <a href="https://github.com/boykopovar/AnyPS5/blob/main/docs/dev/PROGRESS.md">Counting rules</a>.</p>
 <h2>gfx1013 reference shader coverage</h2>
 <table><tr><th>Measure</th><th>Count</th><th>Of</th></tr>
-<tr><td>Instruction forms decoded</td><td>1484</td><td>1560</td></tr>
-<tr><td>Instruction forms with a translator case</td><td>1484</td><td>1560</td></tr>
+<tr><td>Instruction forms decoded</td><td>1560</td><td>1560</td></tr>
+<tr><td>Instruction forms with a translator case</td><td>1560</td><td>1560</td></tr>
 <tr><td>DPP forms decoded</td><td>200</td><td>200</td></tr></table>
 <p>This pinned reference profile uses AMD RDNA1 forms, the gfx1013 BVH encodings and explicitly sourced LLVM forms (<a href="https://github.com/boykopovar/AnyPS5/blob/main/tools/gfx1013_isa_forms.txt">inventory and provenance</a>). The PS5 uses gfx1013, but this public-source profile is not a complete console ISA or hardware verification. Literal positions, SDWA selectors and NSA operand layouts are not separate forms. Decoded means opcode-table recognition; a translator case does not establish correct execution.</p>
 <h3>gfx1013 reference forms not decoded</h3>
-<table><tr><td>DS</td><td class='names'><code>DS_ADD_SRC2_U64, DS_AND_SRC2_B64, DS_DEC_SRC2_U64, DS_INC_SRC2_U64, DS_MAX_SRC2_F64, DS_MAX_SRC2_I64, DS_MAX_SRC2_U64, DS_MIN_SRC2_F64, DS_MIN_SRC2_I64, DS_MIN_SRC2_U64, DS_OR_SRC2_B64, DS_RSUB_SRC2_U64, DS_SUB_SRC2_U64, DS_WRITE_SRC2_B64, DS_XOR_SRC2_B64</code></td></tr><tr><td>SMEM</td><td class='names'><code>S_ATOMIC_ADD, S_ATOMIC_ADD_X2, S_ATOMIC_AND, S_ATOMIC_AND_X2, S_ATOMIC_CMPSWAP, S_ATOMIC_CMPSWAP_X2, S_ATOMIC_DEC, S_ATOMIC_DEC_X2, S_ATOMIC_INC, S_ATOMIC_INC_X2, S_ATOMIC_OR, S_ATOMIC_OR_X2, S_ATOMIC_SMAX, S_ATOMIC_SMAX_X2, S_ATOMIC_SMIN, S_ATOMIC_SMIN_X2, S_ATOMIC_SUB, S_ATOMIC_SUB_X2, S_ATOMIC_SWAP, S_ATOMIC_SWAP_X2, S_ATOMIC_UMAX, S_ATOMIC_UMAX_X2, S_ATOMIC_UMIN, S_ATOMIC_UMIN_X2, S_ATOMIC_XOR, S_ATOMIC_XOR_X2, S_BUFFER_ATOMIC_ADD, S_BUFFER_ATOMIC_ADD_X2, S_BUFFER_ATOMIC_AND, S_BUFFER_ATOMIC_AND_X2, S_BUFFER_ATOMIC_CMPSWAP, S_BUFFER_ATOMIC_CMPSWAP_X2, S_BUFFER_ATOMIC_DEC, S_BUFFER_ATOMIC_DEC_X2, S_BUFFER_ATOMIC_INC, S_BUFFER_ATOMIC_INC_X2, S_BUFFER_ATOMIC_OR, S_BUFFER_ATOMIC_OR_X2, S_BUFFER_ATOMIC_SMAX, S_BUFFER_ATOMIC_SMAX_X2, S_BUFFER_ATOMIC_SMIN, S_BUFFER_ATOMIC_SMIN_X2, S_BUFFER_ATOMIC_SUB, S_BUFFER_ATOMIC_SUB_X2, S_BUFFER_ATOMIC_SWAP, S_BUFFER_ATOMIC_SWAP_X2, S_BUFFER_ATOMIC_UMAX, S_BUFFER_ATOMIC_UMAX_X2, S_BUFFER_ATOMIC_UMIN, S_BUFFER_ATOMIC_UMIN_X2, S_BUFFER_ATOMIC_XOR, S_BUFFER_ATOMIC_XOR_X2, S_BUFFER_STORE_DWORD, S_BUFFER_STORE_DWORDX2, S_BUFFER_STORE_DWORDX4, S_SCRATCH_STORE_DWORD, S_SCRATCH_STORE_DWORDX2, S_SCRATCH_STORE_DWORDX4, S_STORE_DWORD, S_STORE_DWORDX2, S_STORE_DWORDX4</code></td></tr></table>
+<p>Every reference form is decoded.</p>
 <h2>RDNA2 reference: counted from the code</h2>
 <table>
 <tr><th>Measure</th><th>Count</th><th>Of</th></tr>
 <tr><td>Instruction forms decoded</td><td>1460</td><td>1460</td></tr>
 <tr><td>Instruction forms with a translator case</td><td>1460</td><td>1460</td></tr>
 <tr><td>DPP forms decoded</td><td>202</td><td>202</td></tr>
-<tr><td>Unsupported-throw sites in the recompiler</td><td>125</td><td></td></tr>
+<tr><td>Unsupported-throw sites in the recompiler</td><td>130</td><td></td></tr>
 </table>
 <table>
 <tr><th>Encoding</th><th>Form</th><th>Decoded</th><th>Translated</th><th>Total</th></tr>
@@ -475,15 +475,15 @@
 <h2>RDNA2 reference still needed</h2>
 <div class="cols">
 <div>
-<h3>Unsupported-throw sites by area (125)</h3>
+<h3>Unsupported-throw sites by area (130)</h3>
 <table>
-<tr><td>RdnaDecoder</td><td><div class="bar"><i style="width:44.80%;background:#d29922"></i></div></td><td class="n">56</td></tr>
-<tr><td>Translation</td><td><div class="bar"><i style="width:18.40%;background:#d29922"></i></div></td><td class="n">23</td></tr>
-<tr><td>Optimization</td><td><div class="bar"><i style="width:16.00%;background:#d29922"></i></div></td><td class="n">20</td></tr>
-<tr><td>SpirvBackend</td><td><div class="bar"><i style="width:10.40%;background:#d29922"></i></div></td><td class="n">13</td></tr>
-<tr><td>ControlFlow</td><td><div class="bar"><i style="width:5.60%;background:#d29922"></i></div></td><td class="n">7</td></tr>
-<tr><td>Recompiler</td><td><div class="bar"><i style="width:3.20%;background:#d29922"></i></div></td><td class="n">4</td></tr>
-<tr><td>IntermediateRepresentation</td><td><div class="bar"><i style="width:1.60%;background:#d29922"></i></div></td><td class="n">2</td></tr>
+<tr><td>RdnaDecoder</td><td><div class="bar"><i style="width:43.85%;background:#d29922"></i></div></td><td class="n">57</td></tr>
+<tr><td>Translation</td><td><div class="bar"><i style="width:20.77%;background:#d29922"></i></div></td><td class="n">27</td></tr>
+<tr><td>Optimization</td><td><div class="bar"><i style="width:15.38%;background:#d29922"></i></div></td><td class="n">20</td></tr>
+<tr><td>SpirvBackend</td><td><div class="bar"><i style="width:10.00%;background:#d29922"></i></div></td><td class="n">13</td></tr>
+<tr><td>ControlFlow</td><td><div class="bar"><i style="width:5.38%;background:#d29922"></i></div></td><td class="n">7</td></tr>
+<tr><td>Recompiler</td><td><div class="bar"><i style="width:3.08%;background:#d29922"></i></div></td><td class="n">4</td></tr>
+<tr><td>IntermediateRepresentation</td><td><div class="bar"><i style="width:1.54%;background:#d29922"></i></div></td><td class="n">2</td></tr>
 </table>
 <h3>Image formats (of 159)</h3>
 <table>
