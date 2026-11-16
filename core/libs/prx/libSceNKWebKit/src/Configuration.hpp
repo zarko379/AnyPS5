@@ -83,6 +83,25 @@ public:
     bool usesWebProcessCache = false;
     bool shouldConfigureJSCForTesting = false;
     std::vector<std::u16string> overrideLanguages;
+
+    Retained<ProcessPoolConfiguration> Copy() const {
+        auto copy = Make<ProcessPoolConfiguration>();
+        copy->injectedBundlePath = injectedBundlePath;
+        copy->fullySynchronousModeIsAllowedForTesting = fullySynchronousModeIsAllowedForTesting;
+        copy->ignoreSynchronousMessagingTimeoutsForTesting = ignoreSynchronousMessagingTimeoutsForTesting;
+        copy->overrideLanguages = overrideLanguages;
+        copy->shouldConfigureJSCForTesting = shouldConfigureJSCForTesting;
+        copy->processSwapsOnNavigationFromClient = processSwapsOnNavigationFromClient;
+        copy->processSwapsOnNavigationFromExperimentalFeatures = processSwapsOnNavigationFromExperimentalFeatures;
+        copy->alwaysKeepAndReuseSwappedProcesses = alwaysKeepAndReuseSwappedProcesses;
+        copy->processSwapsOnWindowOpenWithOpener = processSwapsOnWindowOpenWithOpener;
+        copy->isAutomaticProcessWarmingEnabledByClient = isAutomaticProcessWarmingEnabledByClient;
+        copy->usesWebProcessCache = usesWebProcessCache;
+        copy->webProcessPath = webProcessPath;
+        copy->networkProcessPath = networkProcessPath;
+        copy->userId = userId;
+        return copy;
+    }
 };
 
 class GeolocationManager final : public ObjectOf<ObjectType::GeolocationManager> {};

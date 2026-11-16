@@ -270,7 +270,6 @@ int APS5_VABI WKContextSetHistoryClient();
 int APS5_VABI WKContextSetInitializationUserDataForInjectedBundle();
 int APS5_VABI WKContextSetInjectedBundleClient();
 int APS5_VABI WKContextSetInvalidMessageFunction();
-int APS5_VABI WKContextSetPrewarmsProcessesAutomatically();
 int APS5_VABI WKContextSetUseSeparateServiceWorkerProcess();
 int APS5_VABI WKContextStartMemorySampler();
 int APS5_VABI WKContextStopMemorySampler();

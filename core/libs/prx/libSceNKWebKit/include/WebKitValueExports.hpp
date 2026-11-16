@@ -116,6 +116,7 @@ const void* APS5_VABI WKContextCreateWithInjectedBundlePath(const void* pathRef)
 std::uint32_t APS5_VABI WKContextGetTypeID();
 bool APS5_VABI WKContextGetUsesSingleWebProcess(const void* contextRef);
 std::uint32_t APS5_VABI WKContextMenuItemGetTypeID();
+void APS5_VABI WKContextSetPrewarmsProcessesAutomatically(const void* contextRef, bool value);
 void APS5_VABI WKContextSetUsesSingleWebProcess(const void* contextRef, bool usesSingleWebProcess);
 std::uint32_t APS5_VABI WKCookieManagerGetTypeID();
 std::uint32_t APS5_VABI WKCredentialGetTypeID();
