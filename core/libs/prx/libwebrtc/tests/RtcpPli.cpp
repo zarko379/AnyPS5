@@ -1,5 +1,8 @@
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libc/include/Api.hpp"
+#include "prx/libc/include/ApplicationHeap.hpp"
 
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -9,6 +12,20 @@
 #include <vector>
 
 namespace {
+
+void* lastFreed = nullptr;
+int frees = 0;
+
+void* APS5_VABI TestAllocate(std::size_t size) { return std::malloc(size); }
+void APS5_VABI TestFree(void* pointer) { lastFreed = pointer; ++frees; std::free(pointer); }
+void* APS5_VABI TestCalloc(std::size_t count, std::size_t size) { return std::calloc(count, size); }
+void* APS5_VABI TestReallocate(void* pointer, std::size_t size) { return std::realloc(pointer, size); }
+void* APS5_VABI TestAlign(std::size_t, std::size_t size) { return std::malloc(size); }
+void* APS5_VABI TestRealign(void* pointer, std::size_t size, std::size_t) { return std::realloc(pointer, size); }
+int APS5_VABI TestPosixAlign(void** pointer, std::size_t, std::size_t size) {
+    *pointer = std::malloc(size);
+    return *pointer ? 0 : 12;
+}
 
 void Require(bool condition, std::source_location location = std::source_location::current()) {
     if (condition) return;
@@ -86,12 +103,90 @@ void TestNullArgumentsThrow() {
     Require(Unchanged(pli));
 }
 
+using PacketReady = void (APS5_VABI*)(void* function, const std::uint8_t* data, std::size_t size);
+using BlockLength = std::size_t (APS5_VABI*)(const WebRtcRtcpPli*);
+using Create = bool (APS5_VABI*)(const WebRtcRtcpPli*, std::uint8_t*, std::size_t*, std::size_t, void*, PacketReady);
+using Destroy = void (APS5_VABI*)(WebRtcRtcpPli*);
+
+template<typename TFunction> TFunction Slot(const WebRtcRtcpPli& pli, int slot) {
+    return reinterpret_cast<TFunction>(const_cast<void*>(static_cast<const void* const*>(pli.vtable)[slot]));
+}
+
+struct Sent {
+    std::vector<std::uint8_t> bytes;
+    int calls = 0;
+};
+
+void APS5_VABI Send(void* function, const std::uint8_t* data, std::size_t size) {
+    auto* sent = static_cast<Sent*>(function);
+    sent->bytes.assign(data, data + size);
+    ++sent->calls;
+}
+
+WebRtcRtcpPli Constructed() {
+    WebRtcRtcpPli pli = Filled();
+    _ZN6webrtc4rtcp3PliC1Ev_nid_postfix(&pli);
+    return pli;
+}
+
+void TestConstructor() {
+    WebRtcRtcpPli pli = Constructed();
+    Require(pli.vtable != nullptr && pli.senderSsrc == 0 && pli.mediaSsrc == 0);
+    Require(Slot<BlockLength>(pli, 2)(&pli) == 12);
+    RequireInvalidArgument([] { _ZN6webrtc4rtcp3PliC1Ev_nid_postfix(nullptr); });
+}
+
+void TestCreateWritesTheParsedPacket() {
+    std::vector<std::uint8_t> packet {0x81, 206, 0x00, 0x02, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0};
+    WebRtcRtcpPli pli = Constructed();
+    Require(ParsePacket(pli, packet));
+    std::vector<std::uint8_t> buffer(16, 0xee);
+    std::size_t index = 2;
+    Require(Slot<Create>(pli, 3)(&pli, buffer.data(), &index, buffer.size(), nullptr, nullptr));
+    Require(index == 14);
+    Require(std::memcmp(buffer.data() + 2, packet.data(), packet.size()) == 0);
+    Require(buffer[0] == 0xee && buffer[1] == 0xee && buffer[14] == 0xee);
+}
+
+void TestCreateSendsAFullBuffer() {
+    WebRtcRtcpPli pli = Constructed();
+    std::vector<std::uint8_t> buffer(16, 0);
+    std::size_t index = 5;
+    Sent sent;
+    Require(Slot<Create>(pli, 3)(&pli, buffer.data(), &index, buffer.size(), &sent, &Send));
+    Require(sent.calls == 1 && sent.bytes.size() == 5 && index == 12);
+    Require(buffer[0] == 0x81 && buffer[1] == 206 && buffer[2] == 0 && buffer[3] == 2);
+    index = 0;
+    Require(!Slot<Create>(pli, 3)(&pli, buffer.data(), &index, 11, &sent, &Send));
+    Require(index == 0 && sent.calls == 1);
+    index = 1;
+    RequireInvalidArgument([&] { Slot<Create>(pli, 3)(&pli, buffer.data(), &index, 12, nullptr, nullptr); });
+}
+
+void TestDeletingDestructor() {
+    auto* pli = static_cast<WebRtcRtcpPli*>(_Znwm_nid_postfix(sizeof(WebRtcRtcpPli)));
+    _ZN6webrtc4rtcp3PliC1Ev_nid_postfix(pli);
+    const int before = frees;
+    Slot<Destroy>(*pli, 1)(pli);
+    Require(frees == before + 1 && lastFreed == pli);
+}
+
 }
 
 int main() {
+    const std::array<void*, 10> api {
+        reinterpret_cast<void*>(&TestAllocate), reinterpret_cast<void*>(&TestFree),
+        reinterpret_cast<void*>(&TestCalloc), reinterpret_cast<void*>(&TestReallocate),
+        reinterpret_cast<void*>(&TestAlign), reinterpret_cast<void*>(&TestRealign),
+        reinterpret_cast<void*>(&TestPosixAlign), nullptr, nullptr, nullptr};
+    ApplicationHeapRegister_nid_no_patch(api.data());
     TestPli();
     TestLongerPayloadReadsTheCommonFeedbackOnly();
     TestShortPayloadLeavesThePacketUntouched();
     TestNullArgumentsThrow();
+    TestConstructor();
+    TestCreateWritesTheParsedPacket();
+    TestCreateSendsAFullBuffer();
+    TestDeletingDestructor();
     return 0;
 }
