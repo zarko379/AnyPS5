@@ -5894,7 +5894,23 @@ void InitialContextTests() {
     for (const auto offset : {0x2d5u, 0x204u, 0x8eu, 0x8fu, 0x1c3u, 0x1c5u, 0x31cu, 0x3b0u, 0x3b8u, 0x318u, 0x390u, 0x10fu, 0x110u, 0x111u, 0x112u, 0x113u, 0x114u, 0xb4u, 0xb5u}) queue.context.at(offset) = configured.context.at(offset);
     const auto state = AgcDriver::Graphics::DecodeState(queue);
     Require(state.color.address == reinterpret_cast<std::uintptr_t>(colorMemory.data()) && state.color.bytes == colorMemory.size(), "sparse guest setup lost its render target");
-    Require(state.viewport.x == 0.0f && state.viewport.y == 0.0f && state.viewport.width == static_cast<float>(state.renderExtent.width) && state.viewport.height == static_cast<float>(state.renderExtent.height), "a draw without a viewport transform did not get a viewport covering its render target");
+    Require(state.viewport.x == 0.0f && state.viewport.y == 4.0f && state.viewport.width == 64.0f && state.viewport.height == -4.0f, "a draw with the reset viewport control ignored its programmed viewport");
+    {
+        auto transformed = queue;
+        transformed.context[0x206] = 0x43f;
+        const auto expected = AgcDriver::Graphics::DecodeState(transformed);
+        Require(expected.viewport.x == state.viewport.x && expected.viewport.y == state.viewport.y && expected.viewport.width == state.viewport.width && expected.viewport.height == state.viewport.height && expected.viewport.minDepth == state.viewport.minDepth && expected.viewport.maxDepth == state.viewport.maxDepth, "a programmed viewport decoded differently with and without the viewport transform enabled");
+        Require(expected.depthScale == state.depthScale && expected.depthOffset == state.depthOffset && expected.depthClampMin == state.depthClampMin && expected.depthClampMax == state.depthClampMax, "programmed depth decoded differently with and without the viewport transform enabled");
+        auto unprogrammed = queue;
+        unprogrammed.context[0x10f] = 0;
+        const auto covering = AgcDriver::Graphics::DecodeState(unprogrammed);
+        Require(covering.viewport.x == 0.0f && covering.viewport.y == 0.0f && covering.viewport.width == static_cast<float>(covering.renderExtent.width) && covering.viewport.height == static_cast<float>(covering.renderExtent.height), "a draw without a programmed viewport did not get a viewport covering its render target");
+        auto flipped = queue;
+        flipped.context[0x111] = std::bit_cast<std::uint32_t>(2.0f);
+        flipped.context[0x112] = std::bit_cast<std::uint32_t>(2.0f);
+        const auto upright = AgcDriver::Graphics::DecodeState(flipped);
+        Require(upright.viewport.y == 0.0f && upright.viewport.height == 4.0f, "a programmed viewport with a positive Y scale lost its orientation");
+    }
     Require(AgcDriver::Graphics::DrawRejection(queue, false).find("PA_CL_VTE_CNTL") == std::string::npos, "a draw with the reset viewport control was rejected for its viewport control");
     for (const auto control : {0x3fu, 0x43eu, 0x53fu, 0x63fu, 0x8000043fu}) {
         queue.context[0x206] = control;

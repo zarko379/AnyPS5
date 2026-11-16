@@ -128,6 +128,30 @@ std::string vteMessage(std::uint32_t viewportControl) {
     return message.str();
 }
 
+struct ProgrammedViewport {
+    float xs;
+    float xo;
+    float ys;
+    float yo;
+};
+
+std::optional<float> programmedFloat(const Registers& cx, std::uint32_t offset) {
+    const auto it = find(cx, offset);
+    if (it == cx.end()) return std::nullopt;
+    const auto value = std::bit_cast<float>(it->second);
+    if (!std::isfinite(value)) return std::nullopt;
+    return value;
+}
+
+std::optional<ProgrammedViewport> programmedViewport(const Registers& cx) {
+    const auto xs = programmedFloat(cx, 0x10f);
+    const auto xo = programmedFloat(cx, 0x110);
+    const auto ys = programmedFloat(cx, 0x111);
+    const auto yo = programmedFloat(cx, 0x112);
+    if (!xs || !xo || !ys || !yo || !(*xs > 0.0f) || *ys == 0.0f) return std::nullopt;
+    return ProgrammedViewport{*xs, *xo, *ys, *yo};
+}
+
 std::string conservativeMessage(std::uint32_t control) {
     std::ostringstream message;
     message << "AGC graphics: PA_SC_CONSERVATIVE_RASTERIZATION_CNTL=0x" << std::hex << control << ": only off (over- and underestimation disabled, with at most the inner-to-normal overrides, NULL_SQUAD_AA_MASK_ENABLE and the uncertainty-region mode and edge rules set) and 0x6001 (overestimation) are supported";
@@ -1857,8 +1881,25 @@ State DecodeState(const QueueState& queue, bool vertexWorkgroup) {
         }
     }
     bool collapsed = false;
-    if (viewportControl == 0u) {
+    const auto programmed = viewportControl == 0u ? programmedViewport(cx) : std::nullopt;
+    if (viewportControl == 0u && !programmed) {
         result.viewport = VkViewport{0.0f, 0.0f, static_cast<float>(result.renderExtent.width), static_cast<float>(result.renderExtent.height), result.negativeOneToOne ? -1.0f : 0.0f, 1.0f};
+    } else if (viewportControl == 0u) {
+        const auto zs = programmedFloat(cx, 0x113);
+        const auto zo = programmedFloat(cx, 0x114);
+        const bool depthProgrammed = zs && zo && *zs != 0.0f;
+        result.depthScale = depthProgrammed ? *zs : 1.0f;
+        result.depthOffset = depthProgrammed ? *zo : 0.0f;
+        const auto minDepth = result.negativeOneToOne ? result.depthOffset - result.depthScale : result.depthOffset;
+        const auto maxDepth = result.depthOffset + result.depthScale;
+        const auto clampMin = programmedFloat(cx, 0xb4);
+        const auto clampMax = programmedFloat(cx, 0xb5);
+        if (clampMin && clampMax) {
+            Require(*clampMin <= *clampMax, "inverted viewport depth clamp bounds");
+            result.depthClampMin = *clampMin;
+            result.depthClampMax = *clampMax;
+        }
+        result.viewport = VkViewport{programmed->xo - programmed->xs, programmed->yo - programmed->ys, 2 * programmed->xs, 2 * programmed->ys, minDepth, maxDepth};
     } else {
         const auto xs = readFloat(cx, 0x10f);
         const auto xo = readFloat(cx, 0x110);
@@ -2607,7 +2648,7 @@ bool drawCovers(const Registers& cx, VkExtent2D extent, const ColorTarget* gcnTa
     }
     const auto width = static_cast<float>(extent.width);
     const auto height = static_cast<float>(extent.height);
-    const bool viewportCovers = viewportControl == 0u || (xo - xs <= 0.0f && xo + xs >= width && yo - ys <= 0.0f && yo + ys >= height);
+    const bool viewportCovers = (viewportControl == 0u && !programmedViewport(cx)) || (xo - xs <= 0.0f && xo + xs >= width && yo - ys <= 0.0f && yo + ys >= height);
     const bool scissorCovers = covered.offset.x == 0 && covered.offset.y == 0 && covered.extent.width >= extent.width && covered.extent.height >= extent.height;
     return viewportCovers && scissorCovers;
 }
