@@ -173,7 +173,7 @@ if(BUILD_TESTING)
     endif()
 endif()
 
-target_sources(libSceJsc PRIVATE src/WtfLogger.cpp)
+target_sources(libSceJsc PRIVATE src/WtfLogger.cpp src/WtfAssertions.cpp)
 if(BUILD_TESTING)
     add_test_executable(jsc_wtf_logger_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/WtfLogger.cpp)
     target_include_directories(jsc_wtf_logger_tests PRIVATE ${LIBS_INCLUDE_DIR})

@@ -32,6 +32,7 @@ static_assert(sizeof(UTF8ConversionError) == 4);
 
 extern "C" {
 
+const Jsc::WtfAbi::String* APS5_VABI _ZN3WTF11emptyStringEv();
 const Jsc::WtfAbi::String* APS5_VABI _ZN3WTF10nullStringEv();
 unsigned APS5_VABI _ZNK3WTF6String12toUIntStrictEPbi(const Jsc::WtfAbi::String* self, bool* ok, int base);
 Jsc::WtfAbi::UTF8ConversionError APS5_VABI _ZN3WTF10StringImpl8utf8ImplEPKDsjRPcmNS_14ConversionModeE(

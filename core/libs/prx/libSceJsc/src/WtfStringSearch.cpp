@@ -359,4 +359,11 @@ bool APS5_VABI _ZN3WTF10protocolIsENS_10StringViewEPKc(StringView string, const 
     return false;
 }
 
+
+bool APS5_VABI _ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(const Jsc::WtfAbi::GraphemeClusterIterator* self,
+                                                                  const Jsc::WtfAbi::GraphemeClusterIterator* other) {
+    if (!self || !other || !self->impl || !other->impl) throw std::invalid_argument(__func__);
+    return self->impl->index != other->impl->index;
+}
+
 }

@@ -120,7 +120,6 @@ int APS5_VABI _ZThn16_N9Inspector21InspectorConsoleAgent13clearMessagesERN3WTF6S
 int APS5_VABI _ZN9Inspector21CSSFrontendDispatcher15styleSheetAddedEN3WTF6RefPtrINS_8Protocol3CSS19CSSStyleSheetHeaderENS1_13DumbPtrTraitsIS5_EEEE();
 int APS5_VABI _ZN3JSC18sanitizeStackForVMERNS_2VME();
 int APS5_VABI _ZN3JSC6Config23enableRestrictedOptionsEv();
-int APS5_VABI WTFLogAlwaysV();
 int APS5_VABI _ZN3JSC2VM22boundFunctionSpaceSlowEv();
 int APS5_VABI _ZN3WTF3URL24removeFragmentIdentifierEv();
 int APS5_VABI _ZN9Inspector15RemoteInspector9singletonEv();

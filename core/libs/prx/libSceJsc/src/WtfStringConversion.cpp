@@ -72,6 +72,29 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
+/*
+ * Derived from Source/WTF/wtf/text/StringHasher.h@c55364d53f971f63a709976f168d932d558b8909
+ */
+/*
+ * Copyright (C) 2005-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2010 Patrick Gansterer <paroga@paroga.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Library General Public License
+ * along with this library; see the file COPYING.LIB.  If not, write to
+ * the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+ * Boston, MA 02110-1301, USA.
+ *
+ */
 
 #include "prx/libSceJsc/include/WtfStringConversionExports.hpp"
 #include "prx/libSceJsc/include/WtfUnicodeExports.hpp"
@@ -171,9 +194,40 @@ ConversionResult Convert(const char16_t** characters, const char16_t* characters
     return result;
 }
 
+
+constexpr unsigned StringHashingStartValue = 0x9E3779B9u;
+constexpr unsigned StringHashMask = 0x00FFFFFFu;
+constexpr unsigned StringFlagCount = 8;
+constexpr unsigned StringImplFlagDidReportCost = 1u << 3;
+constexpr unsigned StringImplFlagAtom = 1u << 4;
+constexpr unsigned StringImplRefCountStatic = 1;
+
+constexpr unsigned AvalancheBits(unsigned hash) {
+    unsigned result = hash;
+    result ^= result << 3;
+    result += result >> 5;
+    result ^= result << 2;
+    result += result >> 15;
+    result ^= result << 10;
+    return result;
+}
+
+constexpr unsigned EmptyHashAndMaskTop8Bits() {
+    const unsigned hash = AvalancheBits(StringHashingStartValue) & StringHashMask;
+    return hash ? hash : 0x80000000u >> StringFlagCount;
+}
+
+constinit const unsigned char EmptyCharacters[1] = {0};
+constinit StringImpl EmptyAtomString{StringImplRefCountStatic, 0, EmptyCharacters,
+                                     StringImplFlag8Bit | StringImplFlagDidReportCost | StringImplFlagAtom | (EmptyHashAndMaskTop8Bits() << StringFlagCount)};
 }
 
 extern "C" {
+
+const String* APS5_VABI _ZN3WTF11emptyStringEv() {
+    static constinit const String emptyString{&EmptyAtomString};
+    return &emptyString;
+}
 
 const String* APS5_VABI _ZN3WTF10nullStringEv() {
     static constinit const String nullString{nullptr};

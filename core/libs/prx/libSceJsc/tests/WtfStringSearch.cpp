@@ -298,6 +298,28 @@ void TestInvalidArguments() {
     Check(!_ZN3WTF10protocolIsENS_10StringViewEPKc(View(" "), nullptr), __LINE__);
 }
 
+
+void TestGraphemeClusterIteratorInequality() {
+    StringView view = View("abc");
+    Jsc::WtfAbi::GraphemeClusterIteratorImpl first{&view, true, &view, 1, 2};
+    Jsc::WtfAbi::GraphemeClusterIteratorImpl same{&view, false, nullptr, 1, 3};
+    Jsc::WtfAbi::GraphemeClusterIteratorImpl end{&view, true, &view, 3, 3};
+    const Jsc::WtfAbi::GraphemeClusterIterator a{&first};
+    const Jsc::WtfAbi::GraphemeClusterIterator b{&same};
+    const Jsc::WtfAbi::GraphemeClusterIterator c{&end};
+    Check(!_ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(&a, &a), __LINE__);
+    Check(!_ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(&a, &b), __LINE__);
+    Check(_ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(&a, &c), __LINE__);
+    Check(_ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(&c, &b), __LINE__);
+    end.index = 1;
+    Check(!_ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(&c, &a), __LINE__);
+    Check(first.index == 1 && first.indexEnd == 2 && end.indexEnd == 3, __LINE__);
+    const Jsc::WtfAbi::GraphemeClusterIterator empty{nullptr};
+    Check(ThrowsInvalidArgument([&] { _ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(&a, &empty); }), __LINE__);
+    Check(ThrowsInvalidArgument([&] { _ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(&empty, &a); }), __LINE__);
+    Check(ThrowsInvalidArgument([&] { _ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(nullptr, &a); }), __LINE__);
+    Check(ThrowsInvalidArgument([&] { _ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(&a, nullptr); }), __LINE__);
+}
 } // namespace
 
 int main() {
@@ -309,5 +331,6 @@ int main() {
     TestStringView();
     TestProtocolIs();
     TestInvalidArguments();
+    TestGraphemeClusterIteratorInequality();
     return 0;
 }

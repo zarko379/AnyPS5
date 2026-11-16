@@ -5,6 +5,29 @@
 
 #include <cstddef>
 
+namespace Jsc::WtfAbi {
+
+struct GraphemeClusterIteratorImpl {
+    const StringView* stringView;
+    bool hasIterator;
+    void* iterator;
+    unsigned index;
+    unsigned indexEnd;
+};
+
+struct GraphemeClusterIterator {
+    GraphemeClusterIteratorImpl* impl;
+};
+
+static_assert(sizeof(GraphemeClusterIteratorImpl) == 32);
+static_assert(offsetof(GraphemeClusterIteratorImpl, hasIterator) == 8);
+static_assert(offsetof(GraphemeClusterIteratorImpl, iterator) == 16);
+static_assert(offsetof(GraphemeClusterIteratorImpl, index) == 24);
+static_assert(offsetof(GraphemeClusterIteratorImpl, indexEnd) == 28);
+static_assert(sizeof(GraphemeClusterIterator) == 8);
+
+} // namespace Jsc::WtfAbi
+
 extern "C" {
 
 bool APS5_VABI _ZNK3WTF10StringImpl10startsWithEPKS0_(const Jsc::WtfAbi::StringImpl* self, const Jsc::WtfAbi::StringImpl* prefix);
@@ -27,5 +50,7 @@ std::size_t APS5_VABI _ZNK3WTF10StringImpl21findIgnoringASCIICaseERKS0_(const Js
 std::size_t APS5_VABI _ZNK3WTF10StringImpl21findIgnoringASCIICaseERKS0_j(const Jsc::WtfAbi::StringImpl* self, const Jsc::WtfAbi::StringImpl* match, unsigned startOffset);
 bool APS5_VABI _ZNK3WTF10StringView8containsEPKc(const Jsc::WtfAbi::StringView* self, const char* string);
 bool APS5_VABI _ZN3WTF10protocolIsENS_10StringViewEPKc(Jsc::WtfAbi::StringView string, const char* protocol);
+bool APS5_VABI _ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(const Jsc::WtfAbi::GraphemeClusterIterator* self,
+                                                                  const Jsc::WtfAbi::GraphemeClusterIterator* other);
 
 }

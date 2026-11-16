@@ -21,6 +21,7 @@ using ToUIntStrictFunction = unsigned (APS5_VABI*)(const String*, bool*, int);
 using Utf8ImplFunction = UTF8ConversionError (APS5_VABI*)(const char16_t*, unsigned, char*&, std::size_t, ConversionMode);
 
 static_assert(std::is_same_v<decltype(&_ZN3WTF10nullStringEv), NullStringFunction>);
+static_assert(std::is_same_v<decltype(&_ZN3WTF11emptyStringEv), NullStringFunction>);
 static_assert(std::is_same_v<decltype(&_ZNK3WTF6String12toUIntStrictEPbi), ToUIntStrictFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3WTF10StringImpl8utf8ImplEPKDsjRPcmNS_14ConversionModeE), Utf8ImplFunction>);
 
@@ -85,6 +86,25 @@ void TestNullString() {
     Check(first != nullptr, __LINE__);
     Check(first == second, __LINE__);
     Check(first->impl == nullptr, __LINE__);
+}
+
+void TestEmptyString() {
+    const String* first = _ZN3WTF11emptyStringEv();
+    const String* second = _ZN3WTF11emptyStringEv();
+    Check(first != nullptr && first == second, __LINE__);
+    Check(first != _ZN3WTF10nullStringEv(), __LINE__);
+    const StringImpl* impl = first->impl;
+    Check(impl != nullptr, __LINE__);
+    Check(impl->refCount == 1, __LINE__);
+    Check(impl->length == 0, __LINE__);
+    Check(impl->data != nullptr && *static_cast<const unsigned char*>(impl->data) == 0, __LINE__);
+    Check(impl->hashAndFlags == 0xEC889E1Cu, __LINE__);
+    bool ok = true;
+    Check(_ZNK3WTF6String12toUIntStrictEPbi(first, &ok, 10) == 0 && !ok, __LINE__);
+    auto* mutableImpl = const_cast<StringImpl*>(impl);
+    mutableImpl->refCount += 2;
+    Check(_ZN3WTF11emptyStringEv()->impl->refCount == 3, __LINE__);
+    mutableImpl->refCount -= 2;
 }
 
 void TestToUIntStrict() {
@@ -228,6 +248,7 @@ void TestUtf8Impl() {
 
 int main() {
     TestNullString();
+    TestEmptyString();
     TestToUIntStrict();
     TestUtf8Impl();
     std::puts("WTF string conversion tests passed");
