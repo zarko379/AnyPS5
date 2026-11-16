@@ -127,7 +127,7 @@ void lowRateTests() {
     }
     const auto everyTwoSeconds = AgcDriver::ComposeOverlay(slow, true, true);
     require(everyTwoSeconds.above == std::vector<std::string>{"PROFILED", "FPS: 0.50", "FRAME: 2000 MS"}, "a present every 2 s shows " + std::to_string(everyTwoSeconds.above.size()) + " lines above the graph, the last '" + everyTwoSeconds.above.back() + "'");
-    require(everyTwoSeconds.below[0] == "MIN/AVG/MAX: 2000/2000/2000" && everyTwoSeconds.below[1] == "GPU: 20.0 MS" && everyTwoSeconds.below[2] == "DRIVER: 8.0 MS", "a present every 2 s shows '" + everyTwoSeconds.below[0] + "', '" + everyTwoSeconds.below[1] + "' and '" + everyTwoSeconds.below[2] + "'");
+    require(everyTwoSeconds.below[0] == "MIN/AVG/MAX: 2000/2000/2000" && everyTwoSeconds.below[1] == "GPU: 20.0 MS  1%" && everyTwoSeconds.below[2] == "DRIVER: 8.0 MS", "a present every 2 s shows '" + everyTwoSeconds.below[0] + "', '" + everyTwoSeconds.below[1] + "' and '" + everyTwoSeconds.below[2] + "'");
 
     OverlayStatistics glacial;
     glacial.AddPresent(Start, 0, 0);
@@ -135,7 +135,7 @@ void lowRateTests() {
     require(within(glacial.Fps(), 1000.0 / 12000.0) && within(glacial.LastFrameMs(), 12000) && within(glacial.GpuMsPerFrame(), 250) && within(glacial.DriverMsPerFrame(), 12500), "a present every 12 s reads as " + std::to_string(glacial.Fps()) + " FPS, " + std::to_string(glacial.LastFrameMs()) + " ms, " + std::to_string(glacial.GpuMsPerFrame()) + " and " + std::to_string(glacial.DriverMsPerFrame()) + " ms");
     const auto everyTwelveSeconds = AgcDriver::ComposeOverlay(glacial, true, true);
     require(everyTwelveSeconds.above == std::vector<std::string>{"PROFILED", "FPS: 0.08", "FRAME: 9999 MS"}, "a present every 12 s shows " + std::to_string(everyTwelveSeconds.above.size()) + " lines above the graph, the last '" + everyTwelveSeconds.above.back() + "'");
-    require(everyTwelveSeconds.below[0] == "MIN/AVG/MAX: 9999/9999/9999" && everyTwelveSeconds.below[1] == "GPU: 250 MS" && everyTwelveSeconds.below[2] == "DRIVER: 9999 MS", "a present every 12 s shows '" + everyTwelveSeconds.below[0] + "', '" + everyTwelveSeconds.below[1] + "' and '" + everyTwelveSeconds.below[2] + "'");
+    require(everyTwelveSeconds.below[0] == "MIN/AVG/MAX: 9999/9999/9999" && everyTwelveSeconds.below[1] == "GPU: 250 MS  2%" && everyTwelveSeconds.below[2] == "DRIVER: 9999 MS", "a present every 12 s shows '" + everyTwelveSeconds.below[0] + "', '" + everyTwelveSeconds.below[1] + "' and '" + everyTwelveSeconds.below[2] + "'");
     require(everyTwelveSeconds.frameTimes == std::vector<double>(5, 12000.0), "the graph does not hold the five 12 s frames");
     const auto layout = AgcDriver::LayOutOverlay(everyTwelveSeconds, {1920, 1080}, OverlayCorner::TopLeft);
     std::size_t bars = 0;
@@ -207,7 +207,7 @@ void composeTests() {
     require(plain.below.size() == 1 && plain.below[0] == "MIN/AVG/MAX: 10.0/10.0/10.0", "the graph line reads '" + plain.below[0] + "'");
     require(plain.frameTimes.size() == 100, "the graph does not hold every frame time");
     const auto profiled = AgcDriver::ComposeOverlay(statistics, true, true);
-    require(profiled.below.size() == 3 && profiled.below[1] == "GPU: 2.0 MS" && profiled.below[2] == "DRIVER: 0.5 MS", "the profiled lines read '" + profiled.below[1] + "' and '" + profiled.below[2] + "'");
+    require(profiled.below.size() == 3 && profiled.below[1] == "GPU: 2.0 MS  20%" && profiled.below[2] == "DRIVER: 0.5 MS", "the profiled lines read '" + profiled.below[1] + "' and '" + profiled.below[2] + "'");
     std::vector<std::string> marked{"PROFILED"};
     marked.insert(marked.end(), plain.above.begin(), plain.above.end());
     require(profiled.above == marked && AgcDriver::ComposeOverlay(statistics, true, false).above == marked && AgcDriver::ComposeOverlay(statistics, false, true).above == marked, "a profiled panel does not start with PROFILED above the unprofiled lines: it starts with '" + profiled.above.front() + "'");
@@ -382,7 +382,7 @@ void countFormatTests() {
 void detailComposeTests() {
     const auto statistics = countedStatistics();
     const auto full = AgcDriver::ComposeOverlay(statistics, true, true, fullDetails());
-    const std::vector<std::string> expected{"MIN/AVG/MAX: 16.0/16.0/16.0", "GPU: 4.0 MS", "DRIVER: 1.5 MS", "DRAWS: 1240  DISPATCH: 85", "SHADERS: 3  TOTAL: 1503", "VRAM: 6.1/7.8 GB", "RAM: 3.2 GB", "RES: 1920X1080 / 2560X1440"};
+    const std::vector<std::string> expected{"MIN/AVG/MAX: 16.0/16.0/16.0", "GPU: 4.0 MS  25%", "DRIVER: 1.5 MS", "DRAWS: 1240  DISPATCH: 85", "SHADERS: 3  TOTAL: 1503", "VRAM: 6.1/7.8 GB", "RAM: 3.2 GB", "RES: 1920X1080 / 2560X1440"};
     require(full.below == expected, "the full panel's lines below the graph read '" + (full.below.empty() ? std::string() : full.below.back()) + "' last, of " + std::to_string(full.below.size()));
     for (const auto& line : full.below) require(line.size() <= static_cast<std::size_t>(OverlayMetrics::Columns), "'" + line + "' is wider than the panel");
 
@@ -571,6 +571,50 @@ void requireDrawable(const OverlayContent& content, const std::string& what) {
             }
         }
     }
+}
+
+void debugLinesTests() {
+    const auto statistics = countedStatistics();
+    auto details = fullDetails();
+    details.cpuPercent = 23.4;
+    details.logicalProcessors = 16;
+    details.shadersCompiling = 7;
+    details.textures = AgcDriver::OverlayTextures{1234, static_cast<std::uint64_t>(2.5 * GiB)};
+    details.flipToPresentMs = 2.34;
+    const auto full = AgcDriver::ComposeOverlay(statistics, true, true, details);
+    const std::vector<std::string> expected{"MIN/AVG/MAX: 16.0/16.0/16.0", "GPU: 4.0 MS  25%", "DRIVER: 1.5 MS", "CPU: 23% OF 16 THREADS", "DRAWS: 1240  DISPATCH: 85", "SHADERS: 3  TOTAL: 1503", "SHADERS COMPILING: 7", "TEXTURES: 1234  2.5 GB", "FLIP TO PRESENT: 2.3 MS", "VRAM: 6.1/7.8 GB", "RAM: 3.2 GB", "RES: 1920X1080 / 2560X1440"};
+    require(full.below == expected, "the debug panel has " + std::to_string(full.below.size()) + " lines below the graph, the fourth '" + (full.below.size() > 3 ? full.below[3] : std::string()) + "'");
+    requireDrawable(full, "page 1 with every debug line");
+
+    details.cpuPercent = 100.0;
+    details.logicalProcessors = 4'000'000'000u;
+    details.shadersCompiling = 5'000'000'000ull;
+    details.textures = AgcDriver::OverlayTextures{5'000'000'000ull, 20000 * static_cast<std::uint64_t>(GiB)};
+    details.flipToPresentMs = 123456.0;
+    auto widest = countedStatistics();
+    auto counters = widest.Latest();
+    counters.gpuNanoseconds += 1'000'000'000'000ull;
+    widest.AddPresent(Start + 62 * 16ms, counters);
+    const auto wide = AgcDriver::ComposeOverlay(widest, true, true, details);
+    requireDrawable(wide, "page 1 with the widest debug values");
+    require(std::find(wide.below.begin(), wide.below.end(), "CPU: 100% OF 999M THREADS") != wide.below.end() && std::find(wide.below.begin(), wide.below.end(), "FLIP TO PRESENT: 9999 MS") != wide.below.end() && wide.below[1].ends_with("  100%"), "the widest debug values are not capped: the GPU line reads '" + wide.below[1] + "'");
+
+    details = fullDetails();
+    details.logicalProcessors = 16;
+    const auto withoutCpu = AgcDriver::ComposeOverlay(statistics, false, false, details);
+    require(std::none_of(withoutCpu.below.begin(), withoutCpu.below.end(), [](const std::string& line) { return line.starts_with("CPU"); }), "the processor count is shown without a CPU sample");
+
+    using Clock = OverlayStatistics::Clock;
+    const auto percent = AgcDriver::OverlayCpuPercent(1'000'000'000u, 3'000'000'000u, std::chrono::duration_cast<Clock::duration>(1s), 8);
+    require(percent && within(*percent, 25.0), "2 s of CPU time over 1 s on 8 threads is not 25%");
+    require(AgcDriver::OverlayCpuPercent(0, 20'000'000'000u, std::chrono::duration_cast<Clock::duration>(1s), 8) == 100.0, "CPU time beyond every thread is not capped at 100%");
+    require(!AgcDriver::OverlayCpuPercent(5, 4, std::chrono::duration_cast<Clock::duration>(1s), 8) && !AgcDriver::OverlayCpuPercent(0, 4, Clock::duration{}, 8) && !AgcDriver::OverlayCpuPercent(0, 4, std::chrono::duration_cast<Clock::duration>(1s), 0), "a CPU share is made from a falling counter, no time or no processors");
+    const auto before = AgcDriver::ReadProcessCpuNanoseconds();
+    volatile std::uint64_t spin = 0;
+    const auto until = std::chrono::steady_clock::now() + 50ms;
+    while (std::chrono::steady_clock::now() < until) spin = spin + 1;
+    const auto after = AgcDriver::ReadProcessCpuNanoseconds();
+    require(before && after && *after > *before, "50 ms of spinning did not raise the process's CPU time");
 }
 
 void overlayScaleRequestTests() {
@@ -979,6 +1023,7 @@ int main() {
         packetCounterTests();
         countFormatTests();
         detailComposeTests();
+        debugLinesTests();
         fullPanelLayoutTests();
         fontTests();
         widePanelTests();

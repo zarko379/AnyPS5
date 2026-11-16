@@ -156,9 +156,19 @@ struct OverlayMemory {
     std::uint64_t budget = 0;
 };
 
+struct OverlayTextures {
+    std::uint64_t count = 0;
+    std::uint64_t bytes = 0;
+};
+
 struct OverlayDetails {
     std::optional<OverlayMemory> vram;
     std::optional<std::uint64_t> ram;
+    std::optional<double> cpuPercent;
+    std::optional<std::uint32_t> logicalProcessors;
+    std::optional<std::uint64_t> shadersCompiling;
+    std::optional<OverlayTextures> textures;
+    std::optional<double> flipToPresentMs;
     VkExtent2D display{};
     VkExtent2D window{};
 };
@@ -223,6 +233,8 @@ struct OverlayPresentInfo {
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_MAX_ENUM_KHR;
     std::uint64_t acquireDrops = 0;
     double fpsLimit = 0.0;
+    double flipToPresentMs = 0.0;
+    std::uint64_t flipToPresentSamples = 0;
 };
 
 struct OverlayTraceFigures {
@@ -258,6 +270,8 @@ std::optional<OverlayMemory> ReadVramBudget(const Graphics::Context& context);
 std::optional<std::uint64_t> ReadProcessPrivateBytes();
 std::optional<OverlayMemory> ParseCommitCharge(std::string_view meminfo);
 std::optional<OverlayMemory> ReadCommitCharge();
+std::optional<std::uint64_t> ReadProcessCpuNanoseconds();
+std::optional<double> OverlayCpuPercent(std::uint64_t before, std::uint64_t now, OverlayStatistics::Clock::duration elapsed, std::uint32_t processors);
 std::optional<std::uint64_t> ReadPageFaults();
 std::optional<std::uint64_t> ReadPhysicalMemoryBytes();
 std::int32_t OverlayScale(VkExtent2D extent, const OverlayContent& content, std::int32_t requested = 0);
@@ -335,6 +349,9 @@ private:
     OverlayDetailSample detailSample;
     DetailState detail;
     std::optional<OverlayStatistics::Clock::time_point> sampledAt;
+    std::optional<std::uint64_t> cpuBase;
+    double flipToPresentBaseMs = 0.0;
+    std::uint64_t flipToPresentBaseSamples = 0;
     std::uint64_t toggles = 0;
     std::uint32_t page = 0;
 };

@@ -26,6 +26,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string_view>
+#include <thread>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -450,11 +451,24 @@ OverlayContent ComposeOverlay(const OverlayStatistics& statistics, bool gpu, boo
     content.frameTimes = statistics.FrameTimes();
     const auto range = statistics.FrameTimeRange();
     content.below.push_back("MIN/AVG/MAX: " + FormatOverlayValue(range.minimum) + "/" + FormatOverlayValue(range.average) + "/" + FormatOverlayValue(range.maximum));
-    if (gpu) content.below.push_back("GPU: " + FormatOverlayValue(statistics.GpuMsPerFrame()) + " MS");
+    if (gpu) {
+        const double gpuMs = statistics.GpuMsPerFrame();
+        std::string line = "GPU: " + FormatOverlayValue(gpuMs) + " MS";
+        if (range.average > 0 && std::isfinite(gpuMs)) line += "  " + FormatOverlayCount(std::min(100.0, 100.0 * gpuMs / range.average)) + "%";
+        content.below.push_back(std::move(line));
+    }
     if (driver) content.below.push_back("DRIVER: " + FormatOverlayValue(statistics.DriverMsPerFrame()) + " MS");
+    if (details.cpuPercent) {
+        std::string line = "CPU: " + FormatOverlayCount(*details.cpuPercent) + "%";
+        if (details.logicalProcessors) line += " OF " + FormatOverlayCount(static_cast<double>(*details.logicalProcessors)) + " THREADS";
+        content.below.push_back(std::move(line));
+    }
     const auto latest = statistics.Latest();
     if (latest.draws != 0 || latest.dispatches != 0) content.below.push_back("DRAWS: " + FormatOverlayCount(statistics.DrawsPerFrame()) + "  DISPATCH: " + FormatOverlayCount(statistics.DispatchesPerFrame()));
     if (latest.pipelines != 0) content.below.push_back("SHADERS: " + FormatOverlayCount(static_cast<double>(statistics.PipelinesInWindow())) + "  TOTAL: " + FormatOverlayCount(static_cast<double>(latest.pipelines)));
+    if (details.shadersCompiling) content.below.push_back("SHADERS COMPILING: " + FormatOverlayCount(static_cast<double>(*details.shadersCompiling)));
+    if (details.textures) content.below.push_back("TEXTURES: " + FormatOverlayCount(static_cast<double>(details.textures->count)) + "  " + FormatOverlayGigabytes(details.textures->bytes) + " GB");
+    if (details.flipToPresentMs) content.below.push_back("FLIP TO PRESENT: " + FormatOverlayValue(*details.flipToPresentMs) + " MS");
     if (details.vram) content.below.push_back("VRAM: " + FormatOverlayGigabytes(details.vram->used) + "/" + FormatOverlayGigabytes(details.vram->budget) + " GB");
     if (details.ram) content.below.push_back("RAM: " + FormatOverlayGigabytes(*details.ram) + " GB");
     if (details.display.width != 0 && details.display.height != 0 && details.window.width != 0 && details.window.height != 0) {
@@ -647,6 +661,29 @@ std::optional<std::uint64_t> ReadProcessPrivateBytes() {
     if (!anonymousKb) return std::nullopt;
     return (*anonymousKb + swapKb) * 1024u;
 #endif
+}
+
+std::optional<std::uint64_t> ReadProcessCpuNanoseconds() {
+#ifdef _WIN32
+    FILETIME created{};
+    FILETIME exited{};
+    FILETIME kernel{};
+    FILETIME user{};
+    if (GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) == 0) return std::nullopt;
+    const auto ticks = [](const FILETIME& time) { return (static_cast<std::uint64_t>(time.dwHighDateTime) << 32u) | time.dwLowDateTime; };
+    return (ticks(kernel) + ticks(user)) * 100u;
+#else
+    rusage usage{};
+    if (getrusage(RUSAGE_SELF, &usage) != 0) return std::nullopt;
+    const auto nanoseconds = [](const timeval& time) { return static_cast<std::uint64_t>(time.tv_sec) * 1'000'000'000u + static_cast<std::uint64_t>(time.tv_usec) * 1000u; };
+    return nanoseconds(usage.ru_utime) + nanoseconds(usage.ru_stime);
+#endif
+}
+
+std::optional<double> OverlayCpuPercent(std::uint64_t before, std::uint64_t now, OverlayStatistics::Clock::duration elapsed, std::uint32_t processors) {
+    if (now < before || processors == 0 || elapsed <= OverlayStatistics::Clock::duration{}) return std::nullopt;
+    const double wall = std::chrono::duration<double, std::nano>(elapsed).count() * static_cast<double>(processors);
+    return std::clamp(100.0 * static_cast<double>(now - before) / wall, 0.0, 100.0);
 }
 
 std::optional<OverlayMemory> ParseCommitCharge(std::string_view meminfo) {
@@ -915,6 +952,18 @@ void PerformanceOverlay::NotePresent(OverlayStatistics::Clock::time_point at, Vk
     if (OverlaySampleDue(sampledAt, at)) {
         details.vram = ReadVramBudget(context);
         details.ram = ReadProcessPrivateBytes();
+        const auto processors = std::thread::hardware_concurrency();
+        details.logicalProcessors = processors != 0 ? std::optional<std::uint32_t>(processors) : std::nullopt;
+        const auto cpu = ReadProcessCpuNanoseconds();
+        details.cpuPercent = cpu && cpuBase && sampledAt ? OverlayCpuPercent(*cpuBase, *cpu, at - *sampledAt, processors) : std::nullopt;
+        cpuBase = cpu;
+        details.shadersCompiling = DriverDetail::RegistrationPreparationsPending();
+        const auto textures = Graphics::TextureCacheUsage();
+        details.textures = OverlayTextures{textures.sampledEntries, textures.sampledBytes + textures.spareBytes + textures.storageBytes};
+        const bool flipped = sampledAt && info.flipToPresentSamples > flipToPresentBaseSamples && info.flipToPresentMs >= flipToPresentBaseMs;
+        details.flipToPresentMs = flipped ? std::optional<double>((info.flipToPresentMs - flipToPresentBaseMs) / static_cast<double>(info.flipToPresentSamples - flipToPresentBaseSamples)) : std::nullopt;
+        flipToPresentBaseMs = info.flipToPresentMs;
+        flipToPresentBaseSamples = info.flipToPresentSamples;
         sampledAt = at;
     }
     details.display = display;
@@ -931,6 +980,9 @@ void PerformanceOverlay::restartIfToggled() {
     detailSample = {};
     detail = {};
     sampledAt.reset();
+    cpuBase.reset();
+    flipToPresentBaseMs = 0.0;
+    flipToPresentBaseSamples = 0;
     toggles = current;
 }
 

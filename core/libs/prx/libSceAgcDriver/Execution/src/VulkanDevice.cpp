@@ -4471,7 +4471,7 @@ bool VulkanDevice::present(std::uint32_t width, std::uint32_t height, bool opaqu
     }
     if (overlay) {
         if (!state->overlay) state->overlay = std::make_unique<PerformanceOverlay>(graphicsContext(), state->presentSlots.size());
-        state->overlay->NotePresent(std::chrono::steady_clock::now(), clearOnly ? VkExtent2D{} : VkExtent2D{width, height}, OverlayPresentInfo{std::exchange(state->presentedAddress, 0), state->presentMode, presentCounters.acquireDrops, ConfiguredFrameLimit() ? ConfiguredFrameLimit()->FramesPerSecond() : 0.0});
+        state->overlay->NotePresent(std::chrono::steady_clock::now(), clearOnly ? VkExtent2D{} : VkExtent2D{width, height}, OverlayPresentInfo{std::exchange(state->presentedAddress, 0), state->presentMode, presentCounters.acquireDrops, ConfiguredFrameLimit() ? ConfiguredFrameLimit()->FramesPerSecond() : 0.0, presentCounters.blitSubmitAfterFlipMs, presentCounters.flipsTimed});
         state->overlay->Record(commands, static_cast<std::size_t>(&slot - state->presentSlots.data()), barrier.image, state->surfaceFormat, state->surfaceColorSpace, state->extent, drawn || upscaled || plane != nullptr || keyboard || padStatusShown ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     } else if (!drawn && !upscaled && plane == nullptr && !keyboard && !padStatusShown) {
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -4540,6 +4540,7 @@ bool VulkanDevice::present(std::uint32_t width, std::uint32_t height, bool opaqu
             if (atFlip != 0 && batchesAtBlit >= atFlip) presentCounters.batchesAheadOfBlit += batchesAtBlit - atFlip;
             if (frame->FlipReached() != std::chrono::steady_clock::time_point{}) {
                 presentCounters.blitSubmitAfterFlipMs += std::chrono::duration<double, std::milli>(submittedAt - frame->FlipReached()).count();
+                ++presentCounters.flipsTimed;
                 presentCounters.lastSubmitAfterFlipMs += std::chrono::duration<double, std::milli>(std::max(lastSubmittedAt, submittedAt) - frame->FlipReached()).count();
             }
         }
