@@ -42,6 +42,7 @@ struct DeprecatedGlobalSettingsState {
 
 DeprecatedGlobalSettingsState CurrentDeprecatedGlobalSettings();
 int PageConsoleClientMuteCount();
+bool SQLiteDatabaseOpeningForbidden();
 
 }
 
@@ -68,5 +69,8 @@ bool APS5_VABI _ZN7WebCore17PageConsoleClient21shouldPrintExceptionsEv();
 void APS5_VABI _ZN7WebCore17PageConsoleClient24setShouldPrintExceptionsEb(bool print);
 void APS5_VABI _ZN7WebCore17PageConsoleClient4muteEv();
 void APS5_VABI _ZN7WebCore17PageConsoleClient6unmuteEv();
+bool APS5_VABI _ZN7WebCore27PlatformMediaSessionManager28shouldDeactivateAudioSessionEv();
+void APS5_VABI _ZN7WebCore27PlatformMediaSessionManager31setShouldDeactivateAudioSessionEb(bool deactivate);
+void APS5_VABI _ZN7WebCore14SQLiteDatabase29setIsDatabaseOpeningForbiddenEb(bool isForbidden);
 
 }

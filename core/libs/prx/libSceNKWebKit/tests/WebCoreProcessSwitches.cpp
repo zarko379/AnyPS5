@@ -97,6 +97,22 @@ void TestPhysicalFootprint() {
     Require(footprint.value == 0);
 }
 
+void TestAudioSessionAndDatabaseSwitches() {
+    Require(!_ZN7WebCore27PlatformMediaSessionManager28shouldDeactivateAudioSessionEv());
+    _ZN7WebCore27PlatformMediaSessionManager31setShouldDeactivateAudioSessionEb(true);
+    Require(_ZN7WebCore27PlatformMediaSessionManager28shouldDeactivateAudioSessionEv());
+    _ZN7WebCore27PlatformMediaSessionManager31setShouldDeactivateAudioSessionEb(true);
+    Require(_ZN7WebCore27PlatformMediaSessionManager28shouldDeactivateAudioSessionEv());
+    _ZN7WebCore27PlatformMediaSessionManager31setShouldDeactivateAudioSessionEb(false);
+    Require(!_ZN7WebCore27PlatformMediaSessionManager28shouldDeactivateAudioSessionEv());
+
+    Require(!NKWebKit::WebCoreAbi::SQLiteDatabaseOpeningForbidden());
+    _ZN7WebCore14SQLiteDatabase29setIsDatabaseOpeningForbiddenEb(true);
+    Require(NKWebKit::WebCoreAbi::SQLiteDatabaseOpeningForbidden());
+    _ZN7WebCore14SQLiteDatabase29setIsDatabaseOpeningForbiddenEb(false);
+    Require(!NKWebKit::WebCoreAbi::SQLiteDatabaseOpeningForbidden());
+}
+
 }  // namespace
 
 int main() {
@@ -105,6 +121,7 @@ int main() {
     TestSharedResourceLoadObserver();
     TestMediaEngineConfigurationMock();
     TestPhysicalFootprint();
+    TestAudioSessionAndDatabaseSwitches();
     Require(NotImplementedCalls_nid_no_patch() == before);
     return 0;
 }

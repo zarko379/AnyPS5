@@ -17036,10 +17036,6 @@ int APS5_VABI _ZN7WebCore14SQLiteDatabase27turnOnIncrementalAutoVacuumEv() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN7WebCore14SQLiteDatabase29setIsDatabaseOpeningForbiddenEb() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN7WebCore14SQLiteDatabase5closeEv() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -21833,10 +21829,6 @@ int APS5_VABI _ZN7WebCore27PlatformMediaSessionManager26applicationDidBecomeActi
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI _ZN7WebCore27PlatformMediaSessionManager28shouldDeactivateAudioSessionEv() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI _ZN7WebCore27PlatformMediaSessionManager29applicationDidEnterBackgroundEb() {
     NotImplemented_nid_no_patch(__func__);
 }
@@ -21846,10 +21838,6 @@ int APS5_VABI _ZN7WebCore27PlatformMediaSessionManager29applicationWillBecomeIna
 }
 
 int APS5_VABI _ZN7WebCore27PlatformMediaSessionManager30applicationWillEnterForegroundEb() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI _ZN7WebCore27PlatformMediaSessionManager31setShouldDeactivateAudioSessionEb() {
     NotImplemented_nid_no_patch(__func__);
 }
 
