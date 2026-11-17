@@ -2809,7 +2809,7 @@ void EmitImageBvhIntersectRay(SpirvValueEmitContext& ctx, const IrValue& inst) {
             return node64 ? inRange : both(op(spv::OpINotEqual, boolean, baseUnits, BdaConstant(state, 0u)), inRange);
         };
         const auto valid = within(spv::OpULessThanEqual);
-        const auto isTriangle = both(valid, op(spv::OpULessThanEqual, boolean, type, uint(1u)));
+        const auto isTriangle = both(valid, op(spv::OpULessThanEqual, boolean, type, uint(3u)));
         const auto isBox16 = both(valid, op(spv::OpIEqual, boolean, type, uint(4u)));
         const auto isBox32 = both(within(spv::OpULessThan), op(spv::OpIEqual, boolean, type, uint(5u)));
 
@@ -2879,15 +2879,20 @@ void EmitImageBvhIntersectRay(SpirvValueEmitContext& ctx, const IrValue& inst) {
 
         const auto triangle = [&] {
             const auto d = nodeDwords(16u);
-            const auto second = op(spv::OpIEqual, boolean, type, uint(1u));
-            std::array<std::uint32_t, 3> v1{};
-            std::array<std::uint32_t, 3> v2{};
-            std::array<std::uint32_t, 3> v3{};
-            for (std::uint32_t axis = 0; axis < 3u; ++axis) {
-                v1[axis] = selectF(second, asFloat(d[3u + axis]), asFloat(d[axis]));
-                v2[axis] = selectF(second, asFloat(d[9u + axis]), asFloat(d[3u + axis]));
-                v3[axis] = asFloat(d[6u + axis]);
-            }
+            constexpr std::array<std::array<std::uint32_t, 3>, 4> corners{{{0u, 1u, 2u}, {1u, 3u, 2u}, {2u, 3u, 4u}, {2u, 4u, 0u}}};
+            std::array<std::uint32_t, 4> isType{};
+            for (std::uint32_t kind = 1; kind < 4u; ++kind) isType[kind] = op(spv::OpIEqual, boolean, type, uint(kind));
+            const auto corner = [&](std::uint32_t index) {
+                std::array<std::uint32_t, 3> vertex{};
+                for (std::uint32_t axis = 0; axis < 3u; ++axis) {
+                    vertex[axis] = asFloat(d[corners[0][index] * 3u + axis]);
+                    for (std::uint32_t kind = 1; kind < 4u; ++kind) vertex[axis] = selectF(isType[kind], asFloat(d[corners[kind][index] * 3u + axis]), vertex[axis]);
+                }
+                return vertex;
+            };
+            const auto v1 = corner(0u);
+            const auto v2 = corner(1u);
+            const auto v3 = corner(2u);
             const auto e1 = sub(v2, v1);
             const auto e2 = sub(v3, v1);
             const auto e3 = sub(origin, v1);

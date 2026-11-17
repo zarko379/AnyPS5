@@ -35,7 +35,8 @@ constexpr std::uint64_t NodeBytes = 64;
 constexpr std::uint32_t LastNode = 6;
 constexpr std::uint32_t Invalid = 0xffffffffu;
 constexpr std::uint32_t BoxSort = 0x80000000u;
-constexpr std::uint32_t TriangleId = 0x00abc123u;
+constexpr std::uint32_t TriangleId = 0x060dc123u;
+constexpr std::uint32_t ReturnBarycentrics = 0x01000000u;
 constexpr std::array<std::uint32_t, 4> Box32Children{0x1000u, 0x1001u, 0x1002u, 0x1003u};
 constexpr std::array<std::uint32_t, 4> Box16Children{0x2000u, 0x2001u, 0x2002u, 0x2003u};
 constexpr std::array<std::uint32_t, 4> PastEndChildren{0x3000u, 0x3001u, 0x3002u, 0x3003u};
@@ -89,6 +90,7 @@ struct Case {
     std::uint32_t node;
     Ray ray;
     std::array<std::uint32_t, 4> expected;
+    std::array<std::uint32_t, 4> barycentrics;
 };
 
 constexpr float Infinity = std::numeric_limits<float>::infinity();
@@ -97,20 +99,31 @@ constexpr std::array<float, 3> DiagonalInverse{4.0f, 2.0f, 1.0f};
 constexpr Ray Long{100.0f, {0.0f, 0.0f, 0.0f}, Diagonal, DiagonalInverse};
 constexpr Ray Short{2.0f, {0.0f, 0.0f, 0.0f}, Diagonal, DiagonalInverse};
 constexpr Ray Forward{100.0f, {0.25f, 0.25f, 0.0f}, {0.0f, 0.0f, 1.0f}, {Infinity, Infinity, 1.0f}};
+constexpr Ray RightForward{100.0f, {0.75f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {Infinity, Infinity, 1.0f}};
+constexpr Ray LeftForward{100.0f, {0.125f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {Infinity, Infinity, 1.0f}};
+constexpr std::array<std::uint32_t, 4> Miss{Invalid, Invalid, Invalid, Invalid};
 
 constexpr std::uint32_t Pointer(std::uint32_t node, std::uint32_t type) {
     return (node << 3u) | type;
 }
 
-constexpr std::array<Case, 8> Cases{{
-    {Pointer(2, 5), Long, {Box32Children[2], Box32Children[0], Invalid, Invalid}},
-    {Pointer(4, 4), Long, {Box16Children[2], Box16Children[0], Invalid, Invalid}},
-    {Pointer(1, 0), Forward, {0xc0a00000u, 0xbf800000u, TriangleId, 1u}},
-    {Pointer(1, 1), Forward, {0x7f800000u, 0x3f800000u, TriangleId, 0u}},
-    {Pointer(1, 7), Long, {Invalid, Invalid, Invalid, Invalid}},
-    {Pointer(6, 5), Long, {Invalid, Invalid, Invalid, Invalid}},
-    {Pointer(7, 0), Forward, {Invalid, Invalid, Invalid, Invalid}},
-    {Pointer(2, 5), Short, {Box32Children[2], Invalid, Invalid, Invalid}},
+constexpr std::array<Case, 16> Cases{{
+    {Pointer(2, 5), Long, {Box32Children[2], Box32Children[0], Invalid, Invalid}, {Box32Children[2], Box32Children[0], Invalid, Invalid}},
+    {Pointer(4, 4), Long, {Box16Children[2], Box16Children[0], Invalid, Invalid}, {Box16Children[2], Box16Children[0], Invalid, Invalid}},
+    {Pointer(1, 0), Forward, {0xc0a00000u, 0xbf800000u, TriangleId, 1u}, {0xc0a00000u, 0xbf800000u, 0xbf000000u, 0xbf000000u}},
+    {Pointer(1, 1), Forward, {0x7f800000u, 0x3f800000u, TriangleId, 0u}, {0x7f800000u, 0x3f800000u, 0x3f000000u, 0x3fa00000u}},
+    {Pointer(1, 7), Long, Miss, Miss},
+    {Pointer(6, 5), Long, Miss, Miss},
+    {Pointer(7, 0), Forward, Miss, Miss},
+    {Pointer(2, 5), Short, {Box32Children[2], Invalid, Invalid, Invalid}, {Box32Children[2], Invalid, Invalid, Invalid}},
+    {Pointer(1, 1), RightForward, {0xc0a00000u, 0xbf800000u, TriangleId, 1u}, {0xc0a00000u, 0xbf800000u, 0xbe800000u, 0xbf000000u}},
+    {Pointer(1, 2), Forward, {0x7f800000u, 0x3f800000u, TriangleId, 0u}, {0x7f800000u, 0x3f800000u, 0xbe800000u, 0x3f000000u}},
+    {Pointer(1, 2), RightForward, {0x41200000u, 0x40000000u, TriangleId, 1u}, {0x41200000u, 0x40000000u, 0x3f800000u, 0x3f000000u}},
+    {Pointer(1, 3), Forward, {0x40a00000u, 0x3f800000u, TriangleId, 1u}, {0x40a00000u, 0x3f800000u, 0x3e800000u, 0x3e800000u}},
+    {Pointer(1, 3), RightForward, {0x7f800000u, 0x3f800000u, TriangleId, 0u}, {0x7f800000u, 0x3f800000u, 0xbf800000u, 0x3f400000u}},
+    {Pointer(1, 3), LeftForward, {0x40a00000u, 0x3f800000u, TriangleId, 1u}, {0x40a00000u, 0x3f800000u, 0x3e800000u, 0x3e000000u}},
+    {Pointer(7, 2), Forward, Miss, Miss},
+    {Pointer(7, 3), RightForward, Miss, Miss},
 }};
 
 constexpr std::array<std::array<float, 6>, 4> Boxes{{
@@ -120,7 +133,7 @@ constexpr std::array<std::array<float, 6>, 4> Boxes{{
     {-2.0f, -4.0f, -8.0f, -1.0f, -2.0f, -4.0f},
 }};
 
-constexpr std::array<float, 12> TriangleVertices{0.0f, 0.0f, 5.0f, 1.0f, 0.0f, 5.0f, 0.0f, 1.0f, 5.0f, 1.0f, 1.0f, 5.0f};
+constexpr std::array<float, 15> TriangleVertices{0.0f, 0.0f, 5.0f, 1.0f, 0.0f, 5.0f, 0.0f, 1.0f, 5.0f, 1.0f, 1.0f, 5.0f, 1.0f, -1.0f, 5.0f};
 
 std::uint32_t Bits(float value) {
     return std::bit_cast<std::uint32_t>(value);
@@ -233,19 +246,19 @@ std::array<std::uint32_t, 4> BufferDescriptor(const void* data, std::uint32_t by
     return {static_cast<std::uint32_t>(address), static_cast<std::uint32_t>((address >> 32u) & 0xffffu), bytes, 0x31016facu};
 }
 
-std::array<std::uint32_t, 4> BvhDescriptor(std::uint64_t base, std::uint64_t lastNode) {
-    return {static_cast<std::uint32_t>(base >> 8u), static_cast<std::uint32_t>((base >> 40u) & 0xffu) | BoxSort, static_cast<std::uint32_t>(lastNode), static_cast<std::uint32_t>((lastNode >> 32u) & 0x3ffu)};
+std::array<std::uint32_t, 4> BvhDescriptor(std::uint64_t base, std::uint64_t lastNode, bool barycentrics) {
+    return {static_cast<std::uint32_t>(base >> 8u), static_cast<std::uint32_t>((base >> 40u) & 0xffu) | BoxSort, static_cast<std::uint32_t>(lastNode), static_cast<std::uint32_t>((lastNode >> 32u) & 0x3ffu) | (barycentrics ? ReturnBarycentrics : 0u)};
 }
 
-void Run(AgcDriver::VulkanDevice& device, const GuestBlock& guest, bool addressInPointer) {
+void Run(AgcDriver::VulkanDevice& device, const GuestBlock& guest, bool addressInPointer, bool barycentrics) {
     const auto address = guest.Address();
     FillInput(addressInPointer ? address >> 3u : 0u);
     Output.fill(0xdeadbeefu);
     std::vector<std::uint32_t> userData(16, 0u);
     const auto input = BufferDescriptor(Input.data(), static_cast<std::uint32_t>(Input.size() * 4u));
     const auto output = BufferDescriptor(Output.data(), static_cast<std::uint32_t>(Output.size() * 4u));
-    const auto narrow = BvhDescriptor(address, LastNode);
-    const auto wide = addressInPointer ? BvhDescriptor(0u, address / NodeBytes + LastNode) : narrow;
+    const auto narrow = BvhDescriptor(address, LastNode, barycentrics);
+    const auto wide = addressInPointer ? BvhDescriptor(0u, address / NodeBytes + LastNode, barycentrics) : narrow;
     std::copy(input.begin(), input.end(), userData.begin());
     std::copy(output.begin(), output.end(), userData.begin() + 4);
     std::copy(narrow.begin(), narrow.end(), userData.begin() + 8);
@@ -265,17 +278,20 @@ void Run(AgcDriver::VulkanDevice& device, const GuestBlock& guest, bool addressI
     device.WaitIdle();
 }
 
-void Check(bool addressInPointer) {
-    const std::string mode = addressInPointer ? "address in the node pointer" : "base in the descriptor";
+void Check(bool addressInPointer, bool barycentrics) {
+    const std::string mode = std::string(addressInPointer ? "address in the node pointer" : "base in the descriptor") + (barycentrics ? ", barycentrics" : "");
+    std::string failures;
     for (std::uint32_t tid = 0; tid < Threads; ++tid) {
-        const auto& expected = Cases[tid % Cases.size()].expected;
+        const auto& test = Cases[tid % Cases.size()];
+        const auto& expected = barycentrics ? test.barycentrics : test.expected;
         for (std::uint32_t form = 0; form < Forms; ++form) {
             for (std::uint32_t dword = 0; dword < 4u; ++dword) {
                 const auto actual = Output[tid * Record + form * 4u + dword];
-                Require(actual == expected[dword], std::string(FormNames[form]) + ", " + mode + ": thread " + std::to_string(tid) + " dword " + std::to_string(dword) + " is " + std::to_string(actual) + ", expected " + std::to_string(expected[dword]));
+                if (actual != expected[dword]) failures += std::string(FormNames[form]) + ", " + mode + ": node type " + std::to_string(test.node & 7u) + ", thread " + std::to_string(tid) + " dword " + std::to_string(dword) + " is " + std::to_string(actual) + ", expected " + std::to_string(expected[dword]) + ";";
             }
         }
     }
+    Require(failures.empty(), failures);
 }
 
 }
@@ -291,9 +307,11 @@ int main() {
         GuestBlock guest;
         Require((guest.Address() >> 35u) != 0u, "bvh64 intersect ray: the guest block is not above 32 GiB, the node pointer would fit 32 bits");
         FillNodes(guest);
-        for (const bool addressInPointer : {true, false}) {
-            Run(*device, guest, addressInPointer);
-            Check(addressInPointer);
+        for (const bool barycentrics : {false, true}) {
+            for (const bool addressInPointer : {true, false}) {
+                Run(*device, guest, addressInPointer, barycentrics);
+                Check(addressInPointer, barycentrics);
+            }
         }
         std::puts("bvh64 intersect ray tests passed");
         return 0;
