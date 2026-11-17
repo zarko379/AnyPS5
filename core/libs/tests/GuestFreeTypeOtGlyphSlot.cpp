@@ -226,7 +226,7 @@ int APS5_VABI RecordInitSlot(GuestGlyphSlotRec* slot) {
         auto* recorder = Owner(static_cast<GuestMemoryRec*>(memory));
         auto* loader = static_cast<GuestGlyphLoaderRec*>(static_cast<GuestSlotInternalRec*>(slot->internal)->loader);
         loader->base.outline.points = static_cast<FreeType::GuestVector*>(recorder->memory.alloc(&recorder->memory, 16));
-        loader->base.subglyphs = recorder->memory.alloc(&recorder->memory, 8);
+        loader->base.subglyphs = static_cast<FreeType::GuestSubGlyphRec*>(recorder->memory.alloc(&recorder->memory, 8));
         Require(ft_glyphslot_alloc_bitmap_nid_postfix(slot, 4) == 0, "init_slot allocates an owned bitmap");
     }
     return calls.initResult;

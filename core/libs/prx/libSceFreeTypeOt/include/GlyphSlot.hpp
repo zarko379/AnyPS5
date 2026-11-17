@@ -8,6 +8,7 @@
 
 #include "prx/libSceFreeType/include/GuestFreeType.hpp"
 #include "prx/libSceFreeType/include/GuestList.hpp"
+#include "prx/libSceFreeTypeOt/include/GlyphLoader.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -49,25 +50,6 @@ struct GuestDriverRec {
     GuestDriverClassPrefix* clazz;
     GuestListRec faces_list;
     void* glyph_loader;
-};
-
-struct GuestGlyphLoadRec {
-    GuestOutline outline;
-    GuestVector* extra_points;
-    GuestVector* extra_points2;
-    std::uint32_t num_subglyphs;
-    void* subglyphs;
-};
-
-struct GuestGlyphLoaderRec {
-    GuestMemoryRec* memory;
-    std::uint32_t max_points;
-    std::uint32_t max_contours;
-    std::uint32_t max_subglyphs;
-    std::uint8_t use_extra;
-    GuestGlyphLoadRec base;
-    GuestGlyphLoadRec current;
-    void* other;
 };
 
 struct GuestSlotInternalRec {
