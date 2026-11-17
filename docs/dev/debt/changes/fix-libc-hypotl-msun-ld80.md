@@ -1,0 +1,5 @@
+# libc
+
+## add Functional
+
+- [hypotl](../../../core/libs/prx/libc/src/Math.cpp) (libc) - other SDK versions and the system `libSceLibcInternal` are not compared. It is FreeBSD msun's [`e_hypotl.c`](https://github.com/freebsd/freebsd-src/blob/release/11.4.0/lib/msun/src/e_hypotl.c) for ld80, as in the `libc.prx` build `J03093718` bundled with PPSA21564 (0x48b90), whose 2^16382 scale factor is the pseudo-NaN `0x7fff:4000000000000000`: if the argument with the smaller exponent field (`y` on a tie) is nonzero with a zero exponent field and the other is below 2^-16311, the result is the default NaN `0xc000000000000000:ffff` with `FE_INVALID`. Like that binary, which has no control-word instruction, it runs at the caller's x87 precision: at 64, 53 and 24 bits, in each rounding mode, it gives that binary's bits, `errno` and exception flags and leaves the control word unchanged for 20,000,000 pairs, non-canonical ones included; an infinite argument gives infinity even when the other is a NaN, as C11 F.10.4.3 requires
