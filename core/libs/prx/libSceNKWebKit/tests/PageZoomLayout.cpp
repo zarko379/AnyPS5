@@ -43,7 +43,6 @@ struct PageHandle {
 };
 
 constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
-constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
 void CheckBackingScaleFactor() {
     PageHandle page;
@@ -82,49 +81,6 @@ void CheckScaleFactor() {
     Require(WKPageGetBackingScaleFactor(page.ref) == 1);
     RequireInvalidArgument([] { WKPageSetScaleFactor(nullptr, 1, NKWebKit::PointValue{0, 0}); });
     RequireInvalidArgument([] { WKPageGetScaleFactor(nullptr); });
-}
-
-void RequireFixedLayoutSize(const void* pageRef, double width, double height, std::source_location location = std::source_location::current()) {
-    NKWebKit::SizeValue size = WKPageFixedLayoutSize(pageRef);
-    Require(size.width == width && size.height == height, location);
-}
-
-void CheckFixedLayout() {
-    PageHandle page;
-    Require(!WKPageUseFixedLayout(page.ref));
-    RequireFixedLayoutSize(page.ref, 0, 0);
-
-    WKPageSetFixedLayoutSize(page.ref, NKWebKit::SizeValue{100.9, -200.9});
-    RequireFixedLayoutSize(page.ref, 100, -200);
-    Require(!WKPageUseFixedLayout(page.ref));
-    WKPageSetUseFixedLayout(page.ref, false);
-    RequireFixedLayoutSize(page.ref, 100, -200);
-
-    WKPageSetUseFixedLayout(page.ref, true);
-    Require(WKPageUseFixedLayout(page.ref));
-    RequireFixedLayoutSize(page.ref, 100, -200);
-    WKPageSetUseFixedLayout(page.ref, true);
-    RequireFixedLayoutSize(page.ref, 100, -200);
-    WKPageSetFixedLayoutSize(page.ref, NKWebKit::SizeValue{2147483647.9, -2147483648.9});
-    RequireFixedLayoutSize(page.ref, 2147483647, -2147483648.0);
-    WKPageSetUseFixedLayout(page.ref, false);
-    Require(!WKPageUseFixedLayout(page.ref));
-    RequireFixedLayoutSize(page.ref, 0, 0);
-
-    WKPageSetFixedLayoutSize(page.ref, NKWebKit::SizeValue{-0.99, 0.99});
-    RequireFixedLayoutSize(page.ref, 0, 0);
-    WKPageSetFixedLayoutSize(page.ref, NKWebKit::SizeValue{7, 9});
-    RequireThrows<std::out_of_range>([&page] { WKPageSetFixedLayoutSize(page.ref, NKWebKit::SizeValue{2147483648.0, 1}); });
-    RequireThrows<std::out_of_range>([&page] { WKPageSetFixedLayoutSize(page.ref, NKWebKit::SizeValue{1, -2147483649.0}); });
-    RequireThrows<std::out_of_range>([&page] { WKPageSetFixedLayoutSize(page.ref, NKWebKit::SizeValue{kNaN, 1}); });
-    RequireThrows<std::out_of_range>([&page] { WKPageSetFixedLayoutSize(page.ref, NKWebKit::SizeValue{1, kInfinity}); });
-    RequireFixedLayoutSize(page.ref, 7, 9);
-
-    RequireInvalidArgument([] { WKPageSetFixedLayoutSize(nullptr, NKWebKit::SizeValue{1, 1}); });
-    RequireInvalidArgument([] { WKPageSetFixedLayoutSize(nullptr, NKWebKit::SizeValue{kNaN, 1}); });
-    RequireInvalidArgument([] { WKPageFixedLayoutSize(nullptr); });
-    RequireInvalidArgument([] { WKPageSetUseFixedLayout(nullptr, true); });
-    RequireInvalidArgument([] { WKPageUseFixedLayout(nullptr); });
 }
 
 void CheckFlags() {
@@ -205,7 +161,6 @@ void CheckCustomTextEncodingName() {
 
 void CheckWrongObjectType() {
     const void* stringRef = NKWebKit::ToRef(NKWebKit::Make<NKWebKit::String>(std::u16string(u"x")));
-    RequireInvalidArgument([stringRef] { WKPageFixedLayoutSize(stringRef); });
     RequireInvalidArgument([stringRef] { WKPageCopyCustomTextEncodingName(stringRef); });
     WKRelease(stringRef);
 }
@@ -215,7 +170,6 @@ void CheckWrongObjectType() {
 int main() {
     CheckBackingScaleFactor();
     CheckScaleFactor();
-    CheckFixedLayout();
     CheckFlags();
     CheckCustomTextEncodingName();
     CheckWrongObjectType();

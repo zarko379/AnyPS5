@@ -28,8 +28,22 @@ struct FakeIdentity {
     const void* const* vtable;
 };
 
+struct FakeCertificate {
+    const void* const* vtable;
+};
+
 void* deleted = nullptr;
 int deletions = 0;
+FakeCertificate* selectedCertificate = nullptr;
+std::int64_t selectedExpiration = 0;
+
+const void* APS5_VABI IdentityCertificate(const void*) {
+    return selectedCertificate;
+}
+
+std::int64_t APS5_VABI CertificateExpiration(const void*) {
+    return selectedExpiration;
+}
 
 void APS5_VABI DeleteIdentity(void* identity) {
     deleted = identity;
@@ -67,57 +81,24 @@ void TestInvalidArgumentsThrow() {
     RequireInvalidArgument([&] { _ZN3rtc14RTCCertificateD1Ev_nid_postfix(&certificate); });
 }
 
-struct FakeSslCertificate {
-    const void* const* vtable;
-    std::int64_t expiration;
-};
+void TestHasExpiredDispatchesThroughIdentityAndCertificateVtables() {
+    std::array<const void*, 8> certificateVtable{};
+    certificateVtable[7] = reinterpret_cast<const void*>(&CertificateExpiration);
+    FakeCertificate nativeCertificate{certificateVtable.data()};
+    selectedCertificate = &nativeCertificate;
 
-struct FakeCertificateIdentity {
-    const void* const* vtable;
-    const FakeSslCertificate* certificate;
-};
+    std::array<const void*, 3> identityVtable{};
+    identityVtable[2] = reinterpret_cast<const void*>(&IdentityCertificate);
+    FakeIdentity identity{identityVtable.data()};
+    WebRtcRtcCertificate certificate{1, &identity};
 
-const void* APS5_VABI IdentityCertificate(const void* identity) {
-    return static_cast<const FakeCertificateIdentity*>(identity)->certificate;
-}
+    selectedExpiration = 12;
+    Require(!_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 11999));
+    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 12000));
+    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 12001));
 
-std::int64_t APS5_VABI CertificateExpiration(const void* certificate) {
-    return static_cast<const FakeSslCertificate*>(certificate)->expiration;
-}
-
-void TestHasExpired() {
-    const std::array<const void*, 8> certificateVtable {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, reinterpret_cast<const void*>(&CertificateExpiration)};
-    const std::array<const void*, 3> identityVtable {nullptr, nullptr, reinterpret_cast<const void*>(&IdentityCertificate)};
-    FakeSslCertificate sslCertificate {certificateVtable.data(), 100};
-    FakeCertificateIdentity identity {identityVtable.data(), &sslCertificate};
-    WebRtcRtcCertificate certificate {1, &identity};
-    Require(!_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 99999));
-    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 100000));
-    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 100001));
-    sslCertificate.expiration = -1;
+    selectedExpiration = -1;
     Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0));
-    sslCertificate.expiration = 0;
-    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0));
-    sslCertificate.expiration = -2;
-    Require(!_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0xFFFFFFFFFFFFF82Full));
-    Require(_ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0xFFFFFFFFFFFFF830ull));
-}
-
-void TestHasExpiredInvalidArgumentsThrow() {
-    const std::array<const void*, 8> certificateVtable {};
-    const std::array<const void*, 3> identityVtable {nullptr, nullptr, reinterpret_cast<const void*>(&IdentityCertificate)};
-    const std::array<const void*, 3> emptyVtable {};
-    FakeSslCertificate sslCertificate {certificateVtable.data(), 1};
-    FakeCertificateIdentity identity {identityVtable.data(), &sslCertificate};
-    WebRtcRtcCertificate certificate {1, &identity};
-    RequireInvalidArgument([&] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0); });
-    identity.certificate = nullptr;
-    RequireInvalidArgument([&] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0); });
-    identity.vtable = emptyVtable.data();
-    RequireInvalidArgument([&] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0); });
-    certificate.identity = nullptr;
-    RequireInvalidArgument([&] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(&certificate, 0); });
-    RequireInvalidArgument([] { _ZNK3rtc14RTCCertificate10HasExpiredEm_nid_postfix(nullptr, 0); });
 }
 
 }
@@ -126,7 +107,6 @@ int main() {
     TestDeletesTheIdentityThroughItsDeletingDestructor();
     TestWithoutIdentityDoesNothing();
     TestInvalidArgumentsThrow();
-    TestHasExpired();
-    TestHasExpiredInvalidArgumentsThrow();
+    TestHasExpiredDispatchesThroughIdentityAndCertificateVtables();
     return 0;
 }

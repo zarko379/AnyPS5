@@ -46,14 +46,6 @@ int APS5_VABI udata_setFileAccess() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI unorm2_getNFKCInstance() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI unorm2_getNFKDInstance() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI utext_openConstUnicodeString() {
     NotImplemented_nid_no_patch(__func__);
 }

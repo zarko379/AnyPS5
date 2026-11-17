@@ -60,7 +60,10 @@
 
 namespace {
 
+using NKWebKit::WebCoreAbi::LocalLoadPolicy;
 using NKWebKit::WtfAbi::String;
+
+LocalLoadPolicy localLoadPolicy = NKWebKit::WebCoreAbi::AllowLocalLoadsForLocalOnly;
 
 bool ProtocolIs(const String& string, const char* protocol) {
     if (!string.impl) return false;
@@ -82,25 +85,23 @@ bool ProtocolIs(const String& string, const char* protocol) {
     return false;
 }
 
-constexpr int AllowLocalLoadsForAll = 0;
-constexpr int AllowLocalLoadsForLocalOnly = 2;
-
-int localLoadPolicy = AllowLocalLoadsForLocalOnly;
-
 }
 
 namespace NKWebKit::WebCoreAbi {
 
-int SecurityPolicyLocalLoadPolicy() {
-    return localLoadPolicy;
+bool SecurityPolicyRestrictAccessToLocal() {
+    return localLoadPolicy != AllowLocalLoadsForAll;
+}
+
+bool SecurityPolicyAllowSubstituteDataAccessToLocal() {
+    return localLoadPolicy != AllowLocalLoadsForLocalOnly;
 }
 
 }
 
 extern "C" {
 
-void APS5_VABI _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE(int policy) {
-    if (policy < AllowLocalLoadsForAll || policy > AllowLocalLoadsForLocalOnly) throw std::invalid_argument("invalid WebCore::SecurityPolicy::LocalLoadPolicy");
+void APS5_VABI _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE(LocalLoadPolicy policy) {
     localLoadPolicy = policy;
 }
 

@@ -28,13 +28,7 @@
 #include "prx/libSceNKWebKit/include/WebKitValueExports.hpp"
 #include "prx/libSceNKWebKit/src/Configuration.hpp"
 
-#include <cstdint>
-
 namespace {
-
-constexpr std::uint32_t kWKPaginationModeBottomToTop = 4;
-constexpr std::uint32_t kWKScrollPinningBehaviorDoNotPin = 0;
-constexpr std::uint32_t kWKScrollPinningBehaviorPinToBottom = 2;
 
 NKWebKit::Page* PageFrom(const void* pageRef, const char* function) {
     return NKWebKit::Cast<NKWebKit::Page>(pageRef, function);
@@ -44,111 +38,12 @@ NKWebKit::Page* PageFrom(const void* pageRef, const char* function) {
 
 extern "C" {
 
-bool APS5_VABI WKPageRubberBandsAtLeft(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->rubberBandsAtLeft;
-}
-
-void APS5_VABI WKPageSetRubberBandsAtLeft(const void* pageRef, bool rubberBandsAtLeft) {
-    PageFrom(pageRef, __func__)->rubberBandsAtLeft = rubberBandsAtLeft;
-}
-
-bool APS5_VABI WKPageRubberBandsAtRight(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->rubberBandsAtRight;
-}
-
-void APS5_VABI WKPageSetRubberBandsAtRight(const void* pageRef, bool rubberBandsAtRight) {
-    PageFrom(pageRef, __func__)->rubberBandsAtRight = rubberBandsAtRight;
-}
-
-bool APS5_VABI WKPageRubberBandsAtTop(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->rubberBandsAtTop;
-}
-
-void APS5_VABI WKPageSetRubberBandsAtTop(const void* pageRef, bool rubberBandsAtTop) {
-    PageFrom(pageRef, __func__)->rubberBandsAtTop = rubberBandsAtTop;
-}
-
-bool APS5_VABI WKPageRubberBandsAtBottom(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->rubberBandsAtBottom;
-}
-
-void APS5_VABI WKPageSetRubberBandsAtBottom(const void* pageRef, bool rubberBandsAtBottom) {
-    PageFrom(pageRef, __func__)->rubberBandsAtBottom = rubberBandsAtBottom;
-}
-
-bool APS5_VABI WKPageVerticalRubberBandingIsEnabled(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->enableVerticalRubberBanding;
-}
-
-void APS5_VABI WKPageSetEnableVerticalRubberBanding(const void* pageRef, bool enableVerticalRubberBanding) {
-    PageFrom(pageRef, __func__)->enableVerticalRubberBanding = enableVerticalRubberBanding;
-}
-
-bool APS5_VABI WKPageHorizontalRubberBandingIsEnabled(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->enableHorizontalRubberBanding;
-}
-
-void APS5_VABI WKPageSetEnableHorizontalRubberBanding(const void* pageRef, bool enableHorizontalRubberBanding) {
-    PageFrom(pageRef, __func__)->enableHorizontalRubberBanding = enableHorizontalRubberBanding;
-}
-
 void APS5_VABI WKPageSetBackgroundExtendsBeyondPage(const void* pageRef, bool backgroundExtendsBeyondPage) {
     PageFrom(pageRef, __func__)->backgroundExtendsBeyondPage = backgroundExtendsBeyondPage;
 }
 
 bool APS5_VABI WKPageBackgroundExtendsBeyondPage(const void* pageRef) {
     return PageFrom(pageRef, __func__)->backgroundExtendsBeyondPage;
-}
-
-void APS5_VABI WKPageSetPaginationMode(const void* pageRef, std::uint32_t paginationMode) {
-    if (paginationMode > kWKPaginationModeBottomToTop) {
-        return;
-    }
-    PageFrom(pageRef, __func__)->paginationMode = paginationMode;
-}
-
-std::uint32_t APS5_VABI WKPageGetPaginationMode(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->paginationMode;
-}
-
-void APS5_VABI WKPageSetPaginationBehavesLikeColumns(const void* pageRef, bool behavesLikeColumns) {
-    PageFrom(pageRef, __func__)->paginationBehavesLikeColumns = behavesLikeColumns;
-}
-
-bool APS5_VABI WKPageGetPaginationBehavesLikeColumns(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->paginationBehavesLikeColumns;
-}
-
-void APS5_VABI WKPageSetPageLength(const void* pageRef, double pageLength) {
-    PageFrom(pageRef, __func__)->pageLength = pageLength;
-}
-
-double APS5_VABI WKPageGetPageLength(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->pageLength;
-}
-
-void APS5_VABI WKPageSetGapBetweenPages(const void* pageRef, double gap) {
-    PageFrom(pageRef, __func__)->gapBetweenPages = gap;
-}
-
-double APS5_VABI WKPageGetGapBetweenPages(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->gapBetweenPages;
-}
-
-void APS5_VABI WKPageSetSuppressScrollbarAnimations(const void* pageRef, bool suppressAnimations) {
-    PageFrom(pageRef, __func__)->suppressScrollbarAnimations = suppressAnimations;
-}
-
-bool APS5_VABI WKPageAreScrollbarAnimationsSuppressed(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->suppressScrollbarAnimations;
-}
-
-std::uint32_t APS5_VABI WKPageGetScrollPinningBehavior(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->scrollPinningBehavior;
-}
-
-void APS5_VABI WKPageSetScrollPinningBehavior(const void* pageRef, std::uint32_t pinning) {
-    PageFrom(pageRef, __func__)->scrollPinningBehavior = pinning <= kWKScrollPinningBehaviorPinToBottom ? pinning : kWKScrollPinningBehaviorDoNotPin;
 }
 
 }

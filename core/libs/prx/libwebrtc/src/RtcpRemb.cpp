@@ -64,18 +64,21 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
-#include "prx/libc/include/Api.hpp"
+#include "prx/libc/libc.hpp"
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <stdexcept>
 
 namespace {
 
+std::uint32_t ReadBigEndian(const std::uint8_t* bytes) {
+    return (static_cast<std::uint32_t>(bytes[0]) << 24) | (static_cast<std::uint32_t>(bytes[1]) << 16) | (static_cast<std::uint32_t>(bytes[2]) << 8) | bytes[3];
+}
+
 constexpr std::size_t HeaderLength = 4;
 constexpr std::size_t CommonFeedbackLength = 8;
-constexpr std::size_t MinimumPayloadLength = 16;
 constexpr std::uint8_t AfbMessageType = 15;
 constexpr std::uint8_t PacketType = 206;
 constexpr std::uint32_t UniqueIdentifier = 0x52454D42;
@@ -84,24 +87,13 @@ constexpr int BlockLengthSlot = 2;
 
 using PacketReady = void (APS5_VABI*)(void* function, const std::uint8_t* data, std::size_t size);
 
-std::uint32_t ReadBigEndian(const std::uint8_t* bytes, std::size_t size) {
-    std::uint32_t value = 0;
-    for (std::size_t index = 0; index < size; ++index)
-        value = (value << 8) | bytes[index];
-    return value;
-}
-
 void WriteBigEndian(std::uint8_t* bytes, std::uint32_t value, std::size_t size) {
     for (std::size_t index = 0; index < size; ++index)
         bytes[index] = static_cast<std::uint8_t>(value >> (8 * (size - 1 - index)));
 }
 
 std::size_t SsrcCount(const WebRtcRtcpRemb* remb) {
-    return remb->ssrcsBegin ? static_cast<std::size_t>(remb->ssrcsEnd - remb->ssrcsBegin) : 0;
-}
-
-std::size_t SsrcCapacity(const WebRtcRtcpRemb* remb) {
-    return remb->ssrcsBegin ? static_cast<std::size_t>(remb->ssrcsCapacity - remb->ssrcsBegin) : 0;
+    return remb->ssrcBegin ? static_cast<std::size_t>(remb->ssrcEnd - remb->ssrcBegin) : 0;
 }
 
 std::size_t APS5_VABI RembBlockLength_nid_no_patch(const WebRtcRtcpRemb* remb) {
@@ -149,7 +141,7 @@ bool APS5_VABI RembCreate_nid_no_patch(const WebRtcRtcpRemb* remb, std::uint8_t*
     WriteBigEndian(packet + *index, static_cast<std::uint32_t>(mantissa & 0xffff), 2);
     *index += 2;
     for (std::size_t ssrc = 0; ssrc < count; ++ssrc) {
-        WriteBigEndian(packet + *index, remb->ssrcsBegin[ssrc], 4);
+        WriteBigEndian(packet + *index, remb->ssrcBegin[ssrc], 4);
         *index += 4;
     }
     return true;
@@ -179,54 +171,50 @@ void APS5_VABI _ZN6webrtc4rtcp4RembC1Ev_nid_postfix(WebRtcRtcpRemb* remb) {
     remb->senderSsrc = 0;
     remb->mediaSsrc = 0;
     remb->bitrateBps = 0;
-    remb->ssrcsBegin = nullptr;
-    remb->ssrcsEnd = nullptr;
-    remb->ssrcsCapacity = nullptr;
+    remb->ssrcBegin = nullptr;
+    remb->ssrcEnd = nullptr;
+    remb->ssrcCapacityEnd = nullptr;
 }
 
 void APS5_VABI _ZN6webrtc4rtcp4RembD1Ev_nid_postfix(WebRtcRtcpRemb* remb) {
     if (!remb)
         throw std::invalid_argument("Remb destructor requires a packet object");
-    if (remb->ssrcsBegin)
-        _ZdlPv_nid_postfix(remb->ssrcsBegin);
+    if (remb->ssrcBegin)
+        _ZdlPv_nid_postfix(remb->ssrcBegin);
 }
 
 bool APS5_VABI _ZN6webrtc4rtcp4Remb5ParseERKNS0_12CommonHeaderE_nid_postfix(WebRtcRtcpRemb* remb, const WebRtcRtcpCommonHeader* packet) {
-    if (!remb)
-        throw std::invalid_argument("Remb::Parse requires a packet object");
-    if (!packet)
-        throw std::invalid_argument("Remb::Parse requires a common header");
-    if (packet->payloadSize < MinimumPayloadLength)
+    if (!remb || !packet)
+        throw std::invalid_argument("Remb::Parse requires an object and common header");
+    if (packet->payloadSize < 16)
         return false;
-    const std::uint8_t* const payload = packet->payload;
+    const auto* payload = packet->payload;
     if (!payload)
         throw std::invalid_argument("Remb::Parse requires a payload");
-    if (ReadBigEndian(payload + 8, 4) != UniqueIdentifier)
+    if (ReadBigEndian(payload + 8) != 0x52454d42)
         return false;
-    const std::uint8_t ssrcCount = payload[12];
-    if (packet->payloadSize != CommonFeedbackLength + (2 + static_cast<std::size_t>(ssrcCount)) * 4)
+    const std::uint8_t count = payload[12];
+    if (packet->payloadSize != 16u + count * 4u)
         return false;
-    remb->senderSsrc = ReadBigEndian(payload, 4);
-    remb->mediaSsrc = ReadBigEndian(payload + 4, 4);
+    remb->senderSsrc = ReadBigEndian(payload);
+    remb->mediaSsrc = ReadBigEndian(payload + 4);
     const std::uint8_t exponent = payload[13] >> 2;
-    const std::uint64_t mantissa = (static_cast<std::uint64_t>(payload[13] & 0x03) << 16) | ReadBigEndian(payload + 14, 2);
-    remb->bitrateBps = static_cast<std::int64_t>(mantissa << exponent);
+    const std::uint64_t mantissa = (static_cast<std::uint32_t>(payload[13] & 3) << 16) | (static_cast<std::uint32_t>(payload[14]) << 8) | payload[15];
+    remb->bitrateBps = std::bit_cast<std::int64_t>(mantissa << exponent);
     const bool shiftOverflow = (static_cast<std::uint64_t>(remb->bitrateBps) >> exponent) != mantissa;
     if (remb->bitrateBps < 0 || shiftOverflow)
         return false;
-    remb->ssrcsEnd = remb->ssrcsBegin;
-    if (ssrcCount > SsrcCapacity(remb)) {
-        auto* grown = static_cast<std::uint32_t*>(_Znwm_nid_postfix(ssrcCount * sizeof(std::uint32_t)));
-        if (remb->ssrcsBegin)
-            _ZdlPv_nid_postfix(remb->ssrcsBegin);
-        remb->ssrcsBegin = grown;
-        remb->ssrcsEnd = grown;
-        remb->ssrcsCapacity = grown + ssrcCount;
+    remb->ssrcEnd = remb->ssrcBegin;
+    const std::size_t capacity = remb->ssrcBegin ? remb->ssrcCapacityEnd - remb->ssrcBegin : 0;
+    if (count > capacity) {
+        auto* storage = static_cast<std::uint32_t*>(_Znwm_nid_postfix(count * sizeof(std::uint32_t)));
+        _ZdlPv_nid_postfix(remb->ssrcBegin);
+        remb->ssrcBegin = storage;
+        remb->ssrcEnd = storage;
+        remb->ssrcCapacityEnd = storage + count;
     }
-    const std::uint8_t* nextSsrc = payload + MinimumPayloadLength;
-    for (std::uint8_t ssrc = 0; ssrc < ssrcCount; ++ssrc) {
-        *remb->ssrcsEnd++ = ReadBigEndian(nextSsrc, 4);
-        nextSsrc += 4;
+    for (std::uint8_t i = 0; i < count; ++i) {
+        *remb->ssrcEnd++ = ReadBigEndian(payload + 16 + i * 4);
     }
     return true;
 }

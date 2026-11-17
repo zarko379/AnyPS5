@@ -9,23 +9,11 @@
 
 namespace {
 
-std::atomic<std::uint64_t> uniqueWorldNameNumber{0};
 std::atomic<bool> enhancedUserInterfaceAccessibility{false};
-
-std::u16string UniqueWorldName() {
-    const auto text = "UniqueWorld_" + std::to_string(uniqueWorldNameNumber.fetch_add(1, std::memory_order_relaxed));
-    return {text.begin(), text.end()};
-}
 
 }  // namespace
 
 extern "C" {
-
-const void* APS5_VABI WKBundleScriptWorldCreateWorld() {
-    auto world = NKWebKit::Make<NKWebKit::BundleScriptWorld>();
-    world->name = NKWebKit::Make<NKWebKit::String>(UniqueWorldName());
-    return NKWebKit::ToRef(std::move(world));
-}
 
 const void* APS5_VABI WKBundleCreateWKDataFromUInt8Array(const void*, NKWebKit::JSContextRef context, NKWebKit::JSValueRef data) {
     if (JSValueGetTypedArrayType(context, data, nullptr) != NKWebKit::kJSTypedArrayTypeUint8Array)

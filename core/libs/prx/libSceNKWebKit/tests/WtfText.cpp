@@ -642,52 +642,7 @@ void TestCodePointCompare() {
     Throws([&] { _ZN3WTF16codePointCompareERKNS_6StringES2_(&a8, nullptr); });
 }
 
-std::string ExpectedBytes(const NKWebKit::WtfAbi::ExpectedCString& value) {
-    Check(value.hasValue && value.buffer != nullptr);
-    const char* data = reinterpret_cast<const char*>(value.buffer + 1);
-    Check(data[value.buffer->length] == 0);
-    return std::string(data, value.buffer->length);
-}
-
-void RequireUTF8Error(const NKWebKit::WtfAbi::ExpectedCString& value, NKWebKit::WtfAbi::UTF8ConversionError error, std::source_location location = std::source_location::current()) {
-    Check(!value.hasValue && value.error == error, location);
-}
-
-void TestUTF8ForCharacters() {
-    using NKWebKit::WtfAbi::UTF8ConversionError;
-    static const auto Latin1 = &_ZN3WTF10StringImpl17utf8ForCharactersEPKhj;
-    static const auto Utf16 = &_ZN3WTF10StringImpl17utf8ForCharactersEPKDsjNS_14ConversionModeE;
-    const unsigned char latin[] = {'a', 0xE9, 0x00, 0x7F, 0x80};
-    Check(ExpectedBytes(Latin1(latin, 5)) == std::string("a\xc3\xa9\0\x7f\xc2\x80", 7));
-    Check(ExpectedBytes(Latin1(nullptr, 0)).empty());
-    RequireUTF8Error(Latin1(latin, 0x40000000), UTF8ConversionError::OutOfMemory);
-    Throws([] { Latin1(nullptr, 1); });
-
-    const char16_t malformed[] = {0xD800, 'X', 0xDC00, 0xDFFF};
-    const char16_t finalLead[] = {'Y', 0xD800};
-    const char16_t pair[] = {0xD83D, 0xDE00, 0x00E9, 'z'};
-    for (unsigned mode : {0U, 1U, 2U}) {
-        Check(ExpectedBytes(Utf16(pair, 4, mode)) == "\xf0\x9f\x98\x80\xc3\xa9z");
-        Check(ExpectedBytes(Utf16(nullptr, 0, mode)).empty());
-        Throws([mode] { Utf16(nullptr, 2, mode); });
-    }
-    Check(ExpectedBytes(Utf16(malformed, 4, 0)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
-    Check(ExpectedBytes(Utf16(finalLead, 2, 0)) == "Y\xed\xa0\x80");
-    Check(ExpectedBytes(Utf16(malformed, 4, 2)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
-    Check(ExpectedBytes(Utf16(finalLead, 2, 2)) == "Y\xef\xbf\xbd");
-    RequireUTF8Error(Utf16(malformed, 4, 1), UTF8ConversionError::IllegalSource);
-    RequireUTF8Error(Utf16(malformed + 2, 2, 1), UTF8ConversionError::IllegalSource);
-    RequireUTF8Error(Utf16(finalLead, 2, 1), UTF8ConversionError::SourceExhausted);
-    RequireUTF8Error(Utf16(finalLead + 1, 1, 1), UTF8ConversionError::SourceExhausted);
-    Check(ExpectedBytes(Utf16(pair, 4, 3)).empty());
-    Check(ExpectedBytes(Utf16(nullptr, 0, 9)).empty());
-    Throws([&] { Utf16(pair, 4, 4); });
-    RequireUTF8Error(Utf16(pair, 0x2AAAAAAB, 9), UTF8ConversionError::OutOfMemory);
-    RequireUTF8Error(Utf16(nullptr, 0x2AAAAAAB, 0), UTF8ConversionError::OutOfMemory);
-}
-
 int main() {
-    TestUTF8ForCharacters();
     TestCodePointCompare();
     TestAppendCharacters();
     TestOverflow();

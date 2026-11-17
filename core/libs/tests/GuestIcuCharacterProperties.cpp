@@ -101,39 +101,6 @@ void CheckCharacterNames() {
     }
 }
 
-void CheckClosure() {
-    const struct {
-        std::int32_t c;
-        std::u16string closure;
-    } expected[] = {{0x00C4, u""}, {0x037A, u" \u03B9"}, {0x20A8, u"rs"}, {0x2121, u"tel"}, {0x1D5DB, u"h"}, {0x0061, u""}};
-    for (const auto& item : expected) {
-        char16_t buffer[16]{};
-        std::int32_t status = Ok;
-        const std::int32_t length = u_getFC_NFKC_Closure_nid_postfix(item.c, buffer, 16, &status);
-        Require(status == Ok && std::u16string(buffer, static_cast<std::size_t>(length)) == item.closure, "FC_NFKC closures from ICU's cnormtst");
-    }
-    char16_t buffer[16]{};
-    std::int32_t status = Ok;
-    Require(u_getFC_NFKC_Closure_nid_postfix(0x2121, nullptr, 0, &status) == 3 && status == BufferOverflow, "closure preflight");
-    status = Ok;
-    Require(u_getFC_NFKC_Closure_nid_postfix(0x2121, buffer, -1, &status) == 0 && status == IllegalArgument, "negative closure capacity");
-    status = Ok;
-    Require(u_getFC_NFKC_Closure_nid_postfix(0x2121, nullptr, 3, &status) == 0 && status == IllegalArgument, "null closure buffer");
-    status = BufferOverflow;
-    Require(u_getFC_NFKC_Closure_nid_postfix(0x2121, buffer, 16, &status) == 0 && status == BufferOverflow, "a failed closure status stays");
-    Require(u_getFC_NFKC_Closure_nid_postfix(0x2121, buffer, 16, nullptr) == 0, "a null closure status returns 0 as in ICU");
-    for (std::int32_t c = 0; c <= 0x10FFFF; c += 3) {
-        char16_t guest[16]{};
-        char16_t host[16]{};
-        std::int32_t guestStatus = Ok;
-        UErrorCode hostStatus = U_ZERO_ERROR;
-        const std::int32_t guestLength = u_getFC_NFKC_Closure_nid_postfix(c, guest, 16, &guestStatus);
-        const std::int32_t hostLength = u_getFC_NFKC_Closure(c, host, 16, &hostStatus);
-        Require(guestLength == hostLength && guestStatus == hostStatus && std::memcmp(guest, host, sizeof(guest)) == 0, "closures match ICU");
-    }
-}
-
-
 struct NameRecord {
     std::int32_t code;
     std::int32_t choice;
@@ -234,7 +201,6 @@ int main() {
     UErrorCode access = U_ZERO_ERROR;
     udata_setFileAccess(UDATA_NO_FILES, &access);
     CheckCharacterNames();
-    CheckClosure();
     CheckNameEnumeration();
     CheckNameCharacters();
     return 0;

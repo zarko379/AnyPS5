@@ -1,3 +1,34 @@
+/* Derived from FreeBSD sys/kern/kern_umtx.c (5ed7eb0d97ba) */
+/*
+ * Copyright (c) 2015, 2016 The FreeBSD Foundation
+ * Copyright (c) 2004, David Xu <davidxu@freebsd.org>
+ * Copyright (c) 2002, Jeffrey Roberson <jeff@freebsd.org>
+ * All rights reserved.
+ *
+ * Portions of this software were developed by Konstantin Belousov
+ * under sponsorship from the FreeBSD Foundation.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice unmodified, this list of conditions, and the following
+ *    disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 #include "prx/libkernel/include/Api.hpp"
 #include "prx/libc/include/Api.hpp"
 #include <array>
@@ -45,9 +76,6 @@ constexpr int UMTX_OP_MUTEX_WAKE = 18;
 constexpr int UMTX_OP_SEM_WAIT = 19;
 constexpr int UMTX_OP_SEM_WAKE = 20;
 constexpr int UMTX_OP_NWAKE_PRIVATE = 21;
-constexpr int UMTX_OP_MUTEX_WAKE2 = 22;
-constexpr int UMTX_OP_SEM2_WAIT = 23;
-constexpr int UMTX_OP_SEM2_WAKE = 24;
 constexpr int UMTX_OP_MEASURED_NOOP = 27;
 constexpr int UMTX_OP_MAX = 27;
 constexpr std::uint32_t UMTX_ABSTIME = 1;
@@ -55,11 +83,7 @@ constexpr int GUEST_CLOCK_REALTIME = 0;
 
 constexpr std::uint32_t UMUTEX_UNOWNED = 0;
 constexpr std::uint32_t UMUTEX_CONTESTED = 0x80000000u;
-constexpr std::uint32_t USYNC_PROCESS_SHARED = 0x1;
-constexpr std::uint32_t UMUTEX_PRIO_INHERIT = 0x4;
 constexpr std::uint32_t UMUTEX_PRIO_PROTECT = 0x8;
-constexpr std::uint32_t UMUTEX_RB_OWNERDEAD = UMUTEX_CONTESTED | 0x10;
-constexpr std::uint32_t UMUTEX_RB_NOTRECOV = UMUTEX_CONTESTED | 0x11;
 constexpr std::uint32_t UMUTEX_ROBUST = 0x10;
 constexpr std::uint32_t CVWAIT_ABSTIME = 0x2;
 constexpr std::uint32_t CVWAIT_CLOCKID = 0x4;
@@ -68,6 +92,10 @@ constexpr std::uint32_t URWLOCK_WRITE_OWNER = 0x80000000u;
 constexpr std::uint32_t URWLOCK_WRITE_WAITERS = 0x40000000u;
 constexpr std::uint32_t URWLOCK_READ_WAITERS = 0x20000000u;
 constexpr std::uint32_t URWLOCK_MAX_READERS = 0x1fffffffu;
+constexpr int UMTX_OP_MUTEX_WAKE2 = 22;
+constexpr int UMTX_OP_SEM2_WAIT = 23;
+constexpr int UMTX_OP_SEM2_WAKE = 24;
+constexpr std::uint32_t UMUTEX_PRIO_INHERIT = 0x4;
 constexpr std::uint32_t USEM_HAS_WAITERS = 0x80000000u;
 constexpr std::uint32_t USEM_MAX_COUNT = 0x7fffffffu;
 
@@ -88,13 +116,13 @@ struct UmtxTime {
     std::uint32_t clockId;
 };
 
-struct UserSemaphore {
-    std::uint32_t hasWaiters;
+struct UserSemaphore2 {
     std::uint32_t count;
     std::uint32_t flags;
 };
 
-struct UserSemaphore2 {
+struct UserSemaphore {
+    std::uint32_t hasWaiters;
     std::uint32_t count;
     std::uint32_t flags;
 };
@@ -121,7 +149,7 @@ struct UserRwlock {
     std::uint32_t spare[4];
 };
 
-static_assert(sizeof(UserSemaphore2) == 8 && sizeof(UserMutex) == 32 && sizeof(UserCondition) == 16 && sizeof(UserRwlock) == 32);
+static_assert(sizeof(UserMutex) == 32 && sizeof(UserCondition) == 16 && sizeof(UserRwlock) == 32);
 
 struct AddressWaiter {
     TimedWait::SingleWaiterCondition condition;
@@ -454,39 +482,21 @@ int Sem2Wait(UserSemaphore2* semaphore, const void* sizeArgument, const void* ti
     if (!IsAlignedAddress<std::uint32_t>(reinterpret_cast<std::uintptr_t>(semaphore))) {
         APS5_INVALID_ARG_EX;
     }
+    bool faulted = false;
     const bool woken = WaitOnKeyUntil(reinterpret_cast<std::uintptr_t>(semaphore), [&] {
-        std::atomic_ref<std::uint32_t> count(semaphore->count);
-        std::uint32_t current = count.load();
+        const auto value = TryLoadAddressValue(&semaphore->count);
+        if (!value) return faulted = true;
+        std::uint32_t count = *value;
+        std::atomic_ref<std::uint32_t> word(semaphore->count);
         for (;;) {
-            if ((current & USEM_MAX_COUNT) != 0) {
-                return true;
-            }
-            if (current == USEM_HAS_WAITERS || count.compare_exchange_strong(current, USEM_HAS_WAITERS)) {
-                return false;
-            }
+            if ((count & USEM_MAX_COUNT) != 0) return true;
+            if (count == USEM_HAS_WAITERS || word.compare_exchange_strong(count, USEM_HAS_WAITERS)) return false;
         }
     }, deadline, caller);
+    if (faulted) {
+        return GUEST_EFAULT;
+    }
     return woken ? 0 : GUEST_ETIMEDOUT;
-}
-
-void WakeSemaphore2Locked(std::uintptr_t key, UserSemaphore2* semaphore) {
-    auto& bucket = BucketOf(key);
-    std::lock_guard<std::mutex> lock(bucket.mutex);
-    const auto entry = bucket.waiters.find(key);
-    if (entry == bucket.waiters.end()) {
-        return;
-    }
-    auto& queue = entry->second;
-    if (queue.size() == 1) {
-        std::atomic_ref<std::uint32_t>(semaphore->count).fetch_and(~USEM_HAS_WAITERS);
-    }
-    AddressWaiter* waiter = queue.front();
-    queue.pop_front();
-    waiter->woken = true;
-    waiter->condition.NotifyOne();
-    if (queue.empty()) {
-        bucket.waiters.erase(entry);
-    }
 }
 
 int Sem2Wake(UserSemaphore2* semaphore) {
@@ -496,8 +506,66 @@ int Sem2Wake(UserSemaphore2* semaphore) {
     if (!IsAlignedAddress<std::uint32_t>(reinterpret_cast<std::uintptr_t>(semaphore))) {
         APS5_INVALID_ARG_EX;
     }
+    if (!TryLoadAddressValue(&semaphore->flags)) {
+        return GUEST_EFAULT;
+    }
     const auto key = reinterpret_cast<std::uintptr_t>(semaphore);
-    DeferringDelivery([&] { WakeSemaphore2Locked(key, semaphore); });
+    DeferringDelivery([&] {
+        auto& bucket = BucketOf(key);
+        std::lock_guard<std::mutex> lock(bucket.mutex);
+        const auto entry = bucket.waiters.find(key);
+        if (entry == bucket.waiters.end()) {
+            return;
+        }
+        auto& queue = entry->second;
+        if (queue.size() == 1) {
+            std::atomic_ref<std::uint32_t>(semaphore->count).fetch_and(~USEM_HAS_WAITERS);
+        }
+        AddressWaiter* waiter = queue.front();
+        queue.pop_front();
+        waiter->woken = true;
+        waiter->condition.NotifyOne();
+        if (queue.empty()) {
+            bucket.waiters.erase(entry);
+        }
+    });
+    return 0;
+}
+
+int MutexWake2(void* object, std::uint64_t value) {
+    const auto flags = static_cast<std::uint32_t>(value);
+    const std::uint32_t protocol = flags & (UMUTEX_PRIO_INHERIT | UMUTEX_PRIO_PROTECT);
+    if (protocol == (UMUTEX_PRIO_INHERIT | UMUTEX_PRIO_PROTECT)) {
+        return GUEST_EINVAL;
+    }
+    if ((flags & UMUTEX_ROBUST) != 0) {
+        NotImplemented_nid_no_patch("_umtx_op MUTEX_WAKE2 on a robust umutex");
+    }
+    const auto key = reinterpret_cast<std::uintptr_t>(object);
+    DeferringDelivery([&] {
+        auto& bucket = BucketOf(key);
+        std::lock_guard<std::mutex> lock(bucket.mutex);
+        const auto entry = bucket.waiters.find(key);
+        if (entry == bucket.waiters.end()) {
+            return;
+        }
+        auto& queue = entry->second;
+        std::atomic_ref<std::uint32_t> owner(static_cast<UserMutex*>(object)->owner);
+        std::uint32_t current = owner.load();
+        while ((current & UMUTEX_CONTESTED) == 0 && (queue.size() > 1 || (current & ~UMUTEX_CONTESTED) != 0) &&
+               !owner.compare_exchange_weak(current, current | UMUTEX_CONTESTED)) {
+        }
+        if ((current & ~UMUTEX_CONTESTED) != 0) {
+            return;
+        }
+        AddressWaiter* waiter = queue.front();
+        queue.pop_front();
+        waiter->woken = true;
+        waiter->condition.NotifyOne();
+        if (queue.empty()) {
+            bucket.waiters.erase(entry);
+        }
+    });
     return 0;
 }
 
@@ -636,58 +704,6 @@ int MutexWake(UserMutex* mutex) {
         owner.compare_exchange_strong(contested, UMUTEX_UNOWNED);
     }
     WakeAddress(key, 1, false);
-    return 0;
-}
-
-void SetContestedWhile(std::atomic_ref<std::uint32_t>& owner, std::uint32_t& current, bool needsOwner) {
-    while ((current & UMUTEX_CONTESTED) == 0 && (!needsOwner || current != UMUTEX_UNOWNED) &&
-           !owner.compare_exchange_weak(current, current | UMUTEX_CONTESTED)) {
-    }
-}
-
-void Wake2MutexLocked(std::uintptr_t key, UserMutex* mutex) {
-    auto& bucket = BucketOf(key);
-    std::lock_guard<std::mutex> lock(bucket.mutex);
-    const auto entry = bucket.waiters.find(key);
-    if (entry == bucket.waiters.end()) {
-        return;
-    }
-    auto& queue = entry->second;
-    std::atomic_ref<std::uint32_t> owner(mutex->owner);
-    std::uint32_t current = owner.load();
-    SetContestedWhile(owner, current, queue.size() == 1);
-    if ((current & ~UMUTEX_CONTESTED) != 0 && current != UMUTEX_RB_OWNERDEAD && current != UMUTEX_RB_NOTRECOV) {
-        return;
-    }
-    AddressWaiter* waiter = queue.front();
-    queue.pop_front();
-    waiter->woken = true;
-    waiter->condition.NotifyOne();
-    if (queue.empty()) {
-        bucket.waiters.erase(entry);
-    }
-}
-
-int MutexWake2(UserMutex* mutex, std::uint64_t value) {
-    const auto flags = static_cast<std::uint32_t>(value);
-    const std::uint32_t protocol = flags & (UMUTEX_PRIO_INHERIT | UMUTEX_PRIO_PROTECT);
-    if (protocol == (UMUTEX_PRIO_INHERIT | UMUTEX_PRIO_PROTECT)) {
-        return GUEST_EINVAL;
-    }
-    if ((flags & USYNC_PROCESS_SHARED) != 0) {
-        std::uint32_t probe = 0;
-        if (mutex == nullptr || !GuestCopyIn_nid_no_patch(&probe, mutex, sizeof(probe))) {
-            return GUEST_EFAULT;
-        }
-    }
-    if (protocol == UMUTEX_PRIO_PROTECT || mutex == nullptr) {
-        return 0;
-    }
-    if (!IsAlignedAddress<std::uint32_t>(reinterpret_cast<std::uintptr_t>(mutex))) {
-        APS5_INVALID_ARG_EX;
-    }
-    const auto key = reinterpret_cast<std::uintptr_t>(&mutex->owner);
-    DeferringDelivery([&] { Wake2MutexLocked(key, mutex); });
     return 0;
 }
 
@@ -963,14 +979,14 @@ int APS5_VABI _umtx_op_nid_postfix(void* object, int operation, std::uint64_t va
         case UMTX_OP_SEM_WAKE:
             error = SemWake(static_cast<UserSemaphore*>(object));
             break;
-        case UMTX_OP_MUTEX_WAKE2:
-            error = MutexWake2(static_cast<UserMutex*>(object), value);
-            break;
         case UMTX_OP_SEM2_WAIT:
             error = Sem2Wait(static_cast<UserSemaphore2*>(object), sizeArgument, timeArgument, caller);
             break;
         case UMTX_OP_SEM2_WAKE:
             error = Sem2Wake(static_cast<UserSemaphore2*>(object));
+            break;
+        case UMTX_OP_MUTEX_WAKE2:
+            error = MutexWake2(object, value);
             break;
         case UMTX_OP_MUTEX_TRYLOCK:
             error = MutexTrylock(static_cast<UserMutex*>(object));

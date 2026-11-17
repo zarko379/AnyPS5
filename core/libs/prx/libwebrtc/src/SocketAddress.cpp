@@ -59,6 +59,19 @@ const WebRtcSocketAddress& Checked(const WebRtcSocketAddress* address, const cha
     return *address;
 }
 
+WebRtcSocketAddress& Writable(WebRtcSocketAddress* address, const char* function) {
+    if (!address)
+        throw std::invalid_argument(function);
+    return *address;
+}
+
+void InitHostname(WebRtcGuestString& hostname) {
+    hostname.reserved = 0;
+    std::memset(hostname.buffer, 0, sizeof(hostname.buffer));
+    hostname.size = 0;
+    hostname.capacity = 15;
+}
+
 bool IsAny(const WebRtcIpAddress& ip) {
     static const std::uint8_t mappedPrefix[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0, 0, 0, 0};
     static const std::uint8_t any[16] = {};
@@ -96,13 +109,6 @@ void AssignIp(WebRtcIpAddress& target, const WebRtcIpAddress& source) {
     std::memmove(&target.address, &source.address, sizeof(target.address));
 }
 
-void SetIp(WebRtcSocketAddress& address, const WebRtcIpAddress& ip) {
-    _ZNSs5eraseEmm_nid_postfix(Guest(address.hostname), 0, NoPosition);
-    address.literal = false;
-    AssignIp(address.ip, ip);
-    address.scopeId = 0;
-}
-
 void Assign(WebRtcSocketAddress& address, const WebRtcSocketAddress& other) {
     _ZNSs6assignERKSsmm_nid_postfix(Guest(address.hostname), Guest(other.hostname), 0, NoPosition);
     AssignIp(address.ip, other.ip);
@@ -138,24 +144,26 @@ bool APS5_VABI _ZNK3rtc13SocketAddress5IsNilEv_nid_postfix(const WebRtcSocketAdd
 }
 
 void APS5_VABI _ZN3rtc13SocketAddressC1Ev_nid_postfix(WebRtcSocketAddress* address) {
-    if (!address)
-        throw std::invalid_argument("SocketAddress::SocketAddress requires an address");
-    Construct(*address);
-    WebRtcIpAddress unspecified;
-    WebRtcConstructIpAddress(&unspecified);
-    SetIp(*address, unspecified);
-    address->port = 0;
+    WebRtcSocketAddress& target = Writable(address, "SocketAddress::SocketAddress requires an address");
+    InitHostname(target.hostname);
+    target.ip = WebRtcIpAddress{};
+    target.port = 0;
+    target.scopeId = 0;
+    target.literal = false;
 }
 
-void APS5_VABI _ZN3rtc13SocketAddressC1ERKNS_9IPAddressEi_nid_postfix(WebRtcSocketAddress* address, const WebRtcIpAddress* ip, int port) {
-    if (!address)
-        throw std::invalid_argument("SocketAddress::SocketAddress requires an address");
+void APS5_VABI _ZN3rtc13SocketAddressC1ERKNS_9IPAddressEi_nid_postfix(WebRtcSocketAddress* address, const WebRtcIpAddress* ip, std::int32_t port) {
+    WebRtcSocketAddress& target = Writable(address, "SocketAddress::SocketAddress requires an address");
     if (!ip)
         throw std::invalid_argument("SocketAddress::SocketAddress requires an IP address");
     const WebRtcIpAddress source = *ip;
-    Construct(*address);
-    SetIp(*address, source);
-    address->port = static_cast<std::uint16_t>(port);
+    InitHostname(target.hostname);
+    target.ip = WebRtcIpAddress{};
+    target.ip.family = source.family;
+    target.ip.address = source.address;
+    target.port = static_cast<std::uint16_t>(port);
+    target.scopeId = 0;
+    target.literal = false;
 }
 
 void APS5_VABI _ZN3rtc13SocketAddressC1ERKS0__nid_postfix(WebRtcSocketAddress* address, const WebRtcSocketAddress* other) {

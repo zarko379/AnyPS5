@@ -6,20 +6,8 @@
 /* Derived from api/video_codecs/video_codec.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from rtc_base/string_to_number.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from media/base/codec.cc and media/base/codec.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
-/* Derived from call/audio_send_stream.cc and call/audio_send_stream.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
-/* Derived from call/audio_receive_stream.cc and call/audio_receive_stream.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree. An additional intellectual property rights grant can be found
- *  in the file PATENTS.  All contributing project authors may
- *  be found in the AUTHORS file in the root of the source tree.
- */
-
-/*
- *  Copyright (c) 2015 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -620,76 +608,16 @@ void ReleaseOptionalString(WebRtcOptionalGuestString& optional) {
     optional.engaged = false;
 }
 
-using ReferenceRelease = int (APS5_VABI*)(const void*);
-
-ReferenceRelease ReleaseOf(const void* object, const char* message) {
-    const void* const* vtable = nullptr;
-    CopyInChecked(&vtable, object, sizeof(vtable), message);
-    if (!vtable || !vtable[1])
-        throw std::invalid_argument(message);
-    return reinterpret_cast<ReferenceRelease>(const_cast<void*>(vtable[1]));
-}
-
-std::size_t ExtensionCount(const WebRtcAudioSendStreamConfigRtp& rtp, const char* message) {
-    const auto first = reinterpret_cast<std::uintptr_t>(rtp.extensionsBegin);
-    const auto last = reinterpret_cast<std::uintptr_t>(rtp.extensionsEnd);
-    const auto limit = reinterpret_cast<std::uintptr_t>(rtp.extensionsCapacity);
-    if (last < first || limit < last || (!first && limit) || first % alignof(WebRtcRtpExtension) ||
-        (last - first) % sizeof(WebRtcRtpExtension) || (limit - first) % sizeof(WebRtcRtpExtension))
-        throw std::invalid_argument(message);
-    return (last - first) / sizeof(WebRtcRtpExtension);
-}
-
-struct DecoderEntry {
-    WebRtcDecoderMapNode* node;
-    std::vector<WebRtcStringMapNode*> parameterNodes;
-};
-
-std::vector<DecoderEntry> ValidateDecoderMap(WebRtcDecoderMap& map, const char* message) {
-    std::vector<DecoderEntry> entries;
-    WebRtcDecoderMapNode* const end = reinterpret_cast<WebRtcDecoderMapNode*>(&map.root);
-    if (map.size == 0) {
-        if (map.root || map.beginNode != end)
-            throw std::invalid_argument(message);
-        return entries;
-    }
-    if (!map.root || !map.beginNode || map.beginNode == end)
-        throw std::invalid_argument(message);
-    struct Pending {
-        WebRtcDecoderMapNode* node;
-        WebRtcDecoderMapNode* parent;
-    };
-    std::vector<Pending> pending {{map.root, end}};
-    while (!pending.empty()) {
-        const Pending current = pending.back();
-        pending.pop_back();
-        if (entries.size() >= map.size)
-            throw std::invalid_argument(message);
-        WebRtcDecoderMapNode copy{};
-        CopyInChecked(&copy, current.node, sizeof(copy), message);
-        if (copy.parent != current.parent)
-            throw std::invalid_argument(message);
-        DecoderEntry entry {current.node, {}};
-        ValidateFormat(&current.node->format, message, entry.parameterNodes);
-        entries.push_back(std::move(entry));
-        if (copy.right)
-            pending.push_back({copy.right, current.node});
-        if (copy.left)
-            pending.push_back({copy.left, current.node});
-    }
-    if (entries.size() != map.size)
-        throw std::invalid_argument(message);
-    const WebRtcDecoderMapNode* leftmost = map.root;
-    while (leftmost->left)
-        leftmost = leftmost->left;
-    if (leftmost != map.beginNode)
-        throw std::invalid_argument(message);
-    return entries;
-}
-
 }
 
 extern "C" {
+
+void WebRtcValidateSdpAudioFormat_nid_no_patch(const WebRtcSdpAudioFormat* format, const char* message) {
+    WebRtcSdpAudioFormat snapshot{};
+    CopyInChecked(&snapshot, format, sizeof(snapshot), message);
+    std::vector<WebRtcStringMapNode*> nodes;
+    ValidateFormat(format, message, nodes);
+}
 
 void APS5_VABI _ZN6webrtc14SdpAudioFormatC1ERKS0__nid_postfix(WebRtcSdpAudioFormat* format, const WebRtcSdpAudioFormat* other) {
     constexpr const char* message = "SdpAudioFormat copy constructor requires valid objects";
@@ -913,75 +841,6 @@ void APS5_VABI _ZN7cricket5CodecD1Ev_nid_postfix(WebRtcCodec* codec) {
     ReleaseModes(codec->scalabilityModes);
     ReleaseOptionalString(codec->packetization);
     ReleaseString(codec->name);
-}
-
-void APS5_VABI _ZN6webrtc15AudioSendStream6ConfigD1Ev_nid_postfix(WebRtcAudioSendStreamConfig* config) {
-    constexpr const char* message = "AudioSendStream::Config destructor requires a valid config";
-    RequireWritable(config, sizeof(*config), message);
-    ValidateString(config->rtp.rid, message);
-    ValidateString(config->rtp.mid, message);
-    const std::size_t extensionCount = ExtensionCount(config->rtp, message);
-    for (std::size_t index = 0; index < extensionCount; ++index)
-        ValidateString(config->rtp.extensionsBegin[index].uri, message);
-    ValidateString(config->rtp.cName, message);
-    ValidateOptionalString(config->audioNetworkAdaptorConfig, message);
-    std::vector<WebRtcStringMapNode*> formatNodes;
-    if (config->sendCodecSpec.engaged)
-        ValidateFormat(&config->sendCodecSpec.value.format, message, formatNodes);
-    ValidateString(config->trackId, message);
-    const ReferenceRelease releaseTransformer = config->frameTransformer ? ReleaseOf(config->frameTransformer, message) : nullptr;
-    const ReferenceRelease releaseEncryptor = config->frameEncryptor ? ReleaseOf(config->frameEncryptor, message) : nullptr;
-    const ReferenceRelease releaseFactory = config->encoderFactory ? ReleaseOf(config->encoderFactory, message) : nullptr;
-
-    if (releaseTransformer)
-        releaseTransformer(config->frameTransformer);
-    if (releaseEncryptor)
-        releaseEncryptor(config->frameEncryptor);
-    ReleaseString(config->trackId);
-    if (releaseFactory)
-        releaseFactory(config->encoderFactory);
-    if (config->sendCodecSpec.engaged) {
-        DestroyMapNodes(formatNodes, config->sendCodecSpec.value.format.parameters);
-        ReleaseString(config->sendCodecSpec.value.format.name);
-        config->sendCodecSpec.engaged = false;
-    }
-    ReleaseOptionalString(config->audioNetworkAdaptorConfig);
-    ReleaseString(config->rtp.cName);
-    while (config->rtp.extensionsEnd != config->rtp.extensionsBegin)
-        ReleaseString((--config->rtp.extensionsEnd)->uri);
-    if (config->rtp.extensionsBegin)
-        _ZdlPv_nid_postfix(config->rtp.extensionsBegin);
-    config->rtp.extensionsBegin = nullptr;
-    config->rtp.extensionsEnd = nullptr;
-    config->rtp.extensionsCapacity = nullptr;
-    ReleaseString(config->rtp.mid);
-    ReleaseString(config->rtp.rid);
-}
-
-void APS5_VABI _ZN6webrtc27AudioReceiveStreamInterface6ConfigD1Ev_nid_postfix(WebRtcAudioReceiveStreamConfig* config) {
-    constexpr const char* message = "AudioReceiveStreamInterface::Config destructor requires a valid config";
-    RequireWritable(config, sizeof(*config), message);
-    ValidateString(config->syncGroup, message);
-    const std::vector<DecoderEntry> decoders = ValidateDecoderMap(config->decoderMap, message);
-    const ReferenceRelease releaseTransformer = config->frameTransformer ? ReleaseOf(config->frameTransformer, message) : nullptr;
-    const ReferenceRelease releaseDecryptor = config->frameDecryptor ? ReleaseOf(config->frameDecryptor, message) : nullptr;
-    const ReferenceRelease releaseFactory = config->decoderFactory ? ReleaseOf(config->decoderFactory, message) : nullptr;
-
-    if (releaseTransformer)
-        releaseTransformer(config->frameTransformer);
-    if (releaseDecryptor)
-        releaseDecryptor(config->frameDecryptor);
-    if (releaseFactory)
-        releaseFactory(config->decoderFactory);
-    for (auto entry = decoders.rbegin(); entry != decoders.rend(); ++entry) {
-        DestroyMapNodes(entry->parameterNodes, entry->node->format.parameters);
-        ReleaseString(entry->node->format.name);
-        _ZdlPv_nid_postfix(entry->node);
-    }
-    config->decoderMap.beginNode = reinterpret_cast<WebRtcDecoderMapNode*>(&config->decoderMap.root);
-    config->decoderMap.root = nullptr;
-    config->decoderMap.size = 0;
-    ReleaseString(config->syncGroup);
 }
 
 }

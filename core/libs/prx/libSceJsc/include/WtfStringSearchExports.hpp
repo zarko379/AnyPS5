@@ -4,6 +4,7 @@
 #include "prx/libSceJsc/src/WtfStringAbi.hpp"
 
 #include <cstddef>
+#include <cstdint>
 
 namespace Jsc::WtfAbi {
 
@@ -52,5 +53,6 @@ bool APS5_VABI _ZNK3WTF10StringView8containsEPKc(const Jsc::WtfAbi::StringView* 
 bool APS5_VABI _ZN3WTF10protocolIsENS_10StringViewEPKc(Jsc::WtfAbi::StringView string, const char* protocol);
 bool APS5_VABI _ZNK3WTF10StringView16GraphemeClusters8IteratorneERKS2_(const Jsc::WtfAbi::GraphemeClusterIterator* self,
                                                                   const Jsc::WtfAbi::GraphemeClusterIterator* other);
+std::int32_t APS5_VABI _ZN3WTF10StringImpl23defaultWritingDirectionEPb(Jsc::WtfAbi::StringImpl* self, bool* hasStrongDirectionality);
 
 }

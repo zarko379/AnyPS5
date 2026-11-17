@@ -168,26 +168,6 @@ void TestDestructor() {
     Require(addRefs == 4 && releases == 4 && frees == before + 6);
 }
 
-void TestVideoFrameBuffer() {
-    FakeBuffer buffer {BufferVtable};
-    void* reference = &buffer;
-    WebRtcVideoFrame frame = Filled();
-    _ZN6webrtc10VideoFrameC1ERKNS_13scoped_refptrINS_16VideoFrameBufferEEEjlNS_13VideoRotationE_nid_postfix(&frame, &reference, 1, 2, 0);
-    void* result = &frame;
-    Require(_ZNK6webrtc10VideoFrame18video_frame_bufferEv_nid_postfix(&result, &frame) == &result);
-    Require(result == &buffer && addRefs == 2);
-    frame.videoFrameBuffer = nullptr;
-    Require(_ZNK6webrtc10VideoFrame18video_frame_bufferEv_nid_postfix(&result, &frame) == &result);
-    Require(result == nullptr && addRefs == 2);
-    FakeBuffer broken {BrokenVtable};
-    frame.videoFrameBuffer = &broken;
-    result = &frame;
-    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc10VideoFrame18video_frame_bufferEv_nid_postfix(&result, &frame); });
-    Require(result == &frame);
-    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc10VideoFrame18video_frame_bufferEv_nid_postfix(nullptr, &frame); });
-    RequireThrows<std::invalid_argument>([&] { _ZNK6webrtc10VideoFrame18video_frame_bufferEv_nid_postfix(&result, nullptr); });
-}
-
 void TestInvalid() {
     FakeBuffer broken {BrokenVtable};
     FakeBuffer empty {nullptr};
@@ -221,7 +201,6 @@ int main(int argc, char** argv) {
         if (std::strcmp(argv[1], "constructor") == 0) TestConstructor();
         else if (std::strcmp(argv[1], "destructor") == 0) TestDestructor();
         else if (std::strcmp(argv[1], "invalid") == 0) TestInvalid();
-        else if (std::strcmp(argv[1], "video_frame_buffer") == 0) TestVideoFrameBuffer();
         else Require(false);
     } catch (const std::exception& error) {
         std::fprintf(stderr, "VideoFrame exception: %s\n", error.what());

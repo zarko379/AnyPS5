@@ -51,10 +51,6 @@ std::int32_t APS5_VABI u_charFromName_nid_postfix(std::int32_t nameChoice, const
     return u_charFromName(static_cast<UCharNameChoice>(nameChoice), name, Status(status));
 }
 
-std::int32_t APS5_VABI u_getFC_NFKC_Closure_nid_postfix(std::int32_t c, char16_t* dest, std::int32_t destCapacity, std::int32_t* status) {
-    return u_getFC_NFKC_Closure(c, dest, destCapacity, Status(status));
-}
-
 void APS5_VABI u_enumCharNames_nid_postfix(std::int32_t start, std::int32_t limit, GuestCharNamesCallback fn, void* context, std::int32_t nameChoice, std::int32_t* status) {
     CharNamesForward forward{fn, context};
     u_enumCharNames(start, limit, fn ? ForwardCharName : nullptr, &forward, static_cast<UCharNameChoice>(nameChoice), Status(status));

@@ -42,8 +42,8 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libwebrtc/include/ModuleStorage.hpp"
 #include "prx/libc/include/Api.hpp"
-#include "prx/libc/include/General.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -51,52 +51,39 @@
 
 namespace {
 
-constexpr std::size_t DeletingDestructorSlot = 1;
-constexpr std::size_t BlockLengthSlot = 2;
-constexpr std::size_t CreateSlot = 3;
+constexpr int DeletingDestructorSlot = 1;
+constexpr int BlockLengthSlot = 2;
+constexpr int CreateSlot = 3;
 
 using PacketReady = void (APS5_VABI*)(void* function, const std::uint8_t* data, std::size_t size);
 using DeletingDestructor = void (APS5_VABI*)(void* packet);
 using BlockLengthFunction = std::size_t (APS5_VABI*)(const void* packet);
 using CreateFunction = bool (APS5_VABI*)(const void* packet, std::uint8_t* buffer, std::size_t* index, std::size_t maxLength, void* function, PacketReady call);
 
-std::size_t PacketCount(const WebRtcRtcpCompoundPacket* compound) {
-    return compound->packetsBegin ? static_cast<std::size_t>(compound->packetsEnd - compound->packetsBegin) : 0;
+template<typename TFunction>
+TFunction Slot(const void* packet, int slot) {
+    if (!packet)
+        throw std::invalid_argument("CompoundPacket holds a null packet");
+    const auto* vtable = *static_cast<void* const* const*>(packet);
+    return reinterpret_cast<TFunction>(vtable[slot]);
 }
 
-void* Slot(const void* packet, std::size_t slot, const char* message) {
-    const void* const* vtable = nullptr;
-    if (!packet || !GuestCopyIn_nid_no_patch(&vtable, packet, sizeof(vtable)) || !vtable || !vtable[slot])
-        throw std::invalid_argument(message);
-    return const_cast<void*>(vtable[slot]);
+std::size_t APS5_VABI CompoundBlockLength_nid_no_patch(const WebRtcRtcpCompoundPacket* compound) {
+    std::size_t length = 0;
+    for (void** appended = compound->appendedBegin; appended != compound->appendedEnd; ++appended)
+        length += Slot<BlockLengthFunction>(*appended, BlockLengthSlot)(*appended);
+    return length;
 }
 
-std::size_t APS5_VABI CompoundPacketBlockLength_nid_no_patch(const WebRtcRtcpCompoundPacket* compound) {
-    if (!compound)
-        throw std::invalid_argument("CompoundPacket::BlockLength requires a packet object");
-    std::size_t blockLength = 0;
-    const std::size_t count = PacketCount(compound);
-    for (std::size_t index = 0; index < count; ++index) {
-        const void* appended = compound->packetsBegin[index];
-        blockLength += reinterpret_cast<BlockLengthFunction>(Slot(appended, BlockLengthSlot, "CompoundPacket::BlockLength requires appended packets with BlockLength"))(appended);
-    }
-    return blockLength;
-}
-
-bool APS5_VABI CompoundPacketCreate_nid_no_patch(const WebRtcRtcpCompoundPacket* compound, std::uint8_t* packet, std::size_t* index, std::size_t maxLength, void* function, PacketReady call) {
-    if (!compound)
-        throw std::invalid_argument("CompoundPacket::Create requires a packet object");
-    const std::size_t count = PacketCount(compound);
-    for (std::size_t appendedIndex = 0; appendedIndex < count; ++appendedIndex) {
-        const void* appended = compound->packetsBegin[appendedIndex];
-        const auto create = reinterpret_cast<CreateFunction>(Slot(appended, CreateSlot, "CompoundPacket::Create requires appended packets with Create"));
-        if (!create(appended, packet, index, maxLength, function, call))
+bool APS5_VABI CompoundCreate_nid_no_patch(const WebRtcRtcpCompoundPacket* compound, std::uint8_t* packet, std::size_t* index, std::size_t maxLength, void* function, PacketReady call) {
+    for (void** appended = compound->appendedBegin; appended != compound->appendedEnd; ++appended) {
+        if (!Slot<CreateFunction>(*appended, CreateSlot)(*appended, packet, index, maxLength, function, call))
             return false;
     }
     return true;
 }
 
-void APS5_VABI DeleteCompoundPacket_nid_no_patch(WebRtcRtcpCompoundPacket* compound) {
+void APS5_VABI DeleteCompound_nid_no_patch(WebRtcRtcpCompoundPacket* compound) {
     _ZN6webrtc4rtcp14CompoundPacketD1Ev_nid_postfix(compound);
     _ZdlPv_nid_postfix(compound);
 }
@@ -104,9 +91,9 @@ void APS5_VABI DeleteCompoundPacket_nid_no_patch(WebRtcRtcpCompoundPacket* compo
 void* const Vtable[] = {
     nullptr, nullptr,
     reinterpret_cast<void*>(&_ZN6webrtc4rtcp14CompoundPacketD1Ev_nid_postfix),
-    reinterpret_cast<void*>(&DeleteCompoundPacket_nid_no_patch),
-    reinterpret_cast<void*>(&CompoundPacketBlockLength_nid_no_patch),
-    reinterpret_cast<void*>(&CompoundPacketCreate_nid_no_patch),
+    reinterpret_cast<void*>(&DeleteCompound_nid_no_patch),
+    reinterpret_cast<void*>(&CompoundBlockLength_nid_no_patch),
+    reinterpret_cast<void*>(&CompoundCreate_nid_no_patch),
 };
 
 }
@@ -118,27 +105,23 @@ void APS5_VABI _ZN6webrtc4rtcp14CompoundPacketC1Ev_nid_postfix(WebRtcRtcpCompoun
         throw std::invalid_argument("CompoundPacket constructor requires a packet object");
     compound->vtable = Vtable + 2;
     compound->senderSsrc = 0;
-    compound->packetsBegin = nullptr;
-    compound->packetsEnd = nullptr;
-    compound->packetsCapacity = nullptr;
+    compound->appendedBegin = nullptr;
+    compound->appendedEnd = nullptr;
+    compound->appendedCapacity = nullptr;
 }
 
 void APS5_VABI _ZN6webrtc4rtcp14CompoundPacketD1Ev_nid_postfix(WebRtcRtcpCompoundPacket* compound) {
     if (!compound)
         throw std::invalid_argument("CompoundPacket destructor requires a packet object");
-    const std::size_t count = PacketCount(compound);
-    for (std::size_t index = 0; index < count; ++index) {
-        void* appended = compound->packetsBegin[index];
-        if (appended)
-            Slot(appended, DeletingDestructorSlot, "CompoundPacket destructor requires appended packets with a deleting destructor");
+    for (void** appended = compound->appendedBegin; appended != compound->appendedEnd; ++appended) {
+        if (*appended)
+            Slot<DeletingDestructor>(*appended, DeletingDestructorSlot)(*appended);
     }
-    while (compound->packetsEnd != compound->packetsBegin) {
-        void* appended = *--compound->packetsEnd;
-        if (appended)
-            reinterpret_cast<DeletingDestructor>(Slot(appended, DeletingDestructorSlot, "CompoundPacket destructor requires appended packets with a deleting destructor"))(appended);
-    }
-    if (compound->packetsBegin)
-        _ZdlPv_nid_postfix(compound->packetsBegin);
+    const auto capacity = static_cast<std::size_t>(compound->appendedCapacity - compound->appendedBegin) * sizeof(void*);
+    WebRtcModuleStorage::Free(compound->appendedBegin, capacity);
+    compound->appendedBegin = nullptr;
+    compound->appendedEnd = nullptr;
+    compound->appendedCapacity = nullptr;
 }
 
 }

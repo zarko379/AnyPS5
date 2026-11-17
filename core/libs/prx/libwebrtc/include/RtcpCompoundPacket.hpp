@@ -6,13 +6,12 @@
 struct WebRtcRtcpCompoundPacket {
     const void* vtable;
     std::uint32_t senderSsrc;
-    void** packetsBegin;
-    void** packetsEnd;
-    void** packetsCapacity;
+    void** appendedBegin;
+    void** appendedEnd;
+    void** appendedCapacity;
 };
 
 static_assert(sizeof(WebRtcRtcpCompoundPacket) == 40);
 static_assert(offsetof(WebRtcRtcpCompoundPacket, senderSsrc) == 8);
-static_assert(offsetof(WebRtcRtcpCompoundPacket, packetsBegin) == 16);
-static_assert(offsetof(WebRtcRtcpCompoundPacket, packetsEnd) == 24);
-static_assert(offsetof(WebRtcRtcpCompoundPacket, packetsCapacity) == 32);
+static_assert(offsetof(WebRtcRtcpCompoundPacket, appendedBegin) == 16);
+static_assert(offsetof(WebRtcRtcpCompoundPacket, appendedCapacity) == 32);

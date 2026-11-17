@@ -27,6 +27,7 @@
 #include "prx/libc/include/General.hpp"
 #include "prx/libSceNKWebKit/include/HttpHeaderMapExports.hpp"
 #include "prx/libSceNKWebKit/include/ResourceRequestExports.hpp"
+#include "prx/libSceNKWebKit/include/InventoryExports.hpp"
 #include "prx/libSceNKWebKit/include/WtfExports.hpp"
 
 #include <memory>
@@ -421,7 +422,20 @@ void APS5_VABI _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEn
 void APS5_VABI _ZN7WebCore19ResourceRequestBase17makeUnconditionalEv(ResourceRequestBase* self) {
     auto& request = Checked(self);
     UpdateResourceRequest(request);
-    for (auto name : conditionalHeaderNames) _ZN7WebCore13HTTPHeaderMap6removeENS_14HTTPHeaderNameE(&HeaderFields(request), name);
+    auto* headers = reinterpret_cast<NKWebKit::HttpAbi::HTTPHeaderMap*>(&request.httpHeaderFields);
+    constexpr HTTPHeaderName conditionalHeaders[] = {
+        HTTPHeaderName::IfMatch,
+        HTTPHeaderName::IfModifiedSince,
+        HTTPHeaderName::IfNoneMatch,
+        HTTPHeaderName::IfRange,
+        HTTPHeaderName::IfUnmodifiedSince,
+    };
+    for (auto header : conditionalHeaders)
+        _ZN7WebCore13HTTPHeaderMap6removeENS_14HTTPHeaderNameE(headers, header);
+}
+
+void APS5_VABI WKURLRequestSetDefaultTimeoutInterval(double timeoutInterval) {
+    _ZN7WebCore19ResourceRequestBase25setDefaultTimeoutIntervalEd(timeoutInterval);
 }
 
 }

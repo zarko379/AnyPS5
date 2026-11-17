@@ -74,3 +74,4 @@
 #include "ClassIds.hpp"
 #include "BaseClasses.hpp"
 #include "Vectors.hpp"
+#include "UtfConversions.hpp"

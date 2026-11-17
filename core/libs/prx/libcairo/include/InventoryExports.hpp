@@ -56,7 +56,6 @@ int APS5_VABI cairo_set_scaled_font();
 int APS5_VABI cairo_ft_scaled_font_unlock_face();
 int APS5_VABI cairo_font_face_get_user_data();
 int APS5_VABI cairo_ft_font_face_create_for_ft_face();
-int APS5_VABI cairo_ft_font_options_substitute();
 int APS5_VABI cairo_font_face_reference();
 int APS5_VABI cairo_scaled_font_text_to_glyphs();
 int APS5_VABI cairo_scaled_font_glyph_extents();

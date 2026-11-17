@@ -28,22 +28,13 @@
 #include "prx/libSceNKWebKit/include/WebKitValueExports.hpp"
 #include "prx/libSceNKWebKit/src/Configuration.hpp"
 
-#include <cstdint>
 #include <optional>
-#include <stdexcept>
 #include <string>
 
 namespace {
 
 NKWebKit::Page* PageFrom(const void* pageRef, const char* function) {
     return NKWebKit::Cast<NKWebKit::Page>(pageRef, function);
-}
-
-std::int32_t ToInt(double value, const char* function) {
-    if (!(value > -2147483649.0 && value < 2147483648.0)) {
-        throw std::out_of_range(std::string(function) + ": size component outside the int range");
-    }
-    return static_cast<std::int32_t>(value);
 }
 
 std::optional<std::u16string> ToWTFString(const void* stringRef, const char* function) {
@@ -60,11 +51,6 @@ std::optional<std::u16string> ToWTFString(const void* stringRef, const char* fun
 }  // namespace
 
 extern "C" {
-
-
-
-
-
 
 double APS5_VABI WKPageGetBackingScaleFactor(const void* pageRef) {
     const auto* page = PageFrom(pageRef, __func__);
@@ -87,35 +73,6 @@ void APS5_VABI WKPageSetScaleFactor(const void* pageRef, double scale, NKWebKit:
 
 double APS5_VABI WKPageGetScaleFactor(const void* pageRef) {
     return PageFrom(pageRef, __func__)->pageScaleFactor;
-}
-
-void APS5_VABI WKPageSetUseFixedLayout(const void* pageRef, bool fixed) {
-    auto* page = PageFrom(pageRef, __func__);
-    if (fixed == page->useFixedLayout) {
-        return;
-    }
-    page->useFixedLayout = fixed;
-    if (!fixed) {
-        page->fixedLayoutWidth = 0;
-        page->fixedLayoutHeight = 0;
-    }
-}
-
-void APS5_VABI WKPageSetFixedLayoutSize(const void* pageRef, NKWebKit::SizeValue size) {
-    auto* page = PageFrom(pageRef, __func__);
-    std::int32_t width = ToInt(size.width, __func__);
-    std::int32_t height = ToInt(size.height, __func__);
-    page->fixedLayoutWidth = width;
-    page->fixedLayoutHeight = height;
-}
-
-bool APS5_VABI WKPageUseFixedLayout(const void* pageRef) {
-    return PageFrom(pageRef, __func__)->useFixedLayout;
-}
-
-NKWebKit::SizeValue APS5_VABI WKPageFixedLayoutSize(const void* pageRef) {
-    const auto* page = PageFrom(pageRef, __func__);
-    return NKWebKit::SizeValue{static_cast<double>(page->fixedLayoutWidth), static_cast<double>(page->fixedLayoutHeight)};
 }
 
 bool APS5_VABI WKPageGetIsControlledByAutomation(const void* pageRef) {

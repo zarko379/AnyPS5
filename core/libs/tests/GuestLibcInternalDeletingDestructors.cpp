@@ -57,7 +57,6 @@ int main() {
         _ZNSt8messagesIcED0Ev_nid_postfix,
         _ZNSt9money_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEED0Ev_nid_postfix,
         libSceLibcInternalInventory_020_nid_no_patch,
-        libSceLibcInternalInventory_090_nid_no_patch,
         libSceLibcInternalInventory_096_nid_no_patch,
         libSceLibcInternalInventory_101_nid_no_patch,
         libSceLibcInternalInventory_110_nid_no_patch,

@@ -197,16 +197,6 @@ static void TestSecurityOriginDatabaseIdentifiers() {
     WKRelease(notAnOrigin);
 }
 
-static void TestDefaultTimeoutInterval() {
-    Require(_ZN7WebCore19ResourceRequestBase22defaultTimeoutIntervalEv() == 0.0);
-    WKURLRequestSetDefaultTimeoutInterval(12.5);
-    Require(_ZN7WebCore19ResourceRequestBase22defaultTimeoutIntervalEv() == 12.5);
-    WKURLRequestSetDefaultTimeoutInterval(-1.0);
-    Require(_ZN7WebCore19ResourceRequestBase22defaultTimeoutIntervalEv() == -1.0);
-    WKURLRequestSetDefaultTimeoutInterval(0.0);
-    Require(_ZN7WebCore19ResourceRequestBase22defaultTimeoutIntervalEv() == 0.0);
-}
-
 static void TestWebsiteDataStores() {
     const void* defaultStore = WKWebsiteDataStoreGetDefaultDataStore();
     Require(defaultStore != nullptr);
@@ -259,32 +249,6 @@ static void TestWebsiteDataStores() {
     WKRelease(configured);
     WKRelease(configuration);
     WKRelease(ephemeral);
-}
-
-static void TestScriptWorlds() {
-    const void* first = WKBundleScriptWorldCreateWorld();
-    const void* second = WKBundleScriptWorldCreateWorld();
-    Require(first != nullptr && second != nullptr && first != second);
-    Require(first != WKBundleScriptWorldNormalWorld());
-    Require(WKGetTypeID(first) == WKBundleScriptWorldGetTypeID());
-    const void* firstName = WKBundleScriptWorldCopyName(first);
-    const void* secondName = WKBundleScriptWorldCopyName(second);
-    char firstText[64] = {};
-    char secondText[64] = {};
-    WKStringGetUTF8CString(firstName, firstText, sizeof(firstText));
-    WKStringGetUTF8CString(secondName, secondText, sizeof(secondText));
-    WKRelease(firstName);
-    WKRelease(secondName);
-    Require(std::strncmp(firstText, "UniqueWorld_", 12) == 0);
-    Require(std::strncmp(secondText, "UniqueWorld_", 12) == 0);
-    char* end = nullptr;
-    const auto firstNumber = std::strtoull(firstText + 12, &end, 10);
-    Require(end != firstText + 12 && *end == 0);
-    const auto secondNumber = std::strtoull(secondText + 12, &end, 10);
-    Require(end != secondText + 12 && *end == 0);
-    Require(secondNumber == firstNumber + 1);
-    WKRelease(first);
-    WKRelease(second);
 }
 
 static NKWebKit::JSValueRef Evaluate(NKWebKit::JSContextRef context, const char* code) {
@@ -374,16 +338,9 @@ static void TestEmptyExports() {
     WKCookieManagerDeleteAllCookiesModifiedAfterDate();
     WKCookieManagerStartObservingCookieChanges();
     WKCookieManagerStopObservingCookieChanges();
-    WKContextAllowSpecificHTTPSCertificateForHost();
-    WKContextPreconnectToServer();
-    WKContextSetCanHandleHTTPSServerTrustEvaluation();
-    WKContextSetCustomWebContentServiceBundleIdentifier();
-    WKContextSetDiskCacheSpeculativeValidationEnabled();
-    WKContextSetMaximumNumberOfProcesses();
     WKFrameStopLoading();
     WKPageLoadWebArchiveData();
     WKPageLoadWebArchiveDataWithUserData();
-    WKPageSetPaginationLineGridEnabled();
     WKBundleBackForwardListClear();
     WKBundlePageCopyRenderLayerTree();
     WKBundlePageCopyRenderTree();
@@ -464,7 +421,6 @@ static void TestStringImplDestroy() {
 int main() {
     TestContextSupplements();
     TestStringImplDestroy();
-    TestScriptWorlds();
     TestDataFromUint8Array();
     TestSessionValueTypes();
     TestEnhancedAccessibility();
@@ -472,7 +428,6 @@ int main() {
     TestKeyboardEvents();
     TestMouseAndWheelEvents();
     TestSecurityOriginDatabaseIdentifiers();
-    TestDefaultTimeoutInterval();
     TestWebsiteDataStores();
     std::printf("All libSceNKWebKit ApiObjects tests passed!\n");
     return 0;

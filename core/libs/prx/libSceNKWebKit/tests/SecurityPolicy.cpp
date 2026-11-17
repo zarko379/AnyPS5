@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -77,45 +76,9 @@ void Test() {
 
 }
 
-namespace {
-
-void TestLocalLoadPolicy() {
-    auto require = [](bool condition, const char* label) {
-        if (!condition) {
-            std::fprintf(stderr, "setLocalLoadPolicy check failed: %s\n", label);
-            std::abort();
-        }
-    };
-    require(NKWebKit::WebCoreAbi::SecurityPolicyLocalLoadPolicy() == 2, "default");
-    _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE(0);
-    require(NKWebKit::WebCoreAbi::SecurityPolicyLocalLoadPolicy() == 0, "all");
-    _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE(1);
-    require(NKWebKit::WebCoreAbi::SecurityPolicyLocalLoadPolicy() == 1, "substitute data");
-    bool threw = false;
-    try {
-        _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE(3);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    require(threw, "out of range");
-    threw = false;
-    try {
-        _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE(-1);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    require(threw, "negative");
-    require(NKWebKit::WebCoreAbi::SecurityPolicyLocalLoadPolicy() == 1, "unchanged");
-    _ZN7WebCore14SecurityPolicy18setLocalLoadPolicyENS0_15LocalLoadPolicyE(2);
-    require(NKWebKit::WebCoreAbi::SecurityPolicyLocalLoadPolicy() == 2, "local only");
-}
-
-}
-
 int main() {
     try {
         Test();
-        TestLocalLoadPolicy();
     } catch (const std::exception& error) {
         std::fprintf(stderr, "SecurityPolicy test exception: %s\n", error.what());
         return 1;
