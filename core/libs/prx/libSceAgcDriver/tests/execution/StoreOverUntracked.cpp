@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -525,6 +526,9 @@ Outcome Run(const Case& test) {
 int main(int argc, char** argv) {
     try {
         Require(argc == 1 || (argc == 2 && std::string_view(argv[1]) == "--pending-identity"), "store over untracked: unknown test argument");
+#ifdef _WIN32
+        Require(_putenv_s("APS5_NO_REWATCH_UNDER_IMAGES", "1") == 0, "store over untracked: cannot keep settled imports under live images outside the write watch");
+#endif
         {
             const auto device = OpenVulkanTestDevice();
             if (!device) return VulkanTestSkipped;
