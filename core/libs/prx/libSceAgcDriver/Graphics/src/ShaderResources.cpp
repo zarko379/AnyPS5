@@ -3521,6 +3521,29 @@ void countCollectRefusal(bool storage, std::uint64_t address, std::size_t bytes)
     if (profile.refusedSurfaces.size() < RefusedSurfaceLimit || profile.refusedSurfaces.contains(address)) profile.refusedSurfaces[address] = bytes;
 }
 
+void traceCollectRefusal(const Context& context, bool storage, std::uint64_t address, std::size_t bytes) {
+    static const bool trace = std::getenv("APS5_TRACE_COLLECT_REFUSALS") != nullptr;
+    if (!trace) return;
+    static std::mutex mutex;
+    static std::map<std::uint64_t, std::uint64_t> seen;
+    std::uint64_t count = 0;
+    {
+        std::lock_guard lock(mutex);
+        count = ++seen[address];
+    }
+    if ((count & (count - 1u)) != 0u) return;
+    constexpr std::uint64_t page = 4096;
+    const auto first = address & ~(page - 1u);
+    const auto stop = (address + bytes + page - 1u) & ~(page - 1u);
+    std::uint64_t watched = 0;
+    for (auto at = first; at < stop; at += page) {
+        if (GuestMemory::Watched(at, static_cast<std::size_t>(page))) ++watched;
+    }
+    const auto* import = ExistingHostImportFor(context, address, bytes);
+    const auto range = GuestAllocations::GuestAllocationsLookup_nid_postfix(static_cast<std::uintptr_t>(address), false);
+    std::fprintf(stderr, "[collect-refusal] %s surface 0x%llx+0x%llx refused %llu times: accessible %d, %llu of %llu pages watched; import %s 0x%llx+0x%llx unwatched %d dma-buf %d alias %d; allocation 0x%llx+0x%llx gpu %d writable %d\n", storage ? "storage" : "sampled", static_cast<unsigned long long>(address), static_cast<unsigned long long>(bytes), static_cast<unsigned long long>(count), GuestMemory::Accessible(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(address)), bytes) ? 1 : 0, static_cast<unsigned long long>(watched), static_cast<unsigned long long>((stop - first) / page), import != nullptr ? "at" : "none", import != nullptr ? static_cast<unsigned long long>(import->base) : 0ull, import != nullptr ? static_cast<unsigned long long>(import->bytes) : 0ull, import != nullptr && import->unwatched ? 1 : 0, import != nullptr && import->dmaBuf ? 1 : 0, import != nullptr && import->alias != nullptr ? 1 : 0, range != nullptr ? static_cast<unsigned long long>(range->allocationAddress) : 0ull, range != nullptr ? static_cast<unsigned long long>(range->allocationBytes) : 0ull, range != nullptr && range->gpu ? 1 : 0, range != nullptr && range->writable ? 1 : 0);
+}
+
 void countOwnRefreshFallback(OwnRefreshFallback reason) {
     if (BuildProfiled()) Revalidations().ownFallbacks[static_cast<std::size_t>(reason)].fetch_add(1, std::memory_order_relaxed);
 }
@@ -3825,6 +3848,7 @@ bool ShaderResources::fastRevalidate(std::uint64_t serialBefore, std::span<const
         }
         if (surface.collected == 0) {
             countCollectRefusal(false, address, bytes);
+            traceCollectRefusal(context, false, address, bytes);
             return fail(FastFail::Collect);
         }
         const auto* source = surface.source;
@@ -3884,6 +3908,7 @@ bool ShaderResources::fastRevalidate(std::uint64_t serialBefore, std::span<const
         }
         if (GuestMemory::CollectWrites(address, bytes) == 0) {
             countCollectRefusal(true, address, bytes);
+            traceCollectRefusal(context, true, address, bytes);
             return fail(FastFail::Collect);
         }
         if (own.dccAddress != 0) {

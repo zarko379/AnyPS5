@@ -40,6 +40,7 @@ unmapped.
 | `APS5_TRACE_BUFFER_WRITTEN` | Guest buffer elements classified as writable or read-only after descriptor population. |
 | `APS5_TRACE_CAPSYNC` | Waits for GPU writes needed by CPU accesses, including submission and range details. |
 | `APS5_TRACE_CONTEXT_STATE` | PM4 context-state operations and registers written while context state is pushed. |
+| `APS5_TRACE_COLLECT_REFUSALS` | Each surface whose cached-resource proof cannot collect its writes (the full walks that `[rescache] collect refusals` counts), at its 1st, 2nd, 4th, 8th... refusal: sampled or storage, address and bytes, whether it is accessible, how many of its 4 KiB pages are write-watched, the host import over it (with its unwatched, dma-buf and alias flags) and its guest allocation. |
 | `APS5_TRACE_COPY_HLE` | Pending host-side copies, their ranges, GPU batches and known writers. |
 | `APS5_TRACE_DCC_KEYS` | Display and storage-image DCC key reads, writes, fills and clears. |
 | `APS5_TRACE_DISPATCH_CACHE` | Compute dispatch cache hits, misses and changed user-data words. |
