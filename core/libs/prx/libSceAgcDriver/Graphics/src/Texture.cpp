@@ -2547,7 +2547,7 @@ bool StorageTexture::refresh(std::uint32_t firstLayer, std::uint32_t lastLayer) 
     const bool profile = LookupOutcomes::Profiled();
     auto start = profile ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     const bool scoped = firstLayer != 0 || lastLayer != trackedLayers;
-    const bool epochProofs = ShaderResources::EpochProofs();
+    const bool epochProofs = ShaderResources::ResourceEpochProofs();
     const auto epoch = epochProofs ? GuestMemory::CollectEpoch() : 0;
     if (epoch != 0 && provedEpoch.load(std::memory_order_relaxed) == epoch && provedProof.load(std::memory_order_relaxed) == GuestMemory::ProofSerial() && provedPending.load(std::memory_order_relaxed) == PendingSerial()) {
         NoteProved();

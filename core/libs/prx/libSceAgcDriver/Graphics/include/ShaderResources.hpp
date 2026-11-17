@@ -374,6 +374,8 @@ public:
     };
     bool Revalidate(std::span<const CompiledShader> shaders, ProofReport* report = nullptr);
     static bool EpochProofs();
+    static bool ResourceEpochProofs();
+    static std::uint64_t EpochProofReuses();
     bool Revalidate(const CompiledShader& shader, ProofReport* report = nullptr) { return Revalidate(std::span<const CompiledShader>(&shader, 1), report); }
     // The proof a recipe hit runs on its template (design_cpu_final M4): Revalidate by that name.
     bool ProveCurrent(std::span<const CompiledShader> shaders, ProofReport* report = nullptr) { return Revalidate(shaders, report); }
@@ -792,6 +794,12 @@ private:
     bool reusable = false;
     std::vector<DirectRegion> directRegions;
     std::vector<ValidatedSurface> validatedTextures;
+    bool epochProofWatched() const;
+    bool everyRangeWatched() const;
+    mutable bool watchedKnown = false;
+    mutable bool watchedRanges = false;
+    mutable std::uint64_t watchedUnwatches = 0;
+    mutable std::uint64_t watchedAllocations = 0;
     std::vector<ShaderRecompiler::RegisteredImageView> registeredImageViews;
     // The pending registry's serial at the last Revalidate that proved this object, taken before
     // its checks and kept only when unchanged after them (0: none): while it is still the serial,

@@ -1348,6 +1348,85 @@ ShaderRecompiler::RecompileResult StorageProgram(std::uint64_t address) {
     return program;
 }
 
+void epochProofTests(Context context) {
+    PlaceholderImages placeholders(context);
+    context.placeholderImages = &placeholders;
+    TextureCache textures(context);
+    context.textureCache = &textures;
+    const bool reuse = ShaderResources::ResourceEpochProofs();
+    AgcDriver::GuestMemory::MarkProofThread();
+    std::unique_lock gpu(AgcDriver::GuestMemory::GpuMutex());
+    const auto reused = [&](ShaderResources& resources, const CompiledShader& shader) {
+        const auto before = ShaderResources::EpochProofReuses();
+        const bool ok = resources.Revalidate(shader);
+        return std::pair{ok, ShaderResources::EpochProofReuses() != before};
+    };
+    PartialSurface surface(context);
+    surface.Commit(0, SurfaceBytes, 0x5a);
+    ClearCachedTextures(context.device);
+    const auto program = SampledProgram(surface.Address());
+    const CompiledShader shader{ShaderRecompiler::ShaderStage::Compute, &program, 0};
+    auto sampled = std::make_shared<ShaderResources>(context, shader);
+    Require(sampled->Reusable() && sampled->SampledTextures().size() == 1, "the template over the watched surface is not reusable");
+    AgcDriver::GuestMemory::BumpCollectEpoch();
+    Require(sampled->Revalidate(shader), "the template did not prove current in a new collect epoch");
+    auto [ok, hit] = reused(*sampled, shader);
+    Require(ok && hit == reuse, reuse ? "a second proof in the same collect epoch was not reused" : "a proof was reused with the resource epoch proofs off");
+    std::vector<std::byte> original(64), changed(64, std::byte{0x33});
+    std::memcpy(original.data(), reinterpret_cast<const void*>(surface.Address()), original.size());
+    AgcDriver::GuestMemory::WriteChanged(surface.Address(), changed, original);
+    std::tie(ok, hit) = reused(*sampled, shader);
+    Require(!hit, "a proof was reused after a driver store into the template's surface");
+    Require(!ok, "the template proved current over a driver store into its surface");
+    sampled = std::make_shared<ShaderResources>(context, shader);
+    AgcDriver::GuestMemory::BumpCollectEpoch();
+    Require(sampled->Revalidate(shader), "the rebuilt template did not prove current");
+    std::tie(ok, hit) = reused(*sampled, shader);
+    Require(ok && hit == reuse, "the rebuilt template's second proof in the epoch was not reused");
+    {
+        constexpr int Proofs = 4096;
+        const auto start = std::chrono::steady_clock::now();
+        for (int proof = 0; proof < Proofs; ++proof) Require(sampled->Revalidate(shader), "a repeated proof in the epoch failed");
+        const auto us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count() / Proofs;
+        std::printf("%d proofs of one watched template in one collect epoch: %.3f us each\n", Proofs, us);
+    }
+    gpu.unlock();
+    std::thread([] {
+        std::lock_guard other(AgcDriver::GuestMemory::GpuMutex());
+    }).join();
+    gpu.lock();
+    std::tie(ok, hit) = reused(*sampled, shader);
+    Require(!hit, "a proof was reused after another thread took the GPU mutex");
+    Require(ok, "the template did not prove current again after another thread took the GPU mutex");
+    std::memset(reinterpret_cast<void*>(surface.Address()), 0x44, 4096);
+    std::tie(ok, hit) = reused(*sampled, shader);
+    std::printf("a CPU write in the same collect epoch: %s\n", ok ? "not seen until the next epoch" : "seen");
+    AgcDriver::GuestMemory::BumpCollectEpoch();
+    std::tie(ok, hit) = reused(*sampled, shader);
+    Require(!hit && !ok, "the template proved current over a CPU write made before the next collect epoch");
+    sampled.reset();
+    ClearCachedTextures(context.device);
+    Block block(context);
+    const auto hostProgram = SampledProgram(block.Surface(0));
+    const CompiledShader hostShader{ShaderRecompiler::ShaderStage::Compute, &hostProgram, 0};
+    auto hosted = std::make_shared<ShaderResources>(context, hostShader);
+    Require(hosted->Reusable(), "the template over the unwatched surface is not reusable");
+    AgcDriver::GuestMemory::BumpCollectEpoch();
+    Require(hosted->Revalidate(hostShader), "the template over the unwatched surface did not prove current");
+    std::tie(ok, hit) = reused(*hosted, hostShader);
+    Require(ok && !hit, "a proof over a surface outside the write watch was reused within its collect epoch");
+    std::memset(reinterpret_cast<void*>(block.Surface(0)), 0x66, 4096);
+    std::tie(ok, hit) = reused(*hosted, hostShader);
+    Require(!hit && !ok, "the unwatched template proved current over a CPU write in the same collect epoch");
+    hosted = std::make_shared<ShaderResources>(context, hostShader);
+    std::memset(reinterpret_cast<void*>(block.Surface(0)), 0x67, 4096);
+    AgcDriver::GuestMemory::BumpCollectEpoch();
+    std::tie(ok, hit) = reused(*hosted, hostShader);
+    Require(!hit && !ok, "the unwatched template proved current over a CPU write made before the next collect epoch");
+    hosted.reset();
+    ClearCachedTextures(context.device);
+}
+
 void collectRefusalTests(Context context) {
     PlaceholderImages placeholders(context);
     context.placeholderImages = &placeholders;
@@ -1561,6 +1640,11 @@ int main(int argc, char** argv) {
             std::lock_guard gpu(AgcDriver::GuestMemory::GpuMutex());
             if (!lookupChangedTests(context)) return VulkanTestSkipped;
             std::puts("resource cache lookup-changed tests passed");
+            return 0;
+        }
+        if (mode == "epoch-proofs") {
+            epochProofTests(context);
+            std::puts(ShaderResources::ResourceEpochProofs() ? "resource epoch proof tests passed (proofs reused within a collect epoch)" : "resource epoch proof tests passed (proofs not reused)");
             return 0;
         }
         if (mode == "collect-refusals") {

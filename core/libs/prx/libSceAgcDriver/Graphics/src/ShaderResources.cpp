@@ -4150,6 +4150,22 @@ bool ShaderResources::EpochProofs() {
 }
 
 namespace {
+std::atomic<std::uint64_t> epochProofReuses{0};
+}
+
+std::uint64_t ShaderResources::EpochProofReuses() {
+    return epochProofReuses.load(std::memory_order_relaxed);
+}
+
+bool ShaderResources::ResourceEpochProofs() {
+    static const bool enabled = [] {
+        const char* text = std::getenv("APS5_RESOURCE_EPOCH_PROOFS");
+        return text != nullptr && text[0] != '\0' && text[0] != '0';
+    }();
+    return enabled || EpochProofs();
+}
+
+namespace {
 void noteEpochProof(bool reused, bool verified, bool failed) {
     static std::atomic<std::uint64_t> reuses{0}, proofs{0}, checks{0}, failures{0};
     if (verified) checks.fetch_add(1, std::memory_order_relaxed);
@@ -4485,7 +4501,7 @@ bool ShaderResources::Revalidate(std::span<const CompiledShader> shaders, ProofR
         provedEpoch = 0;
         return false;
     }
-    if (EpochProofs()) {
+    if (ResourceEpochProofs()) {
         const auto epoch = GuestMemory::CollectEpoch();
         const auto proof = GuestMemory::ProofSerial();
         const auto pending = StorageTexture::PendingSerial();
@@ -4499,13 +4515,14 @@ bool ShaderResources::Revalidate(std::span<const CompiledShader> shaders, ProofR
                 return ok;
             }
             if (report != nullptr) *report = {ProofPath::Full, ProofFailure::None};
+            epochProofReuses.fetch_add(1, std::memory_order_relaxed);
             noteEpochProof(true, false, false);
             return true;
         }
         const bool ok = revalidateFull(shaders, report);
         noteEpochProof(false, false, false);
         if (ok) {
-            provedEpoch = std::any_of(textures.begin(), textures.end(), [](const std::shared_ptr<Texture>& texture) { return texture != nullptr && texture->HasReuseLookup(); }) ? 0 : epoch;
+            provedEpoch = std::any_of(textures.begin(), textures.end(), [](const std::shared_ptr<Texture>& texture) { return texture != nullptr && texture->HasReuseLookup(); }) || !epochProofWatched() ? 0 : epoch;
             provedProof = proof;
             provedPending = pending;
             provedRetired = retired;
@@ -4515,6 +4532,34 @@ bool ShaderResources::Revalidate(std::span<const CompiledShader> shaders, ProofR
         return ok;
     }
     return revalidateFull(shaders, report);
+}
+
+bool ShaderResources::epochProofWatched() const {
+    const auto unwatches = GuestMemory::UnwatchSerial();
+    const auto allocations = GuestAllocations::GuestAllocationsGeneration_nid_postfix();
+    if (watchedKnown && watchedUnwatches == unwatches && watchedAllocations == allocations) return watchedRanges;
+    watchedKnown = true;
+    watchedUnwatches = unwatches;
+    watchedAllocations = allocations;
+    watchedRanges = everyRangeWatched();
+    return watchedRanges;
+}
+
+bool ShaderResources::everyRangeWatched() const {
+    const auto watched = [](std::uint64_t address, std::uint64_t bytes) { return bytes == 0 || GuestMemory::Watched(address, static_cast<std::size_t>(bytes)); };
+    for (const auto& surface : validatedTextures) {
+        if (!surface.valid || !watched(surface.resource.baseAddress, surface.bytes)) return false;
+    }
+    for (const auto& image : storageTextures) {
+        if (image != nullptr && !watched(image->Descriptor().baseAddress, image->GuestBytes())) return false;
+    }
+    for (const auto& range : describedRanges) {
+        if (!watched(range.address, range.bytes)) return false;
+    }
+    for (const auto& region : directRegions) {
+        if (!watched(region.begin, region.end - region.begin)) return false;
+    }
+    return true;
 }
 
 bool ShaderResources::revalidateFull(std::span<const CompiledShader> shaders, ProofReport* report) {
