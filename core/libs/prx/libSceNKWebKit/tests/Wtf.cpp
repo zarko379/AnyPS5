@@ -1446,7 +1446,7 @@ void TestUTFConversions() {
     Throws([&] { UTF8(&trailing, 1); });
     Check(Bytes(UTF8(&malformed, 2)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
     Throws([&] { UTF8(&malformed, 1); });
-    Check(Bytes(Utf8For16(bad, 4, 0)) == "\xed\xa0\x80X\xed\xb0\x80\xed\xbf\xbf");
+    Check(Bytes(Utf8For16(bad, 4, 0)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
     Check(Bytes(Utf8For16(bad, 4, 2)) == "\xef\xbf\xbdX\xef\xbf\xbd\xef\xbf\xbd");
     Throws([&] { Utf8For16(bad, 4, 1); });
     char16_t paired[] = {'c', 'a', 'f', 0xE9, 0xD83D, 0xDE00};
@@ -2076,7 +2076,7 @@ void TestFileSystemRepresentations() {
     auto latin1 = Create8(latin1Path, 5);
     Check(Bytes(Representation(&latin1)) == "/caf\xC3\xA9");
     Check(Bytes(Representation(&(const String&)Wide(u"/a/caf\u00E9/\u4E2D"))) == "/a/caf\xC3\xA9/\xE4\xB8\xAD");
-    Check(Bytes(Representation(&(const String&)Wide(u"x\xD800y"))) == "x\xED\xA0\x80y");
+    Check(Bytes(Representation(&(const String&)Wide(u"x\xD800y"))) == "x\xEF\xBF\xBDy");
     String nullString;
     CString nullRepresentation = Representation(&nullString);
     Check(nullRepresentation.buffer && Bytes(nullRepresentation).empty());

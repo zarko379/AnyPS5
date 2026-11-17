@@ -43,7 +43,7 @@ int main() {
     }
 
     Require(sceAudioOutMasteringInit(1) == masteringInvalidFlags);
-    Reject([] { sceAudioOutMasteringInit(2); });
+    Require(sceAudioOutMasteringInit(2) == masteringInvalidFlags);
     Require(sceAudioOutMasteringInit(0) == 0);
     Require(sceAudioOutMasteringInit(0) == 0);
 
