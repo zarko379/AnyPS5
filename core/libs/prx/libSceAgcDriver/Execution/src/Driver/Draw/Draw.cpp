@@ -192,23 +192,34 @@ namespace {
 
 void prebuildDrawPipeline(const std::shared_ptr<VulkanDevice>& device, const Graphics::State& graphics, std::span<const Graphics::CompiledShader> stages, std::span<const std::shared_ptr<const ShaderRecompiler::RecompileResult>> owners) {
     static const bool disabled = std::getenv("APS5_NO_DRAW_PIPELINE_PREBUILD") != nullptr;
-    if (disabled || !device->GraphicsPipelineLibraries() || stages.empty()) return;
-    std::vector<std::uint64_t> key{graphics.samples, graphics.depth ? static_cast<std::uint64_t>(graphics.depth->format) : 0u};
+    if (disabled || stages.empty() || !device->GraphicsPipelineLibraries()) return;
+    std::uint64_t key = 0xcbf29ce484222325ull;
+    const auto mix = [&](std::uint64_t value) {
+        key ^= value;
+        key *= 0x100000001b3ull;
+    };
+    mix(graphics.samples);
+    mix(graphics.depth ? static_cast<std::uint64_t>(graphics.depth->format) : 0u);
+    for (const auto& stage : stages) {
+        mix(static_cast<std::uint64_t>(stage.stage));
+        const auto identity = stage.program->Identity();
+        mix(identity.low);
+        mix(identity.high);
+        mix(stage.pushConstantOffset);
+    }
+    static std::mutex mutex;
+    static std::unordered_set<std::uint64_t> submitted;
+    {
+        std::lock_guard lock(mutex);
+        if (submitted.size() >= 65536u) submitted.clear();
+        if (!submitted.insert(key).second) return;
+    }
     std::vector<std::shared_ptr<const ShaderRecompiler::RecompileResult>> held;
     std::vector<Graphics::CompiledShader> shaders;
     for (const auto& stage : stages) {
         const auto owner = std::find_if(owners.begin(), owners.end(), [&](const auto& candidate) { return candidate.get() == stage.program; });
-        if (owner == owners.end()) return;
-        held.push_back(*owner);
-        shaders.push_back({stage.stage, stage.program, stage.pushConstantOffset});
-        key.insert(key.end(), {static_cast<std::uint64_t>(stage.stage), stage.program->variantId, stage.pushConstantOffset});
-    }
-    static std::mutex mutex;
-    static std::set<std::vector<std::uint64_t>> submitted;
-    {
-        std::lock_guard lock(mutex);
-        if (submitted.size() >= 65536u) submitted.clear();
-        if (!submitted.insert(std::move(key)).second) return;
+        held.push_back(owner != owners.end() ? *owner : std::make_shared<const ShaderRecompiler::RecompileResult>(*stage.program));
+        shaders.push_back({stage.stage, held.back().get(), stage.pushConstantOffset});
     }
     SubmitDrawPipelinePrebuild([device, graphics, held = std::move(held), shaders = std::move(shaders)] {
         try {
@@ -1356,6 +1367,7 @@ DrawVerdict Driver::finishDraw(DrawTail& tail, PerformanceTimer& timing) {
                 }
                 phaseTiming.Phase(DrawRowVectors);
                 auto writes = drawWriteRanges(graphics, stages);
+                prebuildDrawPipeline(localDevice, decode->state, stages, compiledStages);
                 const auto commitQueue = submission.queue;
                 const auto commitPacket = tail.packetOpcode;
                 const auto epoch = DrawPipeline::EpochToken().load(std::memory_order_relaxed);
@@ -1433,7 +1445,14 @@ DrawVerdict Driver::finishDraw(DrawTail& tail, PerformanceTimer& timing) {
         const auto commitPacket = tail.packetOpcode;
         const auto epoch = DrawFinisher::OnFinisherThread() ? tail.epoch : DrawPipeline::EpochToken().load(std::memory_order_relaxed);
         auto reads = QueuedDrawReadRanges(drawParameters, stages);
-        if (recipe == nullptr) prebuildDrawPipeline(localDevice, decode->state, stages, compiledStages);
+        if (recipe == nullptr) {
+            auto owners = compiledStages;
+            for (std::size_t i = 0; i < programs.size(); ++i) {
+                if (stageData[i].compiled != nullptr) owners.push_back(stageData[i].compiled);
+                if (matched[i] != nullptr && matched[i]->compiled != nullptr) owners.push_back(matched[i]->compiled);
+            }
+            prebuildDrawPipeline(localDevice, decode->state, stages, owners);
+        }
         auto contentKey = recipe == nullptr && DrawFinisher::OnFinisherThread() ? localDevice->DrawContentKey(decode->state, drawParameters, stages) : std::vector<std::uint32_t>{};
         auto commit = [this, contentKey = std::move(contentKey), localDevice = std::move(localDevice), decode = std::move(decode), drawParameters, stages = std::move(stages), snapshots = std::move(snapshots), recipe = std::move(recipe), recipeStages = std::move(recipeStages), drawKey, recipeDonor, shape = tail.shapeKey, commitQueue, commitPacket, epoch, trace = trace, writablePrograms = std::move(writablePrograms), results = std::move(results), memory = std::move(memory), linked = std::move(linked), stageCaptures = std::move(stageCaptures), matched = std::move(matched), matchedRegions = std::move(matchedRegions), fresh = std::move(fresh), decodeReads = std::move(decodeReads), shaderMemory = std::move(shaderMemory), entry = std::move(entry), dataEntry = std::move(dataEntry), compiledStages = std::move(compiledStages), stageData = std::move(stageData)]() mutable {
             DrawPipeline::FollowEpoch(epoch);

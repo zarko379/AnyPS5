@@ -1866,13 +1866,27 @@ public:
         return PrebuildSlot().load();
     }
 
+    static RegistrationPreparePool& DrawPipelines() {
+        static auto* pool = [] {
+            std::lock_guard lifecycle(Lifecycle());
+            auto* created = new RegistrationPreparePool(Closing() ? 0u : std::max(2u, std::thread::hardware_concurrency() / 4u));
+            DrawPipelineSlot().store(created);
+            return created;
+        }();
+        return *pool;
+    }
+
+    static RegistrationPreparePool* ExistingDrawPipelines() {
+        return DrawPipelineSlot().load();
+    }
+
     static unsigned LiveWorkers() {
         return liveWorkers.load(std::memory_order_acquire);
     }
 
     static std::optional<std::size_t> Pending() {
         std::size_t pending = 0;
-        for (auto* pool : {Existing(), ExistingPrebuild()}) {
+        for (auto* pool : {Existing(), ExistingPrebuild(), ExistingDrawPipelines()}) {
             if (pool == nullptr) continue;
             std::unique_lock lock(pool->mutex, std::try_to_lock);
             if (!lock.owns_lock()) return std::nullopt;
@@ -1882,14 +1896,15 @@ public:
     }
 
     static void CloseAll() {
-        std::array<RegistrationPreparePool*, 2> pools{};
+        std::array<RegistrationPreparePool*, 3> pools{};
         {
             std::lock_guard lifecycle(Lifecycle());
             Closing() = true;
-            pools = {Existing(), ExistingPrebuild()};
+            pools = {Existing(), ExistingPrebuild(), ExistingDrawPipelines()};
         }
         if (pools[0] != nullptr) pools[0]->Close(false);
         if (pools[1] != nullptr) pools[1]->Close(true);
+        if (pools[2] != nullptr) pools[2]->Close(true);
     }
 
 private:
@@ -1908,6 +1923,11 @@ private:
         return slot;
     }
 
+    static std::atomic<RegistrationPreparePool*>& DrawPipelineSlot() {
+        static std::atomic<RegistrationPreparePool*> slot{nullptr};
+        return slot;
+    }
+
     static std::atomic<RegistrationPreparePool*>& PrebuildSlot() {
         static std::atomic<RegistrationPreparePool*> slot{nullptr};
         return slot;
@@ -1915,12 +1935,12 @@ private:
 
 public:
 
-    void Submit(std::function<void()> task, const PreparedShaders* prepared = nullptr, bool budgeted = false, std::uint64_t program = 0, bool front = false) {
+    void Submit(std::function<void()> task, const PreparedShaders* prepared = nullptr, bool budgeted = false, std::uint64_t program = 0) {
         {
             std::unique_lock lock(mutex);
             if (threads != 0 && !closed) {
                 const auto sequence = ++submitted;
-                if (front || (prepared != nullptr && prepared->demanded.load())) tasks.push_front({std::move(task), prepared, sequence, budgeted, program});
+                if (prepared != nullptr && prepared->demanded.load()) tasks.push_front({std::move(task), prepared, sequence, budgeted, program});
                 else tasks.push_back({std::move(task), prepared, sequence, budgeted, program});
                 if (program != 0) waitingPrograms.fetch_add(1, std::memory_order_relaxed);
                 unfinished.insert(sequence);
@@ -2258,7 +2278,7 @@ void PrioritizeLibraryPrebuilds(std::span<const std::uint64_t> programs) {
 }
 
 void SubmitDrawPipelinePrebuild(std::function<void()> task) {
-    RegistrationPreparePool::Prebuild().Submit(std::move(task), nullptr, false, 0, true);
+    RegistrationPreparePool::DrawPipelines().Submit(std::move(task));
 }
 
 void SubmitComputePrebuild(std::function<void()> task) {
@@ -2267,6 +2287,7 @@ void SubmitComputePrebuild(std::function<void()> task) {
 
 void AwaitLibraryPrebuilds() {
     if (auto* pool = RegistrationPreparePool::ExistingPrebuild()) pool->AwaitSubmitted();
+    if (auto* pool = RegistrationPreparePool::ExistingDrawPipelines()) pool->AwaitSubmitted();
 }
 
 void CloseRegistrationPreparation() {
