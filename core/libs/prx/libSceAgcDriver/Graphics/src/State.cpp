@@ -1948,7 +1948,7 @@ State DecodeState(const QueueState& queue, bool vertexWorkgroup) {
     } else if (viewportControl == 0u) {
         const auto zs = programmedFloat(cx, 0x113);
         const auto zo = programmedFloat(cx, 0x114);
-        const bool depthProgrammed = zs && zo && *zs != 0.0f;
+        const bool depthProgrammed = zs && zo;
         result.depthScale = depthProgrammed ? *zs : 1.0f;
         result.depthOffset = depthProgrammed ? *zo : 0.0f;
         const auto minDepth = result.negativeOneToOne ? result.depthOffset - result.depthScale : result.depthOffset;

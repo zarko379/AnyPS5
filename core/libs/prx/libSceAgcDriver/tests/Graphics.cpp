@@ -5910,6 +5910,14 @@ void InitialContextTests() {
         flipped.context[0x112] = std::bit_cast<std::uint32_t>(2.0f);
         const auto upright = AgcDriver::Graphics::DecodeState(flipped);
         Require(upright.viewport.y == 0.0f && upright.viewport.height == 4.0f, "a programmed viewport with a positive Y scale lost its orientation");
+        auto constant = queue;
+        constant.context[0x113] = 0;
+        constant.context[0x114] = std::bit_cast<std::uint32_t>(0.25f);
+        const auto flat = AgcDriver::Graphics::DecodeState(constant);
+        Require(flat.depthScale == 0.0f && flat.depthOffset == 0.25f && flat.viewport.minDepth == 0.25f && flat.viewport.maxDepth == 0.25f, "a programmed zero Z scale did not give every fragment the Z offset as its depth");
+        constant.context[0x206] = 0x43f;
+        const auto flatTransformed = AgcDriver::Graphics::DecodeState(constant);
+        Require(flatTransformed.depthScale == flat.depthScale && flatTransformed.depthOffset == flat.depthOffset && flatTransformed.viewport.minDepth == flat.viewport.minDepth && flatTransformed.viewport.maxDepth == flat.viewport.maxDepth, "a programmed zero Z scale decoded differently with and without the viewport transform enabled");
     }
     Require(AgcDriver::Graphics::DrawRejection(queue, false).find("PA_CL_VTE_CNTL") == std::string::npos, "a draw with the reset viewport control was rejected for its viewport control");
     for (const auto control : {0x3fu, 0x43eu, 0x53fu, 0x63fu, 0x8000043fu}) {
