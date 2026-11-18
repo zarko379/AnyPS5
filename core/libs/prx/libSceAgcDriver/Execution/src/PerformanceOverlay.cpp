@@ -240,6 +240,59 @@ void OverlayStatistics::AddPresent(Clock::time_point at, const OverlayCounters& 
     }
     window.push_back({at, counters});
     while (at - window.front().at > Window) window.pop_front();
+    addSessionPresent(at);
+}
+
+void OverlayStatistics::addSessionPresent(Clock::time_point at) {
+    if (!sessionFirst) sessionFirst = at;
+    sessionNow = at;
+    if (at - *sessionFirst < sessionDelay) return;
+    if (!sessionLast) {
+        sessionLast = at;
+        secondStart = at;
+        secondFrames = 0;
+        return;
+    }
+    sessionMeasured += at - *sessionLast;
+    sessionLast = at;
+    ++sessionFrames;
+    while (at - secondStart > std::chrono::seconds(1)) {
+        slowestSecond = secondsClosed == 0 ? secondFrames : std::min(slowestSecond, secondFrames);
+        fastestSecond = secondsClosed == 0 ? secondFrames : std::max(fastestSecond, secondFrames);
+        ++secondsClosed;
+        secondStart += std::chrono::seconds(1);
+        secondFrames = 0;
+    }
+    ++secondFrames;
+}
+
+void OverlayStatistics::SetSessionDelay(Clock::duration delay) {
+    sessionDelay = delay;
+}
+
+OverlayStatistics::Session OverlayStatistics::SessionFps() const {
+    Session session;
+    if (!sessionFirst) {
+        session.untilStart = sessionDelay;
+        return session;
+    }
+    if (sessionNow - *sessionFirst < sessionDelay) {
+        session.untilStart = sessionDelay - (sessionNow - *sessionFirst);
+        return session;
+    }
+    if (secondsClosed == 0) return session;
+    const auto seconds = std::chrono::duration<double>(sessionMeasured).count();
+    session.measured = true;
+    session.fps = {static_cast<double>(slowestSecond), seconds > 0 ? static_cast<double>(sessionFrames) / seconds : 0.0, static_cast<double>(fastestSecond)};
+    return session;
+}
+
+OverlayStatistics::Clock::duration OverlaySessionDelay(const char* text) {
+    if (text == nullptr || *text == '\0') return std::chrono::seconds(20);
+    char* end = nullptr;
+    const auto seconds = std::strtoull(text, &end, 10);
+    if (*end != '\0' || seconds > 3600) throw std::runtime_error("ANYPS5_OVERLAY_STATS_DELAY must be a whole number of seconds from 0 to 3600, not '" + std::string(text) + "'");
+    return std::chrono::seconds(seconds);
 }
 
 void OverlayStatistics::Reset() {
@@ -248,6 +301,7 @@ void OverlayStatistics::Reset() {
     frameTimes = {};
     frameCount = 0;
     frameNext = 0;
+    sessionLast.reset();
 }
 
 double OverlayStatistics::Fps() const {
@@ -448,6 +502,14 @@ OverlayContent ComposeOverlay(const OverlayStatistics& statistics, bool gpu, boo
     if (gpu || driver) content.above.push_back("PROFILED");
     content.above.push_back("FPS: " + FormatOverlayRate(statistics.Fps()));
     content.above.push_back("FRAME: " + FormatOverlayValue(statistics.LastFrameMs()) + " MS");
+    const auto session = statistics.SessionFps();
+    if (session.measured) {
+        auto line = "FPS LO/AVG/HI: " + FormatOverlayCount(session.fps.minimum) + "/" + FormatOverlayRate(session.fps.average) + "/" + FormatOverlayCount(session.fps.maximum);
+        if (line.size() > static_cast<std::size_t>(content.columns)) line = "FPS " + FormatOverlayCount(session.fps.minimum) + "/" + FormatOverlayCount(session.fps.average) + "/" + FormatOverlayCount(session.fps.maximum);
+        content.above.push_back(std::move(line));
+    } else {
+        content.above.push_back("FPS LO/AVG/HI IN " + FormatOverlayCount(std::ceil(std::chrono::duration<double>(session.untilStart).count())) + " S");
+    }
     content.frameTimes = statistics.FrameTimes();
     const auto range = statistics.FrameTimeRange();
     content.below.push_back("MIN/AVG/MAX: " + FormatOverlayValue(range.minimum) + "/" + FormatOverlayValue(range.average) + "/" + FormatOverlayValue(range.maximum));
@@ -876,6 +938,7 @@ std::array<std::array<float, 4>, OverlayColorCount> OverlayPalette(VkFormat form
 
 PerformanceOverlay::PerformanceOverlay(const Graphics::Context& context, std::size_t slotCount) : context(context), slots(slotCount) {
     Graphics::Require(slotCount != 0, "the performance overlay needs at least one slot");
+    statistics.SetSessionDelay(OverlaySessionDelay(std::getenv("ANYPS5_OVERLAY_STATS_DELAY")));
     try {
         const VkPushConstantRange push{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(OverlayParameters)};
         VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};

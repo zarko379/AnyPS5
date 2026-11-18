@@ -126,7 +126,7 @@ void lowRateTests() {
         require(within(slow.GpuMsPerFrame(), static_cast<double>(Gpu[i]) / 1e6) && within(slow.DriverMsPerFrame(), static_cast<double>(Driver[i]) / 1e6), "frame " + std::to_string(i + 1) + " every 2 s reads " + std::to_string(slow.GpuMsPerFrame()) + " ms of GPU and " + std::to_string(slow.DriverMsPerFrame()) + " ms of driver time, not its own");
     }
     const auto everyTwoSeconds = AgcDriver::ComposeOverlay(slow, true, true);
-    require(everyTwoSeconds.above == std::vector<std::string>{"PROFILED", "FPS: 0.50", "FRAME: 2000 MS"}, "a present every 2 s shows " + std::to_string(everyTwoSeconds.above.size()) + " lines above the graph, the last '" + everyTwoSeconds.above.back() + "'");
+    require(everyTwoSeconds.above == std::vector<std::string>{"PROFILED", "FPS: 0.50", "FRAME: 2000 MS", "FPS LO/AVG/HI IN 14 S"}, "a present every 2 s shows " + std::to_string(everyTwoSeconds.above.size()) + " lines above the graph, the last '" + everyTwoSeconds.above.back() + "'");
     require(everyTwoSeconds.below[0] == "MIN/AVG/MAX: 2000/2000/2000" && everyTwoSeconds.below[1] == "GPU: 20.0 MS  1%" && everyTwoSeconds.below[2] == "DRIVER: 8.0 MS", "a present every 2 s shows '" + everyTwoSeconds.below[0] + "', '" + everyTwoSeconds.below[1] + "' and '" + everyTwoSeconds.below[2] + "'");
 
     OverlayStatistics glacial;
@@ -134,7 +134,7 @@ void lowRateTests() {
     for (int i = 1; i <= 5; ++i) glacial.AddPresent(Start + i * 12s, static_cast<std::uint64_t>(i) * 250'000'000u, static_cast<std::uint64_t>(i) * 12'500'000'000u);
     require(within(glacial.Fps(), 1000.0 / 12000.0) && within(glacial.LastFrameMs(), 12000) && within(glacial.GpuMsPerFrame(), 250) && within(glacial.DriverMsPerFrame(), 12500), "a present every 12 s reads as " + std::to_string(glacial.Fps()) + " FPS, " + std::to_string(glacial.LastFrameMs()) + " ms, " + std::to_string(glacial.GpuMsPerFrame()) + " and " + std::to_string(glacial.DriverMsPerFrame()) + " ms");
     const auto everyTwelveSeconds = AgcDriver::ComposeOverlay(glacial, true, true);
-    require(everyTwelveSeconds.above == std::vector<std::string>{"PROFILED", "FPS: 0.08", "FRAME: 9999 MS"}, "a present every 12 s shows " + std::to_string(everyTwelveSeconds.above.size()) + " lines above the graph, the last '" + everyTwelveSeconds.above.back() + "'");
+    require(everyTwelveSeconds.above == std::vector<std::string>{"PROFILED", "FPS: 0.08", "FRAME: 9999 MS", "FPS LO/AVG/HI: 0/0.08/1"}, "a present every 12 s shows " + std::to_string(everyTwelveSeconds.above.size()) + " lines above the graph, the last '" + everyTwelveSeconds.above.back() + "'");
     require(everyTwelveSeconds.below[0] == "MIN/AVG/MAX: 9999/9999/9999" && everyTwelveSeconds.below[1] == "GPU: 250 MS  2%" && everyTwelveSeconds.below[2] == "DRIVER: 9999 MS", "a present every 12 s shows '" + everyTwelveSeconds.below[0] + "', '" + everyTwelveSeconds.below[1] + "' and '" + everyTwelveSeconds.below[2] + "'");
     require(everyTwelveSeconds.frameTimes == std::vector<double>(5, 12000.0), "the graph does not hold the five 12 s frames");
     const auto layout = AgcDriver::LayOutOverlay(everyTwelveSeconds, {1920, 1080}, OverlayCorner::TopLeft);
@@ -203,7 +203,7 @@ void composeTests() {
     OverlayStatistics statistics;
     for (std::uint64_t i = 0; i <= 100; ++i) statistics.AddPresent(Start + i * 10ms, i * 2'000'000u, i * 500'000u);
     const auto plain = AgcDriver::ComposeOverlay(statistics, false, false);
-    require(plain.above.size() == 2 && plain.above[0] == "FPS: 100" && plain.above[1] == "FRAME: 10.0 MS", "the frame lines read '" + plain.above[0] + "' and '" + plain.above[1] + "'");
+    require(plain.above.size() == 3 && plain.above[0] == "FPS: 100" && plain.above[1] == "FRAME: 10.0 MS" && plain.above[2] == "FPS LO/AVG/HI IN 19 S", "the frame lines read '" + plain.above[0] + "' and '" + plain.above[1] + "'");
     require(plain.below.size() == 1 && plain.below[0] == "MIN/AVG/MAX: 10.0/10.0/10.0", "the graph line reads '" + plain.below[0] + "'");
     require(plain.frameTimes.size() == 100, "the graph does not hold every frame time");
     const auto profiled = AgcDriver::ComposeOverlay(statistics, true, true);
@@ -212,6 +212,67 @@ void composeTests() {
     marked.insert(marked.end(), plain.above.begin(), plain.above.end());
     require(profiled.above == marked && AgcDriver::ComposeOverlay(statistics, true, false).above == marked && AgcDriver::ComposeOverlay(statistics, false, true).above == marked, "a profiled panel does not start with PROFILED above the unprofiled lines: it starts with '" + profiled.above.front() + "'");
     require(AgcDriver::ComposeOverlay(statistics, true, false).below.size() == 2 && AgcDriver::ComposeOverlay(statistics, false, true).below[1].rfind("DRIVER", 0) == 0, "a line is shown without its source");
+}
+
+void sessionFpsTests() {
+    OverlayStatistics statistics;
+    auto session = statistics.SessionFps();
+    require(!session.measured && session.untilStart == 20s, "a new overlay does not wait 20 s before its session frame rates");
+    const auto line = [&] {
+        const auto content = AgcDriver::ComposeOverlay(statistics, false, false);
+        return content.above.size() >= 3 ? content.above[2] : std::string();
+    };
+    require(line() == "FPS LO/AVG/HI IN 20 S", "the session line before any present reads '" + line() + "'");
+    auto at = Start;
+    const auto present = [&](std::chrono::milliseconds step) {
+        at += step;
+        statistics.AddPresent(at, 0, 0);
+    };
+    statistics.AddPresent(at, 0, 0);
+    while (at < Start + 19500ms) present(50ms);
+    session = statistics.SessionFps();
+    require(!session.measured && session.untilStart == 500ms, "the session frame rates do not wait for the delay after the first present: " + std::to_string(std::chrono::duration<double>(session.untilStart).count()) + " s left");
+    require(line() == "FPS LO/AVG/HI IN 1 S", "the countdown reads '" + line() + "'");
+    while (at < Start + 25s) present(100ms);
+    session = statistics.SessionFps();
+    require(session.measured && within(session.fps.minimum, 10) && within(session.fps.maximum, 10) && within(session.fps.average, 10, 1e-6), "a steady 10 FPS after the delay reads " + std::to_string(session.fps.minimum) + "/" + std::to_string(session.fps.average) + "/" + std::to_string(session.fps.maximum));
+    require(line() == "FPS LO/AVG/HI: 10/10.0/10", "the session line reads '" + line() + "'");
+    present(1500ms);
+    while (at < Start + 30s) present(50ms);
+    session = statistics.SessionFps();
+    require(within(session.fps.minimum, 0) && within(session.fps.maximum, 20), "a 1.5 s stall then 20 FPS reads lowest " + std::to_string(session.fps.minimum) + " and highest " + std::to_string(session.fps.maximum));
+    const auto average = session.fps.average;
+    require(average > 10 && average < 20, "the session average over a stall reads " + std::to_string(average));
+    statistics.Reset();
+    at += 10s;
+    statistics.AddPresent(at, 0, 0);
+    session = statistics.SessionFps();
+    require(session.measured && within(session.fps.average, average, 1e-9), "the time the overlay was hidden counted in the session average: " + std::to_string(session.fps.average));
+    OverlayStatistics hidden;
+    hidden.SetSessionDelay(0s);
+    auto shown = Start;
+    for (int i = 0; i <= 30; ++i, shown += 100ms) hidden.AddPresent(shown, 0, 0);
+    hidden.Reset();
+    shown += 10s;
+    for (int i = 0; i <= 30; ++i, shown += 100ms) hidden.AddPresent(shown, 0, 0);
+    const auto resumed = hidden.SessionFps();
+    require(resumed.measured && within(resumed.fps.minimum, 10) && within(resumed.fps.average, 10, 1e-6), "the time the overlay was hidden closed seconds of its own: lowest " + std::to_string(resumed.fps.minimum) + ", average " + std::to_string(resumed.fps.average));
+    OverlayStatistics fast;
+    fast.SetSessionDelay(0s);
+    auto when = Start;
+    for (int i = 0; i <= 2400; ++i, when += 1ms) fast.AddPresent(when, 0, 0);
+    const auto wide = AgcDriver::ComposeOverlay(fast, false, false);
+    require(wide.above.size() >= 3 && wide.above[2].size() <= static_cast<std::size_t>(wide.columns) && wide.above[2].find("1000/1000/1000") != std::string::npos, "a 1000 FPS session line does not fit the panel: '" + (wide.above.size() >= 3 ? wide.above[2] : std::string()) + "'");
+    require(AgcDriver::OverlaySessionDelay(nullptr) == 20s && AgcDriver::OverlaySessionDelay("") == 20s && AgcDriver::OverlaySessionDelay("0") == 0s && AgcDriver::OverlaySessionDelay("45") == 45s, "ANYPS5_OVERLAY_STATS_DELAY is not read as whole seconds");
+    for (const char* refused : {"x", "-1", "4000", "5s"}) {
+        bool threw = false;
+        try {
+            static_cast<void>(AgcDriver::OverlaySessionDelay(refused));
+        } catch (const std::runtime_error&) {
+            threw = true;
+        }
+        require(threw, std::string("ANYPS5_OVERLAY_STATS_DELAY accepted '") + refused + "'");
+    }
 }
 
 std::vector<std::uint8_t> coverage(const AgcDriver::OverlayLayout& layout, std::uint32_t color) {
@@ -1017,6 +1078,7 @@ int main() {
         lowRateTests();
         settingsTests();
         composeTests();
+        sessionFpsTests();
         layoutTests();
         paletteTests();
         packetStatisticsTests();

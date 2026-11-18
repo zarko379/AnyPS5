@@ -460,7 +460,7 @@ OverlayContent fullPanel(const AgcDriver::OverlayDetails& details) {
         statistics.AddPresent(start + std::chrono::nanoseconds(16'666'667) * i, counters);
     }
     auto content = AgcDriver::ComposeOverlay(statistics, true, true, details);
-    Require(content.above.size() == 3 && content.above[0] == "PROFILED" && content.above[1] == "FPS: 60.0" && content.below.size() == 5u + (details.vram ? 1u : 0u) + (details.ram ? 1u : 0u) + (details.display.width != 0 ? 1u : 0u), "the full panel composes as '" + content.above.front() + "' with " + std::to_string(content.below.size()) + " lines below its graph");
+    Require(content.above.size() == 4 && content.above[0] == "PROFILED" && content.above[1] == "FPS: 60.0" && content.above[3].rfind("FPS LO/AVG/HI", 0) == 0 && content.below.size() == 5u + (details.vram ? 1u : 0u) + (details.ram ? 1u : 0u) + (details.display.width != 0 ? 1u : 0u), "the full panel composes as '" + content.above.front() + "' with " + std::to_string(content.below.size()) + " lines below its graph");
     return content;
 }
 

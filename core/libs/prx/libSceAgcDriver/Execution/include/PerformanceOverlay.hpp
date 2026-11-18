@@ -89,9 +89,17 @@ public:
         double maximum = 0;
     };
 
+    struct Session {
+        Clock::duration untilStart{};
+        bool measured = false;
+        Range fps;
+    };
+
     void AddPresent(Clock::time_point at, std::uint64_t gpuNanoseconds, std::uint64_t driverNanoseconds);
     void AddPresent(Clock::time_point at, const OverlayCounters& counters);
     void Reset();
+    void SetSessionDelay(Clock::duration delay);
+    Session SessionFps() const;
     double Fps() const;
     double LastFrameMs() const;
     std::vector<double> FrameTimes() const;
@@ -116,7 +124,21 @@ private:
     std::array<double, FrameHistory> frameTimes{};
     std::size_t frameCount = 0;
     std::size_t frameNext = 0;
+    void addSessionPresent(Clock::time_point at);
+    Clock::duration sessionDelay = std::chrono::seconds(20);
+    std::optional<Clock::time_point> sessionFirst;
+    std::optional<Clock::time_point> sessionLast;
+    Clock::time_point sessionNow{};
+    Clock::duration sessionMeasured{};
+    std::uint64_t sessionFrames = 0;
+    Clock::time_point secondStart{};
+    std::uint64_t secondFrames = 0;
+    std::uint64_t secondsClosed = 0;
+    std::uint64_t slowestSecond = 0;
+    std::uint64_t fastestSecond = 0;
 };
+
+OverlayStatistics::Clock::duration OverlaySessionDelay(const char* text);
 
 struct OverlayRect {
     std::int32_t x = 0;
