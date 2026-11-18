@@ -625,6 +625,76 @@ void ComparedShared(const Context& context) {
     Require(lookup() == fresh, "the snapshot of shared compared memory was not reused after its compare");
     ClearCachedTextures(context.device);
 }
+
+void ComparedSharedEpoch(const Context& context) {
+    constexpr std::uint32_t side = 128;
+    constexpr std::size_t bytes = 2 * BlockBytes;
+    constexpr std::uint32_t before = 0x2b2b2b2bu;
+    constexpr std::uint32_t stored = 0x0badf00du;
+    struct Direct {
+        std::uint8_t* memory = static_cast<std::uint8_t*>(GuestArena::GuestArenaAllocate_nid_postfix(2 * bytes, BlockBytes));
+        HANDLE section = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_EXECUTE_READWRITE, 0, bytes, nullptr);
+        bool registered = false;
+        ~Direct() {
+            if (registered) GuestAllocations::Mutation().Remove(memory);
+            if (memory != nullptr) {
+                GuestArena::GuestArenaReset_nid_postfix(memory, 2 * bytes);
+                GuestArena::GuestArenaRelease_nid_postfix(memory, 2 * bytes);
+            }
+            if (section == nullptr) return;
+            GuestArena::GuestArenaForgetSection_nid_postfix(section);
+            CloseHandle(section);
+        }
+    } direct;
+    Require(direct.memory != nullptr && direct.section != nullptr, "compared shared epoch: cannot create the direct memory");
+    GuestArena::GuestArenaForgetSection_nid_postfix(direct.section);
+    GuestArena::GuestArenaMapDirect_nid_postfix(direct.memory, bytes, direct.section, 0, PAGE_READWRITE);
+    GuestAllocations::Mutation().Add(direct.memory, bytes, true, true, true);
+    direct.registered = true;
+    const auto address = static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(direct.memory));
+    std::fill_n(reinterpret_cast<std::uint32_t*>(direct.memory), bytes / sizeof(std::uint32_t), before);
+    AgcDriver::GuestMemory::Unwatch(address, BlockBytes);
+    const std::array<std::pair<std::uint64_t, std::uint64_t>, 1> imported{{{address, address + BlockBytes}}};
+    AgcDriver::GuestMemory::Rewatch(imported);
+    GuestArena::GuestArenaMapDirect_nid_postfix(direct.memory + bytes, bytes, direct.section, 0, PAGE_READWRITE);
+    const auto words = Descriptor(address, side);
+    surfaceBegin = address;
+    surfaceEnd = address + BlockBytes;
+    const bool memo = std::getenv("APS5_COMPARE_MEMO") != nullptr;
+    std::shared_ptr<Texture> previous;
+    const auto sample = [&](const std::string& when, bool bump, bool compared, bool same) {
+        if (bump) AgcDriver::GuestMemory::BumpCollectEpoch();
+        surfaceReads = 0;
+        auto texture = CachedSampledTexture(context, words);
+        Require(texture != nullptr && !texture->ViewsStorageImage(), "compared shared epoch: the surface was not sampled through a snapshot " + when);
+        const auto reads = surfaceReads.load();
+        if (compared && reads == 0) throw std::runtime_error("the snapshot of shared compared memory was not compared with guest memory " + when);
+        if (!compared && reads != 0) throw std::runtime_error("the snapshot of shared compared memory was compared with guest memory again " + when + " (" + std::to_string(reads) + " reads)");
+        if (previous != nullptr && same != (texture == previous)) throw std::runtime_error(std::string("sampling shared compared memory ") + when + (same ? " replaced the snapshot" : " kept the stale snapshot"));
+        previous = texture;
+        return texture;
+    };
+    AgcDriver::GuestMemory::SetFlushHook(&CountReads);
+    try {
+        sample("at its first use", true, true, false);
+        Require(AgcDriver::GuestMemory::CollectWrites(address, BlockBytes) == 0, "compared shared epoch: a collect over the shared compared block was not refused");
+        sample("in a new collect epoch", true, true, true);
+        for (int use = 0; use < 8; ++use) sample("again in the collect epoch of an equal compare", false, !memo, true);
+        AgcDriver::GuestMemory::MarkWritten(address + 0x200, 4);
+        sample("after a driver store in the same collect epoch", false, true, true);
+        sample("after the compare that followed the driver store", false, !memo, true);
+        *reinterpret_cast<volatile std::uint32_t*>(direct.memory + bytes) = stored;
+        const auto fresh = sample("in the next collect epoch after a CPU store through the other mapping", true, true, false);
+        const auto texels = FetchTexels(context, *fresh, side);
+        Require(texels.front() == stored, "the GPU read the old texel after a CPU store into shared compared memory and a new collect epoch");
+        sample("again in the collect epoch of the compare that replaced the snapshot", false, !memo, true);
+    } catch (...) {
+        AgcDriver::GuestMemory::SetFlushHook(nullptr);
+        throw;
+    }
+    AgcDriver::GuestMemory::SetFlushHook(nullptr);
+    ClearCachedTextures(context.device);
+}
 #endif
 
 void PendingStores(const Context& context, ReservedSurface& surface) {
@@ -1090,6 +1160,14 @@ int main(int argc, char** argv) {
             else if (argc == 2 && std::string_view(argv[1]) == "--compared-shared") {
 #ifdef _WIN32
                 ComparedShared(context);
+#else
+                std::puts("skipped, only Windows direct memory is compared once shared");
+                return Skipped;
+#endif
+            }
+            else if (argc == 2 && std::string_view(argv[1]) == "--compared-shared-epoch") {
+#ifdef _WIN32
+                ComparedSharedEpoch(context);
 #else
                 std::puts("skipped, only Windows direct memory is compared once shared");
                 return Skipped;

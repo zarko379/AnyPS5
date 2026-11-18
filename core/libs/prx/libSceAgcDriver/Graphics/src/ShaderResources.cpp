@@ -199,6 +199,7 @@ struct CachedTexture {
     std::array<std::uint64_t, 4> untracked{};
     std::uint64_t surfaceBytes = 0;
     std::optional<CommittedSlabs> slabs;
+    std::array<std::uint64_t, 4> comparedEqual{};
 };
 
 // Entries in use order (front = most recent) with a hash index by key: a lookup is O(1) and the
@@ -535,6 +536,7 @@ struct TextureCounters {
     // by a byte compare.
     std::atomic<std::uint64_t> untrackedKept{0};
     std::atomic<std::uint64_t> untrackedCompared{0};
+    std::atomic<std::uint64_t> comparesSkipped{0};
     std::atomic<std::int64_t> lastReport{0};
 };
 
@@ -558,7 +560,7 @@ void reportTextureCounters() {
     auto last = counters.lastReport.load();
     if (nowMs - last < 10000 || !counters.lastReport.compare_exchange_strong(last, nowMs)) return;
     const auto count = [](const std::atomic<std::uint64_t>& value) { return static_cast<unsigned long long>(value.load(std::memory_order_relaxed)); };
-    AgcDriver::ProfilePrint_nid_no_patch("[textures] sampled created: %llu from storage images, %llu cleared on the GPU, %llu uploaded on the GPU from host imports, %llu snapshots (%llu snapshot reads over recorded writes inside cachedTexture, %llu storage-path fallbacks); stage-A records %llu: %llu fast hits, %llu full lookups; storage images %llu hits, %llu created, %llu own-object refreshes; image tables %llu reused, %llu resolved; dynamic-resolution variants: %llu surfaces, %llu entries substituted, %llu entries rejected; %llu one-layer 2D array entries bound to the 2D texture of their surface; untracked snapshots %llu kept by the write-watch hint, %llu compared\n", count(counters.fromStorage), count(counters.cleared), count(counters.imported), count(counters.snapshots), count(counters.pendingReads), count(counters.storageFallbacks), count(counters.records), count(counters.fastHits), count(counters.fastMisses), count(counters.storageHits), count(counters.storageCreated), count(counters.ownRefreshes), count(counters.tablesReused), count(counters.tablesResolved), count(counters.variantSurfaces), count(counters.variantSubstituted), count(counters.variantRejected), count(counters.arrayViewsShared), count(counters.untrackedKept), count(counters.untrackedCompared));
+    AgcDriver::ProfilePrint_nid_no_patch("[textures] sampled created: %llu from storage images, %llu cleared on the GPU, %llu uploaded on the GPU from host imports, %llu snapshots (%llu snapshot reads over recorded writes inside cachedTexture, %llu storage-path fallbacks); stage-A records %llu: %llu fast hits, %llu full lookups; storage images %llu hits, %llu created, %llu own-object refreshes; image tables %llu reused, %llu resolved; dynamic-resolution variants: %llu surfaces, %llu entries substituted, %llu entries rejected; %llu one-layer 2D array entries bound to the 2D texture of their surface; untracked snapshots %llu kept by the write-watch hint, %llu compared; %llu snapshot compares answered by an equal compare earlier in the collect epoch\n", count(counters.fromStorage), count(counters.cleared), count(counters.imported), count(counters.snapshots), count(counters.pendingReads), count(counters.storageFallbacks), count(counters.records), count(counters.fastHits), count(counters.fastMisses), count(counters.storageHits), count(counters.storageCreated), count(counters.ownRefreshes), count(counters.tablesReused), count(counters.tablesResolved), count(counters.variantSurfaces), count(counters.variantSubstituted), count(counters.variantRejected), count(counters.arrayViewsShared), count(counters.untrackedKept), count(counters.untrackedCompared), count(counters.comparesSkipped));
 }
 
 // What the sampled-texture lookups on this thread proved their returned objects current against,
@@ -846,6 +848,15 @@ std::array<std::uint64_t, 4> untrackedKey(std::uint64_t address, std::size_t byt
     const auto* recorder = Recorder::Active();
     const std::array<std::uint64_t, 4> key{hint, GuestMemory::NewestStamp(address, bytes), GuestMemory::ForgetSerial(), recorder != nullptr ? recorder->NewestWriteNote(address, bytes) : 0};
     return (key[2] & 1u) == 0 ? key : std::array<std::uint64_t, 4>{};
+}
+
+std::array<std::uint64_t, 4> compareMemoKey(std::uint64_t address, std::size_t bytes) {
+    static const bool enabled = std::getenv("APS5_COMPARE_MEMO") != nullptr;
+    const auto epoch = GuestMemory::CollectEpoch();
+    if (!enabled || epoch == 0) return {};
+    const auto* recorder = Recorder::Active();
+    const std::array<std::uint64_t, 4> key{epoch, GuestMemory::ForgetSerial(), GuestMemory::NewestStamp(address, bytes), recorder != nullptr ? recorder->NewestWriteNote(address, bytes) : 0};
+    return (key[1] & 1u) == 0 ? key : std::array<std::uint64_t, 4>{};
 }
 
 std::span<const std::uint32_t> firstLayerWords(std::span<const std::uint32_t> words, std::optional<ShaderRecompiler::DescriptorImageShape> shape, std::array<std::uint32_t, 8>& narrowed, bool report) {
@@ -1235,9 +1246,17 @@ std::shared_ptr<Texture> cachedTexture(const Context& context, std::span<const s
             // surface (counted, and named for the [hooksync] line).
             const auto equalsCommitted = [&] {
                 if (it->slabs.has_value() ? it->bytes.size() != snapshotBytes(it->slabs, bytes) : it->bytes.empty()) return false;
-                if (Recorder::SnapshotWriteOverlaps(address, bytes)) counters.pendingReads.fetch_add(1, std::memory_order_relaxed);
+                const bool pendingWrites = Recorder::SnapshotWriteOverlaps(address, bytes);
+                if (pendingWrites) counters.pendingReads.fetch_add(1, std::memory_order_relaxed);
+                const auto memo = pendingWrites ? std::array<std::uint64_t, 4>{} : compareMemoKey(address, bytes);
+                if (memo[0] != 0 && it->comparedEqual == memo) {
+                    counters.comparesSkipped.fetch_add(1, std::memory_order_relaxed);
+                    return true;
+                }
                 const GuestMemory::ReadSiteScope site(GuestMemory::ReadSite::TextureCompare);
-                return it->slabs.has_value() ? equalsCommittedSlabs(address, *it->slabs, it->bytes) : GuestMemory::EqualsCommitted(address, it->bytes);
+                const bool equal = it->slabs.has_value() ? equalsCommittedSlabs(address, *it->slabs, it->bytes) : GuestMemory::EqualsCommitted(address, it->bytes);
+                it->comparedEqual = equal ? memo : std::array<std::uint64_t, 4>{};
+                return equal;
             };
             const auto unchanged = [&] {
                 if (it->committed != committed) return false;
@@ -1328,6 +1347,7 @@ std::shared_ptr<Texture> cachedTexture(const Context& context, std::span<const s
             entry.bytes = recycled.empty() ? std::vector<std::byte>(snapshotSize) : std::move(recycled);
         }
         const auto read = staging != nullptr ? staging->Bytes() : std::span<std::byte>(entry.bytes);
+        if (staging == nullptr && !pending) entry.comparedEqual = compareMemoKey(address, bytes);
         readSnapshot(resource, *keys, entry.slabs, read);
         if (!pending) entry.untracked = untracked;
         static const bool traceTextures = std::getenv("APS5_TRACE_TEXTURES") != nullptr;
