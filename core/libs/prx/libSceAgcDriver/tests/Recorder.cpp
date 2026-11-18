@@ -3352,6 +3352,185 @@ bool rewatchUnderImageTests(const Device& device) {
     return true;
 }
 
+bool retiredUnderImageTests(const Device& device) {
+#ifndef _WIN32
+    static_cast<void>(device);
+    std::cout << "a surface over several allocations whose imports retire under a storage image is a Windows write-watch case: not tested\n";
+    return false;
+#else
+    using namespace AgcDriver::GuestMemory;
+    const auto& base = device.GetContext();
+    constexpr std::size_t piece = 65536;
+    constexpr std::size_t pieces = 4;
+    constexpr std::size_t surfaceBytes = 3 * piece;
+    constexpr std::array<std::uint8_t, 4> red{255, 0, 0, 255};
+    constexpr std::array<std::uint8_t, 4> stored{0x11, 0x11, 0x11, 0x11};
+    if (base.hostImportAlignment == 0 || base.hostImportAlignment > piece || !WriteWatched()) {
+        std::cout << "host imports within 64 KiB or write watching unavailable: a surface over several allocations whose imports retire under a storage image not tested\n";
+        return false;
+    }
+    std::unique_lock gpu(GpuMutex());
+    const auto decided = PrepareImportWatch(base);
+    TextureDetiler detiler(base);
+    auto context = base;
+    context.detiler = &detiler;
+    enum class Case { Cleared, CpuStore, Pending };
+    const auto run = [&](Case kind) {
+        const std::string label = kind == Case::Cleared ? "(i)" : kind == Case::CpuStore ? "(ii)" : "(iii)";
+        auto* memory = static_cast<std::uint8_t*>(GuestArena::GuestArenaAllocate_nid_postfix(pieces * piece, pieces * piece));
+        Require(memory != nullptr, label + " no arena block for the surface's allocations");
+        for (std::size_t index = 0; index < pieces; ++index) GuestArena::GuestArenaCommit_nid_postfix(memory + index * piece, piece, PAGE_READWRITE, piece);
+        struct Restore {
+            const Context& context;
+            ImportWatch decided;
+            std::uint8_t* memory;
+            ~Restore() {
+                SetImportWatch(context, decided);
+                SetHostImportDeferredSettles(true);
+                ClearHostImports(context.device);
+                for (std::size_t index = 0; index < pieces; ++index) GuestArena::GuestArenaReset_nid_postfix(memory + index * piece, piece);
+                GuestArena::GuestArenaRelease_nid_postfix(memory, pieces * piece);
+            }
+        } restore{context, decided, memory};
+        const auto address = reinterpret_cast<std::uint64_t>(memory);
+        Require(Watched(address, pieces * piece), label + " the surface's allocations are not write-watched once committed");
+        const auto at = [&](std::size_t index) { return address + index * piece; };
+        std::array<bool, pieces> registered{};
+        const auto registry = [&](std::size_t index, bool add) {
+            GuestAllocations::Mutation mutation;
+            if (add) mutation.Add(memory + index * piece, piece, true, true, true);
+            else mutation.Remove(memory + index * piece);
+            registered[index] = add;
+        };
+        std::memset(memory, 0x5a, pieces * piece);
+        GuestTextureResource resource{};
+        resource.baseAddress = address;
+        resource.width = 128;
+        resource.height = 384;
+        resource.mipCount = 1;
+        resource.tileMode = TextureTileMode::kR64KBX;
+        resource.dimension = TextureDimension::k2D;
+        resource.format = 56;
+        resource.dstSelX = 4;
+        resource.dstSelY = 5;
+        resource.dstSelZ = 6;
+        resource.dstSelW = 7;
+        Require(DescribeSurface(resource).guestBytes == surfaceBytes, label + " unexpected surface size");
+        SetHostImportDeferredSettles(false);
+        SetImportWatch(context, ImportWatch::Unwatch);
+        for (std::size_t index = 0; index < 3; ++index) registry(index, true);
+        for (std::size_t index = 0; index < 3; ++index) Require(HostImportFor(context, at(index), piece) != nullptr, label + " a 64 KiB allocation under the surface was not imported");
+        Require(!Watched(address, piece) && !Watched(at(2), piece), label + " the compared imports of the surface's allocations left them in the write watch");
+        const auto watchedPages = [&] {
+            std::size_t count = 0;
+            for (std::uint64_t page = address; page < address + surfaceBytes; page += 4096) count += Watched(page, 4096) ? 1u : 0u;
+            return count;
+        };
+        Recorder recorder(context);
+        recorder.Activate();
+        {
+            auto image = StorageTexture::Create(context, detiler, resource, 0);
+            const auto clear = [&] {
+                const VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+                const VkClearColorValue value{{1.0f, 0.0f, 0.0f, 1.0f}};
+                const auto commands = recorder.Commands();
+                recorder.Keep(image);
+                RecordMemoryBarrier(context, commands, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+                context.Function<PFN_vkCmdClearColorImage>("vkCmdClearColorImage")(commands, image->Image(), VK_IMAGE_LAYOUT_GENERAL, &value, 1, &range);
+                RecordMemoryBarrier(context, commands, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
+                image->MarkDirty();
+            };
+            const auto confirmsBefore = StorageTexture::RewatchedConfirms();
+            if (kind == Case::Pending) clear();
+            if (kind == Case::CpuStore) std::memset(memory + piece, 0x11, piece);
+            registry(3, true);
+            SetImportWatch(context, ImportWatch::Watch);
+            {
+                GuestBufferMemory leased(context);
+                leased.AcquireRegistered();
+                leased.Upload(true);
+                leased.WriteBack();
+            }
+            const auto* grown = ExistingHostImportFor(context, address, pieces * piece);
+            Require(grown != nullptr && grown->base == address && grown->bytes == pieces * piece && !grown->unwatched, label + " the run of four allocations was not imported whole and watched");
+            const auto returned = watchedPages();
+            const bool pendingAtReturn = image->AnyLayerPending();
+            if (kind != Case::Pending) clear();
+            image->Refresh();
+            image->WriteBack();
+            recorder.Submit();
+            device.WaitQueue();
+            recorder.Sync();
+            std::vector<std::byte> read(surfaceBytes);
+            AgcDriver::GuestMemory::Read(address, read);
+            std::array<std::size_t, 3> redTexels{};
+            std::array<std::size_t, 3> storedTexels{};
+            for (std::size_t offset = 0; offset < surfaceBytes; offset += 4) {
+                const auto texelIs = [&](const std::array<std::uint8_t, 4>& bytes) {
+                    for (std::size_t c = 0; c < 4; ++c) {
+                        if (std::to_integer<std::uint8_t>(read[offset + c]) != bytes[c]) return false;
+                    }
+                    return true;
+                };
+                redTexels[offset / piece] += texelIs(red) ? 1u : 0u;
+                storedTexels[offset / piece] += texelIs(stored) ? 1u : 0u;
+            }
+            std::cout << label << " " << returned << " of " << surfaceBytes / 4096 << " pages back in the write watch after the compared imports retired under the live image; after the image's GPU clear the allocations hold " << redTexels[0] << ", " << redTexels[1] << " and " << redTexels[2] << " red and " << storedTexels[1] << " of the CPU's texels in the middle one, of " << piece / 4 << " each; results were " << (pendingAtReturn ? "pending" : "not pending") << " when the pages returned, " << StorageTexture::RewatchedConfirms() - confirmsBefore << " rewatched blocks proved unchanged\n";
+            Require(returned == surfaceBytes / 4096, label + " the allocations under a live storage image stayed outside the write watch after their compared imports retired");
+            Require(kind != Case::Pending || pendingAtReturn, label + " the image's GPU clear was no longer pending when the retired imports' pages returned to the write watch");
+            Require(kind == Case::CpuStore || StorageTexture::RewatchedConfirms() != confirmsBefore, label + " no block the retired imports returned to the write watch was proved unchanged");
+            Require(redTexels[0] == piece / 4 && redTexels[2] == piece / 4, label + " the image's GPU clear did not reach the first and last allocations: the retired imports' return to the write watch was taken for a CPU store");
+            if (kind == Case::CpuStore) {
+                Require(storedTexels[1] == piece / 4, label + " the CPU's store into the middle allocation while it was compared was lost");
+            } else {
+                Require(redTexels[1] == piece / 4, label + " the image's GPU clear did not reach the middle allocation: the retired imports' return to the write watch was taken for a CPU store");
+            }
+        }
+        recorder.Sync();
+        recorder.FlushDeferredReleases();
+        registry(3, false);
+        static_cast<void>(WatchedAfterSettle(context, address, surfaceBytes));
+        Require(!HostImportOverlaps(context, address, surfaceBytes), label + " an import is still over the surface after its run shrank");
+        if (kind == Case::Cleared) {
+            const auto collected = CollectWrites(address, surfaceBytes);
+            Require(collected != 0 && watchedPages() == surfaceBytes / 4096, label + " a sampled view of the surface over three allocations cannot be proved by the write watch");
+            const auto proved = [&](std::uint64_t since) {
+                const auto now = CollectWrites(address, surfaceBytes);
+                return now != 0 && UnchangedSince(address, surfaceBytes, since);
+            };
+            Require(proved(collected), label + " the surface's proof failed with no store");
+            memory[piece + 100] = 0x22;
+            Require(!proved(collected), label + " a CPU store into the middle allocation was not seen by the surface's proof");
+            const auto storedAt = CollectWrites(address, surfaceBytes);
+            Require(proved(storedAt), label + " the surface's proof failed after its store was collected");
+            registry(1, false);
+            GuestArena::GuestArenaReset_nid_postfix(memory + piece, piece);
+            GuestArena::GuestArenaCommit_nid_postfix(memory + piece, piece, PAGE_READWRITE, piece);
+            registry(1, true);
+            const auto remapped = CollectWrites(address, surfaceBytes);
+            Require(remapped == 0 || !UnchangedSince(address, surfaceBytes, storedAt), label + " the middle allocation was mapped again but the surface's proof still held");
+            const auto afterRemap = CollectWrites(address, surfaceBytes);
+            Require(proved(afterRemap), label + " the surface's proof failed after the remap was collected");
+            registry(2, false);
+            GuestArena::GuestArenaReset_nid_postfix(memory + 2 * piece, piece);
+            const auto freed = CollectWrites(address, surfaceBytes);
+            Require(freed == 0 || !UnchangedSince(address, surfaceBytes, afterRemap), label + " the last allocation was freed but the surface's proof still held");
+            std::cout << label << " the middle allocation mapped again: " << (remapped == 0 ? "collect refused" : "the surface's blocks stamped newer") << "; the last allocation freed: " << (freed == 0 ? "collect refused" : "the surface's blocks stamped newer") << "\n";
+            GuestArena::GuestArenaCommit_nid_postfix(memory + 2 * piece, piece, PAGE_READWRITE, piece);
+        }
+        for (std::size_t index = 0; index < pieces; ++index) {
+            if (registered[index]) registry(index, false);
+        }
+        HostImportFor(context, address, piece);
+    };
+    run(Case::Cleared);
+    run(Case::CpuStore);
+    run(Case::Pending);
+    std::cout << "a surface over several allocations whose imports retire under a storage image tests passed\n";
+    return true;
+#endif
+}
+
 bool settleInitialDccTests(const Device& device) {
     using namespace AgcDriver::GuestMemory;
     const auto& base = device.GetContext();
@@ -17268,6 +17447,7 @@ int main(int argc, char** argv) {
         if (argc == 2 && std::string_view(argv[1]) == "--settle-retire-only") return settleRetireTests(device) ? 0 : 77;
         if (argc == 2 && std::string_view(argv[1]) == "--settle-storage-image-only") return settleStorageImageTests(device) ? 0 : 77;
         if (argc == 2 && std::string_view(argv[1]) == "--rewatch-under-image-only") return rewatchUnderImageTests(device) ? 0 : 77;
+        if (argc == 2 && std::string_view(argv[1]) == "--retired-under-image-only") return retiredUnderImageTests(device) ? 0 : 77;
         if (argc == 2 && std::string_view(argv[1]) == "--reimport-bench") return reimportBench(device);
         if (argc == 2 && std::string_view(argv[1]) == "--host-import-cut-only") return hostImportCutTests(device);
 #endif

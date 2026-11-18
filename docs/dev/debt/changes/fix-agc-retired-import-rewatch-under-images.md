@@ -1,0 +1,9 @@
+# libSceAgcDriver
+
+## change [Pages under an import window]
+
+- [Pages under an import window](../../../core/libs/prx/libSceAgcDriver/Execution/src/GuestMemory.cpp) whose protection an import resolves count as stored only when their bytes change. A same-value CPU store then is indistinguishable from driver activity and does not win over pending results. On Windows, NVIDIA 617.42 marks every private MEM_WRITE_WATCH page after import until a GPU use completes, other drivers unverified. Imports of 1 MiB or more wait for a four-byte read on the settle queue inside the window. Smaller imports stay compared until a deferred read completes or the import retires; their pages then return to write watching as CPU stores (the block's other pages keep their state) unless another compared import overlaps them, also under a live storage image, which proves its blocks by comparison (`APS5_NO_REWATCH_UNDER_IMAGES=1` keeps them compared). Imports without a settle queue stay compared. Shared-memory imports keep separate-alias tracking. Not measured on a console.
+
+## add Functional
+
+- [Shared pages outside the write watch](../../../core/libs/prx/libc/include/WindowsMappings.hpp) (libSceAgcDriver) - on Windows, a page of shared or aliased direct memory that has left the write watch does not return to it until the guest maps it again: `GuestMemory::Rewatch` marks shared pages compared, and a compared shared page refuses the collect walk. A sampled surface over such pages fails the fast resource proof at every use and takes the full walk, which compares its bytes; in one title's frames about 20 sampled surfaces under alias imports did so. Whether a guest store can be tracked through every alias without comparing is not settled; not measured on a console.

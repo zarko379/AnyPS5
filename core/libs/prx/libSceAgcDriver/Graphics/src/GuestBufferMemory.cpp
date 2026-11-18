@@ -1941,6 +1941,11 @@ void noteRetiredUnwatched(std::vector<std::pair<std::uint64_t, std::uint64_t>>& 
     }
 }
 
+bool keepsComparedUnderImages() {
+    static const bool keep = std::getenv("APS5_NO_REWATCH_UNDER_IMAGES") != nullptr;
+    return keep;
+}
+
 void rewatchRetired(const HostImports& state, std::vector<std::pair<std::uint64_t, std::uint64_t>> spans) {
     std::erase_if(spans, [&](const auto& span) {
         auto it = state.imports.upper_bound(span.first);
@@ -1949,7 +1954,7 @@ void rewatchRetired(const HostImports& state, std::vector<std::pair<std::uint64_
             if (it->second.unwatched && span.first < it->first + it->second.bytes) return true;
         }
         const std::array<std::pair<std::uint64_t, std::uint64_t>, 1> one{{span}};
-        return StorageTexture::AnyLiveOverlaps(one);
+        return keepsComparedUnderImages() && StorageTexture::AnyLiveOverlaps(one);
     });
     if (!spans.empty()) GuestMemory::Rewatch(spans);
 }
