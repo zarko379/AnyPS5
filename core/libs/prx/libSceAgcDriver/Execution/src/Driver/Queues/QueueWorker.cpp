@@ -128,10 +128,6 @@ void Driver::completeSubmission(std::uint64_t serial, std::uint64_t received, st
                 const auto found = std::find(driver.queue0Uncommitted.begin(), driver.queue0Uncommitted.end(), received);
                 if (found != driver.queue0Uncommitted.end()) driver.queue0Uncommitted.erase(found);
                 notify = driver.idleWaiters != 0 || driver.orderHolders.load(std::memory_order_acquire) != 0 || completionsPending();
-                if (driver.queue0Uncommitted.empty() && driver.runningWorkers.load(std::memory_order_acquire) == 0) {
-                    driver.idleEpoch.fetch_add(1, std::memory_order_release);
-                    notify = true;
-                }
             }
             if (notify) driver.changed.notify_all();
         }
