@@ -108,6 +108,7 @@ struct ControlFlowGraph {
     std::vector<StronglyConnectedComponent> components;
     std::vector<std::uint32_t> codeTableLoadProgramCounters;
     std::vector<CodeTableLoad> codeTableLoads;
+    std::uint32_t replacedRegionProgramCounter = 0xffffffffu;
     std::vector<std::uint32_t> unlinkedCallProgramCounters;
     std::uint32_t linkEscapeWaveSize = 0;
     std::string linkEscapeReason;

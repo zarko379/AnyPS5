@@ -64,6 +64,7 @@ public:
     ~Driver();
     void Shutdown();
     void WaitIdle();
+    void RtProtoBuild();
     std::uint64_t DispatchesAdoptedAhead() const;
     std::uint64_t DispatchesRejectedAhead() const;
     void SetAheadAdoptHook(void (*hook)());

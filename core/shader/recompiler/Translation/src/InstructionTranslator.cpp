@@ -703,6 +703,7 @@ IrProgram InstructionTranslator::Translate(const RdnaProgram& decoded, const Con
         const bool insideWindow = !scopedWindow || windowRegion.contains(cfgBlock.id);
         context.SetVectorWindowActive(insideWindow);
         if (syncsWindow(insideWindow) && syncedOnEntry(cfgBlock.id)) context.SyncVectorWindow(insideWindow);
+        if (cfgBlock.startProgramCounter == cfg.replacedRegionProgramCounter && cfgBlock.instructionBegin == cfgBlock.instructionEnd) context.TranslateRtProtoQuery();
         for (std::uint32_t index = cfgBlock.instructionBegin; index < cfgBlock.instructionEnd; index++) {
             const auto& instruction = decoded.instructions[index];
             if (isCodeTableLoad(cfg, instruction.programCounter)) {

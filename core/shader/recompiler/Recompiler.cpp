@@ -194,6 +194,15 @@ struct PreparedControlFlow {
     PreparedControlFlow(const RecompileRequest& request, const SwappcInfo& swappcInfo)
         : stage(request.shader.stage), mergedHull(MergedHullStage(request)), fallbacks(swappcInfo.linkedCallFallbacks.begin(), swappcInfo.linkedCallFallbacks.end()), swappc(WithFallbacks(swappcInfo, fallbacks)), code(request.shader.code.begin(), request.shader.code.end()),
           vertexHalf(CapturesGeometryInput(request)), decoded(DecodeStageProgram(toShaderStageKind(request.shader.stage), code, mergedHull, vertexHalf)), cfg(GraphBuilder{}.Build(decoded, &swappc)) {
+        if (const char* loop = std::getenv("APS5_RT_PROTO_LOOP")) {
+            unsigned long long program = 0;
+            unsigned entry = 0;
+            unsigned exit = 0;
+            if (std::sscanf(loop, "%llx:%x:%x", &program, &entry, &exit) == 3 && program == request.shader.codeAddress) {
+                GraphBuilder::ReplaceRegion(cfg, entry, exit);
+                std::fprintf(stderr, "[rt-proto] program 0x%llx: region 0x%x..0x%x replaced by a ray query%c", program, entry, exit, 10);
+            }
+        }
         Structurizer{}.Structurize(cfg);
     }
 

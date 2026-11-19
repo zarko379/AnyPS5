@@ -4714,6 +4714,10 @@ std::uint32_t VulkanDevice::FrameGenerationFactor() {
     return factor;
 }
 
+namespace DriverDetail {
+void RtProtoPrepareTable(const Graphics::Context& context);
+}
+
 bool VulkanDevice::NativeRayTracingRequested() {
     static const bool requested = [] {
         const char* value = std::getenv("APS5_NATIVE_RT");
@@ -5004,7 +5008,10 @@ std::pair<VkBuffer, std::uint64_t> VulkanDevice::scratchPoolHeader(const ShaderR
 
 Graphics::Context VulkanDevice::graphicsContext() const {
     static const bool noCache = std::getenv("APS5_NO_CONTEXT_CACHE") != nullptr;
-    if (state->contextReady && !noCache) return state->context;
+    if (state->contextReady && !noCache) {
+        DriverDetail::RtProtoPrepareTable(state->context);
+        return state->context;
+    }
     return buildContext();
 }
 

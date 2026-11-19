@@ -87,6 +87,32 @@ bool TranslationContext::imageBvhIntersectRay(const RdnaInstruction& inst) {
     return true;
 }
 
+void TranslationContext::TranslateRtProtoQuery() {
+    const auto reg = [](RdnaOperandKind kind, std::uint32_t index) {
+        RdnaOperand operand;
+        operand.kind = kind;
+        operand.reg = index;
+        return operand;
+    };
+    const auto scalar = [&](std::uint32_t index) { return readOperand(reg(RdnaOperandKind::ScalarRegister, index), IrType::U32); };
+    const auto vector = [&](std::uint32_t index) { return readOperand(reg(RdnaOperandKind::VectorRegister, index), IrType::U32); };
+    IrValue& result = ir.Emit(IrOpcode::RtProtoQuery, IrOpcodeType(IrOpcode::RtProtoQuery), {scalar(20), scalar(21), vector(33), vector(34), vector(35), vector(36), vector(37), vector(38), vector(27), scalar(6), scalar(7)});
+    IrValue& index = ir.CompositeExtract(result, 3u);
+    IrValue& hit = ir.Emit(IrOpcode::INotEqual32, IrType::U1, {&index, &ir.Constant(0xffffffffu)});
+    IrValue& side = ir.Emit(IrOpcode::RtProtoSide, IrOpcodeType(IrOpcode::RtProtoSide), {&index});
+    const auto keep = [&](std::uint32_t target, IrValue* value) {
+        IrValue* old = vector(target);
+        writeOperand(reg(RdnaOperandKind::VectorRegister, target), &ir.Emit(IrOpcode::SelectU32, IrType::U32, {&hit, value, old}));
+    };
+    keep(27u, &ir.CompositeExtract(result, 0u));
+    keep(16u, &ir.CompositeExtract(result, 1u));
+    keep(15u, &ir.CompositeExtract(result, 2u));
+    keep(8u, &ir.CompositeExtract(side, 0u));
+    keep(22u, &ir.CompositeExtract(side, 1u));
+    keep(9u, scalar(6));
+    keep(10u, scalar(7));
+}
+
 bool TranslationContext::imageAtomic(const RdnaInstruction& inst, IrOpcode opcode) {
     if (inst.dataBits == 64u) {
         opcode = imageAtomic64Opcode(opcode);

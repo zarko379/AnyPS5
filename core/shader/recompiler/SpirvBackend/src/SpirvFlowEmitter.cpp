@@ -692,6 +692,8 @@ void EmitDirectInstruction(SpirvValueEmitContext& ctx, const IrValue& inst) {
         case IrOpcode::ImageQueryLod: return Invoke(EmitImageQueryLod, ctx, inst);
         case IrOpcode::ImageRead: return Invoke(EmitImageRead, ctx, inst);
         case IrOpcode::ImageBvhIntersectRay: return Invoke(EmitImageBvhIntersectRay, ctx, inst);
+        case IrOpcode::RtProtoQuery: return Invoke(EmitRtProtoQuery, ctx, inst);
+        case IrOpcode::RtProtoSide: return Invoke(EmitRtProtoSide, ctx, inst);
         case IrOpcode::NanPropagateF32: return Invoke(EmitNanPropagateF32, ctx, inst);
         case IrOpcode::ImageWrite: return Invoke(EmitImageWrite, ctx, inst);
         case IrOpcode::ImageSampleRaw: return Invoke(EmitImageSampleRaw, ctx, inst);

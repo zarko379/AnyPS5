@@ -46,6 +46,8 @@
 #include <unistd.h>
 #endif
 
+extern "C" void AgcDriverRtProtoBuild_nid_postfix();
+
 namespace {
 
 using AgcDriver::FrameCall;
@@ -957,6 +959,7 @@ void writeFrame(const std::filesystem::path& path, const AgcDriver::DisplayBuffe
 }
 
 FrameCheck compareFrames(const FrameCaptureReader& reader, const Options& options) {
+    AgcDriverRtProtoBuild_nid_postfix();
     FrameCheck check;
     if (!options.frames.empty()) std::filesystem::create_directories(options.frames);
     for (const auto& call : reader.Calls()) {
@@ -1303,6 +1306,7 @@ int run(const Options& options) {
     std::vector<Pass> passes;
     for (std::size_t pass = 0; pass < options.repeat && (pass == 0 || replay.unfinished == 0); ++pass) {
         if (pass > 0) {
+            AgcDriverRtProtoBuild_nid_postfix();
             resetMemory(reader, replay.skipped);
             replay.pass = pass;
             replay.recording = false;

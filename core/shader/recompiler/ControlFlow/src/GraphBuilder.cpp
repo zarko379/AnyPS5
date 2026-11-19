@@ -1742,6 +1742,27 @@ LinkedCalls LinkCalls(const RdnaProgram& program, std::span<const UserDataCall> 
     return {std::move(linked), std::move(fallbacks)};
 }
 
+void GraphBuilder::ReplaceRegion(ControlFlowGraph& graph, std::uint32_t entryProgramCounter, std::uint32_t exitProgramCounter) {
+    const auto find = [&](std::uint32_t programCounter) {
+        const auto block = std::find_if(graph.blocks.begin(), graph.blocks.end(), [&](const BasicBlock& candidate) { return candidate.startProgramCounter == programCounter; });
+        if (block == graph.blocks.end()) throw std::invalid_argument("RT prototype: no block starts at the replaced region's entry or exit");
+        return block->id;
+    };
+    const auto entry = find(entryProgramCounter);
+    const auto exit = find(exitProgramCounter);
+    auto& block = graph.blocks[entry];
+    block.instructionEnd = block.instructionBegin;
+    block.endProgramCounter = block.startProgramCounter;
+    block.terminator = Terminator{};
+    block.terminator.kind = TerminatorKind::Branch;
+    block.terminator.condition = BranchCondition::Always;
+    block.terminator.trueBlock = exit;
+    block.successors = {exit};
+    rebuildPredecessors(graph);
+    pruneUnreachableBlocks(graph);
+    graph.replacedRegionProgramCounter = entryProgramCounter;
+}
+
 ControlFlowGraph GraphBuilder::Build(const RdnaProgram& program, const SwappcInfo* swappc) const {
     std::vector<std::uint32_t> unlinked;
     LinkEscape linkEscape;

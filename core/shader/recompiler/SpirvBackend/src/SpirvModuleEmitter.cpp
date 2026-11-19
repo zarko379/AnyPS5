@@ -1918,6 +1918,7 @@ void EmitProgram(SpirvEmitterState& state) {
         state.labels.emplace(block, label);
     }
     DefineGetBdaPointer(state);
+    DefineRtProtoFunctions(state);
     DefineDot2F32F16Function(state);
     DefineIntegerFloat64Functions(state);
     DefineReciprocalCorrectionFunction(state);

@@ -77,6 +77,7 @@ struct LinkedCalls {
 class GraphBuilder {
 public:
     [[nodiscard]] ControlFlowGraph Build(const RdnaProgram& program, const SwappcInfo* swappc = nullptr) const;
+    static void ReplaceRegion(ControlFlowGraph& graph, std::uint32_t entryProgramCounter, std::uint32_t exitProgramCounter);
 
 private:
     [[nodiscard]] std::vector<BasicBlock> splitIntoBlocks(const RdnaProgram& program, const std::vector<SwappcCall>& calls) const;
