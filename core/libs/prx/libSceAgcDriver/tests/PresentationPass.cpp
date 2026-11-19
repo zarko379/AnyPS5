@@ -1348,7 +1348,7 @@ FramePixels noiseFrame(VkExtent2D extent, std::uint32_t seed) {
     return frame;
 }
 
-FramePixels captureFrame(const Context& context, AgcDriver::PresentationFrameGenerator& generator, const FramePixels& frame, bool generate, bool* generated, bool held = false) {
+FramePixels captureFrame(const Context& context, AgcDriver::PresentationFrameGenerator& generator, const FramePixels& frame, std::uint32_t generate, bool* generated, bool held = false, bool real = false) {
     const auto bytes = frame.bgra.size();
     Image presented(context, VK_FORMAT_B8G8R8A8_UNORM, frame.extent, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
     Buffer upload(context, bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
@@ -1357,7 +1357,8 @@ FramePixels captureFrame(const Context& context, AgcDriver::PresentationFrameGen
     CommandBatch batch(context);
     const auto commands = batch.Handle();
     if (held) {
-        generator.RecordHeld(commands, presented.Handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        const bool wrote = generator.RecordHeld(commands, presented.Handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, real);
+        if (generated != nullptr) *generated = wrote;
     } else {
         transition(context, commands, presented.Handle(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, VK_ACCESS_TRANSFER_WRITE_BIT);
         VkBufferImageCopy copy{};
@@ -1439,6 +1440,35 @@ void frameGenerationTests(const Context& context) {
         static_cast<void>(captureFrame(context, generator, first, true, &generated));
         static_cast<void>(captureFrame(context, generator, second, false, &generated));
         Require(!generated && !generator.HoldsFrame(), "a capture without generation held a frame");
+    }
+    {
+        AgcDriver::PresentationFrameGenerator generator(context);
+        bool generated = false;
+        const auto start = frameWithSquare(extent, 200, 140, 64);
+        const auto end = frameWithSquare(extent, 248, 140, 64);
+        static_cast<void>(captureFrame(context, generator, start, 2, &generated));
+        const auto third = captureFrame(context, generator, end, 2, &generated);
+        Require(generated && generator.HoldsFrame() && generator.PendingGenerated() == 1, "a frame pair asked for two frames did not generate the first and keep one more");
+        const auto twoThirds = captureFrame(context, generator, end, 0, &generated, true);
+        Require(generated && generator.HoldsFrame() && generator.PendingGenerated() == 0, "the second generated frame was not presented before the held real frame");
+        const double thirdExpected = brightCentroidX(frameWithSquare(extent, 216, 140, 64));
+        const double twoThirdsExpected = brightCentroidX(frameWithSquare(extent, 232, 140, 64));
+        const double thirdCentroid = brightCentroidX(third);
+        const double twoThirdsCentroid = brightCentroidX(twoThirds);
+        std::printf("  frame generation 3x: square moved from x=200 to x=248, generated centroids %.2f and %.2f (expected %.2f and %.2f)\n", thirdCentroid, twoThirdsCentroid, thirdExpected, twoThirdsExpected);
+        Require(std::abs(thirdCentroid - thirdExpected) <= 3.0 && std::abs(twoThirdsCentroid - twoThirdsExpected) <= 3.0, "the generated frames did not put the square a third and two thirds of the way: centroids " + std::to_string(thirdCentroid) + " and " + std::to_string(twoThirdsCentroid));
+        const auto real = captureFrame(context, generator, end, 0, &generated, true);
+        Require(!generated && maxDifference(real, end) == 0 && !generator.HoldsFrame(), "the held real frame was not presented unchanged after two generated frames");
+        Require(generator.Generated() == 2, "the generated frame count is not two");
+    }
+    {
+        AgcDriver::PresentationFrameGenerator generator(context);
+        bool generated = false;
+        static_cast<void>(captureFrame(context, generator, first, 3, &generated));
+        static_cast<void>(captureFrame(context, generator, second, 3, &generated));
+        Require(generated && generator.PendingGenerated() == 2, "a frame pair asked for three frames did not keep two more");
+        const auto real = captureFrame(context, generator, second, 0, &generated, true, true);
+        Require(!generated && maxDifference(real, second) == 0 && !generator.HoldsFrame() && generator.PendingGenerated() == 0, "presenting the real frame early did not drop the generated frames still pending");
     }
 }
 

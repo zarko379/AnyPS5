@@ -200,7 +200,7 @@ void Driver::Present(const PresentationWindow& window, const DisplayBuffer* buff
     }
 }
 
-bool Driver::PresentHeld(const PresentationWindow& window) {
+bool Driver::PresentHeld(const PresentationWindow& window, bool real) {
     PerformanceTimer timing("Driver.PresentHeld");
     CheckFailure();
     static const std::size_t inFlight = VulkanDevice::FlipInFlight();
@@ -224,7 +224,7 @@ bool Driver::PresentHeld(const PresentationWindow& window) {
         {
             GuestMemory::TagGpuLockSite(GuestMemory::GpuLockSite::Present);
             std::lock_guard lock(GuestMemory::GpuMutex());
-            submitted = presenting->PresentHeldFrame();
+            submitted = presenting->PresentHeldFrame(real);
             if (submitted) {
                 if (presenting->PresentsOnOwnQueue()) queueUnlocked = true;
                 else presenting->QueuePresent();
@@ -242,10 +242,10 @@ bool Driver::PresentHeld(const PresentationWindow& window) {
     }
 }
 
-void Driver::SetFrameGeneration(bool generate) {
+void Driver::SetFrameGeneration(std::uint32_t frames) {
     GuestMemory::TagGpuLockSite(GuestMemory::GpuLockSite::Present);
     std::lock_guard lock(GuestMemory::GpuMutex());
-    if (device != nullptr) device->SetFrameGeneration(generate);
+    if (device != nullptr) device->SetFrameGeneration(frames);
 }
 
 void Driver::reportPresents(double waitedMs, std::size_t inFlight) {

@@ -760,7 +760,7 @@ struct VulkanDevice::State {
     std::unique_ptr<PerformanceOverlay> overlay;
     std::unique_ptr<PresentationUpscaler> upscaler;
     std::unique_ptr<PresentationFrameGenerator> frameGenerator;
-    bool generateNextFrame = false;
+    std::uint32_t generateNextFrames = 0;
     std::unique_ptr<PerformanceOverlay> keyboard;
     std::unique_ptr<PerformanceOverlay> padStatus;
     VkFormat surfaceFormat = VK_FORMAT_B8G8R8A8_UNORM;
@@ -4517,7 +4517,7 @@ bool VulkanDevice::present(std::uint32_t width, std::uint32_t height, bool opaqu
     }
     if (state->frameGenerator != nullptr) {
         if (state->presentingGuestFrame && !clearOnly && state->surfaceColorSpace != VK_COLOR_SPACE_HDR10_ST2084_EXT) {
-            if (state->frameGenerator->RecordCapture(commands, state->images[index], state->surfaceFormat, state->extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, state->generateNextFrame)) generatedFrames.fetch_add(1, std::memory_order_relaxed);
+            if (state->frameGenerator->RecordCapture(commands, state->images[index], state->surfaceFormat, state->extent, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, state->generateNextFrames)) generatedFrames.fetch_add(1, std::memory_order_relaxed);
             const auto& measured = state->frameGenerator->Measured();
             generationMeasured.store(measured.measured, std::memory_order_relaxed);
             generationCuts.store(measured.cuts, std::memory_order_relaxed);
@@ -4671,8 +4671,20 @@ bool VulkanDevice::FrameGenerationRequested() {
     return requested;
 }
 
-void VulkanDevice::SetFrameGeneration(bool generate) {
-    state->generateNextFrame = generate;
+std::uint32_t VulkanDevice::FrameGenerationFactor() {
+    static const std::uint32_t factor = [] {
+        const char* value = std::getenv("ANYPS5_FRAME_GENERATION_FACTOR");
+        if (value == nullptr || *value == '\0') return 2u;
+        const std::string_view text(value);
+        if (text.size() != 1 || text[0] < '2' || text[0] > '0' + static_cast<char>(PresentationFrameGenerator::MaxFactor)) throw std::runtime_error("ANYPS5_FRAME_GENERATION_FACTOR must be a whole number from 2 to 8");
+        return static_cast<std::uint32_t>(text[0] - '0');
+    }();
+    return factor;
+}
+
+void VulkanDevice::SetFrameGeneration(std::uint32_t frames) {
+    require(frames < FrameGenerationFactor(), "frame generation was asked for more frames between two flips than its factor allows");
+    state->generateNextFrames = frames;
 }
 
 bool VulkanDevice::HoldsGeneratedFrame() const {
@@ -4697,7 +4709,7 @@ VulkanDevice::FrameGenerationMeasure VulkanDevice::FrameGenerationMeasured() {
     return {measured, generationCuts.load(std::memory_order_relaxed), generationCostSum.load(std::memory_order_relaxed) / count, generationFallbackSum.load(std::memory_order_relaxed) / count};
 }
 
-bool VulkanDevice::PresentHeldFrame() {
+bool VulkanDevice::PresentHeldFrame(bool real) {
     if (!HoldsGeneratedFrame() || state->swapchain == VK_NULL_HANDLE || state->extent.width == 0 || state->extent.height == 0) return false;
     require(!state->queuePending, "the previous presentation was not queued");
     if (!state->imageAcquired && !AcquireImage()) {
@@ -4719,7 +4731,7 @@ bool VulkanDevice::PresentHeldFrame() {
         state->DeviceFunction<PFN_vkCmdResetQueryPool>("vkCmdResetQueryPool")(commands, slot.queries, 0, 2);
         state->DeviceFunction<PFN_vkCmdWriteTimestamp>("vkCmdWriteTimestamp")(commands, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, slot.queries, 0);
     }
-    state->frameGenerator->RecordHeld(commands, state->images[index], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    const bool generatedFrame = state->frameGenerator->RecordHeld(commands, state->images[index], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, real);
     if (slot.queries != VK_NULL_HANDLE) state->DeviceFunction<PFN_vkCmdWriteTimestamp>("vkCmdWriteTimestamp")(commands, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, slot.queries, 1);
     check(state->DeviceFunction<PFN_vkEndCommandBuffer>("vkEndCommandBuffer")(commands), "vkEndCommandBuffer held frame");
     VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
@@ -4748,7 +4760,7 @@ bool VulkanDevice::PresentHeldFrame() {
         state->queueGuestFrame = false;
         state->queueIndex = index;
     }
-    heldFramePresents.fetch_add(1, std::memory_order_relaxed);
+    (generatedFrame ? generatedFrames : heldFramePresents).fetch_add(1, std::memory_order_relaxed);
     return true;
 }
 

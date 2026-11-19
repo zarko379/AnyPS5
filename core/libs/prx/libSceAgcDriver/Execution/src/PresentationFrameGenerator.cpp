@@ -48,6 +48,7 @@ struct WarpParameters {
     float pixelsPerUnit;
     float cutCost;
     float mismatch;
+    float phase;
 };
 
 constexpr std::array<std::uint32_t, 4> ParameterBytes{sizeof(LumaParameters), sizeof(MotionParameters), sizeof(SmoothParameters), sizeof(WarpParameters)};
@@ -373,7 +374,7 @@ void PresentationFrameGenerator::recordPyramid(VkCommandBuffer commands, std::ui
     }
 }
 
-void PresentationFrameGenerator::recordInterpolation(VkCommandBuffer commands, std::uint32_t slot) {
+void PresentationFrameGenerator::recordMotion(VkCommandBuffer commands, std::uint32_t slot) {
     const auto bindSets = context.Function<PFN_vkCmdBindDescriptorSets>("vkCmdBindDescriptorSets");
     const auto push = context.Function<PFN_vkCmdPushConstants>("vkCmdPushConstants");
     const auto dispatch = context.Function<PFN_vkCmdDispatch>("vkCmdDispatch");
@@ -407,15 +408,38 @@ void PresentationFrameGenerator::recordInterpolation(VkCommandBuffer commands, s
     push(commands, pipelineLayouts[SmoothStage], VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(smoothing), &smoothing);
     dispatch(commands, groups(finest.width), groups(finest.height), 1);
     computeBarrier(commands);
+}
+
+void PresentationFrameGenerator::recordWarp(VkCommandBuffer commands, std::uint32_t slot, float phase) {
+    const auto bindSets = context.Function<PFN_vkCmdBindDescriptorSets>("vkCmdBindDescriptorSets");
+    const auto push = context.Function<PFN_vkCmdPushConstants>("vkCmdPushConstants");
+    const auto dispatch = context.Function<PFN_vkCmdDispatch>("vkCmdDispatch");
+    const auto finest = blocksOf(levelExtent(frameExtent, 0));
+    computeBarrier(commands);
     barrier(commands, output.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
-    const WarpParameters warp{static_cast<std::int32_t>(frameExtent.width), static_cast<std::int32_t>(frameExtent.height), static_cast<std::int32_t>(finest.width), static_cast<std::int32_t>(finest.height), static_cast<float>(BlockSize * 2u), 2.0f, CutCost, Mismatch};
+    const WarpParameters warp{static_cast<std::int32_t>(frameExtent.width), static_cast<std::int32_t>(frameExtent.height), static_cast<std::int32_t>(finest.width), static_cast<std::int32_t>(finest.height), static_cast<float>(BlockSize * 2u), 2.0f, CutCost, Mismatch, phase};
     context.BindComputePipeline(commands, pipelines[WarpStage]);
     bindSets(commands, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayouts[WarpStage], 0, 1, &warpSets[slot], 0, nullptr);
     push(commands, pipelineLayouts[WarpStage], VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(warp), &warp);
     dispatch(commands, groups(frameExtent.width), groups(frameExtent.height), 1);
+    ++warps;
 }
 
-bool PresentationFrameGenerator::RecordCapture(VkCommandBuffer commands, VkImage image, VkFormat format, VkExtent2D extent, VkImageLayout layout, bool generate) {
+void PresentationFrameGenerator::writeGenerated(VkCommandBuffer commands, VkImage image, VkImageLayout from, VkImageLayout to) {
+    barrier(commands, output.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+    barrier(commands, image, from, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+    VkImageBlit blit{};
+    blit.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    blit.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    blit.srcOffsets[1] = {static_cast<std::int32_t>(frameExtent.width), static_cast<std::int32_t>(frameExtent.height), 1};
+    blit.dstOffsets[1] = blit.srcOffsets[1];
+    context.Function<PFN_vkCmdBlitImage>("vkCmdBlitImage")(commands, output.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_NEAREST);
+    barrier(commands, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, to, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0);
+    ++generated;
+}
+
+bool PresentationFrameGenerator::RecordCapture(VkCommandBuffer commands, VkImage image, VkFormat format, VkExtent2D extent, VkImageLayout layout, std::uint32_t requested) {
+    Graphics::Require(requested < MaxFactor, "frame generation makes at most seven frames between two real ones");
     Graphics::Require(extent.width != 0 && extent.height != 0, "frame generation needs a non-empty frame");
     const bool fresh = frameFormat != format || frameExtent.width != extent.width || frameExtent.height != extent.height;
     ensure(format, extent);
@@ -436,7 +460,7 @@ bool PresentationFrameGenerator::RecordCapture(VkCommandBuffer commands, VkImage
     context.Function<PFN_vkCmdCopyImage>("vkCmdCopyImage")(commands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
     barrier(commands, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT);
     recordPyramid(commands, slot);
-    const bool interpolate = generate && previousValid;
+    const bool interpolate = requested != 0u && previousValid;
     if (interpolate) {
         if (statisticsPending && statisticsWords != nullptr) {
             const double blocks = statisticsWords[1];
@@ -444,31 +468,32 @@ bool PresentationFrameGenerator::RecordCapture(VkCommandBuffer commands, VkImage
             ++measuredStatistics.measured;
             if (meanCost > CutCost) ++measuredStatistics.cuts;
             measuredStatistics.meanCostSum += meanCost;
-            measuredStatistics.fallbackShareSum += static_cast<double>(statisticsWords[2]) / (static_cast<double>(frameExtent.width) * frameExtent.height);
+            measuredStatistics.fallbackShareSum += static_cast<double>(statisticsWords[2]) / (static_cast<double>(frameExtent.width) * frameExtent.height * std::max(warps, 1u));
         }
         statisticsPending = true;
-        recordInterpolation(commands, slot);
-        barrier(commands, output.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
-        barrier(commands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
-        VkImageBlit blit{};
-        blit.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        blit.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        blit.srcOffsets[1] = {static_cast<std::int32_t>(extent.width), static_cast<std::int32_t>(extent.height), 1};
-        blit.dstOffsets[1] = blit.srcOffsets[1];
-        context.Function<PFN_vkCmdBlitImage>("vkCmdBlitImage")(commands, output.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_NEAREST);
-        barrier(commands, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, layout, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0);
-        ++generated;
+        warps = 0;
+        recordMotion(commands, slot);
+        recordWarp(commands, slot, 1.0f / static_cast<float>(requested + 1u));
+        writeGenerated(commands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, layout);
     } else {
         barrier(commands, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, layout, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0);
     }
     newest = slot;
     previousValid = true;
     held = interpolate;
+    frames = interpolate ? requested : 0u;
+    nextFrame = 2u;
     return interpolate;
 }
 
-void PresentationFrameGenerator::RecordHeld(VkCommandBuffer commands, VkImage image, VkImageLayout finalLayout) {
+bool PresentationFrameGenerator::RecordHeld(VkCommandBuffer commands, VkImage image, VkImageLayout finalLayout, bool real) {
     Graphics::Require(held, "frame generation holds no real frame to present");
+    if (!real && nextFrame <= frames) {
+        recordWarp(commands, newest, static_cast<float>(nextFrame) / static_cast<float>(frames + 1u));
+        writeGenerated(commands, image, VK_IMAGE_LAYOUT_UNDEFINED, finalLayout);
+        ++nextFrame;
+        return true;
+    }
     const auto& source = history[newest].color;
     barrier(commands, source.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
     barrier(commands, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -480,11 +505,14 @@ void PresentationFrameGenerator::RecordHeld(VkCommandBuffer commands, VkImage im
     barrier(commands, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, finalLayout, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0);
     barrier(commands, source.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT);
     held = false;
+    frames = 0;
+    return false;
 }
 
 void PresentationFrameGenerator::Forget() {
     previousValid = false;
     held = false;
+    frames = 0;
     statisticsPending = false;
 }
 

@@ -800,25 +800,34 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
     std::unique_ptr<FrameTimingLog> timingLog;
 #endif
     bool frameGeneration = false;
+    std::uint32_t generationFactor = 2;
     int generationRefresh = 0;
     bool heldPending = false;
     std::chrono::steady_clock::time_point heldDeadline{};
+    std::chrono::steady_clock::time_point heldStart{};
+    std::chrono::steady_clock::duration heldInterval{};
+    std::uint32_t heldFrames = 0;
+    std::uint32_t heldNext = 0;
     std::chrono::steady_clock::time_point lastFlipFinished{};
     std::chrono::steady_clock::duration flipInterval{};
     std::uint32_t heldWidth = 0;
     std::uint32_t heldHeight = 0;
-    const auto presentHeld = [&] {
-        heldPending = false;
+    const auto presentHeld = [&](bool real) {
+        const bool last = real || heldNext >= heldFrames;
+        heldPending = !last;
+        ++heldNext;
+        if (heldPending) heldDeadline = heldStart + heldInterval * heldNext / (heldFrames + 1u);
         if (window.Handle() == nullptr) return;
         const auto extensions = windowExtensions(window.Handle());
         const AgcDriver::PresentationWindow target{window.Handle(), extensions, &createWindowSurface, &windowDrawableSize, heldWidth, heldHeight, nullptr};
-        if (AgcDriverPresentHeldFrame_nid_postfix(target)) OnMainThread([&] { window.UpdateTitle(); });
+        if (AgcDriverPresentHeldFrame_nid_postfix(target, last)) OnMainThread([&] { window.UpdateTitle(); });
     };
     try {
 #if APS5_ENABLE_TIMING_LOG
         timingLog = std::make_unique<FrameTimingLog>();
 #endif
         frameGeneration = AgcDriverFrameGenerationRequested_nid_postfix();
+        if (frameGeneration) generationFactor = AgcDriverFrameGenerationFactor_nid_postfix();
         OnMainThread([&] {
             padInput.emplace();
             mouseInput.emplace();
@@ -886,17 +895,18 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 if (heldPending) {
                     const auto untilHeld = std::chrono::duration_cast<std::chrono::microseconds>(heldDeadline - std::chrono::steady_clock::now()).count();
                     if (untilHeld > 0) PreciseSleepUs(static_cast<unsigned long long>(untilHeld));
-                    presentHeld();
+                    presentHeld(true);
                 }
-                bool generate = false;
+                std::uint32_t generate = 0;
                 if (frameGeneration) {
                     const int refresh = GetDisplayRefreshRate();
                     if (refresh != generationRefresh) {
                         generationRefresh = refresh;
-                        std::fprintf(stderr, "[videoout] frame generation follows the window's display at %d Hz: frames are generated while flips come slower than %.1f a second%c", refresh, refresh > 0 ? refresh / 2.0 : 30.0, 10);
+                        std::fprintf(stderr, "[videoout] frame generation follows the window's display at %d Hz: up to %u frames are shown per flip while flips come slower than %.1f a second, fewer when more would outpace the display%c", refresh, generationFactor, refresh > 0 ? refresh / 2.0 : 30.0, 10);
                     }
                     const auto displayPeriod = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1.0 / static_cast<double>(refresh > 0 ? refresh : 60)));
-                    generate = flipInterval > 2 * displayPeriod;
+                    generate = generationFactor - 1u;
+                    while (generate != 0u && flipInterval <= static_cast<std::int64_t>(generate + 1u) * displayPeriod) --generate;
                     AgcDriverSetFrameGeneration_nid_postfix(generate);
                 }
                 processFlip(*current);
@@ -907,9 +917,13 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                         flipInterval = flipInterval == std::chrono::steady_clock::duration{} ? interval : (flipInterval * 7 + interval) / 8;
                     }
                     lastFlipFinished = flipPresented;
-                    if (generate) {
+                    if (generate != 0u) {
                         heldPending = true;
-                        heldDeadline = flipPresented + flipInterval / 2;
+                        heldStart = flipPresented;
+                        heldInterval = flipInterval;
+                        heldFrames = generate;
+                        heldNext = 1;
+                        heldDeadline = heldStart + heldInterval / (heldFrames + 1u);
                         heldWidth = current->width;
                         heldHeight = current->height;
                     }
@@ -933,7 +947,7 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 timingLog->Enqueue(current->timing->Capture(current->outputHandle, current->index, current->flipArg, finished, interval));
 #endif
             }
-            if (heldPending && std::chrono::steady_clock::now() >= heldDeadline) presentHeld();
+            if (heldPending && std::chrono::steady_clock::now() >= heldDeadline) presentHeld(false);
             if (current) {
                 current.reset();
                 flipQueue->changed.NotifyAll();

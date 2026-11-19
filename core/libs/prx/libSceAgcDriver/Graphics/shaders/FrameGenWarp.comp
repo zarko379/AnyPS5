@@ -18,6 +18,7 @@ layout(push_constant) uniform Parameters {
     float pixelsPerUnit;
     float cutCost;
     float mismatch;
+    float phase;
 } parameters;
 
 vec4 cellAt(ivec2 cell) {
@@ -45,7 +46,7 @@ void shade(ivec2 pixel) {
     vec2 position = vec2(pixel) + 0.5;
     float meanCost = statistics.blocks == 0u ? 0.0 : float(statistics.costSum) / (4096.0 * float(statistics.blocks));
     if (meanCost > parameters.cutCost) {
-        imageStore(result, pixel, textureLod(current, position / size, 0.0));
+        imageStore(result, pixel, parameters.phase < 0.5 ? textureLod(previous, position / size, 0.0) : textureLod(current, position / size, 0.0));
         atomicAdd(groupFallback, 1u);
         return;
     }
@@ -56,9 +57,9 @@ void shade(ivec2 pixel) {
     float difference = 1e9;
     for (int i = 0; i < 4; ++i) {
         vec4 motion = cellAt(base + ivec2(i & 1, i >> 1));
-        vec2 offset = motion.xy * parameters.pixelsPerUnit;
-        vec4 candidateBefore = textureLod(previous, (position - offset) / size, 0.0);
-        vec4 candidateAfter = textureLod(current, (position + offset) / size, 0.0);
+        vec2 offset = motion.xy * parameters.pixelsPerUnit * 2.0;
+        vec4 candidateBefore = textureLod(previous, (position - offset * parameters.phase) / size, 0.0);
+        vec4 candidateAfter = textureLod(current, (position + offset * (1.0 - parameters.phase)) / size, 0.0);
         float candidate = abs(luma(candidateBefore.rgb) - luma(candidateAfter.rgb)) + 0.25 * motion.z;
         if (candidate < difference) {
             difference = candidate;
@@ -68,5 +69,5 @@ void shade(ivec2 pixel) {
     }
     float fallback = smoothstep(parameters.mismatch, parameters.mismatch * 3.0, difference);
     if (fallback > 0.5) atomicAdd(groupFallback, 1u);
-    imageStore(result, pixel, mix(0.5 * (before + after), after, fallback));
+    imageStore(result, pixel, mix(mix(before, after, parameters.phase), parameters.phase < 0.5 ? before : after, fallback));
 }

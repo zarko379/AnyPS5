@@ -18,6 +18,7 @@ public:
     static constexpr float MotionBias = 0.002f;
     static constexpr float CutCost = 0.12f;
     static constexpr float Mismatch = 0.04f;
+    static constexpr std::uint32_t MaxFactor = 8;
 
     explicit PresentationFrameGenerator(const Graphics::Context& context);
     ~PresentationFrameGenerator();
@@ -25,9 +26,10 @@ public:
     PresentationFrameGenerator& operator=(const PresentationFrameGenerator&) = delete;
 
     static bool Supports(const Graphics::Context& context, VkFormat format);
-    bool RecordCapture(VkCommandBuffer commands, VkImage image, VkFormat format, VkExtent2D extent, VkImageLayout layout, bool generate);
+    bool RecordCapture(VkCommandBuffer commands, VkImage image, VkFormat format, VkExtent2D extent, VkImageLayout layout, std::uint32_t frames);
     bool HoldsFrame() const { return held; }
-    void RecordHeld(VkCommandBuffer commands, VkImage image, VkImageLayout finalLayout);
+    std::uint32_t PendingGenerated() const { return held && nextFrame <= frames ? frames + 1u - nextFrame : 0u; }
+    bool RecordHeld(VkCommandBuffer commands, VkImage image, VkImageLayout finalLayout, bool real = false);
     void Forget();
     std::uint64_t Generated() const { return generated; }
     struct Statistics {
@@ -63,7 +65,9 @@ private:
     void barrier(VkCommandBuffer commands, VkImage image, VkImageLayout from, VkImageLayout to, VkPipelineStageFlags sourceStage, VkAccessFlags sourceAccess, VkPipelineStageFlags destinationStage, VkAccessFlags destinationAccess) const;
     void computeBarrier(VkCommandBuffer commands) const;
     void recordPyramid(VkCommandBuffer commands, std::uint32_t slot);
-    void recordInterpolation(VkCommandBuffer commands, std::uint32_t newest);
+    void recordMotion(VkCommandBuffer commands, std::uint32_t slot);
+    void recordWarp(VkCommandBuffer commands, std::uint32_t slot, float phase);
+    void writeGenerated(VkCommandBuffer commands, VkImage image, VkImageLayout from, VkImageLayout to);
 
     Graphics::Context context;
     VkSampler sampler = VK_NULL_HANDLE;
@@ -91,6 +95,9 @@ private:
     std::uint32_t newest = 0;
     bool previousValid = false;
     bool held = false;
+    std::uint32_t frames = 0;
+    std::uint32_t nextFrame = 0;
+    std::uint32_t warps = 0;
     std::uint64_t generated = 0;
 };
 

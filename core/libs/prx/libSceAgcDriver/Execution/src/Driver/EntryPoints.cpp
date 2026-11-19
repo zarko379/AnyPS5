@@ -252,16 +252,20 @@ extern "C" void AgcDriverPresentBuffer_nid_postfix(const AgcDriver::Presentation
     AgcDriver::PresentBuffer(window, buffer, plane, gpuReady, context);
 }
 
-extern "C" bool AgcDriverPresentHeldFrame_nid_postfix(const AgcDriver::PresentationWindow& window) {
-    return AgcDriver::DriverDetail::Driver::Get().PresentHeld(window);
+extern "C" bool AgcDriverPresentHeldFrame_nid_postfix(const AgcDriver::PresentationWindow& window, bool real) {
+    return AgcDriver::DriverDetail::Driver::Get().PresentHeld(window, real);
 }
 
-extern "C" void AgcDriverSetFrameGeneration_nid_postfix(bool generate) {
-    AgcDriver::DriverDetail::Driver::Get().SetFrameGeneration(generate);
+extern "C" void AgcDriverSetFrameGeneration_nid_postfix(std::uint32_t frames) {
+    AgcDriver::DriverDetail::Driver::Get().SetFrameGeneration(frames);
 }
 
 extern "C" bool AgcDriverFrameGenerationRequested_nid_postfix() {
     return AgcDriver::VulkanDevice::FrameGenerationRequested();
+}
+
+extern "C" std::uint32_t AgcDriverFrameGenerationFactor_nid_postfix() {
+    return AgcDriver::VulkanDevice::FrameGenerationFactor();
 }
 
 extern "C" void AgcDriverReleaseWindow_nid_postfix(void* window) {
