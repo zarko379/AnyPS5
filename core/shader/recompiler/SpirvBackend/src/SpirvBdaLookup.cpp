@@ -2,6 +2,7 @@
 #include "SpirvBackend/SpirvMemory/SpirvTypes.hpp"
 #include "SpirvBackend/SpirvMemory/SpirvConstants.hpp"
 #include <bit>
+#include <cstdlib>
 #include <utility>
 #include <iterator>
 #include <initializer_list>
@@ -64,6 +65,39 @@ std::uint32_t DefineBdaLookup(SpirvEmitterState& state, const char* name, bool r
         }
         leaveIf(binary(spv::OpINotEqual, boolean, reason, constant(0u)), reason);
     };
+    static const bool rangeCache = std::getenv("APS5_BDA_RANGE_CACHE") != nullptr;
+    const bool cached = rangeCache && !rangeResult;
+    const auto privateU64 = TypePointer(state, spv::StorageClassPrivate, u64);
+    const auto privateU32 = TypePointer(state, spv::StorageClassPrivate, u32);
+    if (cached && state.bdaCacheBegin == 0) {
+        state.bdaCacheBegin = state.module.DefineInitializedGlobalVariable(privateU64, spv::StorageClassPrivate, BdaConstant(state, 0u));
+        state.bdaCacheEnd = state.module.DefineInitializedGlobalVariable(privateU64, spv::StorageClassPrivate, BdaConstant(state, 0u));
+        state.bdaCacheBase = state.module.DefineInitializedGlobalVariable(privateU64, spv::StorageClassPrivate, BdaConstant(state, 0u));
+        state.bdaCachePermissions = state.module.DefineInitializedGlobalVariable(privateU32, spv::StorageClassPrivate, constant(0u));
+    }
+    const auto loadPrivate = [&](std::uint32_t type, std::uint32_t variable) {
+        const auto value = state.module.AllocateId();
+        state.module.AddFunction(spv::OpLoad, type, value, variable);
+        return value;
+    };
+    if (cached) {
+        const auto cachedBegin = loadPrivate(u64, state.bdaCacheBegin);
+        const auto cachedEnd = loadPrivate(u64, state.bdaCacheEnd);
+        const auto cachedBase = loadPrivate(u64, state.bdaCacheBase);
+        const auto cachedPermissions = loadPrivate(u32, state.bdaCachePermissions);
+        const auto cachedFinish = binary(spv::OpIAdd, u64, address, Unary(state, spv::OpUConvert, u64, bytes));
+        const auto within = binary(spv::OpLogicalAnd, boolean, binary(spv::OpUGreaterThanEqual, boolean, address, cachedBegin), binary(spv::OpULessThanEqual, boolean, cachedFinish, cachedEnd));
+        const auto ordered = binary(spv::OpLogicalAnd, boolean, binary(spv::OpUGreaterThan, boolean, cachedFinish, address), binary(spv::OpINotEqual, boolean, cachedEnd, BdaConstant(state, 0u)));
+        const auto allowed = binary(spv::OpIEqual, boolean, binary(spv::OpBitwiseAnd, u32, cachedPermissions, constant(permission)), constant(permission));
+        const auto hit = binary(spv::OpLogicalAnd, boolean, binary(spv::OpLogicalAnd, boolean, within, ordered), allowed);
+        const auto taken = state.module.AllocateId();
+        const auto next = state.module.AllocateId();
+        state.module.AddFunction(spv::OpSelectionMerge, next, spv::SelectionControlMaskNone);
+        state.module.AddFunction(spv::OpBranchConditional, hit, taken, next);
+        EmitLabel(state, taken);
+        leave(binary(spv::OpIAdd, u64, cachedBase, binary(spv::OpISub, u64, address, cachedBegin)));
+        EmitLabel(state, next);
+    }
     const auto length = state.module.AllocateId();
     state.module.AddFunction(spv::OpArrayLength, u32, length, state.bdaPagetableVariable, 0u);
     fail(binary(spv::OpULessThan, boolean, length, constant(4)), BdaAbi::FaultReason::InvalidTable);
@@ -133,6 +167,12 @@ std::uint32_t DefineBdaLookup(SpirvEmitterState& state, const char* name, bool r
         state.module.AddFunction(spv::OpCompositeConstruct, rangeType, range, begin, bound, base);
         leave(range);
     } else {
+        if (cached) {
+            state.module.AddFunction(spv::OpStore, state.bdaCacheBegin, begin);
+            state.module.AddFunction(spv::OpStore, state.bdaCacheEnd, finish);
+            state.module.AddFunction(spv::OpStore, state.bdaCacheBase, base);
+            state.module.AddFunction(spv::OpStore, state.bdaCachePermissions, permissions);
+        }
         leave(result);
     }
     EmitLabel(state, outerContinue);

@@ -209,6 +209,10 @@ struct SpirvEmitterState {
     };
     std::vector<BdaAnchor> bdaAnchors;
     std::uint32_t bdaAnchorFunction = 0;
+    std::uint32_t bdaCacheBegin = 0;
+    std::uint32_t bdaCacheEnd = 0;
+    std::uint32_t bdaCacheBase = 0;
+    std::uint32_t bdaCachePermissions = 0;
     std::uint32_t bdaStopValue = 0;
     std::uint32_t bdaPcOverride = 0;
     // False for programs with workgroup barriers: faulting BDA accesses then continue (see BdaInvocationsMayStop).
