@@ -574,6 +574,8 @@ struct VulkanDevice::State {
     std::unique_ptr<const ShaderDeviceProfile> shaderProfile;
     bool tessellationShader = false;
     bool meshShader = false;
+    bool rayQuery = false;
+    std::uint32_t accelerationScratchAlignment = 0;
     bool fragmentShaderBarycentric = false;
     bool shaderTerminateInvocation = false;
     bool fusedExactArithmetic = false;
@@ -2549,6 +2551,36 @@ VulkanDevice::VulkanDevice(const PresentationWindow* window, bool compileOnly) :
         robustness2.pNext = bdaFeatures.pNext;
         bdaFeatures.pNext = &robustness2;
         deviceExtensions.push_back(VK_EXT_ROBUSTNESS_2_EXTENSION_NAME);
+        deviceInfo.enabledExtensionCount = static_cast<std::uint32_t>(deviceExtensions.size());
+        deviceInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    }
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+    VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
+    const std::array<const char*, 5> rayExtensions{VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, VK_KHR_SPIRV_1_4_EXTENSION_NAME, VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME};
+    if (NativeRayTracingRequested()) {
+        if (std::all_of(rayExtensions.begin(), rayExtensions.end(), hasExtension) && bdaFeatures.bufferDeviceAddress == VK_TRUE) {
+            accelerationFeatures.pNext = &rayQueryFeatures;
+            VkPhysicalDeviceFeatures2 queried{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &accelerationFeatures};
+            state->InstanceFunction<PFN_vkGetPhysicalDeviceFeatures2>("vkGetPhysicalDeviceFeatures2")(selected, &queried);
+            state->rayQuery = accelerationFeatures.accelerationStructure == VK_TRUE && rayQueryFeatures.rayQuery == VK_TRUE;
+            VkPhysicalDeviceAccelerationStructurePropertiesKHR accelerationProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR};
+            VkPhysicalDeviceProperties2 properties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &accelerationProperties};
+            state->InstanceFunction<PFN_vkGetPhysicalDeviceProperties2>("vkGetPhysicalDeviceProperties2")(selected, &properties);
+            state->accelerationScratchAlignment = accelerationProperties.minAccelerationStructureScratchOffsetAlignment;
+        }
+        if (!state->rayQuery) std::fprintf(stderr, "[gpu] APS5_NATIVE_RT: the device lacks acceleration structures or ray queries, so BVH traversal stays emulated\n");
+    }
+    if (state->rayQuery) {
+        accelerationFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+        accelerationFeatures.accelerationStructure = VK_TRUE;
+        rayQueryFeatures = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
+        rayQueryFeatures.rayQuery = VK_TRUE;
+        rayQueryFeatures.pNext = bdaFeatures.pNext;
+        accelerationFeatures.pNext = &rayQueryFeatures;
+        bdaFeatures.pNext = &accelerationFeatures;
+        for (const auto* extension : rayExtensions) {
+            if (std::none_of(deviceExtensions.begin(), deviceExtensions.end(), [&](const char* enabled) { return std::strcmp(enabled, extension) == 0; })) deviceExtensions.push_back(extension);
+        }
         deviceInfo.enabledExtensionCount = static_cast<std::uint32_t>(deviceExtensions.size());
         deviceInfo.ppEnabledExtensionNames = deviceExtensions.data();
     }
@@ -4682,6 +4714,16 @@ std::uint32_t VulkanDevice::FrameGenerationFactor() {
     return factor;
 }
 
+bool VulkanDevice::NativeRayTracingRequested() {
+    static const bool requested = [] {
+        const char* value = std::getenv("APS5_NATIVE_RT");
+        if (value == nullptr || *value == '\0' || std::string_view(value) == "0") return false;
+        if (std::string_view(value) != "1") throw std::runtime_error("APS5_NATIVE_RT must be 0 or 1");
+        return true;
+    }();
+    return requested;
+}
+
 void VulkanDevice::SetFrameGeneration(std::uint32_t frames) {
     require(frames < FrameGenerationFactor(), "frame generation was asked for more frames between two flips than its factor allows");
     state->generateNextFrames = frames;
@@ -5050,6 +5092,8 @@ Graphics::Context VulkanDevice::buildContext() const {
     context.copiedWriters = state->copiedWriters.get();
     context.functions = state->functionsReady ? &state->deviceFunctions : nullptr;
     context.descriptorIndexing = state->descriptorIndexing;
+    context.rayQuery = state->rayQuery;
+    context.accelerationScratchAlignment = state->accelerationScratchAlignment;
     context.descriptorIndexingLimits = state->descriptorIndexingProperties;
     context.imageInt64Atomics = state->imageInt64Atomics;
     context.runtimeDescriptorArray = state->runtimeDescriptorArray;

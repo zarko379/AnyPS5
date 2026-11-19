@@ -281,6 +281,7 @@ public:
     void PresentPixels(std::uint32_t width, std::uint32_t height, std::span<const std::byte> pixels);
     bool PresentDisplayBuffer(const DisplayBuffer& buffer, const DisplayBuffer* plane = nullptr);
     static bool FrameGenerationRequested();
+    static bool NativeRayTracingRequested();
     static std::uint32_t FrameGenerationFactor();
     void SetFrameGeneration(std::uint32_t frames);
     bool HoldsGeneratedFrame() const;
