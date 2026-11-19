@@ -117,6 +117,12 @@ void RunFaultReportScanTests() {
         m.Op(spv::OpAccessChain, {FaultWordPointer, FaultBody, FaultVariable, FaultZero, FaultOverflowWord});
         m.Op(spv::OpStore, {FaultBody, FaultZero});
     }), "fault scan: a store to the written-page overflow word was missed");
+    static_assert(FaultVariable == spv::StorageClassPushConstant);
+    Require(ScanFaultReport([](ScanWords& m) {
+        m.Op(spv::OpVariable, {FaultBlockPointer, FaultBody, spv::StorageClassPushConstant});
+        m.Op(spv::OpAccessChain, {FaultWordPointer, FaultBody + 1u, FaultVariable, FaultZero, FaultZero});
+        m.Op(spv::OpStore, {FaultBody + 1u, FaultZero});
+    }), "fault scan: a variable whose storage class number equals the fault buffer's id was taken for a use of the fault buffer");
     Require(!ScanFaultReport([](ScanWords& m) {
         m.Op(spv::OpIAdd, {FaultUint, FaultBody, FaultZero, FaultReportLast});
         m.Op(spv::OpAccessChain, {FaultWordPointer, FaultBody + 1u, FaultVariable, FaultZero, FaultBody});

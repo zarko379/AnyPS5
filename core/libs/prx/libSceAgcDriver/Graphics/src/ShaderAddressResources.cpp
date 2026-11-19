@@ -205,8 +205,12 @@ bool SpirvFaultReportOnly(std::span<const std::uint32_t> words, std::uint32_t se
     forEachInstruction(words, [&](std::uint32_t opcode, std::span<const std::uint32_t> instruction) {
         if (!reportOnly || referencesNoValue(opcode) || chainsBuffer(opcode, instruction) || (opcode == spv::OpVariable && instruction.size() > 2 && buffers.contains(instruction[2]))) return;
         const auto accessed = opcode == spv::OpLoad || opcode == spv::OpAtomicLoad ? (instruction.size() > 3 ? instruction[3] : 0u) : pointerOperandStored(opcode, instruction);
-        const auto references = std::count_if(instruction.begin() + 1, instruction.end(), [&](std::uint32_t word) { return buffers.contains(word) || reportPointers.contains(word); });
-        reportOnly = references == (reportPointers.contains(accessed) ? 1 : 0);
+        std::size_t references = 0;
+        for (std::size_t index = 1; index < instruction.size(); ++index) {
+            if (opcode == spv::OpVariable && index == 3) continue;
+            if (buffers.contains(instruction[index]) || reportPointers.contains(instruction[index])) ++references;
+        }
+        reportOnly = references == (reportPointers.contains(accessed) ? 1u : 0u);
     });
     return reportOnly;
 }
