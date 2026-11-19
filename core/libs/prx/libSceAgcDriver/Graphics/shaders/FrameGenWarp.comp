@@ -54,20 +54,35 @@ void shade(ivec2 pixel) {
     ivec2 base = ivec2(floor(cell));
     vec4 before = vec4(0.0);
     vec4 after = vec4(0.0);
+    vec2 chosen = vec2(0.0);
     float difference = 1e9;
     for (int i = 0; i < 4; ++i) {
         vec4 motion = cellAt(base + ivec2(i & 1, i >> 1));
         vec2 offset = motion.xy * parameters.pixelsPerUnit * 2.0;
         vec4 candidateBefore = textureLod(previous, (position - offset * parameters.phase) / size, 0.0);
         vec4 candidateAfter = textureLod(current, (position + offset * (1.0 - parameters.phase)) / size, 0.0);
-        float candidate = abs(luma(candidateBefore.rgb) - luma(candidateAfter.rgb)) + 0.25 * motion.z;
+        float candidate = luma(abs(candidateBefore.rgb - candidateAfter.rgb)) + 0.25 * motion.z;
         if (candidate < difference) {
             difference = candidate;
             before = candidateBefore;
             after = candidateAfter;
+            chosen = offset;
         }
     }
     float fallback = smoothstep(parameters.mismatch, parameters.mismatch * 3.0, difference);
     if (fallback > 0.5) atomicAdd(groupFallback, 1u);
-    imageStore(result, pixel, mix(mix(before, after, parameters.phase), parameters.phase < 0.5 ? before : after, fallback));
+    bool nearPrevious = parameters.phase < 0.5;
+    vec2 centre = nearPrevious ? position - chosen * parameters.phase : position + chosen * (1.0 - parameters.phase);
+    vec4 low = vec4(1e9);
+    vec4 high = vec4(-1e9);
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            vec2 at = (centre + vec2(x, y)) / size;
+            vec4 neighbour = nearPrevious ? textureLod(previous, at, 0.0) : textureLod(current, at, 0.0);
+            low = min(low, neighbour);
+            high = max(high, neighbour);
+        }
+    }
+    vec4 blended = clamp(mix(before, after, parameters.phase), low, high);
+    imageStore(result, pixel, mix(blended, nearPrevious ? before : after, fallback));
 }

@@ -892,11 +892,7 @@ void VideoOutDriver::presentLoop(std::stop_token token, std::promise<void>& star
                 ModalDialogView dialogView;
                 const bool dialogShown = !keyboardShown && ModalDialogReadView_nid_postfix(dialogView);
                 AgcDriverSetSystemDialog_nid_postfix(dialogShown ? &dialogView : nullptr);
-                if (heldPending) {
-                    const auto untilHeld = std::chrono::duration_cast<std::chrono::microseconds>(heldDeadline - std::chrono::steady_clock::now()).count();
-                    if (untilHeld > 0) PreciseSleepUs(static_cast<unsigned long long>(untilHeld));
-                    presentHeld(true);
-                }
+                if (heldPending) presentHeld(true);
                 std::uint32_t generate = 0;
                 if (frameGeneration) {
                     const int refresh = GetDisplayRefreshRate();

@@ -13,7 +13,7 @@ class PresentationFrameGenerator {
 public:
     static constexpr std::uint32_t Levels = 3;
     static constexpr std::uint32_t BlockSize = 8;
-    static constexpr std::int32_t CoarsestRadius = 8;
+    static constexpr std::int32_t CoarsestRadius = 16;
     static constexpr std::int32_t RefineRadius = 2;
     static constexpr float MotionBias = 0.002f;
     static constexpr float CutCost = 0.12f;

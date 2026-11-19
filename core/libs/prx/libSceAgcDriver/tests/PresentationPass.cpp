@@ -1336,6 +1336,39 @@ FramePixels frameWithSquare(VkExtent2D extent, std::uint32_t left, std::uint32_t
     return frame;
 }
 
+FramePixels colouredSquare(VkExtent2D extent, std::uint32_t left, std::uint32_t top, std::uint32_t side) {
+    FramePixels frame{extent, std::vector<std::uint8_t>(static_cast<std::size_t>(extent.width) * extent.height * 4)};
+    for (std::uint32_t y = 0; y < extent.height; ++y) {
+        for (std::uint32_t x = 0; x < extent.width; ++x) {
+            const bool inside = x >= left && x < left + side && y >= top && y < top + side;
+            auto* texel = &frame.bgra[(static_cast<std::size_t>(y) * extent.width + x) * 4];
+            if (inside) {
+                const auto shade = static_cast<std::uint8_t>(200 + ((x - left) * 7 + (y - top) * 3) % 40);
+                texel[0] = 30;
+                texel[1] = shade;
+                texel[2] = shade;
+            } else {
+                const bool dark = (x / 24 + y / 24) % 2 != 0;
+                texel[0] = dark ? 150 : 210;
+                texel[1] = dark ? 90 : 130;
+                texel[2] = dark ? 20 : 40;
+            }
+            texel[3] = 255;
+        }
+    }
+    return frame;
+}
+
+std::size_t wrongPixels(const FramePixels& frame, const FramePixels& expected, std::uint32_t threshold) {
+    std::size_t wrong = 0;
+    for (std::size_t i = 0; i < frame.bgra.size(); i += 4) {
+        std::uint32_t worst = 0;
+        for (std::size_t c = 0; c < 3; ++c) worst = std::max<std::uint32_t>(worst, static_cast<std::uint32_t>(std::abs(static_cast<int>(frame.bgra[i + c]) - static_cast<int>(expected.bgra[i + c]))));
+        wrong += worst > threshold;
+    }
+    return wrong;
+}
+
 FramePixels noiseFrame(VkExtent2D extent, std::uint32_t seed) {
     FramePixels frame{extent, std::vector<std::uint8_t>(static_cast<std::size_t>(extent.width) * extent.height * 4)};
     std::uint32_t state = seed;
@@ -1417,6 +1450,26 @@ void frameGenerationTests(const Context& context) {
         const auto real = captureFrame(context, generator, second, false, nullptr, true);
         Require(maxDifference(real, second) == 0 && !generator.HoldsFrame(), "the held real frame was not presented unchanged");
         Require(generator.Generated() == 1, "the generated frame count is not one");
+    }
+    for (const std::uint32_t step : {40u}) {
+        AgcDriver::PresentationFrameGenerator generator(context);
+        bool generated = false;
+        static_cast<void>(captureFrame(context, generator, colouredSquare(extent, 160, 120, 96), 1, &generated));
+        const auto middle = captureFrame(context, generator, colouredSquare(extent, 160 + step, 120, 96), 1, &generated);
+        const auto wrong = wrongPixels(middle, colouredSquare(extent, 160 + step / 2, 120, 96), 64);
+        std::printf("  frame generation: coloured square moved %u px over a checkerboard, %zu pixels off the halfway frame by more than 64 levels\n", step, wrong);
+        Require(generated && wrong <= 96u * 6u, "the frame generated for a coloured square moved " + std::to_string(step) + " px holds " + std::to_string(wrong) + " pixels off the halfway frame, a ghost or a trail");
+    }
+    {
+        AgcDriver::PresentationFrameGenerator generator(context);
+        bool generated = false;
+        static_cast<void>(captureFrame(context, generator, colouredSquare(extent, 160, 120, 96), 2, &generated));
+        const auto third = captureFrame(context, generator, colouredSquare(extent, 208, 120, 96), 2, &generated);
+        const auto twoThirds = captureFrame(context, generator, colouredSquare(extent, 208, 120, 96), 0, &generated, true);
+        const auto thirdWrong = wrongPixels(third, colouredSquare(extent, 176, 120, 96), 64);
+        const auto twoThirdsWrong = wrongPixels(twoThirds, colouredSquare(extent, 192, 120, 96), 64);
+        std::printf("  frame generation 3x: coloured square moved 48 px, %zu and %zu pixels off the third and two-thirds frames by more than 64 levels\n", thirdWrong, twoThirdsWrong);
+        Require(thirdWrong <= 96u * 6u && twoThirdsWrong <= 96u * 6u, "the frames generated a third and two thirds of the way hold " + std::to_string(thirdWrong) + " and " + std::to_string(twoThirdsWrong) + " pixels off, a ghost or a trail");
     }
     {
         AgcDriver::PresentationFrameGenerator generator(context);
