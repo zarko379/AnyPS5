@@ -186,11 +186,16 @@ std::uint32_t defineQuery(SpirvEmitterState& state, std::uint64_t table) {
     const auto global = Unary(state, spv::OpUConvert, h.u32, h.op(spv::OpShiftRightLogical, h.u64, h.op(spv::OpISub, h.u64, sideEntry, sideBase), h.wide(4u)));
     const auto hit = state.module.AllocateId();
     state.module.AddFunction(spv::OpCompositeConstruct, result4, hit, Select(state, h.u32, isTriangle, asUint(t), parameter[8]), asUint(pick(selector(0u))), asUint(pick(selector(2u))), Select(state, h.u32, isTriangle, global, h.uint(0xffffffffu)));
+    auto hitValue = hit;
+    if (std::getenv("APS5_RT_PROTO_QUERY_ONLY") != nullptr) {
+        hitValue = state.module.AllocateId();
+        state.module.AddFunction(spv::OpCompositeConstruct, result4, hitValue, parameter[8], h.uint(0u), h.uint(0u), Select(state, h.u32, h.op(spv::OpIEqual, h.boolean, kind, h.uint(0xdeadbeefu)), h.uint(0u), h.uint(0xffffffffu)));
+    }
     const auto tracedEnd = state.currentLabel;
     state.module.AddFunction(spv::OpBranch, joined);
     EmitLabel(state, joined);
     const auto value = state.module.AllocateId();
-    state.module.AddFunction(spv::OpPhi, result4, value, hit, tracedEnd, miss, searched);
+    state.module.AddFunction(spv::OpPhi, result4, value, hitValue, tracedEnd, miss, searched);
     state.module.AddFunction(spv::OpReturnValue, value);
     state.module.AddFunction(spv::OpFunctionEnd);
     return function;
