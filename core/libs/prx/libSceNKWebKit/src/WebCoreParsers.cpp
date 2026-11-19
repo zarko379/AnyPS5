@@ -420,32 +420,6 @@ bool ParseRange(const CodeUnits& range, long long& rangeOffset, long long& range
     return true;
 }
 
-
-template <typename CharT>
-bool IsHTMLSpaceCharacter(CharT character) {
-    unsigned value = static_cast<unsigned>(character);
-    return value <= ' ' && (value == ' ' || value == 0x0A || value == 0x09 || value == 0x0D || value == 0x0C);
-}
-
-template <typename CharT>
-NKWebKit::WtfAbi::String StripHTMLSpaces(const NKWebKit::WtfAbi::String& string, const CharT* characters, unsigned length) {
-    unsigned numLeadingSpaces = 0;
-    unsigned numTrailingSpaces = 0;
-    while (numLeadingSpaces < length && IsHTMLSpaceCharacter(characters[numLeadingSpaces])) {
-        ++numLeadingSpaces;
-    }
-    if (numLeadingSpaces == length) {
-        return _ZN3WTF10StringImpl6createEPKhj(nullptr, 0);
-    }
-    while (numTrailingSpaces < length && IsHTMLSpaceCharacter(characters[length - numTrailingSpaces - 1])) {
-        ++numTrailingSpaces;
-    }
-    if (!(numLeadingSpaces | numTrailingSpaces)) {
-        return string;
-    }
-    return _ZN3WTF10StringImpl9substringEjj(string.impl, numLeadingSpaces, length - (numLeadingSpaces + numTrailingSpaces));
-}
-
 }  // namespace
 
 extern "C" {
@@ -540,23 +514,6 @@ ByteVector APS5_VABI _ZN3WTF26normalizeLineEndingsToCRLFEONS_6VectorIhLm0ENS_15C
 
 ByteVector APS5_VABI _ZN3WTF28normalizeLineEndingsToNativeEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(ByteVector&& from) {
     return _ZN3WTF24normalizeLineEndingsToLFEONS_6VectorIhLm0ENS_15CrashOnOverflowELm16ENS_10FastMallocEEE(std::move(from));
-}
-
-NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore33stripLeadingAndTrailingHTMLSpacesERKN3WTF6StringE(const NKWebKit::WtfAbi::String& string) {
-    const NKWebKit::WtfAbi::StringImpl* impl = string.impl;
-    if (!impl) {
-        return NKWebKit::WtfAbi::String();
-    }
-    if (!impl->length) {
-        return _ZN3WTF10StringImpl6createEPKhj(nullptr, 0);
-    }
-    if (!impl->data) {
-        throw std::invalid_argument("stripLeadingAndTrailingHTMLSpaces of a StringImpl without characters");
-    }
-    if (impl->hashAndFlags & 4) {
-        return StripHTMLSpaces(string, static_cast<const unsigned char*>(impl->data), impl->length);
-    }
-    return StripHTMLSpaces(string, static_cast<const char16_t*>(impl->data), impl->length);
 }
 
 }

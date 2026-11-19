@@ -29,23 +29,11 @@
 #include "prx/libSceNKWebKit/src/Configuration.hpp"
 
 #include <optional>
-#include <string>
 
 namespace {
 
 NKWebKit::Page* PageFrom(const void* pageRef, const char* function) {
     return NKWebKit::Cast<NKWebKit::Page>(pageRef, function);
-}
-
-std::optional<std::u16string> ToWTFString(const void* stringRef, const char* function) {
-    if (!stringRef) {
-        return std::nullopt;
-    }
-    const auto* string = NKWebKit::Cast<NKWebKit::String>(stringRef, function);
-    if (string->null) {
-        return std::nullopt;
-    }
-    return string->characters;
 }
 
 }  // namespace
@@ -89,15 +77,6 @@ void APS5_VABI WKPageSetMediaCaptureEnabled(const void* pageRef, bool enabled) {
 
 bool APS5_VABI WKPageGetMediaCaptureEnabled(const void* pageRef) {
     return PageFrom(pageRef, __func__)->mediaCaptureEnabled;
-}
-
-const void* APS5_VABI WKPageCopyCustomTextEncodingName(const void* pageRef) {
-    return NKWebKit::ToCopiedStringRef(PageFrom(pageRef, __func__)->customTextEncodingName);
-}
-
-void APS5_VABI WKPageSetCustomTextEncodingName(const void* pageRef, const void* encodingNameRef) {
-    auto* page = PageFrom(pageRef, __func__);
-    page->customTextEncodingName = ToWTFString(encodingNameRef, __func__);
 }
 
 }

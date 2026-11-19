@@ -148,26 +148,6 @@ std::int32_t APS5_VABI uloc_getName_nid_postfix(const char* localeID, char* name
     return Chars(name, nameCapacity, [&](char* dest, std::int32_t capacity) { return uloc_getName(localeID, dest, capacity, error); });
 }
 
-const char* APS5_VABI uloc_toUnicodeLocaleKey_nid_postfix(const char* keyword) {
-    IcuBackend::Ensure();
-    return uloc_toUnicodeLocaleKey(static_cast<const char*>(IcuBackend::RequireObject(keyword)));
-}
-
-const char* APS5_VABI uloc_toUnicodeLocaleType_nid_postfix(const char* keyword, const char* value) {
-    IcuBackend::Ensure();
-    return uloc_toUnicodeLocaleType(keyword, static_cast<const char*>(IcuBackend::RequireObject(value)));
-}
-
-const char* APS5_VABI uloc_toLegacyKey_nid_postfix(const char* keyword) {
-    IcuBackend::Ensure();
-    return uloc_toLegacyKey(static_cast<const char*>(IcuBackend::RequireObject(keyword)));
-}
-
-const char* APS5_VABI uloc_toLegacyType_nid_postfix(const char* keyword, const char* value) {
-    IcuBackend::Ensure();
-    return uloc_toLegacyType(keyword, static_cast<const char*>(IcuBackend::RequireObject(value)));
-}
-
 std::int32_t APS5_VABI uloc_countAvailable_nid_postfix() {
     IcuBackend::Ensure();
     return uloc_countAvailable();
@@ -192,13 +172,6 @@ std::int32_t APS5_VABI uloc_minimizeSubtags_nid_postfix(const char* localeID, ch
     if (U_FAILURE(*error)) return 0;
     IcuBackend::CanonicalLocale(localeID);
     return Chars(minimizedLocaleID, minimizedLocaleIDCapacity, [&](char* dest, std::int32_t capacity) { return uloc_minimizeSubtags(localeID, dest, capacity, error); });
-}
-
-std::int32_t APS5_VABI uloc_toLanguageTag_nid_postfix(const char* localeID, char* langtag, std::int32_t langtagCapacity, std::int8_t strict, std::int32_t* err) {
-    UErrorCode* error = Status(err);
-    if (U_FAILURE(*error)) return 0;
-    IcuBackend::CanonicalLocale(localeID);
-    return Chars(langtag, langtagCapacity, [&](char* dest, std::int32_t capacity) { return uloc_toLanguageTag(localeID, dest, capacity, strict, error); });
 }
 
 std::int32_t APS5_VABI uloc_getCharacterOrientation_nid_postfix(const char* localeId, std::int32_t* status) {

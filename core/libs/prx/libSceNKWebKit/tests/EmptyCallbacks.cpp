@@ -25,7 +25,6 @@ int main() {
     std::uint64_t before = NotImplementedCalls_nid_no_patch();
     _ZN7WebCore22EmptyFrameLoaderClient12didDetectXSSERKN3WTF3URLEb();
     _ZN7WebCore22EmptyFrameLoaderClient13committedLoadEPNS_14DocumentLoaderEPKci();
-    _ZN7WebCore22EmptyFrameLoaderClient25setMainFrameDocumentReadyEb();
     _ZN7WebCore22EmptyFrameLoaderClient29savePlatformDataToCachedFrameEPNS_11CachedFrameE();
     _ZN7WebCore22EmptyFrameLoaderClient30dispatchDidFailProvisionalLoadERKNS_13ResourceErrorENS_19WillContinueLoadingE();
     _ZN7WebCore22EmptyFrameLoaderClient31dispatchDidReachLayoutMilestoneEN3WTF9OptionSetINS_15LayoutMilestoneEEE();

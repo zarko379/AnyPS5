@@ -72,6 +72,9 @@ void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient24dispatchDidFinishLoadingEPNS
 void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient22dispatchDidFailLoadingEPNS_14DocumentLoaderEmRKNS_13ResourceErrorE() {
 }
 
+void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient25setMainFrameDocumentReadyEb(void*, bool) {
+}
+
 void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient32assignIdentifierToInitialRequestEmPNS_14DocumentLoaderERKNS_15ResourceRequestE() {
 }
 
@@ -88,9 +91,6 @@ void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient12didDetectXSSERKN3WTF3URLEb()
 }
 
 void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient13committedLoadEPNS_14DocumentLoaderEPKci() {
-}
-
-void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient25setMainFrameDocumentReadyEb() {
 }
 
 void APS5_VABI _ZN7WebCore22EmptyFrameLoaderClient29savePlatformDataToCachedFrameEPNS_11CachedFrameE() {

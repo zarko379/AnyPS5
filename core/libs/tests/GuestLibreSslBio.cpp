@@ -626,24 +626,13 @@ void TestSslDescriptors() {
     LibreSslSsl ssl{};
     ssl.internal = &internal;
     bool threw = false;
-    try { SSL_get_fd_nid_postfix(nullptr); } catch (const std::invalid_argument&) { threw = true; }
-    Require(threw, "SSL_get_fd rejects a null connection");
-    threw = false;
     try { SSL_set_bio_nid_postfix(nullptr, nullptr, nullptr); } catch (const std::invalid_argument&) { threw = true; }
     Require(threw, "SSL_set_bio rejects a null connection");
-    threw = false;
-    try { SSL_set_fd_nid_postfix(nullptr, 3); } catch (const std::invalid_argument&) { threw = true; }
-    Require(threw && allocations == baseline, "SSL_set_fd rejects a null connection before allocating");
-    Require(SSL_get_fd_nid_postfix(&ssl) == -1, "no read BIO has no descriptor");
 
     Bio* memory = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
     ssl.rbio = memory;
-    Require(SSL_get_fd_nid_postfix(&ssl) == -1, "memory BIO is not a descriptor");
     Bio* socket = BIO_new_socket_nid_postfix(42, 0);
-    memory->next = socket;
-    Require(SSL_get_fd_nid_postfix(&ssl) == 42, "descriptor found further down the read chain");
     socket->initialized = 0;
-    Require(SSL_get_fd_nid_postfix(&ssl) == -1, "uninitialized socket BIO has no descriptor");
     int queried = 7;
     Require(BIO_ctrl_nid_postfix(socket, 105, 0, &queried) == -1 && queried == 7, "uninitialized GET_FD leaves its output");
     socket->initialized = 1;
@@ -652,13 +641,7 @@ void TestSslDescriptors() {
     Require(BIO_ctrl_nid_postfix(socket, 104, 1, &replacement) == 1 && socket->number == 43 && socket->shutdown == 1 && socket->initialized == 1,
         "SET_FD stores the descriptor and close flag");
     socket->shutdown = 0;
-    BioMethod descriptorOnly{0x100, "descriptor", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-    Bio* bare = BIO_new_nid_postfix(&descriptorOnly);
-    memory->next = bare;
-    Require(SSL_get_fd_nid_postfix(&ssl) == -1, "descriptor BIO without a control method");
-    RequireError(0x20fff079);
-    memory->next = nullptr;
-    Require(BIO_free_nid_postfix(bare) == 1 && BIO_free_nid_postfix(socket) == 1, "free descriptor test BIOs");
+    Require(BIO_free_nid_postfix(socket) == 1, "free descriptor test BIO");
 
     Bio* buffer = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
     Bio* writer = BIO_new_nid_postfix(BIO_s_mem_nid_postfix());
@@ -700,27 +683,6 @@ void TestSslDescriptors() {
     Require(allocations == baseline + 2, "only the shared tail remains");
     Require(BIO_free_nid_postfix(tail) == 1 && allocations == baseline, "free retained tail");
 
-    Require(SSL_set_fd_nid_postfix(&ssl, 7) == 1, "SSL_set_fd succeeds");
-    Bio* first = static_cast<Bio*>(ssl.rbio);
-    Require(first && ssl.wbio == first && first->method->type == 0x505 && first->number == 7 && first->shutdown == 0 && first->initialized == 1,
-        "SSL_set_fd installs one unowned socket BIO");
-    Require(SSL_get_fd_nid_postfix(&ssl) == 7, "SSL_get_fd reads the installed descriptor");
-    Require(SSL_set_fd_nid_postfix(&ssl, -5) == 1 && SSL_get_fd_nid_postfix(&ssl) == -5 && allocations == baseline + 1, "SSL_set_fd replaces the socket BIO");
-    Require(ERR_get_error_nid_postfix() == 0, "SSL_set_fd queues no error");
-
-    internal.state = 0x5000;
-    const void* previous = ssl.rbio;
-    allocationsUntilFailure = 0;
-    Require(SSL_set_fd_nid_postfix(&ssl, 9) == 0 && ssl.rbio == previous && ssl.wbio == previous, "failed socket BIO allocation keeps the BIOs");
-    Require(ERR_get_error_nid_postfix() == 0x20fff041, "BIO allocation error comes first");
-    RequireError(0x1404e007);
-    allocationsUntilFailure = -1;
-    internal.state = 0x1234;
-    allocationsUntilFailure = 0;
-    Require(SSL_set_fd_nid_postfix(&ssl, 9) == 0, "failed socket BIO allocation in an unknown state");
-    Require(ERR_get_error_nid_postfix() == 0x20fff041, "BIO allocation error in an unknown state");
-    RequireError(0x14fff007);
-    allocationsUntilFailure = -1;
     SSL_set_bio_nid_postfix(&ssl, nullptr, nullptr);
     Require(allocations == baseline, "SSL descriptor tests released their BIOs");
 }

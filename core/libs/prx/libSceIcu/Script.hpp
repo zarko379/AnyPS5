@@ -3,7 +3,6 @@
 #include <cstdint>
 
 extern "C" {
-std::int32_t APS5_VABI uscript_getCode_nid_postfix(const char* nameOrAbbrOrLocale, std::int32_t* fillIn, std::int32_t capacity, std::int32_t* status);
 std::int32_t APS5_VABI uscript_getScript_nid_postfix(std::int32_t character, std::int32_t* error);
 std::int8_t APS5_VABI uscript_hasScript_nid_postfix(std::int32_t character, std::int32_t script);
 const char* APS5_VABI uscript_getShortName_nid_postfix(std::int32_t script);

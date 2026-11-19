@@ -325,44 +325,12 @@ TArgs* WithConverter(TArgs* arguments) {
     return arguments;
 }
 
-bool Ignorable(std::int32_t c) {
-    return c == 0x00ad || c == 0x034f || c == 0x061c || c == 0x115f || c == 0x1160 || (0x17b4 <= c && c <= 0x17b5) ||
-        (0x180b <= c && c <= 0x180e) || (0x200b <= c && c <= 0x200f) || (0x202a <= c && c <= 0x202e) ||
-        (0x2060 <= c && c <= 0x206f) || c == 0x3164 || (0xfe00 <= c && c <= 0xfe0f) || c == 0xfeff || c == 0xffa0 ||
-        (0xfff0 <= c && c <= 0xfff8) || (0x1bca0 <= c && c <= 0x1bca3) || (0x1d173 <= c && c <= 0x1d17a) || (0xe0000 <= c && c <= 0xe0fff);
-}
-
-bool Substitutes(const void* context, std::int32_t reason) {
-    return !context || (*static_cast<const char*>(context) == 'i' && reason == UCNV_UNASSIGNED);
-}
-
 template<typename TArgs>
 void Overflow(const TArgs* arguments, std::int32_t length, std::size_t unit) {
     const auto target = reinterpret_cast<std::uintptr_t>(arguments->target);
     const auto limit = reinterpret_cast<std::uintptr_t>(arguments->targetLimit);
     const std::int64_t room = limit > target ? static_cast<std::int64_t>((limit - target + unit - 1) / unit) : 0;
     if (arguments->converter && length - room > UCNV_ERROR_BUFFER_LENGTH) APS5_INVALID_ARG_EX;
-}
-
-std::int32_t Digits(std::uint32_t value, std::uint32_t radix) {
-    std::int32_t digits = 1;
-    while (value >= radix) {
-        value /= radix;
-        ++digits;
-    }
-    return digits;
-}
-
-std::int32_t ToEscapeLength(const void* context, const char* codeUnits, std::int32_t length) {
-    const char kind = context ? *static_cast<const char*>(context) : 0;
-    std::int32_t total = 0;
-    for (std::int32_t index = 0; index < length; ++index) {
-        const auto byte = static_cast<std::uint8_t>(codeUnits[index]);
-        if (kind == 'D') total += 3 + Digits(byte, 10);
-        else if (kind == 'X') total += 4 + Digits(byte, 16);
-        else total += 4;
-    }
-    return total;
 }
 
 void OpenUName(const char16_t* name) {
@@ -601,51 +569,6 @@ void APS5_VABI ucnv_setFromUCallBack_nid_postfix(UConverter* converter, Icu::Con
 
 void APS5_VABI ucnv_setToUCallBack_nid_postfix(UConverter* converter, Icu::ConverterToUCallback action, const void* context, Icu::ConverterToUCallback* oldAction, const void** oldContext, std::int32_t* status) {
     SetCallback<ToSide>(converter, action, context, oldAction, oldContext, status);
-}
-
-void APS5_VABI UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix(const void* context, Icu::ConverterFromUnicodeArgs* arguments, const char16_t* codeUnits, std::int32_t length, std::int32_t codePoint, std::int32_t reason, std::int32_t* status) {
-    IcuBackend::Ensure();
-    if (reason <= UCNV_IRREGULAR) {
-        const bool ignorable = reason == UCNV_UNASSIGNED && Ignorable(codePoint);
-        if (ignorable || Substitutes(context, reason)) Object(status);
-        if (!ignorable && Substitutes(context, reason)) WithConverter(FromArgs(arguments));
-    }
-    UCNV_FROM_U_CALLBACK_SUBSTITUTE(context, FromArgs(arguments), codeUnits, length, codePoint, static_cast<UConverterCallbackReason>(reason), reinterpret_cast<UErrorCode*>(status));
-}
-
-void APS5_VABI UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(const void* context, Icu::ConverterFromUnicodeArgs* arguments, const char16_t* codeUnits, std::int32_t length, std::int32_t codePoint, std::int32_t reason, std::int32_t* status) {
-    IcuBackend::Ensure();
-    if (reason <= UCNV_IRREGULAR) {
-        Object(status);
-        if (!(reason == UCNV_UNASSIGNED && Ignorable(codePoint))) {
-            WithConverter(FromArgs(arguments));
-            const char kind = context ? *static_cast<const char*>(context) : 0;
-            const bool perUnit = !context || (kind != 'C' && kind != 'D' && kind != 'X' && kind != 'U' && kind != 'S');
-            if (perUnit && length > 8) APS5_INVALID_ARG_EX;
-            if ((perUnit && length > 0) || (!perUnit && kind != 'S' && length != 2)) IcuBackend::RequireObject(codeUnits);
-        }
-    }
-    UCNV_FROM_U_CALLBACK_ESCAPE(context, FromArgs(arguments), codeUnits, length, codePoint, static_cast<UConverterCallbackReason>(reason), reinterpret_cast<UErrorCode*>(status));
-}
-
-void APS5_VABI UCNV_TO_U_CALLBACK_SUBSTITUTE_nid_postfix(const void* context, Icu::ConverterToUnicodeArgs* arguments, const char* codeUnits, std::int32_t length, std::int32_t reason, std::int32_t* status) {
-    IcuBackend::Ensure();
-    if (reason <= UCNV_IRREGULAR && Substitutes(context, reason)) {
-        Object(status);
-        WithConverter(ToArgs(arguments));
-    }
-    UCNV_TO_U_CALLBACK_SUBSTITUTE(context, ToArgs(arguments), codeUnits, length, static_cast<UConverterCallbackReason>(reason), reinterpret_cast<UErrorCode*>(status));
-}
-
-void APS5_VABI UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(const void* context, Icu::ConverterToUnicodeArgs* arguments, const char* codeUnits, std::int32_t length, std::int32_t reason, std::int32_t* status) {
-    IcuBackend::Ensure();
-    if (reason <= UCNV_IRREGULAR) {
-        Object(status);
-        WithConverter(ToArgs(arguments));
-        if (length > 0) IcuBackend::RequireObject(codeUnits);
-        if (ToEscapeLength(context, codeUnits, length) > 48) APS5_INVALID_ARG_EX;
-    }
-    UCNV_TO_U_CALLBACK_ESCAPE(context, ToArgs(arguments), codeUnits, length, static_cast<UConverterCallbackReason>(reason), reinterpret_cast<UErrorCode*>(status));
 }
 
 void APS5_VABI ucnv_cbFromUWriteBytes_nid_postfix(Icu::ConverterFromUnicodeArgs* arguments, const char* source, std::int32_t length, std::int32_t offsetIndex, std::int32_t* status) {

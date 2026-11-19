@@ -54,10 +54,6 @@ void APS5_VABI ucnv_getFromUCallBack_nid_postfix(const UConverter* converter, Ic
 void APS5_VABI ucnv_getToUCallBack_nid_postfix(const UConverter* converter, Icu::ConverterToUCallback* action, const void** context);
 void APS5_VABI ucnv_setFromUCallBack_nid_postfix(UConverter* converter, Icu::ConverterFromUCallback action, const void* context, Icu::ConverterFromUCallback* oldAction, const void** oldContext, std::int32_t* status);
 void APS5_VABI ucnv_setToUCallBack_nid_postfix(UConverter* converter, Icu::ConverterToUCallback action, const void* context, Icu::ConverterToUCallback* oldAction, const void** oldContext, std::int32_t* status);
-void APS5_VABI UCNV_FROM_U_CALLBACK_SUBSTITUTE_nid_postfix(const void* context, Icu::ConverterFromUnicodeArgs* arguments, const char16_t* codeUnits, std::int32_t length, std::int32_t codePoint, std::int32_t reason, std::int32_t* status);
-void APS5_VABI UCNV_FROM_U_CALLBACK_ESCAPE_nid_postfix(const void* context, Icu::ConverterFromUnicodeArgs* arguments, const char16_t* codeUnits, std::int32_t length, std::int32_t codePoint, std::int32_t reason, std::int32_t* status);
-void APS5_VABI UCNV_TO_U_CALLBACK_SUBSTITUTE_nid_postfix(const void* context, Icu::ConverterToUnicodeArgs* arguments, const char* codeUnits, std::int32_t length, std::int32_t reason, std::int32_t* status);
-void APS5_VABI UCNV_TO_U_CALLBACK_ESCAPE_nid_postfix(const void* context, Icu::ConverterToUnicodeArgs* arguments, const char* codeUnits, std::int32_t length, std::int32_t reason, std::int32_t* status);
 void APS5_VABI ucnv_cbFromUWriteBytes_nid_postfix(Icu::ConverterFromUnicodeArgs* arguments, const char* source, std::int32_t length, std::int32_t offsetIndex, std::int32_t* status);
 void APS5_VABI ucnv_cbFromUWriteSub_nid_postfix(Icu::ConverterFromUnicodeArgs* arguments, std::int32_t offsetIndex, std::int32_t* status);
 void APS5_VABI ucnv_cbFromUWriteUChars_nid_postfix(Icu::ConverterFromUnicodeArgs* arguments, const char16_t** source, const char16_t* sourceLimit, std::int32_t offsetIndex, std::int32_t* status);

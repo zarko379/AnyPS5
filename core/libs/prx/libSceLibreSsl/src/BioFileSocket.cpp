@@ -246,10 +246,6 @@ const BioMethod SocketMethod{0x505, "socket", SocketWrite, SocketRead, SocketPut
 
 extern "C" {
 
-const LibreSsl::BioMethod* LibreSslSocketMethod_nid_no_patch() {
-    return &SocketMethod;
-}
-
 const LibreSsl::BioMethod* APS5_VABI BIO_s_file_nid_postfix() {
     return &FileMethod;
 }

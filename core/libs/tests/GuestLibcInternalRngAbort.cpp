@@ -2,42 +2,58 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
+#include <csignal>
+#include <exception>
+#ifndef _WIN32
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace {
 
-#ifdef _WIN32
-FILE* OpenChild(const std::string& self) { return _popen((std::string("\"\"") + self + "\" abort 2>&1\"").c_str(), "r"); }
-int CloseChild(FILE* child) { return _pclose(child); }
-#else
-FILE* OpenChild(const std::string& self) { return popen((std::string("\"") + self + "\" abort 2>&1").c_str(), "r"); }
-int CloseChild(FILE* child) { return pclose(child); }
-#endif
-
-void Require(bool condition, const char* message, const std::string& output) {
+void Require(bool condition, const char* message) {
     if (condition) return;
-    std::fprintf(stderr, "libc internal _Rng_abort: %s\noutput:\n%s\n", message, output.c_str());
+    std::fprintf(stderr, "libc internal _Rng_abort: %s\n", message);
     std::abort();
 }
 
+#ifndef _WIN32
+void RequireAbort(const char* message, const char* expected) {
+    int pipeEnds[2];
+    Require(pipe(pipeEnds) == 0, "pipe");
+    const pid_t child = fork();
+    Require(child >= 0, "fork");
+    if (child == 0) {
+        close(pipeEnds[0]);
+        dup2(pipeEnds[1], 2);
+        libSceLibcInternalInventory_237_nid_no_patch(message);
+    }
+    close(pipeEnds[1]);
+    char output[256] = {};
+    std::size_t used = 0;
+    for (ssize_t got; (got = read(pipeEnds[0], output + used, sizeof(output) - 1 - used)) > 0;) used += static_cast<std::size_t>(got);
+    close(pipeEnds[0]);
+    int status = 0;
+    Require(waitpid(child, &status, 0) == child, "waitpid");
+    Require(WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT, "aborts");
+    Require(std::strncmp(output, expected, std::strlen(expected)) == 0, "writes the message and a newline to stderr");
+}
+#endif
+
 }
 
-int main(int argc, char** argv) {
-    if (argc > 1 && std::strcmp(argv[1], "abort") == 0) {
-        libSceLibcInternalInventory_237_nid_no_patch("random engine precondition violated");
-        std::puts("_Rng_abort returned");
-        std::fflush(stdout);
-        return 0;
+int main() {
+    bool threw = false;
+    try {
+        libSceLibcInternalInventory_237_nid_no_patch(nullptr);
+    } catch (const std::exception&) {
+        threw = true;
     }
-    FILE* child = OpenChild(argv[0]);
-    Require(child != nullptr, "the child process starts", "");
-    std::string output;
-    char buffer[256];
-    while (std::fgets(buffer, sizeof(buffer), child) != nullptr) output += buffer;
-    const int status = CloseChild(child);
-    Require(output.find("random engine precondition violated\n") != std::string::npos, "the message and a newline reach stderr", output);
-    Require(output.find("_Rng_abort returned") == std::string::npos, "the call does not return", output);
-    Require(status != 0, "the child terminates abnormally", output);
-    std::puts("libc internal _Rng_abort checks passed");
+    Require(threw, "a null message throws");
+#ifndef _WIN32
+    RequireAbort("invalid random engine argument", "invalid random engine argument\n");
+    RequireAbort("", "\n");
+#endif
+    std::puts("_Rng_abort tests passed");
     return 0;
 }

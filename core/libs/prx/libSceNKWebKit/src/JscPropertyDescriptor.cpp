@@ -28,89 +28,11 @@
 
 #include <stdexcept>
 
-namespace {
-
-using NKWebKit::JscAbi::PropertyDescriptor;
-
-constexpr unsigned ReadOnly = 1u << 1;
-constexpr unsigned DontEnum = 1u << 2;
-constexpr unsigned DontDelete = 1u << 3;
-constexpr unsigned Accessor = 1u << 4;
-constexpr unsigned WritablePresent = 1;
-constexpr unsigned EnumerablePresent = 2;
-constexpr unsigned ConfigurablePresent = 4;
-constexpr std::uint64_t ValueUndefined = 0x2 | 0x8;
-
-template<class Descriptor>
-Descriptor& Checked(Descriptor* self) {
-    if (!self) throw std::invalid_argument("null JSC::PropertyDescriptor");
-    return *self;
-}
-
-void SetFlag(PropertyDescriptor& descriptor, unsigned attribute, bool clear, unsigned present) {
-    if (clear)
-        descriptor.attributes &= ~attribute;
-    else
-        descriptor.attributes |= attribute;
-    descriptor.seenAttributes |= present;
-}
-
-}
-
 extern "C" {
 
-bool APS5_VABI _ZNK3JSC18PropertyDescriptor8writableEv(const PropertyDescriptor* self) {
-    return !(Checked(self).attributes & ReadOnly);
-}
-
-bool APS5_VABI _ZNK3JSC18PropertyDescriptor10enumerableEv(const PropertyDescriptor* self) {
-    return !(Checked(self).attributes & DontEnum);
-}
-
-bool APS5_VABI _ZNK3JSC18PropertyDescriptor12configurableEv(const PropertyDescriptor* self) {
-    return !(Checked(self).attributes & DontDelete);
-}
-
-bool APS5_VABI _ZNK3JSC18PropertyDescriptor16isDataDescriptorEv(const PropertyDescriptor* self) {
-    const auto& descriptor = Checked(self);
-    return descriptor.value || (descriptor.seenAttributes & WritablePresent);
-}
-
-bool APS5_VABI _ZNK3JSC18PropertyDescriptor20isAccessorDescriptorEv(const PropertyDescriptor* self) {
-    const auto& descriptor = Checked(self);
-    return descriptor.getter || descriptor.setter;
-}
-
-void APS5_VABI _ZN3JSC18PropertyDescriptor12setUndefinedEv(PropertyDescriptor* self) {
-    auto& descriptor = Checked(self);
-    descriptor.value = ValueUndefined;
-    descriptor.attributes = ReadOnly | DontDelete | DontEnum;
-}
-
-void APS5_VABI _ZN3JSC18PropertyDescriptor11setWritableEb(PropertyDescriptor* self, bool writable) {
-    SetFlag(Checked(self), ReadOnly, writable, WritablePresent);
-}
-
-void APS5_VABI _ZN3JSC18PropertyDescriptor13setEnumerableEb(PropertyDescriptor* self, bool enumerable) {
-    SetFlag(Checked(self), DontEnum, enumerable, EnumerablePresent);
-}
-
-void APS5_VABI _ZN3JSC18PropertyDescriptor15setConfigurableEb(PropertyDescriptor* self, bool configurable) {
-    SetFlag(Checked(self), DontDelete, configurable, ConfigurablePresent);
-}
-
-void APS5_VABI _ZN3JSC18PropertyDescriptor9setSetterENS_7JSValueE(PropertyDescriptor* self, std::uint64_t setter) {
-    auto& descriptor = Checked(self);
-    descriptor.setter = setter;
-    descriptor.attributes |= Accessor;
-    descriptor.attributes &= ~ReadOnly;
-}
-
-void APS5_VABI _ZN3JSC18PropertyDescriptor9setGetterENS_7JSValueE(PropertyDescriptor* self, std::uint64_t getter) {
-    auto& descriptor = Checked(self);
-    descriptor.getter = getter;
-    descriptor.attributes |= Accessor;
-    descriptor.attributes &= ~ReadOnly;
+bool APS5_VABI _ZNK3JSC18PropertyDescriptor12configurableEv(const NKWebKit::JscAbi::PropertyDescriptor* self) {
+    if (!self) throw std::invalid_argument("null JSC::PropertyDescriptor");
+    return !(self->attributes & NKWebKit::JscAbi::DontDelete);
 }
 
 }

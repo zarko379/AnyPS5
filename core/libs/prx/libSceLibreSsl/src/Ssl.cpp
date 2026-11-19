@@ -219,11 +219,6 @@ constexpr int ErrorSyscall = 5;
 constexpr int ErrorZeroReturn = 6;
 constexpr int ErrorWantConnect = 7;
 constexpr int ErrorWantAccept = 8;
-constexpr int ReasonBufferLibrary = 7;
-constexpr int BioTypeDescriptor = 0x0100;
-constexpr int BioControlSetDescriptor = 104;
-constexpr int BioControlGetDescriptor = 105;
-constexpr int BioNoClose = 0;
 
 constexpr std::array<std::pair<int, int>, 85> StateFunctionCodes{{
     {0x3, 76}, {0x1000, 75}, {0x1003, 79}, {0x1100, 1}, {0x1110, 2}, {0x1111, 3}, {0x1120, 4}, {0x1121, 5},
@@ -497,22 +492,6 @@ void APS5_VABI SSL_set_bio_nid_postfix(LibreSslSsl* ssl, LibreSsl::Bio* readBio,
     if (connection.wbio != writeBio) LibreSslBioFreeAll_nid_no_patch(static_cast<LibreSsl::Bio*>(connection.wbio));
     connection.rbio = readBio;
     connection.wbio = writeBio;
-}
-
-int APS5_VABI SSL_set_fd_nid_postfix(LibreSslSsl* ssl, int descriptor) {
-    Connection(ssl, __func__);
-    LibreSsl::Bio* const bio = BIO_new_nid_postfix(LibreSslSocketMethod_nid_no_patch());
-    if (!bio) return PutStateError(Internal(ssl, __func__), ReasonBufferLibrary, 0);
-    BIO_ctrl_nid_postfix(bio, BioControlSetDescriptor, BioNoClose, &descriptor);
-    SSL_set_bio_nid_postfix(ssl, bio, bio);
-    return 1;
-}
-
-int APS5_VABI SSL_get_fd_nid_postfix(const LibreSslSsl* ssl) {
-    int descriptor = -1;
-    LibreSsl::Bio* const bio = LibreSslBioFindType_nid_no_patch(static_cast<LibreSsl::Bio*>(Connection(ssl, __func__).rbio), BioTypeDescriptor);
-    if (bio) BIO_ctrl_nid_postfix(bio, BioControlGetDescriptor, 0, &descriptor);
-    return descriptor;
 }
 
 }

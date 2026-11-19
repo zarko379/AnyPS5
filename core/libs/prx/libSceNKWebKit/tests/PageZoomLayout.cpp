@@ -9,7 +9,6 @@
 #include <limits>
 #include <source_location>
 #include <stdexcept>
-#include <string>
 
 namespace {
 
@@ -105,73 +104,11 @@ void CheckFlags() {
     RequireInvalidArgument([] { WKPageSetMediaCaptureEnabled(nullptr, true); });
 }
 
-void RequireEncodingName(const void* pageRef, const std::u16string& expected, std::source_location location = std::source_location::current()) {
-    const void* copy = WKPageCopyCustomTextEncodingName(pageRef);
-    const auto* string = NKWebKit::Cast<NKWebKit::String>(copy, __func__);
-    Require(!string->null, location);
-    Require(string->characters == expected, location);
-    const void* second = WKPageCopyCustomTextEncodingName(pageRef);
-    Require(second != copy, location);
-    WKRelease(second);
-    WKRelease(copy);
-}
-
-void CheckCustomTextEncodingName() {
-    PageHandle page;
-    RequireEncodingName(page.ref, u"");
-
-    auto name = NKWebKit::Make<NKWebKit::String>(std::u16string(u"ISO-8859-1"));
-    const void* nameRef = NKWebKit::ToRef(name);
-    WKPageSetCustomTextEncodingName(page.ref, nameRef);
-    RequireEncodingName(page.ref, u"ISO-8859-1");
-    NKWebKit::Cast<NKWebKit::String>(nameRef, __func__)->characters = u"changed";
-    RequireEncodingName(page.ref, u"ISO-8859-1");
-    WKRelease(nameRef);
-    RequireEncodingName(page.ref, u"ISO-8859-1");
-
-    WKPageSetCustomTextEncodingName(page.ref, nullptr);
-    RequireEncodingName(page.ref, u"");
-    Require(!NKWebKit::Cast<NKWebKit::Page>(page.ref, __func__)->customTextEncodingName.has_value());
-
-    const void* emptyRef = NKWebKit::ToRef(NKWebKit::Make<NKWebKit::String>(std::u16string()));
-    WKPageSetCustomTextEncodingName(page.ref, emptyRef);
-    RequireEncodingName(page.ref, u"");
-    Require(NKWebKit::Cast<NKWebKit::Page>(page.ref, __func__)->customTextEncodingName == std::u16string());
-    WKRelease(emptyRef);
-
-    const void* nullStringRef = NKWebKit::ToRef(NKWebKit::Make<NKWebKit::String>());
-    WKPageSetCustomTextEncodingName(page.ref, nullStringRef);
-    Require(!NKWebKit::Cast<NKWebKit::Page>(page.ref, __func__)->customTextEncodingName.has_value());
-    RequireEncodingName(page.ref, u"");
-    WKRelease(nullStringRef);
-
-    const void* utf16Ref = NKWebKit::ToRef(NKWebKit::Make<NKWebKit::String>(std::u16string(u"é€\U0001F600")));
-    WKPageSetCustomTextEncodingName(page.ref, utf16Ref);
-    RequireEncodingName(page.ref, u"é€\U0001F600");
-    WKRelease(utf16Ref);
-
-    const void* otherPage = NKWebKit::ToRef(NKWebKit::Make<NKWebKit::Page>());
-    RequireInvalidArgument([&page, otherPage] { WKPageSetCustomTextEncodingName(page.ref, otherPage); });
-    RequireEncodingName(page.ref, u"é€\U0001F600");
-    RequireInvalidArgument([otherPage] { WKPageSetCustomTextEncodingName(nullptr, otherPage); });
-    RequireInvalidArgument([] { WKPageSetCustomTextEncodingName(nullptr, nullptr); });
-    RequireInvalidArgument([] { WKPageCopyCustomTextEncodingName(nullptr); });
-    WKRelease(otherPage);
-}
-
-void CheckWrongObjectType() {
-    const void* stringRef = NKWebKit::ToRef(NKWebKit::Make<NKWebKit::String>(std::u16string(u"x")));
-    RequireInvalidArgument([stringRef] { WKPageCopyCustomTextEncodingName(stringRef); });
-    WKRelease(stringRef);
-}
-
 }
 
 int main() {
     CheckBackingScaleFactor();
     CheckScaleFactor();
     CheckFlags();
-    CheckCustomTextEncodingName();
-    CheckWrongObjectType();
     return 0;
 }

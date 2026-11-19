@@ -2270,7 +2270,7 @@ char* APS5_VABI curl_escape(const char* string, int length) {
 
 char* APS5_VABI curl_easy_escape(void* handle, const char* string, int length) {
     if (length < 0) return nullptr;
-    if (!string) NotImplemented_nid_no_patch(__func__);
+    if (!string) throw std::runtime_error(__func__);
     return ::host_curl_easy_escape(static_cast<CURL*>(handle), string, length);
 }
 
@@ -2279,6 +2279,7 @@ void APS5_VABI curl_free(void* pointer) {
 }
 
 int APS5_VABI curl_strequal(const char* first, const char* second) {
+    if (!first || !second) throw std::runtime_error(__func__);
     while (*first && *second && RawUpper(*first) == RawUpper(*second)) {
         ++first;
         ++second;
@@ -2287,11 +2288,12 @@ int APS5_VABI curl_strequal(const char* first, const char* second) {
 }
 
 CurlSlist* APS5_VABI curl_slist_append(CurlSlist* list, const char* string) {
-    if (!string) NotImplemented_nid_no_patch(__func__);
+    if (!string) throw std::runtime_error(__func__);
     return reinterpret_cast<CurlSlist*>(::host_curl_slist_append(reinterpret_cast<curl_slist*>(list), string));
 }
 
 int APS5_VABI curl_strnequal(const char* first, const char* second, size_t max) {
+    if (!first || !second) throw std::runtime_error(__func__);
     while (*first && *second && max && RawUpper(*first) == RawUpper(*second)) {
         --max;
         ++first;
@@ -2311,7 +2313,7 @@ void APS5_VABI curl_slist_free_all(CurlSlist* list) {
 
 char* APS5_VABI curl_easy_unescape(void* handle, const char* string, int length, int* outputLength) {
     if (length < 0) return nullptr;
-    if (!string) NotImplemented_nid_no_patch(__func__);
+    if (!string) throw std::runtime_error(__func__);
     return ::host_curl_easy_unescape(static_cast<CURL*>(handle), string, length, outputLength);
 }
 

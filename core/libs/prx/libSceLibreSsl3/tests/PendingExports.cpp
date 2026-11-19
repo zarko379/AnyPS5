@@ -1,9 +1,7 @@
 #include "prx/libSceLibreSsl3/libSceLibreSsl3.hpp"
-#include "prx/libSceLibreSsl/include/Error.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
 
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -56,24 +54,6 @@ void CheckCipherFlags() {
     Require(threw);
 }
 
-void CheckLoaders() {
-    ERR_clear_error_nid_postfix();
-    LibreSslPutError_nid_no_patch(11, 0xfff, 101);
-    const std::uint64_t code = 0x0bfff065;
-    const auto* sha256 = EVP_get_digestbyname_nid_postfix("SHA256");
-    ERR_load_X509_strings_nid_postfix();
-    ERR_load_PEM_strings_nid_postfix();
-    OpenSSL_add_all_digests_nid_postfix();
-    ERR_load_X509_strings_nid_postfix();
-    ERR_load_PEM_strings_nid_postfix();
-    OpenSSL_add_all_digests_nid_postfix();
-    Require(ERR_reason_error_string_nid_postfix(code) == nullptr);
-    Require(ERR_lib_error_string_nid_postfix(code) == nullptr);
-    Require(ERR_reason_error_string_nid_postfix(0x09fff064) == nullptr);
-    Require(EVP_get_digestbyname_nid_postfix("SHA256") == sha256 && sha256 != nullptr);
-    Require(ERR_get_error_nid_postfix() == code && ERR_get_error_nid_postfix() == 0);
-}
-
 }
 
 int main() {
@@ -81,7 +61,6 @@ int main() {
     ApplicationHeapRegister_nid_no_patch(api);
     CheckBioVfree();
     CheckCipherFlags();
-    CheckLoaders();
     std::puts("LibreSSL3 pending exports passed");
     return 0;
 }

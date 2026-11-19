@@ -4,15 +4,10 @@
 
 extern "C" {
 std::int32_t APS5_VABI uloc_getName_nid_postfix(const char* localeID, char* name, std::int32_t nameCapacity, std::int32_t* err);
-const char* APS5_VABI uloc_toUnicodeLocaleKey_nid_postfix(const char* keyword);
-const char* APS5_VABI uloc_toUnicodeLocaleType_nid_postfix(const char* keyword, const char* value);
-const char* APS5_VABI uloc_toLegacyKey_nid_postfix(const char* keyword);
-const char* APS5_VABI uloc_toLegacyType_nid_postfix(const char* keyword, const char* value);
 std::int32_t APS5_VABI uloc_countAvailable_nid_postfix();
 const char* APS5_VABI uloc_getAvailable_nid_postfix(std::int32_t n);
 std::int32_t APS5_VABI uloc_addLikelySubtags_nid_postfix(const char* localeID, char* maximizedLocaleID, std::int32_t maximizedLocaleIDCapacity, std::int32_t* err);
 std::int32_t APS5_VABI uloc_minimizeSubtags_nid_postfix(const char* localeID, char* minimizedLocaleID, std::int32_t minimizedLocaleIDCapacity, std::int32_t* err);
-std::int32_t APS5_VABI uloc_toLanguageTag_nid_postfix(const char* localeID, char* langtag, std::int32_t langtagCapacity, std::int8_t strict, std::int32_t* err);
 std::int32_t APS5_VABI uloc_getCharacterOrientation_nid_postfix(const char* localeId, std::int32_t* status);
 std::int32_t APS5_VABI uloc_getLineOrientation_nid_postfix(const char* localeId, std::int32_t* status);
 const char16_t* APS5_VABI uloc_getTableStringWithFallback_nid_postfix(const char* path, const char* locale, const char* tableKey, const char* subTableKey, const char* itemKey, std::int32_t* pLength, std::int32_t* pErrorCode);

@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <string>
 
 namespace {
@@ -125,6 +126,8 @@ void TestTypePredicates() {
     Require(!_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(MakeString("image/png")));
     Require(!_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(MakeString("")));
     Require(!_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(MakeString(nullptr)));
+    Require(!_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(MakeString("tex\xC5\xB4/plain")));
+    Require(!_ZN7WebCore16MIMETypeRegistry23isSupportedJSONMIMETypeERKN3WTF6StringE(MakeString("a/b+\xC5\xAA\xC5\xB3\xC5\xAF\xC5\xAE")));
 
     Require(!_ZN7WebCore16MIMETypeRegistry19isXMLEntityMIMETypeEN3WTF10StringViewE(MakeView("text/xml")));
     Require(!_ZN7WebCore16MIMETypeRegistry19isXMLEntityMIMETypeEN3WTF10StringViewE(MakeView("application/xml")));
@@ -186,6 +189,8 @@ void TestTypePredicates() {
     Require(_ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WTF6StringE(MakeString("image/svg+xml")));
     Require(_ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WTF6StringE(MakeString("application/json")));
     Require(_ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WTF6StringE(MakeString("application/javascript")));
+    Require(_ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WTF6StringE(MakeString("application/x-ftp-directory")));
+    Require(_ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WTF6StringE(MakeString("APPLICATION/X-FTP-DIRECTORY")));
     Require(_ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WTF6StringE(MakeString("multipart/x-mixed-replace")));
     Require(!_ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WTF6StringE(MakeString("application/pdf")));
     Require(!_ZN7WebCore16MIMETypeRegistry27isSupportedNonImageMIMETypeERKN3WTF6StringE(MakeString("image/png")));
@@ -239,39 +244,6 @@ void TestExtensions() {
         MakeString(""), MakeString("image/png")), ""));
     Require(Equals(_ZN7WebCore16MIMETypeRegistry30appendFileExtensionIfNecessaryERKN3WTF6StringES4_(
         MakeString(nullptr), MakeString("image/png")), nullptr));
-}
-
-void TestMimeTypeForExtensionAndPath() {
-    auto forExtension = [](const char* extension) { return _ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(MakeString(extension)); };
-    Require(Equals(forExtension("png"), "image/png"));
-    Require(Equals(forExtension("PNG"), "image/png"));
-    Require(Equals(forExtension("jpg"), "image/jpeg"));
-    Require(Equals(forExtension("Html"), "text/html"));
-    Require(Equals(forExtension("mjs"), "application/x-javascript"));
-    Require(Equals(forExtension("webp"), "image/webp"));
-    Require(Equals(forExtension("xsl"), "text/xsl"));
-    Require(Equals(forExtension("pn"), ""));
-    Require(Equals(forExtension(".png"), ""));
-    Require(Equals(forExtension("wav"), ""));
-    Require(Equals(forExtension(""), ""));
-    Require(Equals(forExtension(nullptr), ""));
-    const char16_t wide[] = u"SVG";
-    String wideExtension = _ZN3WTF10StringImpl6createEPKDsj(wide, 3);
-    Require(Equals(_ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(wideExtension), "image/svg+xml"));
-
-    auto forPath = [](const char* path) { return _ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString(path)); };
-    Require(Equals(forPath("/app0/index.html"), "text/html"));
-    Require(Equals(forPath("photo.JPEG"), "image/jpeg"));
-    Require(Equals(forPath("archive.tar.xml"), "text/xml"));
-    Require(Equals(forPath("notes.txt.bak"), "application/octet-stream"));
-    Require(Equals(forPath("README"), "application/octet-stream"));
-    Require(Equals(forPath("trailing."), "application/octet-stream"));
-    Require(Equals(forPath(".png"), "image/png"));
-    Require(Equals(forPath(""), "application/octet-stream"));
-    Require(Equals(forPath(nullptr), "application/octet-stream"));
-    const char16_t widePath[] = u"/aé/b.Css";
-    String wide16 = _ZN3WTF10StringImpl6createEPKDsj(widePath, 9);
-    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(wide16), "text/css"));
 }
 
 void TestAllowedAndEncoding() {
@@ -384,81 +356,180 @@ void TestLegacySchemeRegistry() {
     Require(Contains(corsSchemes, "custom-cors"));
 }
 
+void TestLegacyLookups() {
+    String png = _ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(MakeString("PNG"));
+    Require(Equals(png, "image/png"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(MakeString("txt")), "text/plain"));
+    String unknown = _ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(MakeString("unknownext"));
+    Require(unknown.impl && unknown.impl->length == 0);
+    String fromNull = _ZN7WebCore16MIMETypeRegistry20mimeTypeForExtensionERKN3WTF6StringE(MakeString(nullptr));
+    Require(fromNull.impl && fromNull.impl->length == 0);
+
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString("a/b.Jpg")), "image/jpeg"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString("archive.tar.HTML")), "text/html"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString("noext")), "application/octet-stream"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString("x.unknown")), "application/octet-stream"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString("x.png.")), "application/octet-stream"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString("")), "application/octet-stream"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry15mimeTypeForPathERKN3WTF6StringE(MakeString(nullptr)), "application/octet-stream"));
+
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry25mediaMIMETypeForExtensionERKN3WTF6StringE(MakeString("ogg")), "audio/ogg"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry25mediaMIMETypeForExtensionERKN3WTF6StringE(MakeString("MPA")), "audio/mpeg"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry25mediaMIMETypeForExtensionERKN3WTF6StringE(MakeString("webm")), "video/webm"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry25mediaMIMETypeForExtensionERKN3WTF6StringE(MakeString("m4a")), "audio/x-m4a"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry25mediaMIMETypeForExtensionERKN3WTF6StringE(MakeString("m3u8")), "application/vnd.apple.mpegurl"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry25mediaMIMETypeForExtensionERKN3WTF6StringE(MakeString("wav")), "audio/x-wav"));
+    Require(Equals(_ZN7WebCore16MIMETypeRegistry25mediaMIMETypeForExtensionERKN3WTF6StringE(MakeString("png")), "image/png"));
+    String mediaUnknown = _ZN7WebCore16MIMETypeRegistry25mediaMIMETypeForExtensionERKN3WTF6StringE(MakeString("unknownext"));
+    Require(mediaUnknown.impl && mediaUnknown.impl->length == 0);
+
+    Require(_ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(MakeString("application/x-java-applet;version=1.5")));
+    Require(_ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(MakeString("APPLICATION/X-JAVA-VM")));
+    Require(_ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(MakeString("application/x-java-bean")));
+    Require(!_ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(MakeString("application/java")));
+    Require(!_ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(MakeString("application/x-java")));
+    Require(!_ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(MakeString("")));
+    Require(!_ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(MakeString(nullptr)));
+
+    Require(_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString("model/usd")));
+    Require(_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString("model/vnd.pixar.usd")));
+    Require(_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString("model/vnd.reality")));
+    Require(_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString("Model/VND.usdz+zip")));
+    Require(!_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString("model/gltf")));
+    Require(!_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString("model/usdz")));
+    Require(!_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString("model/us")));
+    Require(!_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString("")));
+    Require(!_ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(MakeString(nullptr)));
+}
+
+void RequireThrowsNotImplemented(const std::function<void()>& fn) {
+    bool threw = false;
+    try {
+        fn();
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    Require(threw);
+}
+
+void TestCanShowMIMEType() {
+    auto& canShow = _ZN7WebCore16MIMETypeRegistry15canShowMIMETypeERKN3WTF6StringE;
+    Require(canShow(MakeString("image/png")));
+    Require(canShow(MakeString("IMAGE/PNG")));
+    Require(canShow(MakeString("image/jpg")));
+    Require(canShow(MakeString("image/svg+xml")));
+    Require(canShow(MakeString("text/html")));
+    Require(canShow(MakeString("TEXT/PLAIN")));
+    Require(canShow(MakeString("application/xhtml+xml")));
+    Require(canShow(MakeString("application/javascript")));
+    Require(canShow(MakeString("application/ecmascript")));
+    Require(canShow(MakeString("application/x-ftp-directory")));
+    Require(canShow(MakeString("APPLICATION/X-FTP-DIRECTORY")));
+    Require(canShow(MakeString("text/javascript")));
+    Require(canShow(MakeString("application/json")));
+    Require(canShow(MakeString("application/vnd.api+json")));
+    Require(canShow(MakeString("text/anything-else")));
+    Require(canShow(MakeString("text/")));
+    Require(!canShow(MakeString("text/rtf")));
+    Require(!canShow(MakeString("TEXT/RTF")));
+    Require(!canShow(MakeString("text/vcard")));
+    Require(!canShow(MakeString("text/calendar")));
+    Require(!canShow(MakeString("")));
+    Require(!canShow(MakeString(nullptr)));
+    RequireThrowsNotImplemented([&] { (void)canShow(MakeString("video/mp4")); });
+    RequireThrowsNotImplemented([&] { (void)canShow(MakeString("application/octet-stream")); });
+    RequireThrowsNotImplemented([&] { (void)canShow(MakeString("application/x-mpegurl")); });
+}
+
+void TestExtensionsForMIMEType() {
+    auto& extensionsForMIMEType = _ZN7WebCore16MIMETypeRegistry21extensionsForMIMETypeERKN3WTF6StringE;
+    auto fromType = extensionsForMIMEType(MakeString("image/png"));
+    Require(fromType.size == 0);
+    Require(fromType.buffer == nullptr);
+    auto fromNull = extensionsForMIMEType(MakeString(nullptr));
+    Require(fromNull.size == 0);
+    auto fromEmpty = extensionsForMIMEType(MakeString(""));
+    Require(fromEmpty.size == 0);
+}
+
+void TestAllowedFileExtensions() {
+    auto& allowedFileExtensions = _ZN7WebCore16MIMETypeRegistry21allowedFileExtensionsERKN3WTF6VectorINS1_6StringELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEES8_;
+    Vector<String> noMimes;
+    Vector<String> noExts;
+    auto empty = allowedFileExtensions(noMimes, noExts);
+    Require(empty.size == 0);
+
+    Vector<String> pngMimes;
+    pngMimes.append(MakeString("image/png"));
+    auto fromMimes = allowedFileExtensions(pngMimes, noExts);
+    Require(fromMimes.size == 0);
+
+    Vector<String> nullMimes;
+    nullMimes.append(MakeString(nullptr));
+    auto fromNullMime = allowedFileExtensions(nullMimes, noExts);
+    Require(fromNullMime.size == 0);
+
+    Vector<String> exts;
+    exts.append(MakeString("png"));
+    exts.append(MakeString(".html"));
+    exts.append(MakeString("unknown"));
+    exts.append(MakeString("PNG"));
+    exts.append(MakeString("png"));
+    exts.append(MakeString(".png"));
+    exts.append(MakeString("."));
+    exts.append(MakeString(".x"));
+    auto trimmed = allowedFileExtensions(noMimes, exts);
+    Require(trimmed.size == 6);
+    Require(Equals(trimmed[0], "png"));
+    Require(Equals(trimmed[1], "html"));
+    Require(Equals(trimmed[2], "unknown"));
+    Require(Equals(trimmed[3], "PNG"));
+    Require(trimmed[4].impl != nullptr && trimmed[4].impl->length == 0);
+    Require(Equals(trimmed[5], "x"));
+
+    Vector<String> nullExts;
+    nullExts.append(MakeString(nullptr));
+    nullExts.append(MakeString(nullptr));
+    auto nullResult = allowedFileExtensions(noMimes, nullExts);
+    Require(nullResult.size == 1);
+    Require(nullResult[0].impl == nullptr);
+
+    Vector<String> emptyExts;
+    emptyExts.append(MakeString(""));
+    emptyExts.append(MakeString(""));
+    auto emptyResult = allowedFileExtensions(noMimes, emptyExts);
+    Require(emptyResult.size == 1);
+    Require(emptyResult[0].impl != nullptr && emptyResult[0].impl->length == 0);
+
+    Vector<String> pngExtPair;
+    pngExtPair.append(MakeString("png"));
+    pngExtPair.append(MakeString(".png"));
+    auto combined = allowedFileExtensions(pngMimes, pngExtPair);
+    Require(combined.size == 1);
+    Require(Equals(combined[0], "png"));
+}
+
+void TestIsSupportedMediaMIMEType() {
+    auto& isSupportedMedia = _ZN7WebCore16MIMETypeRegistry24isSupportedMediaMIMETypeERKN3WTF6StringE;
+    Require(!isSupportedMedia(MakeString("")));
+    Require(!isSupportedMedia(MakeString(nullptr)));
+    RequireThrowsNotImplemented([&] { (void)isSupportedMedia(MakeString("video/mp4")); });
+    RequireThrowsNotImplemented([&] { (void)isSupportedMedia(MakeString("audio/mpeg")); });
+}
+
 }  // namespace
 
-void TestLegacyMIMETypePredicates() {
-    auto isJava = [](const String& value) { return _ZN7WebCore16MIMETypeRegistry20isJavaAppletMIMETypeERKN3WTF6StringE(value); };
-    Require(isJava(MakeString("application/x-java-applet")));
-    Require(isJava(MakeString("application/x-java-applet;version=1.4")));
-    Require(isJava(MakeString("APPLICATION/X-JAVA-BEAN")));
-    Require(isJava(MakeString("application/x-java-vm-npruntime")));
-    Require(isJava(MakeString("application\x0fx\x0djava-vm")));
-    Require(!isJava(MakeString("application/x-java")));
-    Require(!isJava(MakeString(" application/x-java-vm")));
-    Require(!isJava(MakeString("application/java-vm")));
-    Require(!isJava(MakeString("")));
-    Require(!isJava(String{}));
-    const char16_t wide[] = u"application/x-java-vm";
-    Require(isJava(_ZN3WTF10StringImpl6createEPKDsj(wide, 21)));
-    const char16_t aliased[] = u"\u0141pplication/x-java-vm";
-    Require(!isJava(_ZN3WTF10StringImpl6createEPKDsj(aliased, 21)));
-
-    auto isPreview = [](const String& value) { return _ZN7WebCore16MIMETypeRegistry23isSystemPreviewMIMETypeERKN3WTF6StringE(value); };
-    Require(isPreview(MakeString("model/vnd.usdz+zip")));
-    Require(isPreview(MakeString("MODEL/USD")));
-    Require(isPreview(MakeString("model/vnd.Pixar.usd")));
-    Require(isPreview(MakeString("model/vnd.reality")));
-    Require(!isPreview(MakeString("model/vnd.usdz")));
-    Require(!isPreview(MakeString("model/usd ")));
-    Require(!isPreview(MakeString("model\x0fusd")));
-    Require(!isPreview(MakeString("")));
-    Require(!isPreview(String{}));
-    const char16_t previewWide[] = u"Model/USD";
-    Require(isPreview(_ZN3WTF10StringImpl6createEPKDsj(previewWide, 9)));
-    const char16_t previewAliased[] = u"model/\u0155sd";
-    Require(!isPreview(_ZN3WTF10StringImpl6createEPKDsj(previewAliased, 9)));
-}
-
-void TestWideCharacterComparisons() {
-    auto wide = [](const char16_t* text) {
-        return String(_ZN3WTF10StringImpl6createEPKDsj(text, static_cast<unsigned>(std::char_traits<char16_t>::length(text))));
-    };
-    auto wideView = [](const char16_t* text) {
-        return StringView{text, static_cast<unsigned>(std::char_traits<char16_t>::length(text)), false};
-    };
-
-    Require(_ZN7WebCore16MIMETypeRegistry25isPDFOrPostScriptMIMETypeERKN3WTF6StringE(wide(u"Application/PDF")));
-    Require(!_ZN7WebCore16MIMETypeRegistry25isPDFOrPostScriptMIMETypeERKN3WTF6StringE(wide(u"\u0141pplication/pdf")));
-    Require(!_ZN7WebCore16MIMETypeRegistry25isPDFOrPostScriptMIMETypeERKN3WTF6StringE(wide(u"application/\u0170df")));
-
-    Require(_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(wide(u"Text/plain")));
-    Require(!_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(wide(u"\u0154ext/plain")));
-    Require(!_ZN7WebCore16MIMETypeRegistry14isTextMIMETypeERKN3WTF6StringE(wide(u"text\u012Fplain")));
-
-    Require(_ZN7WebCore16MIMETypeRegistry23isSupportedJSONMIMETypeERKN3WTF6StringE(wide(u"application/problem+JSON")));
-    Require(!_ZN7WebCore16MIMETypeRegistry23isSupportedJSONMIMETypeERKN3WTF6StringE(wide(u"application/problem+\u014Ason")));
-    Require(!_ZN7WebCore16MIMETypeRegistry23isSupportedJSONMIMETypeERKN3WTF6StringE(wide(u"application/problem\u012Bjson")));
-
-    Require(_ZN7WebCore16MIMETypeRegistry13isXMLMIMETypeERKN3WTF6StringE(wide(u"image/svg+XML")));
-    Require(!_ZN7WebCore16MIMETypeRegistry13isXMLMIMETypeERKN3WTF6StringE(wide(u"image/svg+\u0178ml")));
-    Require(!_ZN7WebCore16MIMETypeRegistry13isXMLMIMETypeERKN3WTF6StringE(wide(u"\u0174ext/xml")));
-
-    Require(_ZN7WebCore16MIMETypeRegistry19isXMLEntityMIMETypeEN3WTF10StringViewE(wideView(u"Text/XML-External-Parsed-Entity")));
-    Require(!_ZN7WebCore16MIMETypeRegistry19isXMLEntityMIMETypeEN3WTF10StringViewE(wideView(u"\u0154ext/xml-external-parsed-entity")));
-
-    Require(_ZN7WebCore16MIMETypeRegistry28isSupportedTextTrackMIMETypeERKN3WTF6StringE(wide(u"TEXT/vtt")));
-    Require(!_ZN7WebCore16MIMETypeRegistry28isSupportedTextTrackMIMETypeERKN3WTF6StringE(wide(u"text/\u0176tt")));
-}
-
 int main() {
-    TestLegacyMIMETypePredicates();
     TestFixedVectorLists();
     TestTypePredicates();
     TestExtensions();
-    TestMimeTypeForExtensionAndPath();
     TestAllowedAndEncoding();
     TestLegacySchemeRegistry();
-    TestWideCharacterComparisons();
+    TestLegacyLookups();
+    TestCanShowMIMEType();
+    TestExtensionsForMIMEType();
+    TestAllowedFileExtensions();
+    TestIsSupportedMediaMIMEType();
     std::printf("All libSceNKWebKit MimeTypeRegistry tests passed!\n");
     return 0;
 }

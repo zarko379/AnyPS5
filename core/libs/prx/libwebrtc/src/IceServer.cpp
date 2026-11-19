@@ -1,5 +1,4 @@
 /* Derived from api/peer_connection_interface.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
-/* Derived from api/peer_connection_interface.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from api/rtp_transceiver_interface.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from api/rtp_transceiver_interface.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /*
@@ -60,117 +59,116 @@ namespace {
 
 constexpr std::int32_t TlsCertPolicySecure = 0;
 constexpr std::int32_t RtpTransceiverDirectionSendRecv = 0;
+constexpr std::size_t StringCapacityMask = 15;
 
-void InitEmpty(WebRtcGuestString& string) {
+void InitString(WebRtcGuestString& string) {
     string.reserved = 0;
     string.buffer[0] = '\0';
     string.size = 0;
     string.capacity = WebRtcGuestStringInlineCapacity;
 }
 
+void ValidateString(const WebRtcGuestString& string) {
+    if (string.capacity < WebRtcGuestStringInlineCapacity || string.size > string.capacity ||
+        (string.capacity > WebRtcGuestStringInlineCapacity && !string.pointer))
+        throw std::invalid_argument("IceServer requires valid strings");
+}
+
 void ReleaseString(WebRtcGuestString& string) {
     if (string.capacity > WebRtcGuestStringInlineCapacity)
         GuestStringStorage::Deallocate(string.pointer, string.capacity + 1);
-    InitEmpty(string);
+    InitString(string);
 }
 
-void ValidateString(const WebRtcGuestString& string, const char* message) {
-    if (string.capacity < WebRtcGuestStringInlineCapacity || string.size > string.capacity)
-        throw std::invalid_argument(message);
-    if (string.capacity > WebRtcGuestStringInlineCapacity && !string.pointer)
-        throw std::invalid_argument(message);
-}
-
-void CopyString(const WebRtcGuestString& source, WebRtcGuestString& destination) {
-    InitEmpty(destination);
-    if (source.size <= WebRtcGuestStringInlineCapacity) {
-        if (source.size > 0)
-            std::memcpy(destination.buffer, WebRtcGuestStringData(source), source.size);
-        destination.buffer[source.size] = '\0';
-        destination.size = source.size;
-        return;
+void CopyString(WebRtcGuestString& string, const WebRtcGuestString& other) {
+    InitString(string);
+    const std::size_t size = other.size;
+    char* data = string.buffer;
+    if (size > WebRtcGuestStringInlineCapacity) {
+        const std::size_t capacity = size | StringCapacityMask;
+        data = static_cast<char*>(GuestStringStorage::Allocate(capacity + 1));
+        string.pointer = data;
+        string.capacity = capacity;
     }
-    const std::size_t capacity = source.size | WebRtcGuestStringInlineCapacity;
-    if (capacity > std::numeric_limits<std::size_t>::max() - 1)
-        throw std::bad_alloc();
-    auto* data = static_cast<char*>(GuestStringStorage::Allocate(capacity + 1));
-    std::memcpy(data, source.pointer, source.size);
-    data[source.size] = '\0';
-    destination.pointer = data;
-    destination.size = source.size;
-    destination.capacity = capacity;
+    std::memcpy(data, WebRtcGuestStringData(other), size);
+    data[size] = '\0';
+    string.size = size;
 }
 
-std::size_t Count(const WebRtcGuestStringVector& vector, const char* message) {
-    const auto first = reinterpret_cast<std::uintptr_t>(vector.begin);
-    const auto last = reinterpret_cast<std::uintptr_t>(vector.end);
-    const auto limit = reinterpret_cast<std::uintptr_t>(vector.capacity);
-    if (last < first || limit < last || (!first && limit) || first % alignof(WebRtcGuestString) ||
-        (last - first) % sizeof(WebRtcGuestString) || (limit - first) % sizeof(WebRtcGuestString))
-        throw std::invalid_argument(message);
-    return (last - first) / sizeof(WebRtcGuestString);
+void InitVector(WebRtcGuestStringVector& vector) {
+    vector.begin = nullptr;
+    vector.end = nullptr;
+    vector.capacityEnd = nullptr;
 }
 
-void ValidateVector(const WebRtcGuestStringVector& vector, const char* message) {
-    const std::size_t count = Count(vector, message);
-    for (std::size_t index = 0; index < count; ++index)
-        ValidateString(vector.begin[index], message);
+void ValidateVector(const WebRtcGuestStringVector& vector) {
+    const auto begin = reinterpret_cast<std::uintptr_t>(vector.begin);
+    const auto end = reinterpret_cast<std::uintptr_t>(vector.end);
+    const auto capacity = reinterpret_cast<std::uintptr_t>(vector.capacityEnd);
+    if (end < begin || capacity < end || (!begin && capacity) || begin % alignof(WebRtcGuestString) ||
+        (end - begin) % sizeof(WebRtcGuestString) || (capacity - begin) % sizeof(WebRtcGuestString))
+        throw std::invalid_argument("IceServer requires valid string vectors");
+    for (const WebRtcGuestString* string = vector.begin; string != vector.end; ++string)
+        ValidateString(*string);
 }
 
 void ReleaseVector(WebRtcGuestStringVector& vector) {
-    if (!vector.begin)
-        return;
-    while (vector.end != vector.begin)
-        ReleaseString(*--vector.end);
-    _ZdlPv_nid_postfix(vector.begin);
-    vector = {};
+    if (vector.begin) {
+        for (WebRtcGuestString* string = vector.begin; string != vector.end; ++string)
+            ReleaseString(*string);
+        GuestStringStorage::Deallocate(vector.begin, static_cast<std::size_t>(vector.capacityEnd - vector.begin) * sizeof(WebRtcGuestString));
+    }
+    InitVector(vector);
 }
 
-struct VectorGuard {
-    WebRtcGuestStringVector vector {};
-    ~VectorGuard() { ReleaseVector(vector); }
-};
-
-struct StringGuard {
-    WebRtcGuestString string {};
-    StringGuard() { InitEmpty(string); }
-    ~StringGuard() { ReleaseString(string); }
-};
-
-void CopyVector(const WebRtcGuestStringVector& source, VectorGuard& destination) {
-    const std::size_t count = static_cast<std::size_t>(source.end - source.begin);
+void CopyVector(WebRtcGuestStringVector& vector, const WebRtcGuestStringVector& other) {
+    InitVector(vector);
+    if (!other.begin)
+        return;
+    const auto count = static_cast<std::size_t>(other.end - other.begin);
     if (count == 0)
         return;
     if (count > std::numeric_limits<std::size_t>::max() / sizeof(WebRtcGuestString))
         throw std::bad_alloc();
-    auto* storage = static_cast<WebRtcGuestString*>(_Znwm_nid_postfix(count * sizeof(WebRtcGuestString)));
-    destination.vector = {storage, storage, storage + count};
+    auto* strings = static_cast<WebRtcGuestString*>(GuestStringStorage::Allocate(count * sizeof(WebRtcGuestString)));
+    vector.begin = strings;
+    vector.end = strings;
+    vector.capacityEnd = strings + count;
     for (std::size_t index = 0; index < count; ++index) {
-        CopyString(source.begin[index], storage[index]);
-        ++destination.vector.end;
+        CopyString(strings[index], other.begin[index]);
+        vector.end = strings + index + 1;
     }
 }
 
-void ValidateServer(const WebRtcIceServer* server, const char* message) {
-    ValidateString(server->uri, message);
-    ValidateVector(server->urls, message);
-    ValidateString(server->username, message);
-    ValidateString(server->password, message);
-    ValidateString(server->hostname, message);
-    ValidateVector(server->tlsAlpnProtocols, message);
-    ValidateVector(server->tlsEllipticCurves, message);
+void InitServer(WebRtcIceServer& server) {
+    InitString(server.uri);
+    InitVector(server.urls);
+    InitString(server.username);
+    InitString(server.password);
+    server.tlsCertPolicy = TlsCertPolicySecure;
+    InitString(server.hostname);
+    InitVector(server.tlsAlpnProtocols);
+    InitVector(server.tlsEllipticCurves);
 }
 
-WebRtcGuestString Take(StringGuard& guard) {
-    WebRtcGuestString string = guard.string;
-    InitEmpty(guard.string);
-    return string;
+void ValidateServer(const WebRtcIceServer& server) {
+    ValidateString(server.uri);
+    ValidateVector(server.urls);
+    ValidateString(server.username);
+    ValidateString(server.password);
+    ValidateString(server.hostname);
+    ValidateVector(server.tlsAlpnProtocols);
+    ValidateVector(server.tlsEllipticCurves);
 }
 
-WebRtcGuestStringVector Take(VectorGuard& guard) {
-    WebRtcGuestStringVector vector = guard.vector;
-    guard.vector = {};
-    return vector;
+void ReleaseServer(WebRtcIceServer& server) {
+    ReleaseVector(server.tlsEllipticCurves);
+    ReleaseVector(server.tlsAlpnProtocols);
+    ReleaseString(server.hostname);
+    ReleaseString(server.password);
+    ReleaseString(server.username);
+    ReleaseVector(server.urls);
+    ReleaseString(server.uri);
 }
 
 }
@@ -179,66 +177,44 @@ extern "C" {
 
 void APS5_VABI _ZN6webrtc23PeerConnectionInterface9IceServerC1Ev_nid_postfix(WebRtcIceServer* server) {
     if (!server)
-        throw std::invalid_argument("PeerConnectionInterface::IceServer constructor requires a server");
-    InitEmpty(server->uri);
-    server->urls = {};
-    InitEmpty(server->username);
-    InitEmpty(server->password);
-    server->tlsCertPolicy = TlsCertPolicySecure;
-    InitEmpty(server->hostname);
-    server->tlsAlpnProtocols = {};
-    server->tlsEllipticCurves = {};
+        throw std::invalid_argument("IceServer constructor requires an object");
+    InitServer(*server);
 }
 
 void APS5_VABI _ZN6webrtc23PeerConnectionInterface9IceServerC1ERKS1__nid_postfix(WebRtcIceServer* server, const WebRtcIceServer* other) {
-    constexpr const char* message = "PeerConnectionInterface::IceServer copy constructor requires valid servers";
-    if (!server || !other)
-        throw std::invalid_argument(message);
-    ValidateServer(other, message);
-    StringGuard uri;
-    CopyString(other->uri, uri.string);
-    VectorGuard urls;
-    CopyVector(other->urls, urls);
-    StringGuard username;
-    CopyString(other->username, username.string);
-    StringGuard password;
-    CopyString(other->password, password.string);
-    StringGuard hostname;
-    CopyString(other->hostname, hostname.string);
-    VectorGuard alpn;
-    CopyVector(other->tlsAlpnProtocols, alpn);
-    VectorGuard curves;
-    CopyVector(other->tlsEllipticCurves, curves);
-    const std::int32_t policy = other->tlsCertPolicy;
-    server->uri = Take(uri);
-    server->urls = Take(urls);
-    server->username = Take(username);
-    server->password = Take(password);
-    server->tlsCertPolicy = policy;
-    server->hostname = Take(hostname);
-    server->tlsAlpnProtocols = Take(alpn);
-    server->tlsEllipticCurves = Take(curves);
+    if (!server || !other || server == other)
+        throw std::invalid_argument("IceServer copy constructor requires distinct objects");
+    ValidateServer(*other);
+    WebRtcIceServer copy;
+    InitServer(copy);
+    try {
+        CopyString(copy.uri, other->uri);
+        CopyVector(copy.urls, other->urls);
+        CopyString(copy.username, other->username);
+        CopyString(copy.password, other->password);
+        copy.tlsCertPolicy = other->tlsCertPolicy;
+        CopyString(copy.hostname, other->hostname);
+        CopyVector(copy.tlsAlpnProtocols, other->tlsAlpnProtocols);
+        CopyVector(copy.tlsEllipticCurves, other->tlsEllipticCurves);
+    } catch (...) {
+        ReleaseServer(copy);
+        throw;
+    }
+    std::memcpy(server, &copy, sizeof(copy));
 }
 
 void APS5_VABI _ZN6webrtc23PeerConnectionInterface9IceServerD1Ev_nid_postfix(WebRtcIceServer* server) {
-    constexpr const char* message = "PeerConnectionInterface::IceServer destructor requires a valid server";
     if (!server)
-        throw std::invalid_argument(message);
-    ValidateServer(server, message);
-    ReleaseVector(server->tlsEllipticCurves);
-    ReleaseVector(server->tlsAlpnProtocols);
-    ReleaseString(server->hostname);
-    ReleaseString(server->password);
-    ReleaseString(server->username);
-    ReleaseVector(server->urls);
-    ReleaseString(server->uri);
+        throw std::invalid_argument("IceServer destructor requires an object");
+    ValidateServer(*server);
+    ReleaseServer(*server);
 }
 
 void APS5_VABI _ZN6webrtc18RtpTransceiverInitC1Ev_nid_postfix(WebRtcRtpTransceiverInit* init) {
     if (!init)
         throw std::invalid_argument("RtpTransceiverInit constructor requires an object");
     init->direction = RtpTransceiverDirectionSendRecv;
-    init->streamIds = {};
+    InitVector(init->streamIds);
     init->sendEncodingsBegin = nullptr;
     init->sendEncodingsEnd = nullptr;
     init->sendEncodingsCapacity = nullptr;
@@ -253,7 +229,7 @@ void APS5_VABI _ZN6webrtc18RtpTransceiverInitD1Ev_nid_postfix(WebRtcRtpTransceiv
     const auto limit = reinterpret_cast<std::uintptr_t>(init->sendEncodingsCapacity);
     if (last < first || limit < last || (!first && limit))
         throw std::invalid_argument(message);
-    ValidateVector(init->streamIds, message);
+    ValidateVector(init->streamIds);
     if (last != first)
         NotImplemented_nid_no_patch("RtpTransceiverInit destructor with send encodings: the RtpEncodingParameters layout is not modelled");
     if (init->sendEncodingsBegin)

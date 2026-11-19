@@ -371,10 +371,6 @@ void APS5_VABI _ZN7WebCore19ResourceRequestBase17clearHTTPReferrerEv(ResourceReq
     RemoveHeaderField(self, HTTPHeaderName::Referer);
 }
 
-void APS5_VABI _ZN7WebCore19ResourceRequestBase15clearHTTPOriginEv(ResourceRequestBase* self) {
-    RemoveHeaderField(self, HTTPHeaderName::Origin);
-}
-
 bool APS5_VABI _ZNK7WebCore19ResourceRequestBase13isConditionalEv(const ResourceRequestBase* self) {
     const auto& request = Checked(self);
     UpdateResourceRequest(request);
@@ -416,6 +412,14 @@ void APS5_VABI _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEn
         std::construct_at(buffer + array.size, encoding);
         ++array.size;
     }
+    request.platformRequestUpdated = false;
+}
+
+void APS5_VABI _ZN7WebCore19ResourceRequestBase15clearHTTPOriginEv(ResourceRequestBase* self) {
+    auto& request = Checked(self);
+    UpdateResourceRequest(request);
+    auto* headers = reinterpret_cast<NKWebKit::HttpAbi::HTTPHeaderMap*>(&request.httpHeaderFields);
+    _ZN7WebCore13HTTPHeaderMap6removeENS_14HTTPHeaderNameE(headers, HTTPHeaderName::Origin);
     request.platformRequestUpdated = false;
 }
 

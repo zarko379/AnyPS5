@@ -22,6 +22,11 @@ std::int32_t APS5_VABI uloc_getParent(const char* locale, char* result, std::int
                                                   std::int32_t* status);
 std::int32_t APS5_VABI uloc_getScript(const char* locale, char* result, std::int32_t capacity, std::int32_t* status);
 std::int8_t APS5_VABI uloc_isRightToLeft_nid_postfix(const char* locale);
+const char* APS5_VABI uloc_toLegacyKey_nid_postfix(const char* keyword);
+const char* APS5_VABI uloc_toUnicodeLocaleKey_nid_postfix(const char* keyword);
+const char* APS5_VABI uloc_toLegacyType_nid_postfix(const char* keyword, const char* value);
+const char* APS5_VABI uloc_toUnicodeLocaleType(const char* keyword, const char* value);
+std::int32_t APS5_VABI uloc_toLanguageTag(const char* localeID, char* langtag, std::int32_t capacity, std::int8_t strict, std::int32_t* status);
 const char* APS5_VABI uprv_getDefaultLocaleID_nid_postfix();
 double APS5_VABI uprv_getRawUTCtime_nid_postfix();
 double APS5_VABI uprv_getUTCtime_nid_postfix();

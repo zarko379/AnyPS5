@@ -1,11 +1,13 @@
 #include "prx/libSceLibreSsl/include/Api.hpp"
 #include "prx/libSceLibreSsl/include/Error.hpp"
+#include "prx/libSceLibreSsl/include/SslInternal.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/General.hpp"
 #include <array>
 #include <cstdint>
 #include <mutex>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -41,6 +43,32 @@ int NewIndex(int classIndex, const ExDataFunctions& functions) {
     }
     return static_cast<int>(registered.size() - 1);
 }
+
+std::vector<ExDataFunctions> Registered(int classIndex) {
+    if (classIndex < 0 || classIndex >= ClassCount) throw std::invalid_argument("ex_data class index out of range");
+    std::lock_guard lock(classesLock);
+    return classes[classIndex];
+}
+
+std::size_t RegisteredCount(int classIndex) {
+    if (classIndex < 0 || classIndex >= ClassCount) throw std::invalid_argument("ex_data class index out of range");
+    std::lock_guard lock(classesLock);
+    return classes[classIndex].size();
+}
+
+bool RegisteredAt(int classIndex, std::size_t index, ExDataFunctions& functions) {
+    std::lock_guard lock(classesLock);
+    const auto& registered = classes[classIndex];
+    if (index >= registered.size()) return false;
+    functions = registered[index];
+    return true;
+}
+
+void* Stored(const LibreSslExData* data, int index) {
+    const auto* stack = static_cast<const LibreSslStack*>(data->stack);
+    if (!stack || index < 0 || index >= stack->num) return nullptr;
+    return stack->data[index];
+}
 }
 
 extern "C" {
@@ -71,28 +99,35 @@ void* LibreSslGetExData_nid_no_patch(const LibreSslExData* data, int index) {
     return sk_value_nid_postfix(stack, index);
 }
 
-void LibreSslFreeExData_nid_no_patch(int classIndex, void* object, LibreSslExData* data) {
+bool LibreSslNewExData_nid_no_patch(int classIndex, void* object, LibreSslExData* data) {
+    data->stack = nullptr;
     std::vector<ExDataFunctions> registered;
-    {
-        std::lock_guard lock(classesLock);
-        try {
-            registered = classes.at(classIndex);
-        } catch (const std::bad_alloc&) {
-            LibreSslPutError_nid_no_patch(CryptoLibrary, AnyFunction, MallocFailure);
-            return;
-        }
+    try {
+        registered = Registered(classIndex);
+    } catch (const std::bad_alloc&) {
+        LibreSslPutError_nid_no_patch(CryptoLibrary, AnyFunction, MallocFailure);
+        return false;
     }
     for (std::size_t index = 0; index < registered.size(); ++index) {
         const ExDataFunctions& functions = registered[index];
-        if (!functions.freeFunction) continue;
-        const int position = static_cast<int>(index);
-        functions.freeFunction(object, LibreSslGetExData_nid_no_patch(data, position), data, position, functions.argl, functions.argp);
+        if (functions.newFunction) functions.newFunction(object, Stored(data, static_cast<int>(index)), data, static_cast<int>(index), functions.argl, functions.argp);
+    }
+    return true;
+}
+
+void LibreSslFreeExData_nid_no_patch(int classIndex, void* object, LibreSslExData* data) {
+    const std::size_t count = RegisteredCount(classIndex);
+    for (std::size_t index = 0; index < count; ++index) {
+        ExDataFunctions functions;
+        if (!RegisteredAt(classIndex, index, functions)) break;
+        if (functions.freeFunction) functions.freeFunction(object, Stored(data, static_cast<int>(index)), data, static_cast<int>(index), functions.argl, functions.argp);
     }
     auto* stack = static_cast<LibreSslStack*>(data->stack);
-    if (!stack) return;
-    free_nid_postfix(stack->data);
-    free_nid_postfix(stack);
-    data->stack = nullptr;
+    if (stack) {
+        free_nid_postfix(stack->data);
+        free_nid_postfix(stack);
+        data->stack = nullptr;
+    }
 }
 
 }

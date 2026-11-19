@@ -16,10 +16,4 @@ const char* APS5_VABI ERR_reason_error_string_nid_postfix(std::uint64_t) {
     return nullptr;
 }
 
-void APS5_VABI ERR_load_PEM_strings_nid_postfix() {
-}
-
-void APS5_VABI ERR_load_X509_strings_nid_postfix() {
-}
-
 }

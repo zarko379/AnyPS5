@@ -8,7 +8,7 @@
 struct WebRtcGuestStringVector {
     WebRtcGuestString* begin;
     WebRtcGuestString* end;
-    WebRtcGuestString* capacity;
+    WebRtcGuestString* capacityEnd;
 };
 
 struct WebRtcIceServer {
@@ -23,6 +23,8 @@ struct WebRtcIceServer {
 };
 
 static_assert(sizeof(WebRtcGuestStringVector) == 24);
+static_assert(offsetof(WebRtcGuestStringVector, end) == 8);
+static_assert(offsetof(WebRtcGuestStringVector, capacityEnd) == 16);
 static_assert(sizeof(WebRtcIceServer) == 240);
 static_assert(offsetof(WebRtcIceServer, urls) == 40);
 static_assert(offsetof(WebRtcIceServer, username) == 64);

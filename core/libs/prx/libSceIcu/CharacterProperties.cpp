@@ -1,9 +1,7 @@
 #include "prx/libSceIcu/CharacterProperties.hpp"
 #include "prx/libSceIcu/Backend.hpp"
-#include "prx/libSceIcu/Script.hpp"
 #include "prx/libc/include/General.hpp"
 #include <unicode/uchar.h>
-#include <unicode/uscript.h>
 #include <unicode/uset.h>
 #include "uprops.h"
 #include "uset_imp.h"
@@ -13,10 +11,6 @@ namespace {
 UErrorCode* Status(std::int32_t* status) {
     IcuBackend::Ensure();
     return reinterpret_cast<UErrorCode*>(status);
-}
-
-UErrorCode* RequiredStatus(std::int32_t* status) {
-    return reinterpret_cast<UErrorCode*>(IcuBackend::RequireStatus(status));
 }
 
 struct CharNamesForward {
@@ -54,12 +48,6 @@ std::int32_t APS5_VABI u_charFromName_nid_postfix(std::int32_t nameChoice, const
 void APS5_VABI u_enumCharNames_nid_postfix(std::int32_t start, std::int32_t limit, GuestCharNamesCallback fn, void* context, std::int32_t nameChoice, std::int32_t* status) {
     CharNamesForward forward{fn, context};
     u_enumCharNames(start, limit, fn ? ForwardCharName : nullptr, &forward, static_cast<UCharNameChoice>(nameChoice), Status(status));
-}
-
-std::int32_t APS5_VABI uscript_getCode_nid_postfix(const char* nameOrAbbrOrLocale, std::int32_t* fillIn, std::int32_t capacity, std::int32_t* status) {
-    UErrorCode* error = RequiredStatus(status);
-    if (U_SUCCESS(*error) && nameOrAbbrOrLocale && (fillIn == nullptr ? capacity == 0 : capacity >= 0)) IcuBackend::CanonicalLocale(nameOrAbbrOrLocale);
-    return uscript_getCode(nameOrAbbrOrLocale, reinterpret_cast<UScriptCode*>(fillIn), capacity, error);
 }
 
 std::int32_t APS5_VABI uprv_getMaxCharNameLength_nid_postfix() {

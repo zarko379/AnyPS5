@@ -435,23 +435,6 @@ void LibreSslBioFreeAll_nid_no_patch(LibreSsl::Bio* bio) {
     }
 }
 
-LibreSsl::Bio* LibreSslBioFindType_nid_no_patch(LibreSsl::Bio* bio, int type) {
-    if (!bio) return nullptr;
-    const int mask = type & 0xff;
-    do {
-        if (bio->method) {
-            const int methodType = bio->method->type;
-            if (!mask) {
-                if (methodType & type) return bio;
-            } else if (methodType == type) {
-                return bio;
-            }
-        }
-        bio = bio->next;
-    } while (bio);
-    return nullptr;
-}
-
 int LibreSslBioWrite_nid_no_patch(LibreSsl::Bio* bio, const void* source, int size) {
     if (!bio || size < 0) return 0;
     if (!bio->method || !bio->method->write) return queueError(BioLibrary, UnsupportedMethod, -2);
