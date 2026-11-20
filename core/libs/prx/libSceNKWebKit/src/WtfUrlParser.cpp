@@ -80,6 +80,7 @@
 #include "prx/libSceNKWebKit/include/WtfExports.hpp"
 #include "prx/libSceNKWebKit/include/UrlParserExports.hpp"
 #include "prx/libSceNKWebKit/include/UrlHelpers.hpp"
+#include "prx/libSceIcu/Idna.hpp"
 #include "prx/libSceIcu/RecoveredSignatures.hpp"
 
 #include <algorithm>
