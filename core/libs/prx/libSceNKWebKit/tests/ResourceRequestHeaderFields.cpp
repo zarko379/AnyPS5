@@ -322,7 +322,6 @@ static void TestClearAndConditional() {
     Require(Headers(request).common.size == 11 && Headers(request).uncommon.size == 1);
     Require(valueImpl.refCount == 28);
 
-    Require(&_ZNK7WebCore19ResourceRequestBase16httpHeaderFieldsEv(&request) == &Headers(request));
     Require(_ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, &customName).impl == &valueImpl);
     Require(_ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, &knownName).impl == &valueImpl);
     Require(_ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, &missingName).impl == nullptr);
@@ -384,7 +383,6 @@ static void TestClearAndConditional() {
 
     request.platformRequestUpdated = true;
     request.resourceRequestUpdated = false;
-    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase16httpHeaderFieldsEv(&request); }));
     Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, &customName); }));
     Require(Throws([&] { _ZN7WebCore19ResourceRequestBase22clearHTTPAuthorizationEv(&request); }));
     Require(Throws([&] { _ZN7WebCore19ResourceRequestBase20clearHTTPContentTypeEv(&request); }));
@@ -397,7 +395,6 @@ static void TestClearAndConditional() {
     Require(Headers(request).common.size == 1 && Headers(request).uncommon.size == 1);
 
     request.resourceRequestUpdated = true;
-    Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase16httpHeaderFieldsEv(nullptr); }));
     Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(nullptr, &customName); }));
     Require(Throws([&] { _ZNK7WebCore19ResourceRequestBase15httpHeaderFieldERKN3WTF6StringE(&request, nullptr); }));
     Require(Throws([&] { _ZN7WebCore19ResourceRequestBase22clearHTTPAuthorizationEv(nullptr); }));
@@ -413,98 +410,6 @@ static void TestClearAndConditional() {
     Require(knownNameImpl.refCount == 4 && missingNameImpl.refCount == 4);
 }
 
-static void TestReplaceHeaderFields() {
-    auto request = MakeRequest();
-    auto donor = MakeRequest();
-    auto oldImpl = Make("old");
-    auto newImpl = Make("new");
-    String oldValue(&oldImpl);
-    String newValue(&newImpl);
-    oldImpl.refCount += 2;
-    newImpl.refCount += 2;
-
-    _ZN7WebCore19ResourceRequestBase18setHTTPHeaderFieldENS_14HTTPHeaderNameERKN3WTF6StringE(&request, HTTPHeaderName::Accept, &oldValue);
-    _ZN7WebCore19ResourceRequestBase18setHTTPHeaderFieldENS_14HTTPHeaderNameERKN3WTF6StringE(&donor, HTTPHeaderName::Referer, &newValue);
-    _ZN7WebCore19ResourceRequestBase18setHTTPHeaderFieldENS_14HTTPHeaderNameERKN3WTF6StringE(&donor, HTTPHeaderName::Origin, &newValue);
-    auto* donorCommon = Headers(donor).common.buffer;
-    request.platformRequestUpdated = true;
-
-    _ZN7WebCore19ResourceRequestBase19setHTTPHeaderFieldsENS_13HTTPHeaderMapE(&request, &Headers(donor));
-    Require(!request.platformRequestUpdated);
-    Require(Headers(request).common.buffer == donorCommon);
-    Require(Headers(request).common.size == 2);
-    Require(_ZNK7WebCore19ResourceRequestBase12httpReferrerEv(&request).impl == &newImpl);
-    Require(_ZNK7WebCore19ResourceRequestBase10httpOriginEv(&request).impl == &newImpl);
-    Require(!_ZNK7WebCore19ResourceRequestBase18hasHTTPHeaderFieldENS_14HTTPHeaderNameE(&request, HTTPHeaderName::Accept));
-    Require(Headers(donor).common.size == 1 && Headers(donor).common.buffer[0].key == HTTPHeaderName::Accept);
-    Require(oldImpl.refCount == 6 && newImpl.refCount == 8);
-
-    request.resourceRequestUpdated = false;
-    request.platformRequestUpdated = true;
-    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase19setHTTPHeaderFieldsENS_13HTTPHeaderMapE(&request, &Headers(donor)); }));
-    Require(request.platformRequestUpdated && Headers(request).common.size == 2);
-    request.resourceRequestUpdated = true;
-    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase19setHTTPHeaderFieldsENS_13HTTPHeaderMapE(nullptr, &Headers(donor)); }));
-    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase19setHTTPHeaderFieldsENS_13HTTPHeaderMapE(&request, nullptr); }));
-    Require(Headers(request).common.size == 2 && Headers(donor).common.size == 1);
-
-    Clear(donor);
-    Clear(request);
-    Require(oldImpl.refCount == 4 && newImpl.refCount == 4);
-}
-
-static String* FallbackBuffer(ResourceRequestBase& request) {
-    return static_cast<String*>(request.responseContentDispositionEncodingFallbackArray.buffer);
-}
-
-static void TestFallbackEncodings() {
-    auto request = MakeRequest();
-    auto& array = request.responseContentDispositionEncodingFallbackArray;
-    auto firstImpl = Make("utf-8");
-    auto secondImpl = Make("shift_jis");
-    auto thirdImpl = Make("latin1");
-    String first(&firstImpl);
-    String second(&secondImpl);
-    String third(&thirdImpl);
-    String null;
-    for (auto* impl : {&firstImpl, &secondImpl, &thirdImpl}) impl->refCount += 2;
-
-    _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(&request, &first, &null, &third);
-    Require(!request.platformRequestUpdated);
-    Require(array.size == 2 && array.capacity == 2 && array.buffer != nullptr);
-    Require(FallbackBuffer(request)[0].impl == &firstImpl);
-    Require(FallbackBuffer(request)[1].impl == &thirdImpl);
-    Require(firstImpl.refCount == 6 && secondImpl.refCount == 4 && thirdImpl.refCount == 6);
-
-    request.platformRequestUpdated = true;
-    _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(&request, &null, &second, &null);
-    Require(!request.platformRequestUpdated);
-    Require(array.size == 1 && array.capacity == 1);
-    Require(FallbackBuffer(request)[0].impl == &secondImpl);
-    Require(firstImpl.refCount == 4 && secondImpl.refCount == 6 && thirdImpl.refCount == 4);
-
-    _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(&request, &FallbackBuffer(request)[0], &first, &second);
-    Require(array.size == 3 && array.capacity == 3);
-    Require(FallbackBuffer(request)[0].impl == &secondImpl);
-    Require(FallbackBuffer(request)[1].impl == &firstImpl);
-    Require(FallbackBuffer(request)[2].impl == &secondImpl);
-    Require(firstImpl.refCount == 6 && secondImpl.refCount == 8);
-
-    request.resourceRequestUpdated = false;
-    request.platformRequestUpdated = true;
-    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(&request, &null, &null, &null); }));
-    Require(request.platformRequestUpdated && array.size == 3);
-    request.resourceRequestUpdated = true;
-    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(nullptr, &null, &null, &null); }));
-    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(&request, nullptr, &null, &null); }));
-    Require(Throws([&] { _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(&request, &null, &null, nullptr); }));
-    Require(array.size == 3);
-
-    _ZN7WebCore19ResourceRequestBase50setResponseContentDispositionEncodingFallbackArrayERKN3WTF6StringES4_S4_(&request, &null, &null, &null);
-    Require(array.buffer == nullptr && array.capacity == 0 && array.size == 0);
-    Require(firstImpl.refCount == 4 && secondImpl.refCount == 4 && thirdImpl.refCount == 4);
-}
-
 int main() {
     TestNamedSetAndGet();
     TestAliases();
@@ -513,7 +418,5 @@ int main() {
     TestLongReferrer();
     TestRefusals();
     TestClearAndConditional();
-    TestReplaceHeaderFields();
-    TestFallbackEncodings();
     return 0;
 }

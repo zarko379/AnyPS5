@@ -138,7 +138,6 @@ void CompareUChars(const std::string& what, TGuest guest, THost host) {
 void CheckStrings() {
     for (const char* locale : Locales) {
         const std::string what = std::string("locale ") + locale;
-        CompareChars(what + " getName", [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_getName_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_getName(locale, d, c, s); });
         CompareChars(what + " addLikelySubtags", [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_addLikelySubtags_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_addLikelySubtags(locale, d, c, s); });
         CompareChars(what + " minimizeSubtags", [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_minimizeSubtags_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_minimizeSubtags(locale, d, c, s); });
         for (std::int8_t strict : {0, 1}) {
@@ -165,12 +164,6 @@ void CheckStrings() {
 }
 
 void CheckLists() {
-    const std::int32_t count = uloc_countAvailable_nid_postfix();
-    Require(count == uloc_countAvailable() && count > 500, "countAvailable matches");
-    for (std::int32_t index = 0; index < count; ++index) Require(std::string(uloc_getAvailable_nid_postfix(index)) == uloc_getAvailable(index), "getAvailable " + std::to_string(index));
-    Require(Throws<std::invalid_argument>([count] { uloc_getAvailable_nid_postfix(count); }), "getAvailable throws one past the end, which ICU 68.2 reads");
-    Require(Throws<std::invalid_argument>([] { uloc_getAvailable_nid_postfix(-1); }), "getAvailable throws for a negative index");
-    Require(uloc_getAvailable_nid_postfix(count + 1) == nullptr && uloc_getAvailable_nid_postfix(1 << 30) == nullptr, "getAvailable returns NULL beyond the end");
     const char* const* languages = GuestLocale::getISOLanguages();
     const char* const* hostLanguages = uloc_getISOLanguages();
     std::size_t index = 0;
@@ -281,7 +274,6 @@ void CheckDefaults() {
     std::int32_t ok = Ok;
     char chars[64];
     char16_t text[64];
-    Require(NotImplemented([&] { uloc_getName_nid_postfix(nullptr, chars, 64, &ok); }), "getName throws for NULL");
     Require(NotImplemented([&] { uloc_addLikelySubtags_nid_postfix(nullptr, chars, 64, &ok); }), "addLikelySubtags throws for NULL");
     Require(NotImplemented([&] { uloc_minimizeSubtags_nid_postfix(nullptr, chars, 64, &ok); }), "minimizeSubtags throws for NULL");
     Require(NotImplemented([&] { uloc_getCharacterOrientation_nid_postfix(nullptr, &ok); }), "getCharacterOrientation throws for NULL");
@@ -321,7 +313,6 @@ void CheckDefaults() {
         CompareUChars(std::string("an empty country never opens ") + Name(display), [&](char16_t* d, std::int32_t c, std::int32_t* s) { return uloc_getDisplayCountry_nid_postfix("de", display, d, c, s); }, [&](char16_t* d, std::int32_t c, UErrorCode* s) { return uloc_getDisplayCountry("de", display, d, c, s); });
     }
     for (const char* locale : {"i-default@calendar=gregorian", "i-default_US@x=y", "i-default-x@a=b"}) {
-        Require(NotImplemented([&] { uloc_getName_nid_postfix(locale, chars, 64, &ok); }), std::string("i-default throws in getName: ") + locale);
         Require(NotImplemented([&] { uloc_addLikelySubtags_nid_postfix(locale, chars, 64, &ok); }), std::string("i-default throws in addLikelySubtags: ") + locale);
         Require(NotImplemented([&] { ulocimp_isCanonicalizedLocaleForTest_nid_postfix(locale); }), std::string("i-default throws in isCanonicalizedLocaleForTest: ") + locale);
         Require(NotImplemented([&] { ulocimp_getRegionForSupplementalData_nid_postfix(locale, 1, chars, 64, &ok); }), std::string("i-default throws when the region is inferred: ") + locale);
@@ -339,10 +330,6 @@ void CheckDefaults() {
             CompareUChars(what + " language", [&](char16_t* d, std::int32_t c, std::int32_t* s) { return uloc_getDisplayLanguage_nid_postfix(locale, display, d, c, s); }, [&](char16_t* d, std::int32_t c, UErrorCode* s) { return uloc_getDisplayLanguage(locale, display, d, c, s); });
             CompareUChars(what + " name", [&](char16_t* d, std::int32_t c, std::int32_t* s) { return uloc_getDisplayName_nid_postfix(locale, display, d, c, s); }, [&](char16_t* d, std::int32_t c, UErrorCode* s) { return uloc_getDisplayName(locale, display, d, c, s); });
         }
-        std::int32_t status = Ok;
-        UErrorCode hostStatus = U_ZERO_ERROR;
-        char host[64];
-        Require(uloc_getName_nid_postfix(locale, chars, 64, &status) == uloc_getName(locale, host, 64, &hostStatus) && status == hostStatus && std::strcmp(chars, host) == 0, std::string("getName without a default: ") + locale);
     }
     for (const char* fallback : {"de", "ar_EG", "fa", "xx", "en_GB"}) {
         SetDefaults(fallback);
@@ -362,7 +349,6 @@ void CheckDefaults() {
                 const UChar* hostTable = uloc_getTableStringWithFallback("ICUDATA-region", display, "Countries", nullptr, locale ? locale : "UK", &hostLength, &hostStatus);
                 Require(status == hostStatus && length == hostLength && (table == nullptr) == (hostTable == nullptr), what + " table string");
             }
-            CompareChars(std::string("default name ") + fallback + " " + Name(locale), [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_getName_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_getName(locale, d, c, s); });
             CompareChars(std::string("default likely ") + fallback + " " + Name(locale), [&](char* d, std::int32_t c, std::int32_t* s) { return uloc_addLikelySubtags_nid_postfix(locale, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return uloc_addLikelySubtags(locale, d, c, s); });
             CompareChars(std::string("default region ") + fallback + " " + Name(locale), [&](char* d, std::int32_t c, std::int32_t* s) { return ulocimp_getRegionForSupplementalData_nid_postfix(locale, 1, d, c, s); }, [&](char* d, std::int32_t c, UErrorCode* s) { return ulocimp_getRegionForSupplementalData(locale, 1, d, c, s); });
             std::int32_t status = Ok;
@@ -375,7 +361,6 @@ void CheckDefaults() {
 }
 
 void CheckErrors() {
-    Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_getName_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in getName");
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_addLikelySubtags_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in addLikelySubtags");
     Require(Throws<std::invalid_argument>([] { char buffer[8]; uloc_minimizeSubtags_nid_postfix("en", buffer, 8, nullptr); }), "a NULL status throws in minimizeSubtags");
     Require(Throws<std::invalid_argument>([] { uloc_getCharacterOrientation_nid_postfix("en", nullptr); }), "a NULL status throws in getCharacterOrientation");

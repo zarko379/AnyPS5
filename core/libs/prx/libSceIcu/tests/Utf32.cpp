@@ -348,17 +348,6 @@ void ToStatus() {
 
 }
 
-void AsciiToUpper() {
-    for (std::uint32_t value = 0; value <= 0xffff; ++value) {
-        const auto unit = static_cast<char16_t>(value);
-        const auto expected = value >= 'a' && value <= 'z' ? static_cast<char16_t>(value - 0x20) : unit;
-        Require(u_asciiToUpper_nid_postfix(unit) == expected);
-    }
-    Require(u_asciiToUpper_nid_postfix(u'a') == u'A' && u_asciiToUpper_nid_postfix(u'z') == u'Z');
-    Require(u_asciiToUpper_nid_postfix(u'`') == u'`' && u_asciiToUpper_nid_postfix(u'{') == u'{');
-    Require(u_asciiToUpper_nid_postfix(0xe1) == 0xe1 && u_asciiToUpper_nid_postfix(0xff41) == 0xff41);
-}
-
 long PeakKilobytes() {
 #ifdef __linux__
     rusage usage{};
@@ -481,7 +470,6 @@ int main() {
     ToSubstitution();
     ToArguments();
     ToStatus();
-    AsciiToUpper();
     GuestBuffers();
     GuestStatus();
     std::puts("ICU UTF-32 conversion tests passed");

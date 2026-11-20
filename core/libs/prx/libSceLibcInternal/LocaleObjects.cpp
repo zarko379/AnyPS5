@@ -3,8 +3,6 @@
 #include "prx/libc/include/General.hpp"
 #include "prx/libc/include/GuestLocale.hpp"
 #include "SceTypes.hpp"
-#include <atomic>
-#include <cstdint>
 #include <stdexcept>
 
 extern "C" {
@@ -44,15 +42,5 @@ void APS5_VABI sceLibcInternalLocinfoStringBaseConstructor_nid_no_patch(void* se
     sceLibcInternalLocinfoStringConstructor_nid_no_patch(self, localeName);
 }
 APS5_EXPORT("ReK9U6EUWuU", sceLibcInternalLocinfoStringBaseConstructor_nid_no_patch);
-
-void APS5_VABI _ZNSt6locale5facet7_IncrefEv_nid_postfix(GuestLocale::Facet* self) {
-    if (self == nullptr) throw std::invalid_argument("locale::facet::_Incref: null facet");
-    std::atomic_ref<std::uint32_t>(self->references).fetch_add(1);
-}
-
-GuestLocale::Facet* APS5_VABI _ZNSt6locale5facet7_DecrefEv_nid_postfix(GuestLocale::Facet* self) {
-    if (self == nullptr) throw std::invalid_argument("locale::facet::_Decref: null facet");
-    return std::atomic_ref<std::uint32_t>(self->references).fetch_sub(1) == 1 ? self : nullptr;
-}
 
 }

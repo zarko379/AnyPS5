@@ -9,8 +9,6 @@ char16_t* APS5_VABI u_uastrcpy_nid_postfix(char16_t*, const char*);
 char16_t* APS5_VABI u_uastrncpy_nid_postfix(char16_t*, const char*, std::int32_t);
 void APS5_VABI u_charsToUChars_nid_postfix(const char*, char16_t*, std::int32_t);
 void APS5_VABI u_UCharsToChars_nid_postfix(const char16_t*, char*, std::int32_t);
-std::int8_t APS5_VABI uprv_isInvariantString_nid_postfix(const char*, std::int32_t);
-std::int8_t APS5_VABI uprv_isInvariantUString_nid_postfix(const char16_t*, std::int32_t);
 std::int32_t APS5_VABI uprv_compareInvEbcdicAsAscii_nid_postfix(const char*, const char*);
 char APS5_VABI uprv_ebcdicToAscii_nid_postfix(char);
 char APS5_VABI uprv_ebcdicToLowercaseAscii_nid_postfix(char);

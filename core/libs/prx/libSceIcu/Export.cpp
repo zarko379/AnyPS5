@@ -34,14 +34,6 @@ int APS5_VABI u_releaseDefaultConverter_nid_postfix() {
     NotImplemented_nid_no_patch(__func__);
 }
 
-int APS5_VABI udata_setCommonData() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
-int APS5_VABI udata_setFileAccess() {
-    NotImplemented_nid_no_patch(__func__);
-}
-
 int APS5_VABI utext_openConstUnicodeString() {
     NotImplemented_nid_no_patch(__func__);
 }

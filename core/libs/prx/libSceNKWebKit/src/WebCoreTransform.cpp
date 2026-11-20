@@ -871,6 +871,7 @@ WebCore::TransformationMatrix& APS5_VABI _ZN7WebCore20TransformationMatrix5scale
 
 WebCore::TransformationMatrix& APS5_VABI _ZN7WebCore20TransformationMatrix6rotateEd(
     WebCore::TransformationMatrix* self, double a) {
+    if (std::fmod(a, 360.0) == 0.0) return *self;
     return _ZN7WebCore20TransformationMatrix8rotate3dEddd(self, 0.0, 0.0, a);
 }
 
@@ -1410,13 +1411,6 @@ bool APS5_VABI _ZNK7WebCore27TranslateTransformOperation5applyERNS_20Transformat
     double z = _ZNK7WebCore27TranslateTransformOperation1zERKNS_9FloatSizeE(self, borderBoxSize);
     _ZN7WebCore20TransformationMatrix11translate3dEddd(&transform, x, y, z);
     return self->m_x.m_type == WebCore::kLengthTypePercent || self->m_y.m_type == WebCore::kLengthTypePercent;
-}
-
-bool APS5_VABI _ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(
-    const WebCore::PerspectiveTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize&) {
-    float perspective = _ZN7WebCore19floatValueForLengthERKNS_6LengthEf(WebCore::ToLength(self->m_p), 1.0f);
-    _ZN7WebCore20TransformationMatrix16applyPerspectiveEd(&transform, static_cast<double>(perspective));
-    return false;
 }
 
 bool APS5_VABI _ZNK7WebCore24MatrixTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(

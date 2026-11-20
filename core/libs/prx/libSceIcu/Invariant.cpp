@@ -171,37 +171,6 @@ char* APS5_VABI u_austrncpy_nid_postfix(char* chars, const char16_t* units, std:
     return chars;
 }
 
-std::int8_t APS5_VABI uprv_isInvariantString_nid_postfix(const char* text, std::int32_t length) {
-    for (std::size_t index = 0;; ++index) {
-        std::uint8_t unit;
-        if (length < 0) {
-            if (!text) APS5_INVALID_ARG_EX;
-            unit = static_cast<std::uint8_t>(text[index]);
-            if (unit == 0) return 1;
-        } else {
-            if (length == 0) return 1;
-            --length;
-            if (!text) APS5_INVALID_ARG_EX;
-            unit = static_cast<std::uint8_t>(text[index]);
-            if (unit == 0) continue;
-        }
-        if (!Invariant(unit)) return 0;
-    }
-}
-
-std::int8_t APS5_VABI uprv_isInvariantUString_nid_postfix(const char16_t* text, std::int32_t length) {
-    for (std::size_t index = 0;; ++index) {
-        if (length >= 0) {
-            if (length == 0) return 1;
-            --length;
-        }
-        if (!text) APS5_INVALID_ARG_EX;
-        const char16_t unit = text[index];
-        if (length < 0 && unit == 0) return 1;
-        if (!Invariant(unit)) return 0;
-    }
-}
-
 std::int32_t APS5_VABI uprv_compareInvEbcdicAsAscii_nid_postfix(const char* first, const char* second) {
     if (!first || !second) APS5_INVALID_ARG_EX;
     for (std::size_t index = 0;; ++index) {

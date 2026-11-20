@@ -10,6 +10,7 @@
 #include "CharString.hpp"
 #include "Configuration.hpp"
 #include "Invariant.hpp"
+#include "prx/libSceIcu/include/InvariantChars.hpp"
 #include "prx/libc/include/General.hpp"
 #include <cstring>
 #include <stdexcept>

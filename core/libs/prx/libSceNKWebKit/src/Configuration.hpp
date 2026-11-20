@@ -95,22 +95,24 @@ public:
     bool shouldConfigureJSCForTesting = false;
     std::vector<std::u16string> overrideLanguages;
 
-    Retained<ProcessPoolConfiguration> Copy() const {
+    Retained<ProcessPoolConfiguration> Duplicate() const {
         auto copy = Make<ProcessPoolConfiguration>();
         copy->injectedBundlePath = injectedBundlePath;
-        copy->fullySynchronousModeIsAllowedForTesting = fullySynchronousModeIsAllowedForTesting;
-        copy->ignoreSynchronousMessagingTimeoutsForTesting = ignoreSynchronousMessagingTimeoutsForTesting;
-        copy->overrideLanguages = overrideLanguages;
-        copy->shouldConfigureJSCForTesting = shouldConfigureJSCForTesting;
-        copy->processSwapsOnNavigationFromClient = processSwapsOnNavigationFromClient;
-        copy->processSwapsOnNavigationFromExperimentalFeatures = processSwapsOnNavigationFromExperimentalFeatures;
-        copy->alwaysKeepAndReuseSwappedProcesses = alwaysKeepAndReuseSwappedProcesses;
-        copy->processSwapsOnWindowOpenWithOpener = processSwapsOnWindowOpenWithOpener;
-        copy->isAutomaticProcessWarmingEnabledByClient = isAutomaticProcessWarmingEnabledByClient;
-        copy->usesWebProcessCache = usesWebProcessCache;
         copy->webProcessPath = webProcessPath;
         copy->networkProcessPath = networkProcessPath;
+        copy->cookieStoragePath = cookieStoragePath;
         copy->userId = userId;
+        copy->fullySynchronousModeIsAllowedForTesting = fullySynchronousModeIsAllowedForTesting;
+        copy->ignoreSynchronousMessagingTimeoutsForTesting = ignoreSynchronousMessagingTimeoutsForTesting;
+        copy->processSwapsOnNavigationFromClient = processSwapsOnNavigationFromClient;
+        copy->processSwapsOnNavigationFromExperimentalFeatures = processSwapsOnNavigationFromExperimentalFeatures;
+        copy->processSwapsOnWindowOpenWithOpener = processSwapsOnWindowOpenWithOpener;
+        copy->alwaysKeepAndReuseSwappedProcesses = alwaysKeepAndReuseSwappedProcesses;
+        copy->isAutomaticProcessWarmingEnabledByClient = isAutomaticProcessWarmingEnabledByClient;
+        copy->clientWouldBenefitFromAutomaticProcessPrewarming = clientWouldBenefitFromAutomaticProcessPrewarming;
+        copy->usesWebProcessCache = usesWebProcessCache;
+        copy->shouldConfigureJSCForTesting = shouldConfigureJSCForTesting;
+        copy->overrideLanguages = overrideLanguages;
         return copy;
     }
 };
@@ -145,7 +147,7 @@ public:
     std::vector<std::string> emptyDocumentSchemes;
     std::vector<std::string> secureSchemes;
     std::vector<std::string> domainRelaxationForbiddenSchemes;
-    std::vector<std::u16string> fontAllowList;
+    std::vector<std::string> fontAllowList;
     Retained<Object> injectedBundleInitializationUserData;
 };
 

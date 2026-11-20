@@ -371,8 +371,11 @@ static void TestColor() {
     _ZN7WebCore5ColoraSEOS0_(&cMoveAssign, std::move(cAssign));
     Require(cMoveAssign.m_colorAndFlags == c1.m_colorAndFlags);
 
-    WebCore::Color cAlpha = _ZNK7WebCore5Color14colorWithAlphaEf(&c1, 0.5f);
+    WebCore::Color cAlpha;
+    cAlpha.m_colorAndFlags = 0xFFFFFFFFull;
+    Require(_ZNK7WebCore5Color14colorWithAlphaEf(&cAlpha, &c1, 0.5f) == &cAlpha);
     Require((cAlpha.m_colorAndFlags & 0xFF) == 128);
+    Require(((cAlpha.m_colorAndFlags ^ c1.m_colorAndFlags) & 0xFFFFFF00ull) == 0);
 
     WebCore::Color cWhite;
     cWhite.m_colorAndFlags = 0xFFFFFFFFull;
@@ -384,11 +387,14 @@ static void TestColor() {
     Require(AlmostEqual(_ZNK7WebCore5Color9lightnessEv(&cBlack), 0.0));
     Require(AlmostEqual(_ZNK7WebCore5Color9luminanceEv(&cBlack), 0.0));
 
-    WebCore::Color cDarkened = _ZNK7WebCore5Color8darkenedEv(&cWhite);
-    Require(((cDarkened.m_colorAndFlags >> 24) & 0xFF) < 255);
+    WebCore::Color cDarkened;
+    Require(_ZNK7WebCore5Color8darkenedEv(&cDarkened, &cWhite) == &cDarkened);
+    Require((cDarkened.m_colorAndFlags & 0xFFFFFFFFull) == 0xABABABFFull);
 
-    WebCore::Color cLightened = _ZNK7WebCore5Color9lightenedEv(&cBlack);
-    Require(((cLightened.m_colorAndFlags >> 24) & 0xFF) > 0);
+    WebCore::Color cLightened;
+    cLightened.m_colorAndFlags = 0xFFFFFFFFull;
+    Require(_ZNK7WebCore5Color9lightenedEv(&cLightened, &cBlack) == &cLightened);
+    Require((cLightened.m_colorAndFlags & 0xFFFFFFFFull) == 0x545454FFull);
 }
 
 static void TestAffineTransform() {
@@ -518,6 +524,28 @@ static void TestTransformationMatrix() {
     WebCore::TransformationMatrix rotMat;
     _ZN7WebCore20TransformationMatrix6rotateEd(&rotMat, 90.0);
     Require(AlmostEqual(rotMat.m_matrix[0][1], 1.0));
+
+    for (const double turns : {360.0, -360.0, 720.0, 3600.0, 0.0, -0.0}) {
+        WebCore::TransformationMatrix turned;
+        Require(&_ZN7WebCore20TransformationMatrix6rotateEd(&turned, turns) == &turned);
+        Require(turned.m_matrix[0][0] == 1.0 && turned.m_matrix[0][1] == 0.0);
+        Require(turned.m_matrix[1][0] == 0.0 && turned.m_matrix[1][1] == 1.0);
+        const WebCore::IntRect whole{WebCore::IntPoint{0, 0}, WebCore::IntSize{100, 100}};
+        const WebCore::IntRect mapped = _ZNK7WebCore20TransformationMatrix7mapRectERKNS_7IntRectE(&turned, whole);
+        Require(mapped.m_location.m_x == 0 && mapped.m_location.m_y == 0);
+        Require(mapped.m_size.m_width == 100 && mapped.m_size.m_height == 100);
+    }
+    WebCore::TransformationMatrix sheared;
+    _ZN7WebCore20TransformationMatrix4skewEdd(&sheared, 30.0, 45.0);
+    const WebCore::TransformationMatrix shearedBefore = sheared;
+    _ZN7WebCore20TransformationMatrix6rotateEd(&sheared, 360.0);
+    for (int row = 0; row < 4; ++row)
+        for (int column = 0; column < 4; ++column)
+            Require(sheared.m_matrix[row][column] == shearedBefore.m_matrix[row][column]);
+    WebCore::TransformationMatrix half;
+    _ZN7WebCore20TransformationMatrix6rotateEd(&half, 180.0);
+    Require(half.m_matrix[0][0] == -1.0 && half.m_matrix[1][1] == -1.0);
+    Require(half.m_matrix[0][1] != 0.0 && AlmostEqual(half.m_matrix[0][1], 0.0));
 
     WebCore::TransformationMatrix rot3dMat;
     _ZN7WebCore20TransformationMatrix8rotate3dEddd(&rot3dMat, 0.0, 90.0, 0.0);
@@ -809,36 +837,6 @@ static void TestRoundedRectFromRadii() {
     Require(std::memcmp(&rr1, &rr2, sizeof(rr1)) == 0);
 }
 
-static void TestEnclosingRects() {
-    constexpr int intMax = std::numeric_limits<int>::max();
-    constexpr int intMin = std::numeric_limits<int>::min();
-
-    WebCore::FloatRect fr{WebCore::FloatPoint{1.5f, -2.25f}, WebCore::FloatSize{3.0f, 4.5f}};
-    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_9FloatRectE(fr), 1, -3, 4, 6));
-    WebCore::FloatRect emptyFractional{WebCore::FloatPoint{0.5f, 0.5f}, WebCore::FloatSize{0.0f, 0.0f}};
-    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_9FloatRectE(emptyFractional), 0, 0, 1, 1));
-    WebCore::FloatRect huge{WebCore::FloatPoint{-3.0e9f, 0.0f}, WebCore::FloatSize{1.0e10f, 1.0f}};
-    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_9FloatRectE(huge), intMin, 0, intMax, 1));
-
-    WebCore::LayoutRect lr{WebCore::LayoutPoint{96, -160}, WebCore::LayoutSize{64, 0}};
-    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(lr), 1, -3, 2, 0));
-    WebCore::LayoutRect lrZeroWidth{WebCore::LayoutPoint{-96, 32}, WebCore::LayoutSize{0, 64}};
-    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(lrZeroWidth), -2, 0, 0, 2));
-    WebCore::LayoutRect lrMin{WebCore::LayoutPoint{intMin, 0}, WebCore::LayoutSize{64, 64}};
-    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(lrMin), intMin / 64, 0, 1, 1));
-    WebCore::LayoutRect lrMax{WebCore::LayoutPoint{intMax - 10, 0}, WebCore::LayoutSize{100, 64}};
-    Require(SameIntRect(_ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(lrMax), intMax / 64, 0, 0, 1));
-
-    WebCore::FloatRect fr2{WebCore::FloatPoint{1.01f, -0.5f}, WebCore::FloatSize{2.0f, 1.0f}};
-    Require(SameLayoutRect(_ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE(fr2), 64, -32, 129, 64));
-    WebCore::FloatRect fr3{WebCore::FloatPoint{-1.0e9f, 1.0e9f}, WebCore::FloatSize{2.0e9f, 0.0f}};
-    Require(SameLayoutRect(_ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE(fr3), intMin, intMax, intMax, 0));
-
-    WebCore::FloatRect fr4{WebCore::FloatPoint{0.3f, 0.6f}, WebCore::FloatSize{1.0f, 1.0f}};
-    Require(SameRect(_ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf(fr4, 2.0f), 0.0f, 0.5f, 1.5f, 1.5f));
-    Require(SameRect(_ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf(fr4, 1.0f), 0.0f, 0.0f, 2.0f, 2.0f));
-}
-
 static void TestMakeMapBetweenRects() {
     WebCore::FloatRect source{WebCore::FloatPoint{10.0f, 20.0f}, WebCore::FloatSize{100.0f, 50.0f}};
     WebCore::FloatRect dest{WebCore::FloatPoint{30.0f, 45.0f}, WebCore::FloatSize{200.0f, 25.0f}};
@@ -852,13 +850,6 @@ static void TestMakeMapBetweenRects() {
 }
 
 static void TestHitTestLocation() {
-    WebCore::IntRect padded = _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(
-        WebCore::LayoutPoint{172, -77}, 1u, 2u, 3u, 4u);
-    Require(SameIntRect(padded, -2, -3, 7, 5));
-    WebCore::IntRect wrapped = _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(
-        WebCore::LayoutPoint{172, -77}, 0u, 0u, 0u, 0xFFFFFFFFu);
-    Require(SameIntRect(wrapped, 3, -2, 0, 1));
-
     WebCore::HitTestLocation defaulted;
     std::memset(&defaulted, 0xAB, sizeof(defaulted));
     _ZN7WebCore15HitTestLocationC1Ev(&defaulted);
@@ -905,23 +896,6 @@ static void TestHitTestLocation() {
     std::memset(&copy2, 0xCD, sizeof(copy2));
     _ZN7WebCore15HitTestLocationC2ERKS0_(&copy2, source);
     Require(std::memcmp(&copy2, &source, 66) == 0);
-}
-
-static void TestScrollableAreaStatics() {
-    float value = -9.0f;
-    float overhang = -9.0f;
-    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(-5.0f, 100.0f, 20.0f, value, overhang);
-    Require(value == 0.0f && overhang == 5.0f);
-    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(90.0f, 100.0f, 20.0f, value, overhang);
-    Require(value == 1.0f && overhang == 10.0f);
-    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(40.0f, 100.0f, 20.0f, value, overhang);
-    Require(value == 0.5f && overhang == 0.0f);
-    value = -9.0f;
-    overhang = -9.0f;
-    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(0.0f, 20.0f, 20.0f, value, overhang);
-    Require(value == 0.0f && overhang == 0.0f);
-    _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(0.0f, 10.0f, 20.0f, value, overhang);
-    Require(value == 1.0f && overhang == 10.0f);
 }
 
 static WebCore::LengthAbi MakeLength(std::uint8_t type, bool isFloat, float floatValue, int intValue) {
@@ -1197,24 +1171,6 @@ static void TestTransformOperationApply() {
     Require(_ZNK7WebCore27TranslateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&translate, percentX, box));
     Require(percentX.m_matrix[3][0] == 50.0);
 
-    WebCore::PerspectiveTransformOperation perspective{};
-    perspective.m_p = MakeLength(fixed, false, 0.0f, 100);
-    WebCore::TransformationMatrix projected;
-    Require(!_ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&perspective, projected, box));
-    Require(projected.m_matrix[2][3] == -1.0 / 100.0 && projected.m_matrix[3][3] == 1.0);
-    perspective.m_p = MakeLength(percent, false, 0.0f, 200);
-    WebCore::TransformationMatrix percentPerspective;
-    _ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&perspective, percentPerspective, box);
-    Require(percentPerspective.m_matrix[2][3] == -0.5);
-    perspective.m_p = MakeLength(10, false, 0.0f, 0);
-    bool threw = false;
-    try {
-        _ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(&perspective, projected, box);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    Require(threw);
-
     WebCore::MatrixTransformOperation affine{};
     affine.m_a = 1.0;
     affine.m_b = 2.0;
@@ -1301,10 +1257,8 @@ int main() {
     TestIntRectScaleOverflowGivesIntMin();
     TestFitToPoints();
     TestRoundedRectFromRadii();
-    TestEnclosingRects();
     TestMakeMapBetweenRects();
     TestHitTestLocation();
-    TestScrollableAreaStatics();
     TestTransformationMatrixScaleRotate();
     TestTransformationMatrixInverse();
     TestTransformationMatrixBlend();

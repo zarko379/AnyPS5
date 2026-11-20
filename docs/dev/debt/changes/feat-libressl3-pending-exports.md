@@ -9,9 +9,7 @@
 
 - [ECDSA_do_sign and ECDSA_do_verify](../../../core/libs/prx/libSceLibreSsl3/src/EcdsaSign.cpp) (libSceLibreSsl3) - not measured on a console. The checks and their errors follow [LibreSSL 4.0.0 ecdsa.c](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto/ecdsa/ecdsa.c): signing without a group returns null quietly and without a private key queues `ERR_R_PASSED_NULL_PARAMETER`; verifying a null signature or a key without group or public point queues `EC_R_MISSING_PARAMETERS` and returns -1, and r or s outside [1, order) queues `EC_R_BAD_SIGNATURE` and returns 0. The arithmetic runs through libSceLibreSsl's `ECDSA_sign` and `ECDSA_verify` on the DER form, so their throws (keys off the curve, private keys that are a multiple of the order) apply. Null keys, null r or s and null digests with a length throw where LibreSSL dereferences them.
 
-- [X509_check_akid](../../../core/libs/prx/libSceLibreSsl3/src/X509CheckAkid.cpp) (libSceLibreSsl3) - not measured on a console. It follows [LibreSSL 4.0.0 x509_purp.c](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libcrypto/x509/x509_purp.c) on the 216-byte `X509` layout of `x509_local.h` (cached `skid` at offset 88): a key identifier differing from the cached one returns `X509_V_ERR_AKID_SKID_MISMATCH`, a serial differing from the issuer's returns `X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH`. Nothing fills `skid`, which LibreSSL caches when it parses extensions, so only certificates whose caller set it compare key identifiers. A directory name in the authority issuer names throws, because `X509_NAME_cmp` is not modelled; null objects throw where LibreSSL dereferences them.
-
-- [SSL_get_peer_quic_transport_params and SSL_get0_verified_chain](../../../core/libs/prx/libSceLibreSsl3/src/Ssl.cpp) (libSceLibreSsl3) - not measured on a console. They read the 1016-byte `SSL3_STATE` of [LibreSSL 4.0.0 ssl_local.h](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libssl/ssl_local.h) as `ssl_lib.c` does: the peer parameters and their length at offsets 1000 and 1008, and the handshake's verified chain at offset 520. The offsets were computed from the 4.0.0 structure definitions, not measured; nothing in this module fills these fields yet. A null SSL or output and, for the parameters, a null `s3` throw where LibreSSL dereferences them; the chain getter returns null without `s3`.
+- [SSL_get_peer_quic_transport_params](../../../core/libs/prx/libSceLibreSsl3/src/Ssl.cpp) (libSceLibreSsl3) - not measured on a console. It reads the 1016-byte `SSL3_STATE` of [LibreSSL 4.0.0 ssl_local.h](https://github.com/libressl/openbsd/blob/ce488b78e0bd994780569df718596b9776ff681a/src/lib/libssl/ssl_local.h) as `ssl_lib.c` does: the peer parameters and their length at offsets 1000 and 1008. The offsets were computed from the 4.0.0 structure definitions, not measured; nothing in this module fills these fields yet. A null SSL, output or `s3` throws where LibreSSL dereferences it.
 
 ## change libSceLibreSsl3 pending exports
 
@@ -29,11 +27,7 @@
 
 ## remove qGsc6uT6p1E
 
-## remove C7eFtWPfLdk
-
 ## remove U1dQZ1rXHdA
-
-## remove QKIOxHfZLh8
 
 ## change formerly NID-only exports
 

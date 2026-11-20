@@ -10,6 +10,10 @@
 
 extern "C" {
 
+WebCore::FourCC APS5_VABI _ZN7WebCore12ISOWebVTTCue11boxTypeNameEv();
+std::size_t APS5_VABI _ZN7WebCore6ISOBox14minimumBoxSizeEv();
+NKWebKit::WtfAbi::String APS5_VABI _ZN7WebCore40defaultTextEncodingNameForSystemLanguageEv();
+WebCore::IntRect APS5_VABI _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(const WebCore::LayoutPoint& point, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding);
 bool APS5_VABI _ZNK7WebCore23ScaleTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(const WebCore::ScaleTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize);
 bool APS5_VABI _ZNK7WebCore24RotateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(const WebCore::RotateTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize);
 bool APS5_VABI _ZNK7WebCore22SkewTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(const WebCore::SkewTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize);
@@ -17,7 +21,6 @@ double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1xERKNS_9FloatSizeE(co
 double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1yERKNS_9FloatSizeE(const WebCore::TranslateTransformOperation* self, const WebCore::FloatSize& borderBoxSize);
 double APS5_VABI _ZNK7WebCore27TranslateTransformOperation1zERKNS_9FloatSizeE(const WebCore::TranslateTransformOperation* self, const WebCore::FloatSize& borderBoxSize);
 bool APS5_VABI _ZNK7WebCore27TranslateTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(const WebCore::TranslateTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize);
-bool APS5_VABI _ZNK7WebCore29PerspectiveTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(const WebCore::PerspectiveTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize);
 bool APS5_VABI _ZNK7WebCore24MatrixTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(const WebCore::MatrixTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize);
 bool APS5_VABI _ZNK7WebCore26Matrix3DTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(const WebCore::Matrix3DTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize);
 bool APS5_VABI _ZNK7WebCore26IdentityTransformOperation5applyERNS_20TransformationMatrixERKNS_9FloatSizeE(const WebCore::IdentityTransformOperation* self, WebCore::TransformationMatrix& transform, const WebCore::FloatSize& borderBoxSize);
@@ -26,19 +29,13 @@ void APS5_VABI _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_S3_(WebCo
 void APS5_VABI _ZN7WebCore9FloatRect11fitToPointsERKNS_10FloatPointES3_S3_S3_(WebCore::FloatRect* self, const WebCore::FloatPoint& p0, const WebCore::FloatPoint& p1, const WebCore::FloatPoint& p2, const WebCore::FloatPoint& p3);
 void APS5_VABI _ZN7WebCore11RoundedRectC1ERKNS_10LayoutRectERKNS0_5RadiiE(WebCore::RoundedRect* self, const WebCore::LayoutRect& rect, const WebCore::RoundedRect::Radii& radii);
 void APS5_VABI _ZN7WebCore11RoundedRectC2ERKNS_10LayoutRectERKNS0_5RadiiE(WebCore::RoundedRect* self, const WebCore::LayoutRect& rect, const WebCore::RoundedRect::Radii& radii);
-WebCore::IntRect APS5_VABI _ZN7WebCore16enclosingIntRectERKNS_9FloatRectE(const WebCore::FloatRect& rect);
-WebCore::IntRect APS5_VABI _ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(const WebCore::LayoutRect& rect);
-WebCore::LayoutRect APS5_VABI _ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE(const WebCore::FloatRect& rect);
-WebCore::FloatRect APS5_VABI _ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf(const WebCore::FloatRect& rect, float deviceScaleFactor);
 WebCore::AffineTransform APS5_VABI _ZN7WebCore19makeMapBetweenRectsERKNS_9FloatRectES2_(const WebCore::FloatRect& source, const WebCore::FloatRect& dest);
-WebCore::IntRect APS5_VABI _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(const WebCore::LayoutPoint& point, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding);
 void APS5_VABI _ZN7WebCore15HitTestLocationC1Ev(WebCore::HitTestLocation* self);
 void APS5_VABI _ZN7WebCore15HitTestLocationC2Ev(WebCore::HitTestLocation* self);
 void APS5_VABI _ZN7WebCore15HitTestLocationC1ERKS0_(WebCore::HitTestLocation* self, const WebCore::HitTestLocation& other);
 void APS5_VABI _ZN7WebCore15HitTestLocationC2ERKS0_(WebCore::HitTestLocation* self, const WebCore::HitTestLocation& other);
 void APS5_VABI _ZN7WebCore15HitTestLocationC1ERKNS_10FloatPointE(WebCore::HitTestLocation* self, const WebCore::FloatPoint& point);
 void APS5_VABI _ZN7WebCore15HitTestLocationC2ERKNS_10FloatPointE(WebCore::HitTestLocation* self, const WebCore::FloatPoint& point);
-void APS5_VABI _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(float currentPosition, float totalSize, float visibleSize, float& doubleValue, float& overhangAmount);
 WebCore::TransformationMatrix& APS5_VABI _ZN7WebCore20TransformationMatrix7scale3dEddd(WebCore::TransformationMatrix* self, double sx, double sy, double sz);
 WebCore::TransformationMatrix& APS5_VABI _ZN7WebCore20TransformationMatrix8rotate3dEdddd(WebCore::TransformationMatrix* self, double x, double y, double z, double angle);
 WebCore::OptionalTransformationMatrix APS5_VABI _ZNK7WebCore20TransformationMatrix7inverseEv(const WebCore::TransformationMatrix* self);
@@ -160,9 +157,9 @@ WebCore::IntRect APS5_VABI _ZNK7WebCore20TransformationMatrix7mapRectERKNS_7IntR
 WebCore::FloatRect APS5_VABI _ZNK7WebCore20TransformationMatrix7mapRectERKNS_9FloatRectE( const WebCore::TransformationMatrix* self, const WebCore::FloatRect& r);
 WebCore::FloatPoint APS5_VABI _ZNK7WebCore20TransformationMatrix8mapPointERKNS_10FloatPointE( const WebCore::TransformationMatrix* self, const WebCore::FloatPoint& p);
 WebCore::TransformationMatrix APS5_VABI _ZNK7WebCore24MatrixTransformOperation6matrixEv( const WebCore::MatrixTransformOperation* self);
-WebCore::Color APS5_VABI _ZNK7WebCore5Color14colorWithAlphaEf(const WebCore::Color* self, float alpha);
-WebCore::Color APS5_VABI _ZNK7WebCore5Color8darkenedEv(const WebCore::Color* self);
-WebCore::Color APS5_VABI _ZNK7WebCore5Color9lightenedEv(const WebCore::Color* self);
+WebCore::Color* APS5_VABI _ZNK7WebCore5Color14colorWithAlphaEf(WebCore::Color* result, const WebCore::Color* self, float alpha);
+WebCore::Color* APS5_VABI _ZNK7WebCore5Color8darkenedEv(WebCore::Color* result, const WebCore::Color* self);
+WebCore::Color* APS5_VABI _ZNK7WebCore5Color9lightenedEv(WebCore::Color* result, const WebCore::Color* self);
 double APS5_VABI _ZNK7WebCore5Color9lightnessEv(const WebCore::Color* self);
 double APS5_VABI _ZNK7WebCore5Color9luminanceEv(const WebCore::Color* self);
 bool APS5_VABI _ZNK7WebCore7IntRect10intersectsERKS0_(const WebCore::IntRect* self, const WebCore::IntRect& other);

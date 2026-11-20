@@ -1,5 +1,5 @@
 #include "prx/libkernel_web/include/Api.hpp"
-#include "prx/libSceLibcInternal/include/Api.hpp"
+#include "prx/libkernel_sys/include/AdditionalExports.hpp"
 #include "prx/libkernel/include/Api.hpp"
 #include "prx/libc/include/Api.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
@@ -8,16 +8,17 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
 
 namespace {
 
 constexpr int GuestEnoent = 2;
+constexpr int GuestEsrch = 3;
 constexpr int GuestEbadf = 9;
 constexpr int GuestEchild = 10;
 constexpr int GuestEfault = 14;
 constexpr int GuestEinval = 22;
+constexpr int GuestWnohang = 1;
+constexpr std::uint32_t MutexType = 0x201;
 
 void Require(bool condition, const char* message) {
     if (!condition) {
@@ -66,43 +67,46 @@ void TestExec() {
                    "_execvpe of a missing program did not fail with ENOENT");
 }
 
+void TestDevelopmentMode() {
+    Require(__sys_is_development_mode_nid_disambig1_nid_postfix() == 0, "__sys_is_development_mode did not report development mode off");
+    Require(__sys_is_development_mode_nid_disambig1_nid_postfix() == __sys_is_development_mode_nid_postfix(),
+            "__sys_is_development_mode differs from libkernel_sys");
+}
+
+void TestNamedObject() {
+    int object = 0;
+    RequireFailure(__sys_namedobj_create_nid_disambig1_nid_postfix(nullptr, &object, MutexType), GuestEinval,
+                   "__sys_namedobj_create with a null name did not fail with EINVAL");
+    RequireFailure(__sys_namedobj_create_nid_disambig1_nid_postfix(reinterpret_cast<const char*>(0x10), &object, MutexType), GuestEfault,
+                   "__sys_namedobj_create with an unreadable name did not fail with EFAULT");
+    const int id = __sys_namedobj_create_nid_disambig1_nid_postfix("kernel_web_named", &object, MutexType);
+    Require(id > 0, "__sys_namedobj_create did not return an id");
+    Require(__sys_namedobj_delete_nid_postfix(static_cast<std::uint32_t>(id), MutexType) == 0,
+            "libkernel_sys did not delete the id created through libkernel_web");
+    RequireFailure(__sys_namedobj_delete_nid_postfix(static_cast<std::uint32_t>(id), MutexType), GuestEsrch,
+                   "a deleted id is still live");
+    const int reused = __sys_namedobj_create_nid_postfix("kernel_web_named", &object, MutexType);
+    Require(reused == id, "libkernel_sys did not reuse the id released through the shared table");
+    Require(__sys_namedobj_delete_nid_postfix(static_cast<std::uint32_t>(reused), MutexType) == 0, "deleting the reused id failed");
+}
+
 void TestWait4() {
-    int status = 0x5a5a;
-    RequireFailure(_wait4_nid_disambig1_nid_postfix(-1, &status, 0, nullptr), GuestEchild, "_wait4 without children did not fail with ECHILD");
-    RequireFailure(_wait4_nid_disambig1_nid_postfix(-1, &status, 1, nullptr), GuestEchild, "_wait4 with WNOHANG and no children did not fail with ECHILD");
-    RequireFailure(_wait4_nid_disambig1_nid_postfix(getpid_nid_postfix(), &status, 0, nullptr), GuestEchild, "_wait4 for the caller's pid did not fail with ECHILD");
-    RequireFailure(_wait4_nid_disambig1_nid_postfix(-1, &status, 0x40, nullptr), GuestEinval, "_wait4 with an unknown option did not fail with EINVAL");
-    Require(status == 0x5a5a, "_wait4 wrote the status of a failed wait");
-    std::filesystem::create_directories("app0");
-    {
-        std::ofstream image("app0/eboot.bin");
-        image << "image";
-        Require(image.good(), "the child image could not be written");
-    }
-    char program[] = "/app0/eboot.bin";
-    char role[] = "kernel-web-wait4-child";
-    char* childArguments[] = {program, role, nullptr};
-    int child = 0;
-    Require(posix_spawn_nid_postfix(&child, program, nullptr, nullptr, childArguments, nullptr) == 0 && child > 0, "posix_spawn of the child failed");
-    RequireFailure(_wait4_nid_disambig1_nid_postfix(child + 100000, &status, 1, nullptr), GuestEchild, "_wait4 for a pid that is not a child did not fail with ECHILD");
-    Require(status == 0x5a5a, "_wait4 for another pid wrote a status");
-    Require(_wait4_nid_disambig1_nid_postfix(child, &status, 0, nullptr) == child, "_wait4 did not reap the child");
-    Require((status & 0x7f) == 0 && ((status >> 8) & 0xff) == 44, "_wait4 reported the wrong child status");
-    RequireFailure(_wait4_nid_disambig1_nid_postfix(child, &status, 0, nullptr), GuestEchild, "_wait4 reaped the child twice");
-    Require(std::filesystem::remove("app0/eboot.bin") && std::filesystem::remove("app0"), "the child image could not be removed");
+    int status = -1;
+    RequireFailure(_wait4_nid_disambig1_nid_postfix(-1, &status, GuestWnohang, nullptr), GuestEchild,
+                   "_wait4 without children did not fail with ECHILD");
+    RequireFailure(_wait4_nid_postfix(-1, &status, GuestWnohang, nullptr), GuestEchild, "libkernel_sys _wait4 did not fail with ECHILD");
+    RequireFailure(_wait4_nid_disambig1_nid_postfix(-1, &status, 0x100, nullptr), GuestEinval,
+                   "_wait4 with an unknown option did not fail with EINVAL");
+    Require(status == -1, "_wait4 wrote a status on failure");
 }
 
 } // namespace
 
-int main(int count, char** arguments) {
-#ifdef _WIN32
-    constexpr int ChildArgument = 2;
-#else
-    constexpr int ChildArgument = 1;
-#endif
-    if (count == ChildArgument + 1 && std::strcmp(arguments[ChildArgument], "kernel-web-wait4-child") == 0) return 44;
+int main() {
     TestDup2();
     TestExec();
+    TestDevelopmentMode();
+    TestNamedObject();
     TestWait4();
     return 0;
 }

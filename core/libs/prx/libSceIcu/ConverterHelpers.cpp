@@ -5,8 +5,11 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 
 namespace {
+
+std::mutex DefaultConverterMutex;
 
 void CopyIn(void* destination, const void* source, std::size_t bytes, const char* caller) {
     const int savedErrno = errno;
@@ -88,6 +91,7 @@ constexpr Signature Signatures[] = {
 extern "C" {
 
 void APS5_VABI u_flushDefaultConverter_nid_postfix() {
+    const std::lock_guard lock(DefaultConverterMutex);
     u_flushDefaultConverter();
 }
 

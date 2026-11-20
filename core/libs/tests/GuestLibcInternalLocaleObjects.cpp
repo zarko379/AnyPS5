@@ -9,8 +9,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
-#include <thread>
-#include <vector>
 
 namespace {
 
@@ -162,38 +160,6 @@ void CheckLocinfoVariants() {
     Require(Throws([&] { sceLibcInternalLocinfoStringConstructor_nid_no_patch(nullptr, &inlineName); }), "the string C1 constructor rejects a null object");
 }
 
-void CheckFacetReferences() {
-    GuestLocale::Facet facet{};
-    facet.references = 1;
-    facet.reserved = 0xa5a5a5a5u;
-    _ZNSt6locale5facet7_IncrefEv_nid_postfix(&facet);
-    Require(facet.references == 2 && facet.reserved == 0xa5a5a5a5u, "_Incref adds one reference and touches nothing else");
-    Require(_ZNSt6locale5facet7_DecrefEv_nid_postfix(&facet) == nullptr && facet.references == 1, "_Decref above one returns null");
-    Require(_ZNSt6locale5facet7_DecrefEv_nid_postfix(&facet) == &facet && facet.references == 0, "_Decref to zero returns the facet");
-    Require(_ZNSt6locale5facet7_DecrefEv_nid_postfix(&facet) == nullptr && facet.references == 0xffffffffu, "_Decref from zero wraps and returns null");
-    _ZNSt6locale5facet7_IncrefEv_nid_postfix(&facet);
-    Require(facet.references == 0, "_Incref from the maximum count wraps to zero");
-    Require(facet.vtable == nullptr && facet.reserved == 0xa5a5a5a5u, "the vtable and padding are untouched");
-
-    GuestLocale::Facet shared{};
-    shared.references = 1;
-    constexpr int Threads = 4;
-    constexpr int Rounds = 20000;
-    std::vector<std::thread> workers;
-    for (int index = 0; index < Threads; ++index) workers.emplace_back([&] { for (int round = 0; round < Rounds; ++round) _ZNSt6locale5facet7_IncrefEv_nid_postfix(&shared); });
-    for (std::thread& worker : workers) worker.join();
-    Require(shared.references == 1u + Threads * Rounds, "concurrent _Incref calls are not lost");
-    workers.clear();
-    std::array<int, Threads> lastReleases{};
-    for (int index = 0; index < Threads; ++index) workers.emplace_back([&, index] { for (int round = 0; round < Rounds; ++round) lastReleases[index] += _ZNSt6locale5facet7_DecrefEv_nid_postfix(&shared) == &shared; });
-    for (std::thread& worker : workers) worker.join();
-    Require(shared.references == 1 && lastReleases == std::array<int, Threads>{}, "concurrent _Decref calls are not lost");
-    Require(_ZNSt6locale5facet7_DecrefEv_nid_postfix(&shared) == &shared, "the last reference is released once");
-
-    Require(Throws([] { _ZNSt6locale5facet7_IncrefEv_nid_postfix(nullptr); }), "_Incref rejects a null facet");
-    Require(Throws([] { _ZNSt6locale5facet7_DecrefEv_nid_postfix(nullptr); }), "_Decref rejects a null facet");
-}
-
 }
 
 int main() {
@@ -206,7 +172,6 @@ int main() {
 
     CheckLocinfo();
     CheckLocimpCopy();
-    CheckFacetReferences();
     CheckLocinfoVariants();
 
     std::puts("libc internal _Locinfo and _Locimp base-object checks passed");

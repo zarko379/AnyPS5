@@ -1,6 +1,7 @@
 #include "prx/libSceIcu/ResourceBundle.hpp"
 #include "prx/libSceIcu/Configuration.hpp"
 #include "prx/libSceIcu/Defaults.hpp"
+#include "prx/libSceIcu/RecoveredSignatures.hpp"
 #include "prx/libc/include/ApplicationHeap.hpp"
 #include "prx/libc/include/general/VabiMacros.hpp"
 #include <unicode/uclean.h>

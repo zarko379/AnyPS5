@@ -5,4 +5,4 @@ target_sources(${LIB_NAME} PRIVATE Mqueue.cpp)
 target_sources(${LIB_NAME} PRIVATE NamedObject.cpp)
 configure_windows_unwind(${LIB_NAME})
 
-target_sources(${LIB_NAME} PRIVATE Wait.cpp Uuid.cpp RtldPrintf.cpp)
+target_sources(${LIB_NAME} PRIVATE Wait.cpp Uuid.cpp RtldPrintf.cpp Lwfs.cpp)

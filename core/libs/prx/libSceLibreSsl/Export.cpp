@@ -225,16 +225,6 @@ void APS5_VABI DES_set_odd_parity_nid_postfix(unsigned char* key) {
     mbedtls_des_key_set_parity(key);
 }
 
-int APS5_VABI ENGINE_get_id_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI ENGINE_set_default_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI OCSP_basic_verify_nid_postfix(LibreSslOcspBasicResponse* response, LibreSslStack* certificates, LibreSslX509Store* store, std::uint64_t flags) {
     constexpr int responderIdName = 0;
     constexpr int sha1DigestLength = 20;
@@ -477,11 +467,6 @@ std::uint64_t APS5_VABI SSLeay_nid_postfix(void) {
     return 0x20000000;
 }
 
-int APS5_VABI UI_OpenSSL_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI X509_EXTENSION_get_critical_nid_postfix(const void* extension) {
     if (!extension) return 0;
     std::int32_t critical;
@@ -504,11 +489,6 @@ void* APS5_VABI X509_EXTENSION_get_object_nid_postfix(const void* extension) {
 }
 
 int APS5_VABI X509_INFO_free_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI X509_STORE_add_cert_nid_postfix(void) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }

@@ -255,46 +255,6 @@ void TestInvalid() {
     Require(live.empty());
 }
 
-template<typename TException, typename TCall>
-bool ThrowsType(TCall call) {
-    try {
-        call();
-    } catch (const TException&) {
-        return true;
-    }
-    return false;
-}
-
-void TestRtpTransceiverInit() {
-    WebRtcRtpTransceiverInit init;
-    std::memset(&init, 0xA5, sizeof(init));
-    _ZN6webrtc18RtpTransceiverInitC1Ev_nid_postfix(&init);
-    Require(init.direction == 0);
-    RequireEmptyVector(init.streamIds);
-    Require(init.sendEncodingsBegin == nullptr && init.sendEncodingsEnd == nullptr && init.sendEncodingsCapacity == nullptr);
-    _ZN6webrtc18RtpTransceiverInitD1Ev_nid_postfix(&init);
-    SetVector(init.streamIds, {"stream", "a-stream-id-longer-than-fifteen"}, 2);
-    init.sendEncodingsBegin = _Znwm_nid_postfix(64);
-    init.sendEncodingsEnd = init.sendEncodingsBegin;
-    init.sendEncodingsCapacity = static_cast<unsigned char*>(init.sendEncodingsBegin) + 64;
-    _ZN6webrtc18RtpTransceiverInitD1Ev_nid_postfix(&init);
-    Require(live.empty());
-    _ZN6webrtc18RtpTransceiverInitC1Ev_nid_postfix(&init);
-    init.sendEncodingsBegin = _Znwm_nid_postfix(64);
-    init.sendEncodingsEnd = static_cast<unsigned char*>(init.sendEncodingsBegin) + 32;
-    init.sendEncodingsCapacity = init.sendEncodingsEnd;
-    Require(ThrowsType<std::runtime_error>([&] { _ZN6webrtc18RtpTransceiverInitD1Ev_nid_postfix(&init); }));
-    Require(live.size() == 1);
-    init.sendEncodingsEnd = init.sendEncodingsBegin;
-    init.sendEncodingsCapacity = static_cast<unsigned char*>(init.sendEncodingsBegin) - 1;
-    Require(Throws([&] { _ZN6webrtc18RtpTransceiverInitD1Ev_nid_postfix(&init); }));
-    init.sendEncodingsCapacity = init.sendEncodingsBegin;
-    _ZN6webrtc18RtpTransceiverInitD1Ev_nid_postfix(&init);
-    Require(live.empty());
-    Require(Throws([] { _ZN6webrtc18RtpTransceiverInitC1Ev_nid_postfix(nullptr); }));
-    Require(Throws([] { _ZN6webrtc18RtpTransceiverInitD1Ev_nid_postfix(nullptr); }));
-}
-
 }
 
 int main() {
@@ -310,6 +270,5 @@ int main() {
     TestLargeString();
     TestAllocationFailure();
     TestInvalid();
-    TestRtpTransceiverInit();
     return 0;
 }

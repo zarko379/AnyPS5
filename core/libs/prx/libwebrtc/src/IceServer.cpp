@@ -1,6 +1,4 @@
 /* Derived from api/peer_connection_interface.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
-/* Derived from api/rtp_transceiver_interface.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
-/* Derived from api/rtp_transceiver_interface.h@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /*
  *  Copyright 2018 The WebRTC project authors. All Rights Reserved.
  *
@@ -45,8 +43,6 @@
 
 #include "prx/libwebrtc/libwebrtc.hpp"
 #include "prx/libc/GuestStringStorage.hpp"
-#include "prx/libc/include/Api.hpp"
-#include "prx/libc/include/General.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -58,7 +54,6 @@
 namespace {
 
 constexpr std::int32_t TlsCertPolicySecure = 0;
-constexpr std::int32_t RtpTransceiverDirectionSendRecv = 0;
 constexpr std::size_t StringCapacityMask = 15;
 
 void InitString(WebRtcGuestString& string) {
@@ -208,36 +203,6 @@ void APS5_VABI _ZN6webrtc23PeerConnectionInterface9IceServerD1Ev_nid_postfix(Web
         throw std::invalid_argument("IceServer destructor requires an object");
     ValidateServer(*server);
     ReleaseServer(*server);
-}
-
-void APS5_VABI _ZN6webrtc18RtpTransceiverInitC1Ev_nid_postfix(WebRtcRtpTransceiverInit* init) {
-    if (!init)
-        throw std::invalid_argument("RtpTransceiverInit constructor requires an object");
-    init->direction = RtpTransceiverDirectionSendRecv;
-    InitVector(init->streamIds);
-    init->sendEncodingsBegin = nullptr;
-    init->sendEncodingsEnd = nullptr;
-    init->sendEncodingsCapacity = nullptr;
-}
-
-void APS5_VABI _ZN6webrtc18RtpTransceiverInitD1Ev_nid_postfix(WebRtcRtpTransceiverInit* init) {
-    constexpr const char* message = "RtpTransceiverInit destructor requires a valid object";
-    if (!init)
-        throw std::invalid_argument(message);
-    const auto first = reinterpret_cast<std::uintptr_t>(init->sendEncodingsBegin);
-    const auto last = reinterpret_cast<std::uintptr_t>(init->sendEncodingsEnd);
-    const auto limit = reinterpret_cast<std::uintptr_t>(init->sendEncodingsCapacity);
-    if (last < first || limit < last || (!first && limit))
-        throw std::invalid_argument(message);
-    ValidateVector(init->streamIds);
-    if (last != first)
-        NotImplemented_nid_no_patch("RtpTransceiverInit destructor with send encodings: the RtpEncodingParameters layout is not modelled");
-    if (init->sendEncodingsBegin)
-        _ZdlPv_nid_postfix(init->sendEncodingsBegin);
-    init->sendEncodingsBegin = nullptr;
-    init->sendEncodingsEnd = nullptr;
-    init->sendEncodingsCapacity = nullptr;
-    ReleaseVector(init->streamIds);
 }
 
 }

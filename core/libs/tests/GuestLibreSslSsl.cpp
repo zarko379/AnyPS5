@@ -537,30 +537,6 @@ static std::uint64_t ErrorCode(std::uint64_t library, std::uint64_t function, st
     return (library << 24) | (function << 12) | reason;
 }
 
-static void TestGetExData() {
-    TestSslInternal internal {};
-    TestSsl ssl {};
-    int first = 1;
-    RequireThrows([] { SSL_get_ex_data_nid_postfix(nullptr, 0); });
-    RequireThrows([&] { SSL_get_ex_data_nid_postfix(Ssl(&ssl), 0); });
-    ssl.internal = &internal;
-    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 0) == nullptr);
-    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), -1) == nullptr);
-    Require(SSL_set_ex_data_nid_postfix(Ssl(&ssl), 2, &first) == 1);
-    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 2) == &first);
-    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 1) == nullptr);
-    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 3) == nullptr);
-    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), -1) == nullptr);
-    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 1 << 30) == nullptr);
-    auto* stack = static_cast<LibreSslStack*>(internal.exData.stack);
-    char** const data = stack->data;
-    stack->data = nullptr;
-    RequireThrows([&] { SSL_get_ex_data_nid_postfix(Ssl(&ssl), 0); });
-    Require(SSL_get_ex_data_nid_postfix(Ssl(&ssl), 3) == nullptr);
-    stack->data = data;
-    FreeExData(internal);
-}
-
 static void TestSessionAccessors() {
     TestSsl ssl {};
     TestSession session {};
@@ -822,7 +798,6 @@ int main() {
     TestSetExData();
     TestSetExDataPrefilledStack();
     TestGetPeerCertChain();
-    TestGetExData();
     TestSessionAccessors();
     TestDispatch();
     TestGetError();

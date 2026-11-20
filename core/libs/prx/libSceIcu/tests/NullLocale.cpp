@@ -64,7 +64,7 @@ void FailedStatusLeavesNullUnread() {
     std::array<char, 8> buffer{};
     buffer.fill('Q');
     for (const LocaleFunction function : {uloc_getLanguage, uloc_getCountry, uloc_getScript, uloc_getBaseName, uloc_canonicalize,
-                                          uloc_getParent, uloc_getVariant_nid_postfix}) {
+                                          uloc_getParent, uloc_getVariant_nid_postfix, uloc_getName_nid_postfix}) {
         std::int32_t status = 1;
         Require(function(nullptr, buffer.data(), 8, &status) == 0 && status == 1 && buffer[0] == 'Q');
     }
@@ -89,6 +89,7 @@ int main(int argc, char** argv) {
         Require(Component(uloc_getBaseName) == "tr_TR_TRADITIONAL");
         Require(Component(uloc_canonicalize) == "tr_TR_TRADITIONAL");
         Require(Component(uloc_getParent) == "tr_TR");
+        Require(Component(uloc_getName_nid_postfix) == "tr_TR_TRADITIONAL");
         Require(Iso3Language() == "tur" && Iso3Country() == "TUR");
         Require(RightToLeft() == 0);
         Require(Mapped(u_strToUpper_nid_postfix, u"di") == u"Dİ");
@@ -104,6 +105,7 @@ int main(int argc, char** argv) {
         Require(Component(uloc_getVariant_nid_postfix).empty());
         Require(Component(uloc_getBaseName) == "ar_Arab_EG");
         Require(Component(uloc_getParent) == "ar_Arab");
+        Require(Component(uloc_getName_nid_postfix) == "ar_Arab_EG");
         Require(Iso3Language() == "ara" && Iso3Country() == "EGY");
         Require(RightToLeft() == 1);
         Require(Mapped(u_strToUpper_nid_postfix, u"di") == u"DI");

@@ -46,6 +46,7 @@
  */
 
 #include "prx/libc/include/General.hpp"
+#include "prx/libSceNKWebKit/include/EnclosingRectExports.hpp"
 #include "prx/libSceNKWebKit/include/RegionExports.hpp"
 #include "prx/libSceNKWebKit/include/WebCoreExports.hpp"
 #include "prx/libSceNKWebKit/src/WebCoreLayoutUnit.hpp"
@@ -146,7 +147,6 @@ bool IsRoundedRectRenderable(const RoundedRect& rr) {
 }
 
 constexpr int kFixedPointDenominator = 64;
-constexpr int kIntMaxForLayoutUnit = std::numeric_limits<int>::max() / kFixedPointDenominator;
 constexpr int kIntMinForLayoutUnit = std::numeric_limits<int>::min() / kFixedPointDenominator;
 
 int WrappingAdd(int a, int b) {
@@ -157,36 +157,12 @@ int WrappingSub(int a, int b) {
     return static_cast<int>(static_cast<std::uint32_t>(a) - static_cast<std::uint32_t>(b));
 }
 
-int SaturatedAdd(int a, int b) {
-    std::uint32_t ua = static_cast<std::uint32_t>(a);
-    std::uint32_t ub = static_cast<std::uint32_t>(b);
-    std::uint32_t result = ua + ub;
-    if (!((ua ^ ub) >> 31) && ((result ^ ua) >> 31)) {
-        return static_cast<int>(static_cast<std::uint32_t>(std::numeric_limits<int>::max()) + (ua >> 31));
-    }
-    return static_cast<int>(result);
-}
-
-int SaturatedSub(int a, int b) {
-    std::uint32_t ua = static_cast<std::uint32_t>(a);
-    std::uint32_t ub = static_cast<std::uint32_t>(b);
-    std::uint32_t result = ua - ub;
-    if (((ua ^ ub) >> 31) && ((result ^ ua) >> 31)) {
-        return static_cast<int>(static_cast<std::uint32_t>(std::numeric_limits<int>::max()) + (ua >> 31));
-    }
-    return static_cast<int>(result);
-}
-
 LayoutUnit LayoutFromFloat(float value) {
     return LayoutUnit{ClampToInteger(value * kFixedPointDenominator)};
 }
 
 LayoutUnit LayoutFromFloatFloor(float value) {
     return LayoutUnit{ClampToInteger(std::floor(value * kFixedPointDenominator))};
-}
-
-LayoutUnit LayoutFromFloatCeil(float value) {
-    return LayoutUnit{ClampToInteger(std::ceil(value * kFixedPointDenominator))};
 }
 
 float LayoutToFloat(LayoutUnit value) {
@@ -201,24 +177,6 @@ int LayoutFloor(LayoutUnit value) {
         return value.m_value / kFixedPointDenominator;
     }
     return (value.m_value - kFixedPointDenominator + 1) / kFixedPointDenominator;
-}
-
-int LayoutCeil(LayoutUnit value) {
-    if (value.m_value >= std::numeric_limits<int>::max() - kFixedPointDenominator + 1) {
-        return kIntMaxForLayoutUnit;
-    }
-    if (value.m_value >= 0) {
-        return (value.m_value + kFixedPointDenominator - 1) / kFixedPointDenominator;
-    }
-    return value.m_value / kFixedPointDenominator;
-}
-
-LayoutUnit LayoutAdd(LayoutUnit a, LayoutUnit b) {
-    return LayoutUnit{SaturatedAdd(a.m_value, b.m_value)};
-}
-
-LayoutUnit LayoutSub(LayoutUnit a, LayoutUnit b) {
-    return LayoutUnit{SaturatedSub(a.m_value, b.m_value)};
 }
 
 float Min3(float v1, float v2, float v3) {
@@ -513,14 +471,6 @@ bool APS5_VABI _ZNK7WebCore9FloatRect8containsERKS0_(const WebCore::FloatRect* s
         && self->m_location.m_x + self->m_size.m_width >= other.m_location.m_x + other.m_size.m_width
         && self->m_location.m_y <= other.m_location.m_y
         && self->m_location.m_y + self->m_size.m_height >= other.m_location.m_y + other.m_size.m_height;
-}
-
-WebCore::FloatRect APS5_VABI _ZNK7WebCore9FloatQuad11boundingBoxEv(const WebCore::FloatQuad* self) {
-    float left = std::min({self->m_p1.m_x, self->m_p2.m_x, self->m_p3.m_x, self->m_p4.m_x});
-    float top = std::min({self->m_p1.m_y, self->m_p2.m_y, self->m_p3.m_y, self->m_p4.m_y});
-    float right = std::max({self->m_p1.m_x, self->m_p2.m_x, self->m_p3.m_x, self->m_p4.m_x});
-    float bottom = std::max({self->m_p1.m_y, self->m_p2.m_y, self->m_p3.m_y, self->m_p4.m_y});
-    return WebCore::FloatRect{{left, top}, {right - left, bottom - top}};
 }
 
 bool APS5_VABI _ZNK7WebCore9FloatQuad12containsQuadERKS0_(const WebCore::FloatQuad* self, const WebCore::FloatQuad& other) {
@@ -853,45 +803,6 @@ void APS5_VABI _ZN7WebCore11RoundedRectC2ERKNS_10LayoutRectERKNS0_5RadiiE(
     self->m_radii = radii;
 }
 
-WebCore::IntRect APS5_VABI _ZN7WebCore16enclosingIntRectERKNS_9FloatRectE(const WebCore::FloatRect& rect) {
-    float locationX = static_cast<float>(WebCore::ClampToInteger(std::floor(rect.m_location.m_x)));
-    float locationY = static_cast<float>(WebCore::ClampToInteger(std::floor(rect.m_location.m_y)));
-    float maxX = static_cast<float>(WebCore::ClampToInteger(std::ceil(rect.m_location.m_x + rect.m_size.m_width)));
-    float maxY = static_cast<float>(WebCore::ClampToInteger(std::ceil(rect.m_location.m_y + rect.m_size.m_height)));
-    return WebCore::IntRect{
-        WebCore::IntPoint{WebCore::ClampToInteger(locationX), WebCore::ClampToInteger(locationY)},
-        WebCore::IntSize{WebCore::ClampToInteger(maxX - locationX), WebCore::ClampToInteger(maxY - locationY)}};
-}
-
-WebCore::IntRect APS5_VABI _ZN7WebCore16enclosingIntRectERKNS_10LayoutRectE(const WebCore::LayoutRect& rect) {
-    int x = WebCore::LayoutFloor(rect.m_location.m_x);
-    int y = WebCore::LayoutFloor(rect.m_location.m_y);
-    int maxX = rect.m_size.m_width.m_value
-        ? WebCore::LayoutCeil(WebCore::LayoutAdd(rect.m_location.m_x, rect.m_size.m_width)) : x;
-    int maxY = rect.m_size.m_height.m_value
-        ? WebCore::LayoutCeil(WebCore::LayoutAdd(rect.m_location.m_y, rect.m_size.m_height)) : y;
-    return WebCore::IntRect{WebCore::IntPoint{x, y}, WebCore::IntSize{WebCore::WrappingSub(maxX, x), WebCore::WrappingSub(maxY, y)}};
-}
-
-WebCore::LayoutRect APS5_VABI _ZN7WebCore19enclosingLayoutRectERKNS_9FloatRectE(const WebCore::FloatRect& rect) {
-    WebCore::LayoutPoint location{
-        WebCore::LayoutFromFloatFloor(rect.m_location.m_x), WebCore::LayoutFromFloatFloor(rect.m_location.m_y)};
-    WebCore::LayoutPoint maxPoint{
-        WebCore::LayoutFromFloatCeil(rect.m_location.m_x + rect.m_size.m_width),
-        WebCore::LayoutFromFloatCeil(rect.m_location.m_y + rect.m_size.m_height)};
-    return WebCore::LayoutRect{location, WebCore::LayoutSize{
-        WebCore::LayoutSub(maxPoint.m_x, location.m_x), WebCore::LayoutSub(maxPoint.m_y, location.m_y)}};
-}
-
-WebCore::FloatRect APS5_VABI _ZN7WebCore25encloseRectToDevicePixelsERKNS_9FloatRectEf(
-    const WebCore::FloatRect& rect, float deviceScaleFactor) {
-    float x = std::floor(rect.m_location.m_x * deviceScaleFactor) / deviceScaleFactor;
-    float y = std::floor(rect.m_location.m_y * deviceScaleFactor) / deviceScaleFactor;
-    float maxX = std::ceil((rect.m_location.m_x + rect.m_size.m_width) * deviceScaleFactor) / deviceScaleFactor;
-    float maxY = std::ceil((rect.m_location.m_y + rect.m_size.m_height) * deviceScaleFactor) / deviceScaleFactor;
-    return WebCore::FloatRect{WebCore::FloatPoint{x, y}, WebCore::FloatSize{maxX - x, maxY - y}};
-}
-
 WebCore::AffineTransform APS5_VABI _ZN7WebCore19makeMapBetweenRectsERKNS_9FloatRectES2_(
     const WebCore::FloatRect& source, const WebCore::FloatRect& dest) {
     WebCore::AffineTransform transform;
@@ -910,11 +821,6 @@ WebCore::FloatRect APS5_VABI _ZN7WebCore9unionRectERKN3WTF6VectorINS_9FloatRectE
         _ZN7WebCore9FloatRect5uniteERKS0_(&result, rect);
     }
     return result;
-}
-
-WebCore::IntRect APS5_VABI _ZN7WebCore15HitTestLocation12rectForPointERKNS_11LayoutPointEjjjj(
-    const WebCore::LayoutPoint& point, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding) {
-    return WebCore::RectForPoint(point, topPadding, rightPadding, bottomPadding, leftPadding);
 }
 
 void APS5_VABI _ZN7WebCore15HitTestLocationC1Ev(WebCore::HitTestLocation* self) {
@@ -947,24 +853,6 @@ void APS5_VABI _ZN7WebCore15HitTestLocationC1ERKNS_10FloatPointE(WebCore::HitTes
 
 void APS5_VABI _ZN7WebCore15HitTestLocationC2ERKNS_10FloatPointE(WebCore::HitTestLocation* self, const WebCore::FloatPoint& point) {
     _ZN7WebCore15HitTestLocationC1ERKNS_10FloatPointE(self, point);
-}
-
-void APS5_VABI _ZN7WebCore14ScrollableArea32computeScrollbarValueAndOverhangEfffRfS1_(
-    float currentPosition, float totalSize, float visibleSize, float& doubleValue, float& overhangAmount) {
-    doubleValue = 0.0f;
-    overhangAmount = 0.0f;
-    float maximum = totalSize - visibleSize;
-    if (currentPosition < 0.0f) {
-        doubleValue = 0.0f;
-        overhangAmount = -currentPosition;
-    } else if (visibleSize + currentPosition > totalSize) {
-        doubleValue = 1.0f;
-        overhangAmount = currentPosition + visibleSize - totalSize;
-    } else if (maximum > 0.0f) {
-        doubleValue = currentPosition / maximum;
-    } else {
-        doubleValue = 0.0f;
-    }
 }
 
 WebCore::Region APS5_VABI _ZN7WebCore19approximateAsRegionERKNS_11RoundedRectEj(const WebCore::RoundedRect& roundedRect, unsigned stepLength) {

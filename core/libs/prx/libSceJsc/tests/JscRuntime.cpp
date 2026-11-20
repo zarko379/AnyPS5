@@ -24,14 +24,12 @@ using Jsc::JscAbi::FreeCell;
 using Jsc::JscAbi::FreeList;
 using Jsc::JscAbi::HashTable;
 using Jsc::JscAbi::InternalFunction;
-using Jsc::JscAbi::ScriptCallArgumentHandler;
 
 using InitializeBumpFunction = void (APS5_VABI*)(FreeList*, char*, unsigned);
 using InitializeListFunction = void (APS5_VABI*)(FreeList*, FreeCell*, std::uintptr_t, unsigned);
 using HasStaticSetterFunction = bool (APS5_VABI*)(const ClassInfo*);
 using GetCallDataFunction = CallData (APS5_VABI*)(void*);
 using InternalCallDataFunction = CallData (APS5_VABI*)(InternalFunction*);
-using SpeculationFunction = std::uint64_t (APS5_VABI*)(std::uint64_t);
 using DestroyFunction = void (APS5_VABI*)(void*);
 using ToThisFunction = std::uint64_t (APS5_VABI*)(void*, void*, std::uint8_t);
 using ToThisSlowCaseFunction = std::uint64_t (APS5_VABI*)(const std::uint64_t*, void*, std::uint8_t);
@@ -43,7 +41,6 @@ static_assert(std::is_same_v<decltype(&_ZN3JSC6JSCell11getCallDataEPS0_), GetCal
 static_assert(std::is_same_v<decltype(&_ZN3JSC6JSCell16getConstructDataEPS0_), GetCallDataFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3JSC16InternalFunction11getCallDataEPNS_6JSCellE), InternalCallDataFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3JSC16InternalFunction16getConstructDataEPNS_6JSCellE), InternalCallDataFunction>);
-static_assert(std::is_same_v<decltype(&_ZN3JSC20speculationFromValueENS_7JSValueE), SpeculationFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3JSC6JSCell7destroyEPS0_), DestroyFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3JSC8JSObject6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE), ToThisFunction>);
 static_assert(std::is_same_v<decltype(&_ZN3JSC7JSScope6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE), ToThisFunction>);
@@ -195,54 +192,6 @@ void TestInternalFunction() {
     Check(Throws([] { _ZN3JSC16InternalFunction16getConstructDataEPNS_6JSCellE(nullptr); }), __LINE__);
 }
 
-std::uint64_t EncodeDouble(double value) {
-    std::uint64_t bits;
-    std::memcpy(&bits, &value, sizeof(bits));
-    return bits + (1ull << 49);
-}
-
-void TestSpeculationFromValue() {
-    constexpr std::uint64_t NumberTag = 0xfffe000000000000ull;
-    constexpr std::uint64_t SpecBoolInt32 = 1ull << 30;
-    constexpr std::uint64_t SpecNonBoolInt32 = 1ull << 31;
-    constexpr std::uint64_t SpecAnyIntAsDouble = 1ull << 34;
-    constexpr std::uint64_t SpecNonIntAsDouble = 1ull << 35;
-    constexpr std::uint64_t SpecDoublePureNaN = 1ull << 36;
-    constexpr std::uint64_t SpecBoolean = 1ull << 38;
-    constexpr std::uint64_t SpecOther = 1ull << 39;
-    constexpr std::uint64_t SpecEmpty = 1ull << 40;
-    const auto speculate = _ZN3JSC20speculationFromValueENS_7JSValueE;
-
-    Check(speculate(0) == SpecEmpty, __LINE__);
-    Check(speculate(NumberTag | 0) == SpecBoolInt32, __LINE__);
-    Check(speculate(NumberTag | 1) == SpecBoolInt32, __LINE__);
-    Check(speculate(NumberTag | 2) == SpecNonBoolInt32, __LINE__);
-    Check(speculate(NumberTag | 0xFFFFFFFFu) == SpecNonBoolInt32, __LINE__);
-    Check(speculate(NumberTag | 0x80000000u) == SpecNonBoolInt32, __LINE__);
-    Check(speculate(0xffff000000000001ull) == SpecBoolInt32, __LINE__);
-
-    Check(speculate(EncodeDouble(0.0)) == SpecAnyIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(-0.0)) == SpecNonIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(42.0)) == SpecAnyIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(-7.0)) == SpecAnyIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(0.5)) == SpecNonIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(2251799813685247.0)) == SpecAnyIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(2251799813685248.0)) == SpecNonIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(-2251799813685248.0)) == SpecAnyIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(-2251799813685249.0)) == SpecNonIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(1e300)) == SpecNonIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(-1.0 / 0.0)) == SpecNonIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(1.0 / 0.0)) == SpecNonIntAsDouble, __LINE__);
-    Check(speculate(EncodeDouble(std::numeric_limits<double>::quiet_NaN())) == SpecDoublePureNaN, __LINE__);
-
-    Check(speculate(0x6) == SpecBoolean, __LINE__);
-    Check(speculate(0x7) == SpecBoolean, __LINE__);
-    Check(speculate(0x2) == SpecOther, __LINE__);
-    Check(speculate(0xA) == SpecOther, __LINE__);
-
-    Check(ThrowsRuntime([&] { speculate(0x10000); }), __LINE__);
-}
-
 void TestDestroy() {
     unsigned char cell[16];
     std::memset(cell, 0x5A, sizeof(cell));
@@ -267,62 +216,6 @@ void TestToThis() {
         Check(ThrowsRuntime([&] { _ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE(&value, global, 1); }), __LINE__);
     }
     Check(Throws([&] { _ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE(nullptr, global, 0); }), __LINE__);
-}
-
-void TestScriptCallArgumentHandler() {
-    using Constructor = void (APS5_VABI*)(ScriptCallArgumentHandler*, void*);
-    using Destructor = void (APS5_VABI*)(ScriptCallArgumentHandler*);
-    unsigned char global[8]{};
-    for (Constructor construct : {_ZN10Deprecated25ScriptCallArgumentHandlerC1EPN3JSC14JSGlobalObjectE, _ZN10Deprecated25ScriptCallArgumentHandlerC2EPN3JSC14JSGlobalObjectE}) {
-        ScriptCallArgumentHandler handler;
-        std::memset(&handler, 0xA5, sizeof(handler));
-        construct(&handler, global);
-        Check(handler.arguments.overflowed == 0 && handler.arguments.size == 0 && handler.arguments.capacity == 8, __LINE__);
-        Check(handler.arguments.buffer == handler.arguments.inlineBuffer && handler.arguments.markSet == nullptr, __LINE__);
-        Check(handler.globalObject == global, __LINE__);
-        Check(handler.arguments.inlineBuffer[0] == 0xA5A5A5A5A5A5A5A5ull, __LINE__);
-    }
-
-    ScriptCallArgumentHandler handler;
-    _ZN10Deprecated25ScriptCallArgumentHandlerC1EPN3JSC14JSGlobalObjectE(&handler, nullptr);
-    Check(handler.globalObject == nullptr, __LINE__);
-    _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(&handler, true);
-    _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(&handler, false);
-    _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEN3JSC7JSValueE(&handler, 0xfffe00000000002Aull);
-    Check(handler.arguments.size == 3, __LINE__);
-    Check(handler.arguments.inlineBuffer[0] == 0x7 && handler.arguments.inlineBuffer[1] == 0x6, __LINE__);
-    Check(handler.arguments.inlineBuffer[2] == 0xfffe00000000002Aull, __LINE__);
-    for (std::uint64_t value = 3; value < 8; ++value)
-        _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEN3JSC7JSValueE(&handler, value);
-    Check(handler.arguments.size == 8 && handler.arguments.inlineBuffer[7] == 7, __LINE__);
-    Check(ThrowsRuntime([&] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(&handler, true); }), __LINE__);
-    Check(ThrowsRuntime([&] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEN3JSC7JSValueE(&handler, 0xA); }), __LINE__);
-    Check(handler.arguments.size == 8 && handler.arguments.buffer == handler.arguments.inlineBuffer, __LINE__);
-
-    for (Destructor destroy : {_ZN10Deprecated25ScriptCallArgumentHandlerD1Ev, _ZN10Deprecated25ScriptCallArgumentHandlerD2Ev}) {
-        ScriptCallArgumentHandler before = handler;
-        destroy(&handler);
-        Check(std::memcmp(&before, &handler, sizeof(handler)) == 0, __LINE__);
-        std::uint64_t heap[16]{};
-        handler.arguments.buffer = heap;
-        Check(ThrowsRuntime([&] { destroy(&handler); }), __LINE__);
-        handler.arguments.buffer = handler.arguments.inlineBuffer;
-        handler.arguments.markSet = global;
-        Check(ThrowsRuntime([&] { destroy(&handler); }), __LINE__);
-        handler.arguments.markSet = nullptr;
-    }
-
-    std::uint64_t heap[16]{};
-    ScriptCallArgumentHandler grown;
-    _ZN10Deprecated25ScriptCallArgumentHandlerC2EPN3JSC14JSGlobalObjectE(&grown, global);
-    grown.arguments.buffer = heap;
-    grown.arguments.capacity = 16;
-    Check(ThrowsRuntime([&] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(&grown, true); }), __LINE__);
-    Check(grown.arguments.size == 0 && heap[0] == 0, __LINE__);
-
-    Check(Throws([] { _ZN10Deprecated25ScriptCallArgumentHandlerC1EPN3JSC14JSGlobalObjectE(nullptr, nullptr); }), __LINE__);
-    Check(Throws([] { _ZN10Deprecated25ScriptCallArgumentHandlerD2Ev(nullptr); }), __LINE__);
-    Check(Throws([] { _ZN10Deprecated25ScriptCallArgumentHandler14appendArgumentEb(nullptr, true); }), __LINE__);
 }
 
 using Jsc::JscAbi::HandleBlock;
@@ -459,50 +352,12 @@ void TestHandleSetWriteBarrier() {
 }
 
 
-using Jsc::InspectorAbi::AsyncCallIdentifier;
 using Jsc::InspectorAbi::FrameVector;
-using Jsc::InspectorAbi::RemoteTarget;
 using Jsc::InspectorAbi::ScriptCallStack;
-using TargetFlagFunction = bool (APS5_VABI*)(const RemoteTarget*);
 using ScriptCallStackFunction = void (APS5_VABI*)(ScriptCallStack*, FrameVector*);
-using AsyncCallIdentifierFunction = AsyncCallIdentifier (APS5_VABI*)(int, int);
 
-static_assert(std::is_same_v<decltype(&_ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv), TargetFlagFunction>);
-static_assert(std::is_same_v<decltype(&_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv), TargetFlagFunction>);
 static_assert(std::is_same_v<decltype(&_ZN9Inspector15ScriptCallStackC1ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE), ScriptCallStackFunction>);
 static_assert(std::is_same_v<decltype(&_ZN9Inspector15ScriptCallStackC2ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE), ScriptCallStackFunction>);
-static_assert(std::is_same_v<decltype(&_ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi), AsyncCallIdentifierFunction>);
-
-RemoteTarget Target(bool flag) {
-    RemoteTarget target;
-    std::memset(&target, 0xA5, sizeof(target));
-    target.vtable = &target;
-    target.targetIdentifier = 7;
-    target.flag = flag;
-    return target;
-}
-
-void TestRemoteTargets() {
-    const RemoteTarget unpaired = Target(false);
-    const RemoteTarget paired = Target(true);
-    Check(_ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv(&unpaired), __LINE__);
-    Check(!_ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv(&paired), __LINE__);
-    Check(!_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(&unpaired), __LINE__);
-    Check(_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(&paired), __LINE__);
-    Check(paired.targetIdentifier == 7 && paired.vtable == &paired, __LINE__);
-
-    alignas(8) unsigned char raw[16];
-    std::memset(raw, 0, sizeof(raw));
-    raw[12] = 1;
-    raw[8] = 0xFF;
-    raw[13] = 0xFF;
-    Check(_ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(reinterpret_cast<const RemoteTarget*>(raw)), __LINE__);
-    raw[12] = 0;
-    Check(_ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv(reinterpret_cast<const RemoteTarget*>(raw)), __LINE__);
-
-    Check(Throws([] { _ZNK9Inspector22RemoteAutomationTarget20remoteControlAllowedEv(nullptr); }), __LINE__);
-    Check(Throws([] { _ZNK9Inspector22RemoteInspectionTarget22remoteDebuggingAllowedEv(nullptr); }), __LINE__);
-}
 
 void TestScriptCallStackConstructors() {
     for (const ScriptCallStackFunction construct : {&_ZN9Inspector15ScriptCallStackC1ERN3WTF6VectorINS_15ScriptCallFrameELm0ENS1_15CrashOnOverflowELm16ENS1_10FastMallocEEE,
@@ -525,15 +380,6 @@ void TestScriptCallStackConstructors() {
         Check(Throws([&] { construct(nullptr, &vector); }), __LINE__);
         Check(Throws([&] { construct(&stack, nullptr); }), __LINE__);
     }
-}
-
-void TestAsyncCallIdentifier() {
-    const AsyncCallIdentifier timer = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(0, 42);
-    Check(timer.type == 0 && timer.callbackId == 42, __LINE__);
-    const AsyncCallIdentifier listener = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(1, -5);
-    Check(listener.type == 1 && listener.callbackId == -5, __LINE__);
-    const AsyncCallIdentifier wide = _ZN9Inspector22InspectorDebuggerAgent19asyncCallIdentifierENS0_13AsyncCallTypeEi(-1, (std::numeric_limits<int>::min)());
-    Check(wide.type == (std::numeric_limits<unsigned>::max)() && wide.callbackId == (std::numeric_limits<int>::min)(), __LINE__);
 }
 
 
@@ -591,15 +437,11 @@ int main() {
     TestHasStaticSetterOrReadonlyProperties();
     TestCallData();
     TestInternalFunction();
-    TestSpeculationFromValue();
     TestDestroy();
     TestToThis();
-    TestScriptCallArgumentHandler();
     TestWeakClearSlowCase();
     TestHandleSetWriteBarrier();
-    TestRemoteTargets();
     TestScriptCallStackConstructors();
-    TestAsyncCallIdentifier();
     TestRegularExpressionIsValid();
     TestEmptyBodies();
     std::puts("JSC runtime tests passed");

@@ -671,46 +671,6 @@ void CheckWidePutAndRepeat() {
     Require(out.failed && out.buffer == nullptr, "wide money_put::_Rep to a null stream buffer fails");
 }
 
-using PutSequenceExport = std::int32_t (APS5_VABI *)(GuestLocale::Streambuf*, const char*, std::int32_t);
-using WidePutSequenceExport = std::int32_t (APS5_VABI *)(GuestLocale::Streambuf*, const std::uint16_t*, std::int32_t);
-
-void CheckStreambufPutSequence() {
-    const auto put = Export<PutSequenceExport>("sXaxl1QGorg");
-    const auto widePut = Export<WidePutSequenceExport>("041c37QfoUc");
-
-    char storage[4] {};
-    char* next = storage;
-    char* end = storage + sizeof(storage);
-    TestStreambuf area{{&g_streambufVtable, {}, &next, {}, &end}, {}, 0, 8};
-    Require(put(&area.buffer, "abcdef", 6) == 6, "xsputn reports every character it put");
-    Require(std::memcmp(storage, "abcd", 4) == 0 && next == end, "xsputn copies into the put area first");
-    Require(area.accepted == "ef" && area.offered == 2, "xsputn overflows the rest one character at a time");
-
-    next = storage;
-    area = TestStreambuf{{&g_streambufVtable, {}, &next, {}, &end}, {}, 0, 0};
-    Require(put(&area.buffer, "123456", 6) == 4 && std::memcmp(storage, "1234", 4) == 0, "xsputn stops at the first eof after filling the put area");
-    Require(area.offered == 1, "xsputn offers one character to a failing overflow");
-
-    auto stream = MakeStream(2);
-    Require(put(&stream.buffer, "xyz", 3) == 2 && stream.accepted == "xy" && stream.offered == 3, "xsputn without a put area stops when overflow returns eof");
-    Require(put(&stream.buffer, "xyz", 0) == 0 && stream.offered == 3, "xsputn of no characters calls nothing");
-    Require(put(&stream.buffer, "xyz", -5) == 0 && stream.offered == 3, "xsputn of a negative count puts nothing");
-    stream = MakeStream(8);
-    const char high[] = {static_cast<char>(0xff)};
-    Require(put(&stream.buffer, high, 1) == 1 && stream.accepted == std::string(1, static_cast<char>(0xff)), "xsputn passes 0xff to overflow as 255, not eof");
-
-    std::uint16_t wideStorage[3] {};
-    std::uint16_t* wideNext = wideStorage;
-    std::uint16_t* wideEnd = wideStorage + 3;
-    WideAreaStreambuf wide{{&g_wideAreaVtable, {}, &wideNext, {}, &wideEnd}, {}, 0, 8};
-    const std::uint16_t five[] = {1, 2, 3, 0xffff, 0x4e2d};
-    Require(widePut(reinterpret_cast<GuestLocale::Streambuf*>(&wide.header), five, 5) == 5, "wide xsputn reports every unit it put");
-    Require(wideStorage[0] == 1 && wideStorage[1] == 2 && wideStorage[2] == 3 && wideNext == wideEnd, "wide xsputn copies into a three-unit put area first");
-    Require(wide.accepted == std::vector<int>{0xffff, 0x4e2d}, "wide xsputn overflows zero-extended units and keeps going after U+FFFF");
-    WideAreaStreambuf full{{&g_wideAreaVtable, {}, &g_noWideBuffer, {}, &g_noWideBuffer}, {}, 0, 0};
-    Require(widePut(reinterpret_cast<GuestLocale::Streambuf*>(&full.header), five, 5) == 0 && full.offered == 1, "wide xsputn stops when overflow returns eof");
-}
-
 struct WideTestStreambuf {
     GuestLocale::Streambuf buffer;
     std::u16string accepted;
@@ -888,18 +848,6 @@ std::u16string WideDoPut(const GuestTm& time, char format, char modifier) {
     return stream.accepted;
 }
 
-void RequireWideDoPutThrows(char format, char modifier) {
-    const GuestTm time = MakeWideDoPutTime();
-    auto stream = MakeWideStream(256);
-    try {
-        Export<WideTimePutExport>("Fr7j8dMsy4s")(nullptr, GuestLocale::OutputIterator{false, &stream.buffer}, nullptr, g_wideFill, &time, format, modifier);
-    } catch (const std::runtime_error& error) {
-        Require(std::string(error.what()).find("LibcWideTimePutDoPut") != std::string::npos && stream.accepted.empty(), "an unsettled do_put throws before writing");
-        return;
-    }
-    Require(false, "an unsettled do_put must throw");
-}
-
 void CheckWideTimePutDoPut() {
     const GuestTm time = MakeWideDoPutTime();
     Require(WideDoPut(time, 'Y', '\0') == u"2026", "do_put writes one conversion without its leading marker and reads neither the facet, the stream nor the fill");
@@ -912,9 +860,9 @@ void CheckWideTimePutDoPut() {
     stream.buffer.putEnd = &end;
     const GuestLocale::OutputIterator out = Export<WideTimePutExport>("Fr7j8dMsy4s")(nullptr, GuestLocale::OutputIterator{false, &stream.buffer}, nullptr, g_wideFill, &time, 'Y', '\0');
     Require(out.failed && area[0] == u'2' && area[1] == u'0' && stream.accepted == u"2" && stream.offered == std::vector<int>{'2', '6'}, "do_put writes through the put area and overflow, and a failed write marks the iterator");
-    RequireWideDoPutThrows('\xe9', '\0');
-    RequireWideDoPutThrows('d', '\x80');
-    RequireWideDoPutThrows('c', '\0');
+    Require(WideDoPut(time, '\xe9', '\0') == u"%\uffe9", "do_put sign-extends a negative specifier byte into the wide format");
+    Require(WideDoPut(time, 'd', '\x80') == u"%\uff80d", "do_put sign-extends a negative modifier byte into the wide format");
+    Require(WideDoPut(time, 'c', '\0').empty(), "do_put writes nothing when the conversion does not fit in the first buffer");
     const GuestLocale::WideTimePutVtable vtable{g_testFacet, Export<WideTimePutExport>("Fr7j8dMsy4s")};
     const GuestLocale::Facet facet{&vtable.facet, 1, 0};
     GuestLocale::IosBase ios{};
@@ -928,7 +876,7 @@ void CheckWideTimePutDoPut() {
     Require(setenv_nid_postfix("TZ", "ABCDEFGHIJKLMNO0", 1) == 0, "set a zone with a 15-letter name");
     Require(WideDoPut(time, 'Z', '\0') == u"ABCDEFGHIJKLMNO", "do_put retries with a larger buffer when the first leaves no room for the terminator");
     Require(setenv_nid_postfix("TZ", "ABCDEFGHIJKLMNOP0", 1) == 0, "set a zone with a 16-letter name");
-    RequireWideDoPutThrows('Z', '\0');
+    Require(WideDoPut(time, 'Z', '\0').empty(), "do_put writes nothing when a zone name does not fit in the first buffer");
 #endif
 }
 
@@ -1007,7 +955,6 @@ int main(int argc, char** argv) {
     CheckLibcTimePut();
     CheckPutAndRepeat();
     CheckWidePutAndRepeat();
-    CheckStreambufPutSequence();
     CheckWideTimePutForwarding();
     CheckWidePatternWalk();
     CheckWideClassicNarrow();

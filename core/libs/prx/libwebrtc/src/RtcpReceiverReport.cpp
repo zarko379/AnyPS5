@@ -1,18 +1,7 @@
 /* Derived from modules/rtp_rtcp/source/rtcp_packet/receiver_report.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /* Derived from modules/rtp_rtcp/source/rtcp_packet/report_block.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
-/* Derived from modules/rtp_rtcp/source/rtcp_packet.cc@8d78f5de6c27b2c793039989ea381f1428fb0100 */
 /*
  *  Copyright (c) 2015 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree. An additional intellectual property rights grant can be found
- *  in the file PATENTS.  All contributing project authors may
- *  be found in the AUTHORS file in the root of the source tree.
- */
-
-/*
- *  Copyright (c) 2014 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -54,6 +43,7 @@
  */
 
 #include "prx/libwebrtc/libwebrtc.hpp"
+#include "prx/libwebrtc/include/ModuleStorage.hpp"
 #include "prx/libc/include/Api.hpp"
 
 #include <cstddef>
@@ -65,34 +55,38 @@ namespace {
 constexpr std::size_t HeaderLength = 4;
 constexpr std::size_t ReceiverReportBaseLength = 4;
 constexpr std::size_t ReportBlockLength = 24;
+constexpr std::size_t MaxReportBlocks = 0x1f;
 constexpr std::uint8_t PacketType = 201;
 constexpr int BlockLengthSlot = 2;
 
 using PacketReady = void (APS5_VABI*)(void* function, const std::uint8_t* data, std::size_t size);
 
-void WriteBigEndian(std::uint8_t* bytes, std::uint32_t value, std::size_t size) {
-    for (std::size_t index = 0; index < size; ++index)
-        bytes[index] = static_cast<std::uint8_t>(value >> (8 * (size - 1 - index)));
+void WriteBigEndian(std::uint8_t* bytes, std::uint32_t value) {
+    bytes[0] = static_cast<std::uint8_t>(value >> 24);
+    bytes[1] = static_cast<std::uint8_t>(value >> 16);
+    bytes[2] = static_cast<std::uint8_t>(value >> 8);
+    bytes[3] = static_cast<std::uint8_t>(value);
 }
 
-std::size_t BlockCount(const WebRtcRtcpReceiverReport* report) {
-    return report->blocksBegin ? static_cast<std::size_t>(report->blocksEnd - report->blocksBegin) : 0;
+void WriteReportBlock(std::uint8_t* bytes, const WebRtcRtcpReportBlock& block) {
+    const auto cumulativeLost = static_cast<std::uint32_t>(block.cumulativeLost);
+    WriteBigEndian(bytes, block.sourceSsrc);
+    bytes[4] = block.fractionLost;
+    bytes[5] = static_cast<std::uint8_t>(cumulativeLost >> 16);
+    bytes[6] = static_cast<std::uint8_t>(cumulativeLost >> 8);
+    bytes[7] = static_cast<std::uint8_t>(cumulativeLost);
+    WriteBigEndian(bytes + 8, block.extendedHighSeqNum);
+    WriteBigEndian(bytes + 12, block.jitter);
+    WriteBigEndian(bytes + 16, block.lastSr);
+    WriteBigEndian(bytes + 20, block.delaySinceLastSr);
 }
 
-void CreateReportBlock(const WebRtcRtcpReportBlock& block, std::uint8_t* buffer) {
-    WriteBigEndian(buffer, block.sourceSsrc, 4);
-    buffer[4] = block.fractionLost;
-    WriteBigEndian(buffer + 5, static_cast<std::uint32_t>(block.cumulativeLost), 3);
-    WriteBigEndian(buffer + 8, block.extendedHighSeqNum, 4);
-    WriteBigEndian(buffer + 12, block.jitter, 4);
-    WriteBigEndian(buffer + 16, block.lastSr, 4);
-    WriteBigEndian(buffer + 20, block.delaySinceLastSr, 4);
+std::size_t Count(const WebRtcRtcpReceiverReport* report) {
+    return static_cast<std::size_t>(report->reportBlocksEnd - report->reportBlocksBegin);
 }
 
 std::size_t APS5_VABI ReceiverReportBlockLength_nid_no_patch(const WebRtcRtcpReceiverReport* report) {
-    if (!report)
-        throw std::invalid_argument("ReceiverReport::BlockLength requires a packet object");
-    return HeaderLength + ReceiverReportBaseLength + BlockCount(report) * ReportBlockLength;
+    return HeaderLength + ReceiverReportBaseLength + Count(report) * ReportBlockLength;
 }
 
 std::size_t BlockLength(const WebRtcRtcpReceiverReport* report) {
@@ -101,8 +95,11 @@ std::size_t BlockLength(const WebRtcRtcpReceiverReport* report) {
 }
 
 bool APS5_VABI ReceiverReportCreate_nid_no_patch(const WebRtcRtcpReceiverReport* report, std::uint8_t* packet, std::size_t* index, std::size_t maxLength, void* function, PacketReady call) {
-    if (!report || !packet || !index)
-        throw std::invalid_argument("ReceiverReport::Create requires a packet object, a buffer and an index");
+    if (packet == nullptr || index == nullptr)
+        throw std::invalid_argument("ReceiverReport::Create requires a packet buffer and an index");
+    const std::size_t count = Count(report);
+    if (count > MaxReportBlocks)
+        throw std::invalid_argument("ReceiverReport::Create holds more report blocks than the header can count");
     while (*index + BlockLength(report) > maxLength) {
         if (*index == 0)
             return false;
@@ -111,27 +108,27 @@ bool APS5_VABI ReceiverReportCreate_nid_no_patch(const WebRtcRtcpReceiverReport*
         call(function, packet, *index);
         *index = 0;
     }
-    const std::size_t count = BlockCount(report);
     const std::size_t words = (BlockLength(report) - HeaderLength) / 4;
-    packet[*index] = static_cast<std::uint8_t>((2 << 6) | static_cast<std::uint8_t>(count));
+    packet[*index] = static_cast<std::uint8_t>((2 << 6) | count);
     packet[*index + 1] = PacketType;
     packet[*index + 2] = static_cast<std::uint8_t>((words >> 8) & 0xff);
     packet[*index + 3] = static_cast<std::uint8_t>(words & 0xff);
     *index += HeaderLength;
-    WriteBigEndian(packet + *index, report->senderSsrc, 4);
+    WriteBigEndian(packet + *index, report->senderSsrc);
     *index += ReceiverReportBaseLength;
-    for (std::size_t block = 0; block < count; ++block) {
-        CreateReportBlock(report->blocksBegin[block], packet + *index);
+    for (const WebRtcRtcpReportBlock* block = report->reportBlocksBegin; block != report->reportBlocksEnd; ++block) {
+        WriteReportBlock(packet + *index, *block);
         *index += ReportBlockLength;
     }
     return true;
 }
 
 void APS5_VABI DestroyReceiverReport_nid_no_patch(WebRtcRtcpReceiverReport* report) {
-    if (!report)
-        throw std::invalid_argument("ReceiverReport destructor requires a packet object");
-    if (report->blocksBegin)
-        _ZdlPv_nid_postfix(report->blocksBegin);
+    const auto capacity = static_cast<std::size_t>(report->reportBlocksCapacity - report->reportBlocksBegin) * sizeof(WebRtcRtcpReportBlock);
+    WebRtcModuleStorage::Free(report->reportBlocksBegin, capacity);
+    report->reportBlocksBegin = nullptr;
+    report->reportBlocksEnd = nullptr;
+    report->reportBlocksCapacity = nullptr;
 }
 
 void APS5_VABI DeleteReceiverReport_nid_no_patch(WebRtcRtcpReceiverReport* report) {
@@ -156,9 +153,9 @@ void APS5_VABI _ZN6webrtc4rtcp14ReceiverReportC1Ev_nid_postfix(WebRtcRtcpReceive
         throw std::invalid_argument("ReceiverReport constructor requires a packet object");
     report->vtable = Vtable + 2;
     report->senderSsrc = 0;
-    report->blocksBegin = nullptr;
-    report->blocksEnd = nullptr;
-    report->blocksCapacity = nullptr;
+    report->reportBlocksBegin = nullptr;
+    report->reportBlocksEnd = nullptr;
+    report->reportBlocksCapacity = nullptr;
 }
 
 }

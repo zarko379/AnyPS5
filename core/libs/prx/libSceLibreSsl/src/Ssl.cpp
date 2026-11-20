@@ -28,6 +28,7 @@ static_assert(offsetof(LibreSslSslInternal, handshakeFunc) == 56);
 static_assert(offsetof(LibreSslSslInternal, msgCallback) == 64);
 static_assert(offsetof(LibreSslSslInternal, msgCallbackArg) == 72);
 static_assert(offsetof(LibreSslSslInternal, verifyCallback) == 88);
+static_assert(offsetof(LibreSslSslInternal, infoCallback) == 96);
 static_assert(offsetof(LibreSslSslInternal, readAhead) == 212);
 static_assert(offsetof(LibreSslSslInternal, aeadReadCtx) == 240);
 static_assert(offsetof(LibreSslSslInternal, aeadWriteCtx) == 248);
@@ -418,7 +419,9 @@ int APS5_VABI SSL_set_ex_data_nid_postfix(LibreSslSsl* ssl, int index, void* val
 }
 
 void* APS5_VABI SSL_get_ex_data_nid_postfix(const LibreSslSsl* ssl, int index) {
-    return LibreSslGetExData_nid_no_patch(&Internal(ssl, __func__).exData, index);
+    const auto* const stack = static_cast<const LibreSslStack*>(Internal(ssl, __func__).exData.stack);
+    if (!stack || index >= sk_num_nid_postfix(stack)) return nullptr;
+    return sk_value_nid_postfix(stack, index);
 }
 
 int APS5_VABI SSL_read_nid_postfix(LibreSslSsl* ssl, void* buffer, int length) {

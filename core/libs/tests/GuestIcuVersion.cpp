@@ -301,37 +301,6 @@ void RoundTrip() {
     }
 }
 
-void InvariantStrings() {
-    for (std::uint32_t unit = 1; unit <= 0xff; ++unit) {
-        const char counted[] = {static_cast<char>(unit)};
-        const char terminated[] = {static_cast<char>(unit), 0};
-        Require(uprv_isInvariantString_nid_postfix(counted, 1) == (ExpectedInvariant(unit) ? 1 : 0), "counted byte classification");
-        Require(uprv_isInvariantString_nid_postfix(terminated, -1) == (ExpectedInvariant(unit) ? 1 : 0), "terminated byte classification");
-    }
-    for (std::uint32_t unit = 0; unit <= 0xffff; ++unit) {
-        const char16_t counted[] = {static_cast<char16_t>(unit)};
-        Require(uprv_isInvariantUString_nid_postfix(counted, 1) == (ExpectedInvariant(unit) ? 1 : 0), "counted unit classification");
-        if (unit == 0) continue;
-        const char16_t terminated[] = {static_cast<char16_t>(unit), 0};
-        Require(uprv_isInvariantUString_nid_postfix(terminated, -1) == (ExpectedInvariant(unit) ? 1 : 0), "terminated unit classification");
-    }
-    Require(uprv_isInvariantString_nid_postfix("ab\0!", 4) == 0, "counted bytes continue past NUL");
-    Require(uprv_isInvariantString_nid_postfix("ab\0!", 3) == 1, "counted bytes stop at the length");
-    Require(uprv_isInvariantString_nid_postfix("ab\0!", -1) == 1, "terminated bytes stop at NUL");
-    Require(uprv_isInvariantString_nid_postfix("ab\0!", -7) == 1, "every negative length means terminated");
-    Require(uprv_isInvariantString_nid_postfix("", -1) == 1, "empty string is invariant");
-    Require(uprv_isInvariantString_nid_postfix(nullptr, 0) == 1, "zero length reads nothing");
-    Require(Rejects([] { uprv_isInvariantString_nid_postfix(nullptr, -1); }), "null terminated bytes rejected");
-    Require(Rejects([] { uprv_isInvariantString_nid_postfix(nullptr, 1); }), "null counted bytes rejected");
-    Require(uprv_isInvariantUString_nid_postfix(u"ab\0~", 4) == 0, "counted units continue past NUL");
-    Require(uprv_isInvariantUString_nid_postfix(u"ab\0~", 3) == 1, "counted units stop at the length");
-    Require(uprv_isInvariantUString_nid_postfix(u"ab\0~", -1) == 1, "terminated units stop at NUL");
-    Require(uprv_isInvariantUString_nid_postfix(u"aé", -1) == 0, "non-ASCII units are variant");
-    Require(uprv_isInvariantUString_nid_postfix(nullptr, 0) == 1, "zero units read nothing");
-    Require(Rejects([] { uprv_isInvariantUString_nid_postfix(nullptr, -1); }), "null terminated units rejected");
-    Require(Rejects([] { uprv_isInvariantUString_nid_postfix(nullptr, 2); }), "null counted units rejected");
-}
-
 char LowerAscii(char value) {
     return value >= 'A' && value <= 'Z' ? static_cast<char>(value + 32) : value;
 }
@@ -477,7 +446,6 @@ int main() {
     GetVersion();
     UnreadableBuffers();
     RoundTrip();
-    InvariantStrings();
     EbcdicCharacters();
     EbcdicCopies();
     EbcdicComparison();

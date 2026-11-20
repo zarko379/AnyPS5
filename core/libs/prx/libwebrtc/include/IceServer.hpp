@@ -33,15 +33,3 @@ static_assert(offsetof(WebRtcIceServer, tlsCertPolicy) == 144);
 static_assert(offsetof(WebRtcIceServer, hostname) == 152);
 static_assert(offsetof(WebRtcIceServer, tlsAlpnProtocols) == 192);
 static_assert(offsetof(WebRtcIceServer, tlsEllipticCurves) == 216);
-
-struct WebRtcRtpTransceiverInit {
-    std::int32_t direction;
-    WebRtcGuestStringVector streamIds;
-    void* sendEncodingsBegin;
-    void* sendEncodingsEnd;
-    void* sendEncodingsCapacity;
-};
-
-static_assert(sizeof(WebRtcRtpTransceiverInit) == 56);
-static_assert(offsetof(WebRtcRtpTransceiverInit, streamIds) == 8);
-static_assert(offsetof(WebRtcRtpTransceiverInit, sendEncodingsBegin) == 32);

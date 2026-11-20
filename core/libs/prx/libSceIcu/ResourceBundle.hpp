@@ -37,7 +37,6 @@ const char16_t* APS5_VABI ures_getString_nid_postfix(const UResourceBundle* reso
 const char* APS5_VABI ures_getUTF8String_nid_postfix(const UResourceBundle* resB, char* dest, std::int32_t* length, std::int8_t forceCopy, std::int32_t* status);
 const std::uint8_t* APS5_VABI ures_getBinary_nid_postfix(const UResourceBundle* resourceBundle, std::int32_t* len, std::int32_t* status);
 const std::int32_t* APS5_VABI ures_getIntVector_nid_postfix(const UResourceBundle* resourceBundle, std::int32_t* len, std::int32_t* status);
-std::uint32_t APS5_VABI ures_getUInt_nid_postfix(const UResourceBundle* resourceBundle, std::int32_t* status);
 std::int32_t APS5_VABI ures_getInt_nid_postfix(const UResourceBundle* resourceBundle, std::int32_t* status);
 std::int32_t APS5_VABI ures_getSize_nid_postfix(const UResourceBundle* resourceBundle);
 std::int32_t APS5_VABI ures_getType_nid_postfix(const UResourceBundle* resourceBundle);

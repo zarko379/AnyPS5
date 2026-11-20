@@ -234,11 +234,4 @@ void APS5_VABI SSL_get_peer_quic_transport_params_nid_postfix(const LibreSsl3Ssl
     *paramsLength = state->peerQuicTransportParamsLength;
 }
 
-void* APS5_VABI SSL_get0_verified_chain_nid_postfix(const LibreSsl3Ssl* ssl) {
-    if (!ssl)
-        throw std::invalid_argument("SSL_get0_verified_chain requires an SSL");
-    if (!ssl->s3) return nullptr;
-    return reinterpret_cast<const LibreSsl3Ssl3StateLayout*>(ssl->s3)->verifiedChain;
-}
-
 }

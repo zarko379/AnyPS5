@@ -3,9 +3,6 @@
 #include <cstdint>
 
 extern "C" {
-std::int32_t APS5_VABI uloc_getName_nid_postfix(const char* localeID, char* name, std::int32_t nameCapacity, std::int32_t* err);
-std::int32_t APS5_VABI uloc_countAvailable_nid_postfix();
-const char* APS5_VABI uloc_getAvailable_nid_postfix(std::int32_t n);
 std::int32_t APS5_VABI uloc_addLikelySubtags_nid_postfix(const char* localeID, char* maximizedLocaleID, std::int32_t maximizedLocaleIDCapacity, std::int32_t* err);
 std::int32_t APS5_VABI uloc_minimizeSubtags_nid_postfix(const char* localeID, char* minimizedLocaleID, std::int32_t minimizedLocaleIDCapacity, std::int32_t* err);
 std::int32_t APS5_VABI uloc_getCharacterOrientation_nid_postfix(const char* localeId, std::int32_t* status);

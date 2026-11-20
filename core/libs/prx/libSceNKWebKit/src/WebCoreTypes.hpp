@@ -134,6 +134,18 @@ struct RoundedRect {
     Radii m_radii;
 };
 
+struct FourCC {
+    std::uint32_t value{0};
+
+    constexpr FourCC() = default;
+
+    template<std::size_t N>
+    constexpr FourCC(const char (&data)[N]) {
+        static_assert(N - 1 == 4);
+        value = static_cast<std::uint32_t>(data[0]) << 24 | static_cast<std::uint32_t>(data[1]) << 16 | static_cast<std::uint32_t>(data[2]) << 8 | static_cast<std::uint32_t>(data[3]);
+    }
+};
+
 struct AffineTransform {
     std::array<double, 6> m_transform{1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
 };
@@ -215,13 +227,6 @@ struct TranslateTransformOperation {
     LengthAbi m_x;
     LengthAbi m_y;
     LengthAbi m_z;
-};
-
-struct PerspectiveTransformOperation {
-    void* m_vptr;
-    std::uint32_t m_refCount;
-    std::uint32_t m_type;
-    LengthAbi m_p;
 };
 
 struct Matrix3DTransformOperation {
@@ -452,6 +457,9 @@ static_assert(sizeof(LayoutRect) == 16);
 static_assert(sizeof(ScrollBehaviorForFixedElements) == 1);
 static_assert(sizeof(LayoutViewportConstraint) == 1);
 static_assert(sizeof(RoundedRect) == 48);
+static_assert(sizeof(FourCC) == 4);
+static_assert(alignof(FourCC) == 4);
+static_assert(std::is_trivially_copyable_v<FourCC>);
 static_assert(sizeof(AffineTransform) == 48);
 static_assert(sizeof(OptionalAffineTransform) == 56);
 static_assert(offsetof(OptionalAffineTransform, m_padding) == 1);
@@ -480,8 +488,6 @@ static_assert(offsetof(SkewTransformOperation, m_angleX) == 16);
 static_assert(sizeof(TranslateTransformOperation) == 40);
 static_assert(offsetof(TranslateTransformOperation, m_x) == 16);
 static_assert(offsetof(TranslateTransformOperation, m_z) == 32);
-static_assert(sizeof(PerspectiveTransformOperation) == 24);
-static_assert(offsetof(PerspectiveTransformOperation, m_p) == 16);
 static_assert(sizeof(Matrix3DTransformOperation) == 144);
 static_assert(offsetof(Matrix3DTransformOperation, m_matrix) == 16);
 static_assert(sizeof(IdentityTransformOperation) == 16);

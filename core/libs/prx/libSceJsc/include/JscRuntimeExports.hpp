@@ -117,7 +117,6 @@ void APS5_VABI _ZN3JSC6JSCell11analyzeHeapEPS0_RNS_12HeapAnalyzerE(void* cell, v
 void APS5_VABI _ZN3JSC7JSProxy25getStructurePropertyNamesEPNS_8JSObjectEPNS_14JSGlobalObjectERNS_17PropertyNameArrayENS_15EnumerationModeE(
     void* object, void* globalObject, void* propertyNames, std::uint64_t mode);
 bool APS5_VABI _ZNK3JSC4Yarr17RegularExpression7isValidEv(const Jsc::JscAbi::YarrRegularExpression* self);
-std::uint64_t APS5_VABI _ZN3JSC20speculationFromValueENS_7JSValueE(std::uint64_t value);
 std::uint64_t APS5_VABI _ZN3JSC8JSObject6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(void* cell, void* globalObject, std::uint8_t ecmaMode);
 std::uint64_t APS5_VABI _ZN3JSC7JSScope6toThisEPNS_6JSCellEPNS_14JSGlobalObjectENS_8ECMAModeE(void* cell, void* globalObject, std::uint8_t ecmaMode);
 std::uint64_t APS5_VABI _ZNK3JSC7JSValue14toThisSlowCaseEPNS_14JSGlobalObjectENS_8ECMAModeE(const std::uint64_t* self, void* globalObject, std::uint8_t ecmaMode);

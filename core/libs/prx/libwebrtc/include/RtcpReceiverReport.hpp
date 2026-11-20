@@ -16,20 +16,15 @@ struct WebRtcRtcpReportBlock {
 struct WebRtcRtcpReceiverReport {
     const void* vtable;
     std::uint32_t senderSsrc;
-    WebRtcRtcpReportBlock* blocksBegin;
-    WebRtcRtcpReportBlock* blocksEnd;
-    WebRtcRtcpReportBlock* blocksCapacity;
+    WebRtcRtcpReportBlock* reportBlocksBegin;
+    WebRtcRtcpReportBlock* reportBlocksEnd;
+    WebRtcRtcpReportBlock* reportBlocksCapacity;
 };
 
 static_assert(sizeof(WebRtcRtcpReportBlock) == 28);
-static_assert(offsetof(WebRtcRtcpReportBlock, fractionLost) == 4);
 static_assert(offsetof(WebRtcRtcpReportBlock, cumulativeLost) == 8);
-static_assert(offsetof(WebRtcRtcpReportBlock, extendedHighSeqNum) == 12);
-static_assert(offsetof(WebRtcRtcpReportBlock, jitter) == 16);
-static_assert(offsetof(WebRtcRtcpReportBlock, lastSr) == 20);
 static_assert(offsetof(WebRtcRtcpReportBlock, delaySinceLastSr) == 24);
 static_assert(sizeof(WebRtcRtcpReceiverReport) == 40);
 static_assert(offsetof(WebRtcRtcpReceiverReport, senderSsrc) == 8);
-static_assert(offsetof(WebRtcRtcpReceiverReport, blocksBegin) == 16);
-static_assert(offsetof(WebRtcRtcpReceiverReport, blocksEnd) == 24);
-static_assert(offsetof(WebRtcRtcpReceiverReport, blocksCapacity) == 32);
+static_assert(offsetof(WebRtcRtcpReceiverReport, reportBlocksBegin) == 16);
+static_assert(offsetof(WebRtcRtcpReceiverReport, reportBlocksCapacity) == 32);
