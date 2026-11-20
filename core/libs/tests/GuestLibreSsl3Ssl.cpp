@@ -564,20 +564,23 @@ void CheckQuic() {
 }
 
 void CheckHandshakeStateGetters() {
-    Guarded<LibreSsl3Ssl3StateLayout> state;
+    Guarded<LibreSsl3Ssl3State> state;
     std::memset(&state, 0x5A, sizeof(state));
     const std::uint8_t params[] = {0x01, 0x02, 0x03};
     state.object.peerQuicTransportParams = params;
     state.object.peerQuicTransportParamsLength = sizeof(params);
+    const auto* chain = reinterpret_cast<const LibreSsl3Stack*>(params + 1);
+    std::memcpy(reinterpret_cast<unsigned char*>(&state.object) + 520, &chain, sizeof(chain));
     const auto expectedState = Bytes(state);
     Guarded<LibreSsl3Ssl> guarded;
     std::memset(&guarded, 0x5A, sizeof(guarded));
-    guarded.object.s3 = reinterpret_cast<LibreSsl3Ssl3State*>(&state.object);
+    guarded.object.s3 = &state.object;
     const auto expectedSsl = Bytes(guarded);
     const std::uint8_t* out = nullptr;
     std::size_t outLength = 0;
     SSL_get_peer_quic_transport_params_nid_postfix(&guarded.object, &out, &outLength);
     Require(out == params && outLength == sizeof(params), "peer QUIC parameters at offsets 1000 and 1008");
+    Require(SSL_get0_verified_chain_nid_postfix(&guarded.object) == chain, "verified chain at offset 520, the LibreSSL 4.0.0 hs.verified_chain");
     Require(Same(state, expectedState) && Same(guarded, expectedSsl), "getters changed the SSL");
     guarded.object.s3 = nullptr;
     for (int call = 0; call < 3; ++call) {

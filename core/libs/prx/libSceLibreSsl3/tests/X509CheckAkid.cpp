@@ -85,7 +85,7 @@ struct Fixture {
     }
 
     void SetSkid(Asn1String* value) {
-        std::memcpy(certificate.bytes + 96, &value, sizeof(value));
+        std::memcpy(certificate.bytes + 88, &value, sizeof(value));
     }
 
     int Check(AuthorityKeyId* id) {

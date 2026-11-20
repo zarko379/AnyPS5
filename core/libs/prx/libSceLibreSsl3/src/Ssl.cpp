@@ -229,9 +229,8 @@ void APS5_VABI SSL_get_peer_quic_transport_params_nid_postfix(const LibreSsl3Ssl
         throw std::invalid_argument("SSL_get_peer_quic_transport_params requires an SSL and outputs");
     if (!ssl->s3)
         throw std::invalid_argument("SSL_get_peer_quic_transport_params requires SSL3 state");
-    const auto* state = reinterpret_cast<const LibreSsl3Ssl3StateLayout*>(ssl->s3);
-    *params = state->peerQuicTransportParams;
-    *paramsLength = state->peerQuicTransportParamsLength;
+    *params = ssl->s3->peerQuicTransportParams;
+    *paramsLength = ssl->s3->peerQuicTransportParamsLength;
 }
 
 }
